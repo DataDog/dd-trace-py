@@ -7,6 +7,7 @@ import logging
 import typing
 from typing import Any
 from typing import Optional
+from typing import TypedDict
 from typing import Union
 
 from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
@@ -54,6 +55,13 @@ class _observator:
         return f"_observator(length={self.string_length}, size={self.container_size}, depth={self.container_depth})"
 
 
+class WafEvent(TypedDict, total=False):
+    rule: dict[str, Any]
+    rule_matches: list[dict[str, Any]]
+    span_id: int
+    stack_id: str
+
+
 class DDWaf_result:
     __slots__ = [
         "return_code",
@@ -72,7 +80,7 @@ class DDWaf_result:
     def __init__(
         self,
         return_code: int,
-        data: list[dict[str, Any]],
+        data: list[WafEvent],
         actions: dict[str, Any],
         runtime: float,
         total_runtime: float,

@@ -463,7 +463,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
                 ),
@@ -472,7 +471,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot-native-writer",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                         "_DD_TRACE_WRITER_NATIVE": "1",
                     },
@@ -496,7 +494,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot-civisibility",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
                 ),
@@ -1435,7 +1432,6 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_TRACE_AGENT_URL": "http://0.0.0.0:9126",
                 "DD_FAST_BUILD": "1",
                 "PYDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
@@ -3243,10 +3239,18 @@ venv = Venv(
         Venv(
             name="azure_functions",
             command="pytest {cmdargs} tests/contrib/azure_functions",
-            pys=select_pys(min_version="3.9", max_version="3.11"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "requests": latest,
+            },
+        ),
+        Venv(
+            name="azure_durable_functions",
+            command="pytest {cmdargs} tests/contrib/azure_durable_functions",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "azure-functions-durable": ["==1.2.1", latest],
             },
         ),
         Venv(
@@ -3392,6 +3396,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
@@ -3604,6 +3609,9 @@ venv = Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
+                    env={
+                        "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
+                    },
                     pkgs={
                         "protobuf": latest,
                     },
@@ -3671,12 +3679,6 @@ venv = Venv(
                         "MarkupSafe": "~=1.1",
                         "itsdangerous": "==2.0.1",
                         "Werkzeug": "==2.0.3",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={
-                        "flask": "~=2.2",
                     },
                 ),
                 Venv(
@@ -4159,6 +4161,18 @@ venv = Venv(
                 "claude-agent-sdk": ["==0.0.23", "==0.1.29", latest],
                 "pytest-asyncio": latest,
             },
+        ),
+        Venv(
+            name="ai_guard_strands",
+            command="pytest {cmdargs} tests/appsec/ai_guard/strands_hooks/",
+            pkgs={
+                "strands-agents": ">=1.29.0",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                ),
+            ],
         ),
     ],
 )
