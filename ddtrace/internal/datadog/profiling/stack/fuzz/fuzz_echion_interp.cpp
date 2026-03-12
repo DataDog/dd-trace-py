@@ -12,12 +12,12 @@
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
-    g_data = data;
-    g_size = size;
-
     if (size < sizeof(uint64_t)) {
         return 0;
     }
+
+    g_data = data;
+    g_size = size;
 
     // Point interpreters.head into the fuzz buffer so for_each_interp
     // reads interpreter nodes from fuzzer-controlled memory.
