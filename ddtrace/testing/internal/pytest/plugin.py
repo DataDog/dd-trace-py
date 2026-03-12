@@ -73,6 +73,9 @@ except AttributeError:
 
 TEST_FRAMEWORK = "pytest"
 
+# Mapping of external rerun plugin names to the -p flag that disables them.
+_EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
+
 log = logging.getLogger(__name__)
 
 
@@ -1013,20 +1016,32 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
-    _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
-    external_rerun_plugin = next(
-        (name for name in _EXTERNAL_RERUN_PLUGINS if config.pluginmanager.hasplugin(name)), None
+    detected_rerun_plugins = [name for name in _EXTERNAL_RERUN_PLUGINS if config.pluginmanager.hasplugin(name)]
+    dd_retries_enabled = (
+        session_manager.settings.auto_test_retries.enabled or session_manager.settings.early_flake_detection.enabled
     )
-    if external_rerun_plugin:
-        log.warning(
-            "%s is installed alongside Datadog Test Optimization. "
-            "Auto Test Retries and Early Flake Detection are incompatible with %s and will be disabled. "
-            "To use ATR or EFD, run with: -p %s",
-            external_rerun_plugin,
-            external_rerun_plugin,
-            _EXTERNAL_RERUN_PLUGINS[external_rerun_plugin],
-        )
-        session_manager.has_external_rerun_plugin = True
+    plugin_class: type[TestOptPlugin]
+    if detected_rerun_plugins and dd_retries_enabled:
+        for plugin_name in detected_rerun_plugins:
+            log.warning(
+                "%s is installed alongside Datadog Test Optimization. "
+                "Datadog retries (ATR, EFD) take precedence over %s, "
+                "which will be overridden for this test session.",
+                plugin_name,
+                plugin_name,
+            )
+        plugin_class = TestOptPluginWithProtocol
+    elif detected_rerun_plugins:
+        if session_manager.settings.test_management.enabled:
+            for plugin_name in detected_rerun_plugins:
+                log.warning(
+                    "%s is installed alongside Datadog Test Optimization. "
+                    "Attempt to Fix (Test Management) retries will not work while %s drives test execution. "
+                    "To use Attempt to Fix, run with: -p %s",
+                    plugin_name,
+                    plugin_name,
+                    _EXTERNAL_RERUN_PLUGINS[plugin_name],
+                )
         plugin_class = TestOptPlugin
     else:
         plugin_class = TestOptPluginWithProtocol
