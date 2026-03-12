@@ -12,7 +12,7 @@ if [ -n "$staged_files" ]; then
 
     # cython-lint runs only on .py files; .pyi stubs use ruff's compact stub formatting
     # which conflicts with cython-lint's PEP 8 E301/E302 blank line rules
-    staged_py_only=$(echo "$staged_files" | tr ' ' '\n' | grep -v '\.pyi$' | tr '\n' ' ')
+    staged_py_only=$(echo "$staged_files" | tr ' ' '\n' | grep -v '\.pyi$' | tr '\n' ' ' | sed 's/ *$//')
     if [ -n "$staged_py_only" ]; then
         hatch -v run lint:cython-lint $staged_py_only || exit $?
     fi
