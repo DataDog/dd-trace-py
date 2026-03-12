@@ -1,17 +1,15 @@
 import io
 import json
 
-from ddtrace.appsec._asm_request_context import _CALLBACKS
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
+from ddtrace.appsec._asm_request_context import block_request
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
-from ddtrace.appsec._asm_request_context import get_value
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._asm_request_context import is_blocked
 from ddtrace.appsec._asm_request_context import set_block_request_callable
-from ddtrace.appsec._asm_request_context import set_value
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
@@ -122,6 +120,24 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
     trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
+def _make_block_response():
+    """Build a blocked response as a tuple (body, status, headers).
+
+    Returning a tuple avoids Flask's error handling (handle_exception,
+    handle_http_exception) which would create extra spans without
+    fingerprint tags.
+    """
+    from ddtrace.internal.utils import get_blocked as _get_blocked
+
+    block_config = _get_blocked()
+    ctype = block_config.content_type if block_config else "application/json"
+    block_id = block_config.block_id if block_config else "(default)"
+    status = block_config.status_code if block_config else 403
+    if block_config and block_config.type == "none":
+        return b"", status, {"location": block_config.location}
+    return http_utils._get_blocked_template(ctype, block_id), status, {"content-type": ctype}
+
+
 def _on_wrapped_view(kwargs):
     callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
@@ -131,19 +147,35 @@ def _on_wrapped_view(kwargs):
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
         call_waf_callback()
         if is_blocked():
-            callback_block = get_value(_CALLBACKS, "flask_block")
+            callback_block = _make_block_response
     return callback_block
+
+
+def _flask_block_request_callable(span):
+    import flask
+    from werkzeug.exceptions import abort
+
+    from ddtrace.internal.utils import get_blocked as _get_blocked
+    from ddtrace.internal.utils import set_blocked as _set_blocked
+
+    if not _get_blocked():
+        _set_blocked()
+    core.dispatch("flask.blocked_request_callable", (span,))
+    block_config = _get_blocked()
+    ctype = block_config.content_type if block_config else "application/json"
+    block_id = block_config.block_id if block_config else "(default)"
+    status = block_config.status_code if block_config else 403
+    if block_config and block_config.type == "none":
+        abort(flask.Response(b"", status=status, headers={"location": block_config.location}))
+    else:
+        abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=status))
 
 
 def _on_pre_tracedrequest(ctx):
     import functools
 
-    current_span = ctx.span
-    block_request_callable = ctx.get_item("block_request_callable")
     if asm_config._asm_enabled:
-        from ddtrace.appsec._asm_request_context import block_request
-
-        set_block_request_callable(functools.partial(block_request_callable, current_span))
+        set_block_request_callable(functools.partial(_flask_block_request_callable, ctx.span))
         if get_blocked():
             block_request()
 
@@ -152,7 +184,6 @@ def _on_block_decided(callback):
     if not asm_config._asm_enabled:
         return
 
-    set_value(_CALLBACKS, "flask_block", callback)
     core.on("flask.block.request.content", callback, "block_requested")
 
 
