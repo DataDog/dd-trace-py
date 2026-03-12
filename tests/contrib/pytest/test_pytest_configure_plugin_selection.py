@@ -114,6 +114,7 @@ class TestPluginClassSelection:
         assert "Test Management" in caplog.text
         assert disable_flag in caplog.text
         assert session_manager.settings.test_management.enabled is False
+        assert session_manager.test_properties == {}
 
     def test_multiple_external_plugins_warns_about_each(self, caplog):
         config, _ = _make_mock_config(plugin_names={"rerunfailures", "flaky"}, efd_enabled=True)

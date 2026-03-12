@@ -1037,6 +1037,7 @@ def pytest_configure(config: pytest.Config) -> None:
     elif detected_rerun_plugins:
         if session_manager.settings.test_management.enabled:
             session_manager.settings.test_management.enabled = False
+            session_manager.test_properties = {}
             for plugin_name in detected_rerun_plugins:
                 log.warning(
                     "%s is installed and Datadog Auto Test Retries and Early Flake Detection are disabled. "
