@@ -73,7 +73,7 @@ def get_bedrock_vcr():
     )
 
 
-def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
+def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decorator=False):
     if tags is None:
         tags = {}
     expected_tags = [
@@ -95,8 +95,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     span_llmobs_tags = get_llmobs_tags(span) or {}
     if span_llmobs_tags.get("integration"):
         expected_tags.append("integration:{}".format(span_llmobs_tags["integration"]))
-    if span_llmobs_tags.get("decorator"):
-        expected_tags.append("decorator:{}".format(span_llmobs_tags["decorator"]))
+    if is_decorator:
+        expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -125,6 +125,7 @@ def _expected_llmobs_llm_span_event(
     error_stack=None,
     span_links=False,
     tool_definitions=None,
+    is_decorator=False,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -145,6 +146,7 @@ def _expected_llmobs_llm_span_event(
     error_stack: error stack
     span_links: whether there are span links present on this span.
     tool_definitions: list of tool definitions that were available to the LLM
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -157,6 +159,7 @@ def _expected_llmobs_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -222,6 +225,7 @@ def _expected_llmobs_non_llm_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -238,6 +242,7 @@ def _expected_llmobs_non_llm_span_event(
     span_links: whether there are span links present on this span.
     prompt_tracking_instrumentation_method: prompt tracking source tag ('auto' for auto-instrumented)
     prompt_multimodal: whether prompt contains multimodal inputs (True if present)
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -250,6 +255,7 @@ def _expected_llmobs_non_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -285,8 +291,11 @@ def _llmobs_base_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
 ):
-    expected_tags = _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id)
+    expected_tags = _expected_llmobs_tags(
+        span, tags=tags, error=error, session_id=session_id, is_decorator=is_decorator
+    )
     if prompt_tracking_instrumentation_method:
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
