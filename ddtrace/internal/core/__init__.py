@@ -152,7 +152,7 @@ class ExecutionContext(Generic[EventType]):
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
 
-    def __enter__(self) -> "ExecutionContext":
+    def __enter__(self) -> "ExecutionContext[EventType]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
@@ -310,7 +310,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 def context_with_event(
     event: "EventType", parent=None, context_name_override: Optional[str] = None
-) -> ExecutionContext[EventType]:
+) -> ExecutionContext["EventType"]:
     identifier = context_name_override or event.event_name
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
