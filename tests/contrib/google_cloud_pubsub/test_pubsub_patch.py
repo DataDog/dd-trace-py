@@ -13,15 +13,21 @@ class TestGoogleCloudPubSubPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, pubsub_v1):
         from google.cloud.pubsub_v1.publisher.client import Client
+        from google.cloud.pubsub_v1.subscriber.client import Client as SubscriberClient
 
         self.assert_wrapped(Client.publish)
+        self.assert_wrapped(SubscriberClient.subscribe)
 
     def assert_not_module_patched(self, pubsub_v1):
         from google.cloud.pubsub_v1.publisher.client import Client
+        from google.cloud.pubsub_v1.subscriber.client import Client as SubscriberClient
 
         self.assert_not_wrapped(Client.publish)
+        self.assert_not_wrapped(SubscriberClient.subscribe)
 
     def assert_not_module_double_patched(self, pubsub_v1):
         from google.cloud.pubsub_v1.publisher.client import Client
+        from google.cloud.pubsub_v1.subscriber.client import Client as SubscriberClient
 
         self.assert_not_double_wrapped(Client.publish)
+        self.assert_not_double_wrapped(SubscriberClient.subscribe)

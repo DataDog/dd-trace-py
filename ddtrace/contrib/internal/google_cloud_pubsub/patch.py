@@ -12,6 +12,7 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.propagation.http import HTTPPropagator
 
 
 config._add(
@@ -19,6 +20,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("google_cloud_pubsub"),
         distributed_tracing_enabled=asbool(os.getenv("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
+        reparent_enabled=asbool(os.getenv("DD_TRACE_GCP_PUBSUB_REPARENT_ENABLED", default=True)),
     ),
 )
 
@@ -40,6 +42,15 @@ def _parse_topic_path(topic):
     return project_id, topic_id
 
 
+def _parse_subscription_path(subscription):
+    if not isinstance(subscription, str):
+        return "", ""
+    parts = subscription.split("/")
+    project_id = parts[1] if len(parts) >= 2 else ""
+    subscription_id = parts[3] if len(parts) >= 4 else subscription
+    return project_id, subscription_id
+
+
 def patch():
     import google.cloud.pubsub_v1 as pubsub_v1
 
@@ -48,6 +59,7 @@ def patch():
     pubsub_v1._datadog_patch = True
 
     _w("google.cloud.pubsub_v1.publisher.client", "Client.publish", _traced_publish)
+    _w("google.cloud.pubsub_v1.subscriber.client", "Client.subscribe", _traced_subscribe)
 
 
 def unpatch():
@@ -58,8 +70,10 @@ def unpatch():
     pubsub_v1._datadog_patch = False
 
     from google.cloud.pubsub_v1.publisher.client import Client
+    from google.cloud.pubsub_v1.subscriber.client import Client as SubscriberClient
 
     trace_utils.unwrap(Client, "publish")
+    trace_utils.unwrap(SubscriberClient, "subscribe")
 
 
 def _traced_publish(func, instance, args, kwargs):
@@ -97,3 +111,51 @@ def _traced_publish(func, instance, args, kwargs):
 
         result.add_done_callback(sent_callback)
         return result
+
+
+def _traced_subscribe(func, instance, args, kwargs):
+    subscription = args[0] if args else kwargs.get("subscription", "")
+    callback = args[1] if len(args) > 1 else kwargs.get("callback")
+    project_id, subscription_id = _parse_subscription_path(subscription)
+
+    def _traced_callback(message):
+        child_of = None
+        if (
+            config.google_cloud_pubsub.reparent_enabled
+            and config.google_cloud_pubsub.distributed_tracing_enabled
+            and message.attributes
+        ):
+            context = HTTPPropagator.extract(dict(message.attributes))
+            if context.trace_id:
+                child_of = context
+
+        with core.context_with_data(
+            "google_cloud_pubsub.receive",
+            span_name=schematize_cloud_messaging_operation(
+                "gcp.pubsub.receive",
+                cloud_provider="gcp",
+                cloud_service="pubsub",
+                direction=SpanDirection.INBOUND,
+            ),
+            span_type=SpanTypes.WORKER,
+            service=trace_utils.ext_service(None, config.google_cloud_pubsub),
+            resource=subscription_id,
+            call_trace=False,
+            activate=True,
+            child_of=child_of,
+        ) as ctx:
+            core.dispatch("google_cloud_pubsub.receive.start", (ctx, project_id, subscription_id, message))
+            try:
+                callback(message)
+            except BaseException as e:
+                core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (type(e), e, e.__traceback__)))
+                raise
+            else:
+                core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (None, None, None)))
+
+    if len(args) > 1:
+        args = (args[0], _traced_callback) + args[2:]
+    else:
+        kwargs["callback"] = _traced_callback
+
+    return func(*args, **kwargs)
