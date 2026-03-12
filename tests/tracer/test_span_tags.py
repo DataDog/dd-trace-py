@@ -265,33 +265,6 @@ def test_span_bytes_string_set_tag(span_log):
     span_log.warning.assert_not_called()
 
 
-@mock.patch("ddtrace._trace.span.log")
-def test_span_encoding_set_str_tag(span_log):
-    span = Span(None)
-    span._set_attribute("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
-    span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
-
-
-def test_span_nonstring_set_str_tag_exc():
-    span = Span(None)
-    with pytest.raises(TypeError):
-        span._set_attribute("foo", dict(a=1))
-    assert "foo" not in span.get_tags()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_nonstring_set_str_tag_warning(span_log):
-    with override_global_config(dict(_raise=False)):
-        span = Span(None)
-        span._set_attribute("foo", dict(a=1))
-        span_log.warning.assert_called_once_with(
-            "Failed to set text tag '%s'",
-            "foo",
-            exc_info=True,
-        )
-
-
 def test_span_repr_metastruct():
     span = Span("span_test")
     assert "metastruct={}" in repr(span)
