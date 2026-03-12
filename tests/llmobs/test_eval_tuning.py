@@ -519,3 +519,111 @@ class TestSplitDataset:
         ds = _FakeDataset(records)
         train, dev, test = split_dataset(ds, 0.6, 0.2, 0.2)
         assert len(train) + len(dev) + len(test) == 3
+
+
+# ===========================================================================
+# _unwrap_metric_value tests (Fix 2)
+# ===========================================================================
+
+
+class TestUnwrapMetricValue:
+    def test_double_nested(self):
+        """Double-nested envelope: {"value": {"value": 0.85, "count": 20}, "error": None}."""
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        data = {"value": {"value": 0.85, "count": 20}, "error": None}
+        assert EvalTuningProject._unwrap_metric_value(data) == 0.85
+
+    def test_single_nested(self):
+        """Single-nested: {"value": 0.5, "count": 10}."""
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        data = {"value": 0.5, "count": 10}
+        assert EvalTuningProject._unwrap_metric_value(data) == 0.5
+
+    def test_scalar(self):
+        """Plain scalar passes through."""
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        assert EvalTuningProject._unwrap_metric_value(42) == 42
+
+    def test_none(self):
+        """None passes through."""
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        assert EvalTuningProject._unwrap_metric_value(None) is None
+
+
+# ===========================================================================
+# _extract_scenario_scores / _get_metric_value split coverage tests (Fix 3)
+# ===========================================================================
+
+
+class TestExtractScenarioScores:
+    """Tests that _extract_scenario_scores finds scores from test/unlabeled splits."""
+
+    def _make_iteration_result(self, split_name, rows):
+        from ddtrace.llmobs._eval_tuning import IterationResult
+
+        iteration = IterationResult(id="iter-1", judge_config_id="jc-1", status="COMPLETED")
+        iteration.experiment_results[split_name] = {"rows": rows}
+        return iteration
+
+    def _make_project(self):
+        """Create a minimal EvalTuningProject without API calls."""
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        proj = object.__new__(EvalTuningProject)
+        return proj
+
+    def test_scores_from_test_split(self):
+        proj = self._make_project()
+        rows = [
+            {"record_id": "r1", "evaluations": {"judge": {"value": 7.0}}},
+            {"record_id": "r2", "evaluations": {"judge": {"value": 3.0}}},
+        ]
+        iteration = self._make_iteration_result("test", rows)
+        scores = proj._extract_scenario_scores(iteration)
+        assert scores == {"r1": 7.0, "r2": 3.0}
+
+    def test_scores_from_unlabeled_split(self):
+        proj = self._make_project()
+        rows = [
+            {"record_id": "r1", "evaluations": {"judge": {"value": 5.5}}},
+        ]
+        iteration = self._make_iteration_result("unlabeled", rows)
+        scores = proj._extract_scenario_scores(iteration)
+        assert scores == {"r1": 5.5}
+
+    def test_dev_preferred_over_test(self):
+        """Dev split should be preferred when both dev and test have scores."""
+        from ddtrace.llmobs._eval_tuning import IterationResult
+
+        proj = self._make_project()
+        iteration = IterationResult(id="iter-1", judge_config_id="jc-1", status="COMPLETED")
+        iteration.experiment_results["dev"] = {"rows": [{"record_id": "r1", "evaluations": {"judge": {"value": 9.0}}}]}
+        iteration.experiment_results["test"] = {"rows": [{"record_id": "r1", "evaluations": {"judge": {"value": 1.0}}}]}
+        scores = proj._extract_scenario_scores(iteration)
+        assert scores == {"r1": 9.0}
+
+
+class TestGetMetricValue:
+    """Tests that _get_metric_value finds values from test/unlabeled splits."""
+
+    def test_metric_from_test_split(self):
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        metrics = {"test": {"mae": 1.5}}
+        assert EvalTuningProject._get_metric_value(metrics, "mae") == 1.5
+
+    def test_metric_from_unlabeled_split(self):
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        metrics = {"unlabeled": {"mae": 2.0}}
+        assert EvalTuningProject._get_metric_value(metrics, "mae") == 2.0
+
+    def test_dev_preferred(self):
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        metrics = {"dev": {"mae": 1.0}, "test": {"mae": 9.0}}
+        assert EvalTuningProject._get_metric_value(metrics, "mae") == 1.0

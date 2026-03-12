@@ -544,15 +544,8 @@ class EvalTuningProject:
             self._create_project()
 
     def _create_project(self) -> None:
-        """Create the eval tuning project via the API."""
-        if not self._llmobs_instance:
-            return
-        resp = self._llmobs_instance._dne_client.eval_tuning_project_create(
-            name=self.name,
-            dataset_id=self._dataset._id,
-            description=self._description,
-        )
-        self._id = resp["id"]
+        """Create the eval tuning project (local only, no API)."""
+        pass
 
     # ------------------------------------------------------------------
     # Judge config management
@@ -607,15 +600,6 @@ class EvalTuningProject:
             client_options=client_options,
         )
 
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_judge_config_create(
-                project_id=self._id,
-                config_data=config.to_dict(),
-            )
-            config.id = resp["id"]
-            config.prompt.id = resp.get("prompt_id", "")
-
         self._judge_config = config
         log.info("Initialized judge config: model=%s, provider=%s", model, provider)
         return config
@@ -666,15 +650,6 @@ class EvalTuningProject:
             client_options=current.client_options,
         )
 
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_judge_config_create(
-                project_id=self._id,
-                config_data=new_config.to_dict(),
-            )
-            new_config.id = resp["id"]
-            new_config.prompt.id = resp.get("prompt_id", "")
-
         self._judge_config = new_config
         log.info("Updated judge config: version=%d", new_config.prompt.version)
         return new_config
@@ -705,14 +680,6 @@ class EvalTuningProject:
             expected_output=record.get("expected_output"),
         )
 
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_training_example_create(
-                project_id=self._id,
-                record_id=record["record_id"],
-            )
-            example.id = resp["id"]
-
         self._judge_config.training_examples.append(example)
         log.info("Added training example: record_id=%s", record["record_id"])
         return example
@@ -733,13 +700,6 @@ class EvalTuningProject:
 
         if len(self._judge_config.training_examples) == original_len:
             raise ValueError(f"Training example {example_id} not found.")
-
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            self._llmobs_instance._dne_client.eval_tuning_training_example_delete(
-                project_id=self._id,
-                example_id=example_id,
-            )
 
         log.info("Removed training example: %s", example_id)
 
@@ -772,14 +732,6 @@ class EvalTuningProject:
         """
         self._class_config = class_config
 
-        # Persist via API and capture returned ID
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_class_config_create(
-                project_id=self._id,
-                config_data=class_config.to_dict(),
-            )
-            self._class_config_api_id = resp.get("id")
-
         log.info("Set class config: output_type=%s", class_config.output_type)
         return class_config
 
@@ -790,14 +742,6 @@ class EvalTuningProject:
         :return: The set AlignmentConfig.
         """
         self._alignment_config = alignment_config
-
-        # Persist via API and capture returned ID
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_alignment_config_create(
-                project_id=self._id,
-                config_data=alignment_config.to_dict(),
-            )
-            self._alignment_config_api_id = resp.get("id")
 
         log.info("Set alignment config: output_type=%s", alignment_config.output_type)
         return alignment_config
@@ -845,22 +789,6 @@ class EvalTuningProject:
             dev_record_ids=[r["record_id"] for r in dev_records],
             test_record_ids=[r["record_id"] for r in test_records],
         )
-
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_split_create(
-                project_id=self._id,
-                split_data={
-                    "train_ratio": train_ratio,
-                    "dev_ratio": dev_ratio,
-                    "test_ratio": test_ratio,
-                    "group_column": group_column,
-                    "train_record_ids": metadata.train_record_ids,
-                    "dev_record_ids": metadata.dev_record_ids,
-                    "test_record_ids": metadata.test_record_ids,
-                },
-            )
-            metadata.id = resp["id"]
 
         self._split_metadata = metadata
         log.info(
@@ -955,14 +883,6 @@ class EvalTuningProject:
             status="RUNNING",
         )
 
-        # Persist iteration via API
-        if self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_iteration_create(
-                project_id=self._id,
-                judge_config_id=self._judge_config.id,
-            )
-            iteration_result.id = resp["id"]
-
         try:
             for split_name in splits:
                 ds = self._get_split_dataset(split_name)
@@ -992,13 +912,7 @@ class EvalTuningProject:
             iteration_result.status = "FAILED"
             raise
         finally:
-            # Update iteration status via API
-            if self._id and iteration_result.id:
-                self._llmobs_instance._dne_client.eval_tuning_iteration_update(
-                    project_id=self._id,
-                    iteration_id=iteration_result.id,
-                    status=iteration_result.status,
-                )
+            pass
 
         self._iterations.append(iteration_result)
         log.info("Iteration completed: %s (splits: %s)", iteration_result.id, splits)
@@ -1031,14 +945,6 @@ class EvalTuningProject:
             status="RUNNING",
         )
 
-        # Persist iteration via API
-        if self._id:
-            resp = self._llmobs_instance._dne_client.eval_tuning_iteration_create(
-                project_id=self._id,
-                judge_config_id=self._judge_config.id,
-            )
-            iteration_result.id = resp["id"]
-
         try:
             iter_num = len(self._iterations)
             exp_name = f"{self.name}_iter{iter_num}_unlabeled"
@@ -1067,12 +973,7 @@ class EvalTuningProject:
             iteration_result.status = "FAILED"
             raise
         finally:
-            if self._id and iteration_result.id:
-                self._llmobs_instance._dne_client.eval_tuning_iteration_update(
-                    project_id=self._id,
-                    iteration_id=iteration_result.id,
-                    status=iteration_result.status,
-                )
+            pass
 
         self._iterations.append(iteration_result)
         log.info("Unlabeled iteration completed: %s", iteration_result.id)
@@ -1141,10 +1042,7 @@ class EvalTuningProject:
             )
 
         if history_records:
-            self._llmobs_instance._dne_client.eval_tuning_history_create(
-                project_id=self._id,
-                records=history_records,
-            )
+            log.debug("Collected %d history records for iteration %s", len(history_records), iteration_id)
 
     # ------------------------------------------------------------------
     # Metrics
@@ -1203,16 +1101,6 @@ class EvalTuningProject:
             for split_name, results in iteration.experiment_results.items():
                 consistency = compute_consistency(results, judge_name="judge")
                 all_metrics.setdefault(split_name, {})["consistency"] = consistency.get("value")
-
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            self._llmobs_instance._dne_client.eval_tuning_metrics_create(
-                project_id=self._id,
-                iteration_id=iteration_id,
-                values=all_metrics,
-                class_config_id=self._class_config_id,
-                alignment_config_id=self._alignment_config_id,
-            )
 
         iteration.metrics = all_metrics
         log.info("Metrics calculated for iteration %s: %s", iteration_id, all_metrics)
@@ -1298,8 +1186,8 @@ class EvalTuningProject:
         :return: Dict mapping scenario (record) ID to judge score.
         """
         scores: dict[str, float] = {}
-        # Prefer dev results for comparison; fall back to train
-        for split in ["dev", "train"]:
+        # Prefer dev results for comparison; fall back to train, test, unlabeled
+        for split in ["dev", "train", "test", "unlabeled"]:
             results = iteration.experiment_results.get(split)
             if results is None:
                 continue
@@ -1322,7 +1210,7 @@ class EvalTuningProject:
         :return: The float metric value, or None if not found or not numeric.
         """
         # Prefer dev metrics for comparison
-        for split in ["dev", "train"]:
+        for split in ["dev", "train", "test", "unlabeled"]:
             split_metrics = metrics.get(split, {})
             if not isinstance(split_metrics, dict) or key not in split_metrics:
                 continue
@@ -1385,7 +1273,7 @@ class EvalTuningProject:
         def default_compute_score(summary_evals: dict[str, dict[str, Any]]) -> float:
             # Use negative MAE as score (higher is better)
             mae_data = summary_evals.get("mae", {})
-            mae_val = mae_data.get("value") if isinstance(mae_data, dict) else mae_data
+            mae_val = EvalTuningProject._unwrap_metric_value(mae_data)
             if mae_val is not None and isinstance(mae_val, (int, float)):
                 return -float(mae_val)
             return 0.0
@@ -1473,11 +1361,5 @@ class EvalTuningProject:
             else None,
             "iterations": iterations_export,
         }
-
-        # Persist via API
-        if self._llmobs_instance and self._id:
-            self._llmobs_instance._dne_client.eval_tuning_project_export(
-                project_id=self._id,
-            )
 
         return export_data
