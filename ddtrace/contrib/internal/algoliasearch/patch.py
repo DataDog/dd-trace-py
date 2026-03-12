@@ -133,7 +133,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 
@@ -168,9 +168,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
         if isinstance(result, dict):
             if result.get("processingTimeMS", None) is not None:
-                span.set_metric("processing_time_ms", int(result["processingTimeMS"]))
+                span._set_attribute("processing_time_ms", int(result["processingTimeMS"]))
 
             if result.get("nbHits", None) is not None:
-                span.set_metric("number_of_hits", int(result["nbHits"]))
+                span._set_attribute("number_of_hits", int(result["nbHits"]))
 
         return result

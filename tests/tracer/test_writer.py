@@ -1608,8 +1608,8 @@ def test_agentless_writer_serialize_span_fields():
         with tracer.trace("root1", resource="resource1", service="service1") as span:
             span.set_tag("tag1", "value1")
             span.set_tag("tag2", "value2")
-            span.set_metric("metric1", 1.0)
-            span.set_metric("metric2", 2.0)
+            span._set_attribute("metric1", 1.0)
+            span._set_attribute("metric2", 2.0)
             span.set_link(trace_id=3, span_id=4)
             span.error = 1
             span._set_struct_tag("payload", {"key": "value"})

@@ -266,7 +266,7 @@ class _ListHook(_EndpointHook):
         if not resp:
             return
         if hasattr(resp, "data"):
-            span.set_metric("openai.response.count", len(resp.data or []))
+            span._set_attribute("openai.response.count", len(resp.data or []))
         return resp
 
 
@@ -509,9 +509,9 @@ class _FileDownloadHook(_BaseFileHook):
         if not resp:
             return
         if isinstance(resp, bytes) or isinstance(resp, str):
-            span.set_metric("openai.response.total_bytes", len(resp))
+            span._set_attribute("openai.response.total_bytes", len(resp))
         else:
-            span.set_metric("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
+            span._set_attribute("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
 
 

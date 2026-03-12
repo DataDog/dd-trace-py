@@ -394,19 +394,19 @@ def traced_convert(func, instance, args, kwargs):
     if headers.get("x-ratelimit-limit-requests"):
         v = headers.get("x-ratelimit-limit-requests")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
+            span._set_attribute("openai.organization.ratelimit.requests.limit", int(v))
     if headers.get("x-ratelimit-limit-tokens"):
         v = headers.get("x-ratelimit-limit-tokens")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
+            span._set_attribute("openai.organization.ratelimit.tokens.limit", int(v))
     # Gauge and set span info for remaining requests and tokens
     if headers.get("x-ratelimit-remaining-requests"):
         v = headers.get("x-ratelimit-remaining-requests")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.requests.remaining", int(v))
+            span._set_attribute("openai.organization.ratelimit.requests.remaining", int(v))
     if headers.get("x-ratelimit-remaining-tokens"):
         v = headers.get("x-ratelimit-remaining-tokens")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.tokens.remaining", int(v))
+            span._set_attribute("openai.organization.ratelimit.tokens.remaining", int(v))
 
     return func(*args, **kwargs)

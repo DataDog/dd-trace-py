@@ -208,22 +208,22 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         if span.span_type == SpanTypes.SERVERLESS:
-            span.set_metric(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
+            span._set_attribute(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
             skip_event = core.find_item("appsec_skip_next_lambda_event")
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
                 log.debug(
                     "appsec: ignoring unsupported lambda event",
                 )
-                span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
+                span._set_attribute(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
 
         if is_inferred_span(span):
-            span.set_metric(APPSEC.ENABLED, 1.0)
+            span._set_attribute(APPSEC.ENABLED, 1.0)
             return
 
         entry_span = span._service_entry_span
-        entry_span.set_metric(APPSEC.ENABLED, 1.0)
+        entry_span._set_attribute(APPSEC.ENABLED, 1.0)
         entry_span._set_tag_str(_RUNTIME_FAMILY, "python")
 
         ctx = self._ddwaf._at_request_start()
@@ -355,7 +355,7 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, value in waf_results.meta_tags.items():
             entry_span._set_tag_str(key, value)
         for key, value in waf_results.metrics.items():
-            entry_span.set_metric(key, value)
+            entry_span._set_attribute(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

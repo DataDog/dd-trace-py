@@ -745,7 +745,7 @@ class TestXdistHooksUnit:
                 if session_span:
                     session_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
                     session_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
 
         # Verify the session span was tagged with ITR results
         mock_session_span._set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")

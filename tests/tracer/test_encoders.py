@@ -233,7 +233,7 @@ class TestEncoders(TestCase):
         )
         span.set_tag("tag1", "value1")
         span.set_tag("manual.keep")
-        span.set_metric("munir.metric", 1.0)
+        span._set_attribute("munir.metric", 1.0)
         span.set_link(trace_id=3, span_id=4)
         span.error = 1
         span.start_ns = 1771941568700091000

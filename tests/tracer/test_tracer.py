@@ -362,7 +362,7 @@ class TracerTestCases(TracerTestCase):
                     next(signals)
                 except StopIteration as e:
                     assert e.value == 10
-                    span.set_metric("num_signals", e.value)
+                    span._set_attribute("num_signals", e.value)
                     break
 
         self.assert_span_count(2)

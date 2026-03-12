@@ -91,7 +91,7 @@ class TracedCursor(wrapt.ObjectProxy):
         ) as s:
             if measured:
                 # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
@@ -170,7 +170,7 @@ class TracedCursor(wrapt.ObjectProxy):
         row_count = getattr(self.__wrapped__, "rowcount", None)
         if row_count is None:
             return
-        span.set_metric(db.ROWCOUNT, row_count)
+        span._set_attribute(db.ROWCOUNT, row_count)
         # Necessary for django integration backward compatibility. Django integration used to provide its own
         # implementation of the TracedCursor, which used to store the row count into a tag instead of
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and

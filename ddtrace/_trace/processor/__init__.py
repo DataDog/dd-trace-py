@@ -151,7 +151,7 @@ class TraceSamplingProcessor(TraceProcessor):
             if self.apm_opt_out:
                 for span in trace:
                     if span._local_root_value is None:
-                        span.set_metric(MK_APM_ENABLED, 0)
+                        span._set_attribute(MK_APM_ENABLED, 0)
 
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
@@ -382,7 +382,7 @@ class SpanAggregator(SpanProcessor):
                 should_partial_flush = True
                 finished = trace.remove_finished()
                 if finished:
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                    finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
                 else:
                     # num_finished was out of sync with the actual finished spans, skip partial flush
                     return

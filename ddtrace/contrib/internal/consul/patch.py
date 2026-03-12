@@ -77,7 +77,7 @@ def wrap_function(name):
             span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
             span._set_tag_str(consulx.KEY, path)
             span._set_tag_str(consulx.CMD, resource)
             return wrapped(*args, **kwargs)

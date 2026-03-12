@@ -380,7 +380,7 @@ class SpanExceptionHandler:
             # Update the snapshot count
             root = span._local_root
             if root is not None:
-                root.set_metric(SNAPSHOT_COUNT_TAG, frames_captured)
+                root._set_attribute(SNAPSHOT_COUNT_TAG, frames_captured)
 
     @classmethod
     def enable(cls) -> None:

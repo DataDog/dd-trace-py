@@ -125,10 +125,12 @@ class TracedClient(ObjectProxy):
             if args:
                 span._set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
             if method_name == "get":
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
                 # returns a tuple object that may be (None, None)
-                span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
+                span._set_attribute(
+                    db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0
+                )
             return result
 
     def _trace_multi_cmd(self, method_name, *args, **kwargs):
@@ -145,7 +147,7 @@ class TracedClient(ObjectProxy):
 
             if method_name == "get_multi":
                 # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
-                span.set_metric(
+                span._set_attribute(
                     db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
                 )
             return result
@@ -174,7 +176,7 @@ class TracedClient(ObjectProxy):
         span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         try:
             self._tag_span(span)

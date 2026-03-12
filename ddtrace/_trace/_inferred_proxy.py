@@ -151,7 +151,7 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
         if resource_arn:
             span._set_tag_str("dd_resource_key", resource_arn)
 
-    span.set_metric("_dd.inferred_span", 1)
+    span._set_attribute("_dd.inferred_span", 1)
     return span
 
 

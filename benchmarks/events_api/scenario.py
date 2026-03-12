@@ -53,7 +53,7 @@ class EventsAPIScenario(bm.Scenario):
                 span = ctx.span
                 span._set_tag_str("http.url", ctx.get_item("url"))
                 span._set_tag_str("http.method", ctx.get_item("method"))
-                span.set_metric("http.status_code", ctx.get_item("status_code"))
+                span._set_attribute("http.status_code", ctx.get_item("status_code"))
 
             def _context_ended_handler(ctx: core.ExecutionContext, exc_info) -> None:
                 _finish_span(ctx, exc_info)
@@ -86,7 +86,7 @@ class EventsAPIScenario(bm.Scenario):
                     event: BenchmarkTracingEvent = ctx.event
                     span._set_tag_str("http.url", event.url)
                     span._set_tag_str("http.method", event.method)
-                    span.set_metric("http.status_code", event.status_code)
+                    span._set_attribute("http.status_code", event.status_code)
 
             for _ in range(loops):
                 with core.context_with_event(
@@ -134,7 +134,7 @@ class EventsAPIScenario(bm.Scenario):
                 span._set_tag_str(SPAN_KIND, "client")
                 span._set_tag_str("http.url", "myurl.com")
                 span._set_tag_str("http.method", "GET")
-                span.set_metric("http.status_code", 200)
+                span._set_attribute("http.status_code", 200)
                 span.finish()
 
         if self.api == "core":
