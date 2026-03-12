@@ -1622,8 +1622,8 @@ def test_agentless_writer_serialize_span_fields():
 
     assert "traces" in payload_json
     assert len(payload_json["traces"]) == 1
-    assert len(payload_json["traces"][0]) == 1
-    span_json = payload_json["traces"][0][0]
+    assert len(payload_json["traces"][0]["spans"]) == 1
+    span_json = payload_json["traces"][0]["spans"][0]
 
     assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
     assert span_json["parent_id"] == "0000000000000000"
