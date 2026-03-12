@@ -108,6 +108,8 @@ def consumer(kafka_tracer, kafka_topic):
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
+            # AIDEV-NOTE: Low interval so auto-commit tests don't race against the default 5s interval
+            "auto.commit.interval.ms": 500,
         }
     )
 
