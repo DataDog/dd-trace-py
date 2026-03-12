@@ -36,7 +36,7 @@ cdef int _CALLER_FRAME_INDEX = 0
 
 
 cdef tuple _current_thread():
-    thread_id: int = _thread.get_ident()
+    cdef int thread_id = _thread.get_ident()
     return thread_id, get_thread_name(thread_id)
 
 
@@ -285,6 +285,8 @@ class _ProfiledLock:
 
     def _find_name(self, var_dict: dict[str, Any]) -> Optional[str]:
         cdef str name
+        cdef str attribute
+        cdef object value
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -383,11 +385,11 @@ class _LockAllocatorWrapper:
             return getattr(original_class, name)
         raise AttributeError("'%s' object has no attribute '%s'" % (type(self).__name__, name))
 
-    def __or__(self, other: Optional[type[Any]]):
+    def __or__(self, other: Optional[type[Any]]) -> Any:
         """Support PEP 604 type union syntax (e.g., asyncio.Condition | None)."""
         return (self._original_class | other) if isinstance(self._original_class, type) else NotImplemented
 
-    def __ror__(self, other: Optional[type[Any]]):
+    def __ror__(self, other: Optional[type[Any]]) -> Any:
         """Support PEP 604 type union syntax (e.g., None | asyncio.Condition)."""
         return (other | self._original_class) if isinstance(self._original_class, type) else NotImplemented
 
