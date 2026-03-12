@@ -442,13 +442,6 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    @catch_and_log_exceptions()
-    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
-        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-        self._do_test_runs(item, nextitem)
-        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-        return True  # Do not run other pytest_runtest_protocol hooks after this one.
-
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
@@ -760,6 +753,22 @@ class TestOptPlugin:
         print_test_report_links(terminalreporter, self.manager)
 
 
+class TestOptPluginWithProtocol(TestOptPlugin):
+    """
+    TestOptPlugin subclass that registers pytest_runtest_protocol, taking ownership of test execution and retries.
+    Used when no external rerun plugin (e.g. pytest-rerunfailures, flaky) is present. When such a plugin IS present,
+    the base class is registered instead, so the external plugin drives retries while the wrapper hook still handles
+    span bookkeeping.
+    """
+
+    @catch_and_log_exceptions()
+    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+        self._do_test_runs(item, nextitem)
+        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+        return True  # Do not run other pytest_runtest_protocol hooks after this one.
+
+
 class RetryReports:
     """
     Collect and manage reports for the retries of a single test.
@@ -1004,8 +1013,26 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
+    _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
+    external_rerun_plugin = next(
+        (name for name in _EXTERNAL_RERUN_PLUGINS if config.pluginmanager.hasplugin(name)), None
+    )
+    if external_rerun_plugin:
+        log.warning(
+            "%s is installed alongside Datadog Test Optimization. "
+            "Auto Test Retries and Early Flake Detection are incompatible with %s and will be disabled. "
+            "To use ATR or EFD, run with: -p %s",
+            external_rerun_plugin,
+            external_rerun_plugin,
+            _EXTERNAL_RERUN_PLUGINS[external_rerun_plugin],
+        )
+        session_manager.has_external_rerun_plugin = True
+        plugin_class = TestOptPlugin
+    else:
+        plugin_class = TestOptPluginWithProtocol
+
     try:
-        plugin = TestOptPlugin(session_manager=session_manager)
+        plugin = plugin_class(session_manager=session_manager)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return

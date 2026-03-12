@@ -101,6 +101,7 @@ class SessionManager:
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
+        self.has_external_rerun_plugin: bool = False
 
         self.writer = TestOptWriter(connector_setup=self.connector_setup)
         self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
@@ -141,6 +142,9 @@ class SessionManager:
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
             self.retry_handlers.append(AttemptToFixHandler(self))
+
+        if self.has_external_rerun_plugin:
+            return
 
         if self.settings.early_flake_detection.enabled:
             if self.known_tests:
