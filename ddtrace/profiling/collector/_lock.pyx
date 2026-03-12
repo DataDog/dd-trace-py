@@ -110,9 +110,9 @@ class _ProfiledLock:
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
-        self._cached_thread_id: int = -1
+        self._cached_thread_id: Optional[int] = None
         self._cached_thread_name: Optional[str] = None
-        self._cached_thread_native_id: int = 0
+        self._cached_thread_native_id: Optional[int] = None
 
     # DUNDER methods
 
@@ -244,7 +244,7 @@ class _ProfiledLock:
 
         cdef long long duration_ns = end - start
         thread_id: int = _thread.get_ident()
-        thread_native_id: int
+        thread_native_id: int = _thread.get_native_id()
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
@@ -259,9 +259,8 @@ class _ProfiledLock:
                 handle.push_release(duration_ns, 1)
 
             thread_name: Optional[str]
-            if thread_id == self._cached_thread_id:
+            if thread_id == self._cached_thread_id and thread_native_id == self._cached_thread_native_id:
                 thread_name = self._cached_thread_name
-                thread_native_id = self._cached_thread_native_id
             else:
                 thread_name, thread_native_id = get_thread_info(thread_id)
                 self._cached_thread_id = thread_id
