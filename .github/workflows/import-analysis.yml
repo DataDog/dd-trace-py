@@ -1,7 +1,7 @@
 name: Import analysis
 
 on:
-  pull_request:
+  workflow_dispatch: {}
 
 jobs:
   import_analysis:
