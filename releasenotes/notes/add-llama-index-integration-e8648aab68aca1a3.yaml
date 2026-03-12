@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    llama_index: Introduces APM tracing and LLM Observability support for LlamaIndex.
+    Traces LLM calls, query engines, retrievers, embeddings, agents, and predict operations.

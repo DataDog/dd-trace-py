@@ -531,7 +531,7 @@ integrations:
 
 - integration_name: llama_index
   is_external_package: true
-  is_tested: false
+  is_tested: true
   dependency_names:
   - llama-index
   - llama-index-core
