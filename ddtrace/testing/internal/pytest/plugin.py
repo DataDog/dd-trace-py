@@ -205,7 +205,10 @@ class TestPhase:
     __test__ = False
 
 
-_ReportGroup = dict[str, pytest.TestReport]
+if t.TYPE_CHECKING:
+    _ReportGroup = dict[str, pytest.TestReport]
+else:
+    _ReportGroup = dict
 
 
 class TestOptPlugin:
