@@ -714,6 +714,7 @@ else:
         return evaluator
 
 if PydanticEvaluator is not None:
+    from collections.abc import Mapping
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
@@ -766,6 +767,32 @@ if PydanticEvaluator is not None:
                 eval_result.reasoning = _eval_result.reason
                 if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
+            elif isinstance(_eval_result, Mapping) and len(_eval_result) == 1:
+                first_item = next(iter(_eval_result.values()))
+                eval_result.value = first_item.value
+                eval_result.reasoning = first_item.reason
+                if isinstance(first_item.value, bool):
+                    eval_result.assessment = "pass" if first_item.value else "fail"
+            elif isinstance(_eval_result, Mapping) and len(_eval_result) == 2:
+                # this is to identify the pass/fail assessment for LLMJudge evaluators
+                first_item = next(iter(_eval_result.values()))
+                second_item = next(iter(_eval_result.values()))
+                first_item_value = first_item.value
+                second_item_value = second_item.value
+                if isinstance(first_item_value, bool):
+                    assessment = "pass" if first_item_value else "fail"
+                    value = second_item_value
+                elif isinstance(second_item_value, bool):
+                    assessment = "pass" if second_item_value else "fail"
+                    value = first_item_value
+                else:
+                    assessment = None
+                    value = None
+                if first_item.reason == second_item.reason :
+                    eval_result.value = value
+                    eval_result.reasoning = second_item.reason
+                else:
+                    eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             else:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             
@@ -809,9 +836,38 @@ if PydanticEvaluator is not None:
                 eval_result.reasoning = _eval_result.reason
                 if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
+            elif isinstance(_eval_result, Mapping) and len(_eval_result) == 1:
+                first_item = next(iter(_eval_result.values()))
+                eval_result.value = first_item.value
+                eval_result.reasoning = first_item.reason
+                if isinstance(first_item.value, bool):
+                    eval_result.assessment = "pass" if first_item.value else "fail"
+                eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+            elif isinstance(_eval_result, Mapping) and len(_eval_result) == 2:
+                # this is to identify the pass/fail assessment for LLMJudge evaluators
+                first_item = next(iter(_eval_result.values()))
+                second_item = next(iter(_eval_result.values()))
+                first_item_value = first_item.value
+                second_item_value = second_item.value
+                if isinstance(first_item_value, bool):
+                    assessment = "pass" if first_item_value else "fail"
+                    value = second_item_value
+                elif isinstance(second_item_value, bool):
+                    assessment = "pass" if second_item_value else "fail"
+                    value = first_item_value
+                else:
+                    assessment = None
+                    value = None
+                if first_item.reason == second_item.reason :
+                    eval_result.value = value
+                    eval_result.assessment = assessment
+                    eval_result.reasoning = second_item.reason
+                else:
+                    eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+                eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
             else:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
-            
+                eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
             return eval_result
         
         wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
