@@ -8,10 +8,10 @@ METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_session_id"
+PROPAGATED_SESSION_ID_KEY = "_ml_obs.llmobs_session_id"
 # All ragas traces have this context item set so we can differentiate
 # spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_TRACE = "_dd.p.llmobs_is_evaluation_trace"
+IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"

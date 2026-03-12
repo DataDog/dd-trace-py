@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import IS_EVALUATION_TRACE
@@ -217,6 +218,11 @@ def _get_span_name(span: Span) -> str:
     return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
 
 
+def mark_as_evaluation_span(span: Span) -> None:
+    """Mark this span's trace as an evaluation trace via context._meta."""
+    span.context._meta[IS_EVALUATION_TRACE] = "1"
+
+
 def _is_evaluation_span(span: Span) -> bool:
     """Return whether this span belongs to an evaluation trace (e.g. a ragas evaluator run)."""
     return bool(span.context._meta.get(IS_EVALUATION_TRACE))
@@ -298,21 +304,11 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
 
 
 def _get_parent_prompt(span: Span) -> Optional[Prompt]:
-    # Check parent for prompt inheritance
+    """Check the nearest LLMObs ancestor's _store for a prompt to inherit."""
     parent_span = _get_nearest_llmobs_ancestor(span)
     if parent_span is None:
         return None
-    parent_llmobs_data = _get_llmobs_data_metastruct(parent_span)
-    if not parent_llmobs_data:
-        return None
-    parent_llmobs_input = parent_llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
-    parent_prompt = parent_llmobs_input.get(LLMOBS_STRUCT.PROMPT) if parent_llmobs_input else None
-    return parent_prompt
-
-
-def mark_as_evaluation_span(span: Span) -> None:
-    """Mark this span's trace as an evaluation trace via context._meta."""
-    span.context._meta[IS_EVALUATION_TRACE] = "1"
+    return parent_span._get_ctx_item(INPUT_PROMPT)
 
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
