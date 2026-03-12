@@ -51,6 +51,12 @@ class NativeCallRegistry
                             int first_lineno,
                             std::string name,
                             std::string module);
+
+    // Checks if there is a known native call metadata object for a bytecode location and
+    // returns it when found.
+    // Note: this returns a copied NativeCallEntry (and the std::string's it contains) because
+    // the NativeCallEntry's are stored in an std::unordered_map which may be rehashed at any point,
+    // potentially making existing references to NativeCallEntry's invalid.
     std::optional<NativeCallEntry> lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
     void reset();
 
