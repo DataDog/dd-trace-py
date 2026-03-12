@@ -56,7 +56,7 @@ class StackCollector(collector.Collector):
         stack.start()
 
         # Start native C function call tracking (Python 3.12+ only)
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 12) and config.stack.native_frames:
             try:
                 from ddtrace.internal.datadog.profiling import native_call_monitor
 

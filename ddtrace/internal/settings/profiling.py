@@ -301,6 +301,14 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable uvloop support for async profiling",
     )
 
+    native_frames = DDConfig.v(
+        bool,
+        "native_frames",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
