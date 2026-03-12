@@ -10,6 +10,7 @@ from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -92,18 +93,16 @@ class APIManager(Service):
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
         self.simplified_endpoint_computer = SimplifiedEndpointComputer()
 
-        import ddtrace.appsec._asm_request_context as _asm_request_context
         import ddtrace.appsec._metrics as _metrics
 
-        self._asm_context = _asm_request_context
         self._metrics = _metrics
 
     def _stop_service(self) -> None:
-        self._asm_context.remove_context_callback(self._schema_callback, global_callback=True)
+        _asm_request_context.API_SEC_CALLBACK = None
         self._hashtable.clear()
 
     def _start_service(self) -> None:
-        self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
+        _asm_request_context.API_SEC_CALLBACK = self._schema_callback
 
     def _should_collect_schema(self, env: ASM_Environment, priority: NumericType) -> Optional[bool]:
         """

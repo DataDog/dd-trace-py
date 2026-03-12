@@ -70,6 +70,7 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
+DD_SITE_STAGING = "datad0g.com"
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 

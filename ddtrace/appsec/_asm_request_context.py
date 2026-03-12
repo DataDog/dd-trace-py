@@ -30,6 +30,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 if TYPE_CHECKING:
     from ddtrace.appsec._utils import DDWaf_info
     from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import WafEvent
 
 logger = ddlogger.get_logger(__name__)
 
@@ -67,10 +68,7 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 _ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
-_CONTEXT_CALL: Literal["context"] = "context"
-
-
-GLOBAL_CALLBACKS: dict[str, list[Callable]] = {_CONTEXT_CALL: []}
+API_SEC_CALLBACK: Optional[Callable[["ASM_Environment"], None]] = None
 
 
 def report_error_on_entry_span(error: str, message: str) -> None:
@@ -115,7 +113,7 @@ class ASM_Environment:
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
-        self.waf_triggers: list[dict[str, Any]] = []
+        self.waf_triggers: "list[WafEvent]" = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
@@ -304,8 +302,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     if env.finalized:
         return
     env.finalized = True
-    for function in GLOBAL_CALLBACKS[_CONTEXT_CALL]:
-        function(env)
+    if API_SEC_CALLBACK is not None:
+        API_SEC_CALLBACK(env)
     flush_waf_triggers(env)
     _set_waf_request_metrics(env.telemetry)
     entry_span = env.entry_span
@@ -399,19 +397,6 @@ def get_value(category: str, address: str, default: Any = None) -> Any:
 
 def get_waf_address(address: str, default: Any = None) -> Any:
     return get_value(_WAF_ADDRESSES, address, default=default)
-
-
-def add_context_callback(function: Callable[[ASM_Environment], Any], global_callback: bool = False) -> None:
-    if global_callback:
-        callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
-        callbacks.append(function)
-
-
-def remove_context_callback(function: Callable[[ASM_Environment], Any], global_callback: bool = False) -> None:
-    if global_callback:
-        callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
-        if callbacks:
-            callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
@@ -579,7 +564,7 @@ def get_waf_telemetry_results() -> Optional[Telemetry_result]:
     return None
 
 
-def store_waf_results_data(data: list[dict[str, Any]]) -> None:
+def store_waf_results_data(data: "list[WafEvent]") -> None:
     if not data:
         return
     env = _get_asm_context()
