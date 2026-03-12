@@ -1,0 +1,21 @@
+interactions:
+- request:
+    body: '{"model": "gpt-4o-mini", "prompt": "What is the meaning of life?", "max_tokens":
+      15, "stream": true}'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "data: {\"id\":\"chatcmpl-test4\",\"object\":\"chat.completion.chunk\",\"created\":1700000000,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"42\"},\"finish_reason\":null}],\"usage\":null}\n\ndata:
+        {\"id\":\"chatcmpl-test4\",\"object\":\"chat.completion.chunk\",\"created\":1700000000,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":3,\"total_tokens\":11}}\n\ndata:
+        [DONE]\n\n"
+    headers:
+      Content-Type:
+      - text/event-stream
+    status:
+      code: 200
+      message: OK
+version: 1

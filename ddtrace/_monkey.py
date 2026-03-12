@@ -49,6 +49,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": True,
+    "llama_index": True,
     "litellm": True,
     "mysql": True,
     "mysqldb": True,
@@ -161,6 +162,7 @@ _MODULES_FOR_CONTRIB = {
     "google_adk": ("google.adk",),
     "google_genai": ("google.genai",),
     "langchain": ("langchain_core",),
+    "llama_index": ("llama_index.core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
