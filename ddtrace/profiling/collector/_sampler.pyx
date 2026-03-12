@@ -1,3 +1,9 @@
+# cython: cdivision=True
+
+import cython
+
+
+@cython.final
 cdef class CaptureSampler:
     """Determine the events that should be captured based on a sampling percentage.
 
