@@ -10,7 +10,7 @@ SNAPSHOT_IGNORES = ["meta.mlflow.run_id"]
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_mlflow_manual_run(test_spans, assert_run_id_on_all_spans):
-    """Tests explictly started and ended mlfow run"""
+    """Tests explicitly started and ended mlfow run"""
     mlflow.start_run(run_name="manual_run")
     with tracer.trace("mlflow.manual.work"):
         pass
