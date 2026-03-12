@@ -250,7 +250,7 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
-                        sds_findings = attributes.get("sds_findings", [])
+                        sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
