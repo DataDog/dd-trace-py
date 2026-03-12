@@ -31,6 +31,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -702,6 +703,16 @@ class BaseThreadingLockCollectorTest:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
     def test_wrapper(self) -> None:
         with self.collector_class():
@@ -1489,6 +1500,15 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
     def lock_class(self) -> Type[threading.Lock]:
         return threading.Lock
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_lock(self) -> None:
+        """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when Lock is a factory function (Python < 3.14)
+
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates Lock-specific attributes."""
         with self.collector_class(capture_pct=100):
@@ -1518,6 +1538,15 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
     @property
     def lock_class(self) -> Type[threading.RLock]:
         return threading.RLock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_rlock(self) -> None:
+        """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when RLock is a factory function
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates RLock-specific attributes."""
