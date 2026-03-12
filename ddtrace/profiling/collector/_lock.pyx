@@ -113,7 +113,7 @@ class _ProfiledLock:
 
     # DUNDER methods
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, _ProfiledLock):
             return bool(self.__wrapped__ == other.__wrapped__)
         return bool(self.__wrapped__ == other)
@@ -442,12 +442,12 @@ class LockCollector(collector.CaptureSamplerCollector):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.tracer: Optional[Tracer] = tracer
-        self._original_lock: Any = None
+        self._original_lock: Optional[Callable[..., Any]] = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
 
-    def _set_patch_target(self, value: Any) -> None:
+    def _set_patch_target(self, value: Union[_LockAllocatorWrapper, Callable[..., Any], None]) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
     def _start_service(self) -> None:
@@ -463,8 +463,8 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
-        self._original_lock = self._get_patch_target()
-        original_lock: Any = self._original_lock  # Capture non-None value
+        original_lock: Callable[..., Any] = self._get_patch_target()
+        self._original_lock = original_lock
 
         # Determine which module file to check for internal lock detection
         internal_module_file: Optional[str] = self.INTERNAL_MODULE_FILE
