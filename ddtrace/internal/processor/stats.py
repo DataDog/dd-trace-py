@@ -7,6 +7,7 @@ from typing import Union
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.internal import compat
+from ddtrace.internal import process_tags
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -241,6 +242,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
+        if p_tags := process_tags.process_tags:
+            raw_payload["ProcessTags"] = compat.ensure_text(p_tags)
 
         payload = packb(raw_payload)
         try:
