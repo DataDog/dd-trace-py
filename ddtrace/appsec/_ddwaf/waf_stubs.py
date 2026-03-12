@@ -120,7 +120,6 @@ class WAF(ABC):
         rules: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
-        metrics: Any,
     ) -> None:
         pass
 
