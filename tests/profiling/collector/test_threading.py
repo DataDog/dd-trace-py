@@ -1935,3 +1935,103 @@ class TestThreadingConditionCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Condition]:
         return threading.Condition
+
+
+class TestGetThreadInfo:
+    """Tests for the combined get_thread_info() lookup in _threading.pyx."""
+
+    def test_matches_individual_lookups(self) -> None:
+        """get_thread_info() must return the same values as get_thread_name() + get_thread_native_id()."""
+        from ddtrace.profiling._threading import get_thread_info, get_thread_name, get_thread_native_id
+
+        tid: int = _thread.get_ident()
+        name, native_id = get_thread_info(tid)
+        assert name == get_thread_name(tid)
+        assert native_id == get_thread_native_id(tid)
+
+    def test_worker_thread(self) -> None:
+        """get_thread_info() returns correct values for a named worker thread."""
+        from ddtrace.profiling._threading import get_thread_info
+
+        result: dict[str, object] = {}
+
+        def target() -> None:
+            tid = _thread.get_ident()
+            result["tid"] = tid
+            result["info"] = get_thread_info(tid)
+
+        t = threading.Thread(target=target, name="test-worker-42")
+        t.start()
+        t.join()
+
+        name, native_id = result["info"]  # type: ignore[misc]
+        assert name == "test-worker-42"
+        assert isinstance(native_id, int)
+        assert native_id > 0
+
+    def test_unknown_thread_id(self) -> None:
+        """get_thread_info() returns (None, thread_id) for an unknown thread id."""
+        from ddtrace.profiling._threading import get_thread_info
+
+        fake_tid: int = 0xDEADBEEF
+        name, native_id = get_thread_info(fake_tid)
+        assert name is None
+        assert native_id == fake_tid
+
+
+class TestThreadInfoCache:
+    """Tests for per-lock thread info caching in _ProfiledLock._flush_sample()."""
+
+    def test_cache_updates_on_thread_switch(self) -> None:
+        """When a lock is used from different threads, the cached thread info must update.
+
+        This is the critical correctness test: a caching bug here would silently
+        attribute lock samples to the wrong thread.
+        """
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            # Use from main thread
+            lock.acquire()
+            lock.release()
+            main_cached_tid: int = lock._cached_thread_id
+            main_cached_name: Optional[str] = lock._cached_thread_name
+            assert main_cached_tid == _thread.get_ident()
+            assert main_cached_name == threading.current_thread().name
+
+            # Use from a worker thread
+            worker_result: dict[str, object] = {}
+            barrier = threading.Barrier(2)
+
+            def worker() -> None:
+                lock.acquire()
+                lock.release()
+                worker_result["tid"] = _thread.get_ident()
+                worker_result["name"] = threading.current_thread().name
+                worker_result["cached_tid"] = lock._cached_thread_id
+                worker_result["cached_name"] = lock._cached_thread_name
+                barrier.wait()
+
+            t = threading.Thread(target=worker, name="cache-test-worker")
+            t.start()
+            barrier.wait()
+            t.join()
+
+            assert worker_result["cached_tid"] == worker_result["tid"]
+            assert worker_result["cached_name"] == "cache-test-worker"
+            assert worker_result["cached_tid"] != main_cached_tid
+
+    def test_cache_starts_empty(self) -> None:
+        """A fresh _ProfiledLock should have sentinel cache values."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            assert lock._cached_thread_id == -1
+            assert lock._cached_thread_name is None
+            assert lock._cached_thread_native_id == 0
