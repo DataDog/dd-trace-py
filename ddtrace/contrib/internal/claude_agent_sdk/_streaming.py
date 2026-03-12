@@ -136,7 +136,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         try:
             model = _extract_model_from_response(self.chunks)
             if model:
-                self.primary_span._set_tag_str("claude_agent_sdk.request.model", model)
+                self.primary_span._set_attribute("claude_agent_sdk.request.model", model)
             if self.context is not None:
                 self.request_kwargs["_dd_context"] = self.context
 
