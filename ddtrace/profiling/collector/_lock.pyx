@@ -15,12 +15,12 @@ from typing import Union
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
-from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.profiling.collector import _task
 from ddtrace.trace import Tracer
 
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
+from ddtrace.profiling._threading cimport get_thread_name, get_thread_native_id
+from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -37,7 +37,7 @@ cdef int _CALLER_FRAME_INDEX = 0
 
 cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
-    return thread_id, _threading.get_thread_name(thread_id)
+    return thread_id, get_thread_name(thread_id)
 
 
 def _get_original_lock_class(module_name: str, class_name: str) -> Callable[..., Any]:
@@ -259,12 +259,12 @@ class _ProfiledLock:
             task_id: Optional[int]
             task_name: Optional[str]
             task_frame: Optional[FrameType]
-            task_id, task_name, task_frame = _task.get_task()
+            task_id, task_name, task_frame = _c_get_task()
 
             handle.push_task_id(task_id)
             handle.push_task_name(task_name)
 
-            thread_native_id: int = _threading.get_thread_native_id(thread_id)
+            thread_native_id: int = get_thread_native_id(thread_id)
             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
 
             if self.tracer is not None:
@@ -284,6 +284,7 @@ class _ProfiledLock:
             pass  # nosec
 
     def _find_name(self, var_dict: dict[str, Any]) -> Optional[str]:
+        cdef str name
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -444,7 +445,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
-        _task.initialize_gevent_support()
+        _c_initialize_gevent_support()
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
@@ -472,13 +473,13 @@ class LockCollector(collector.CaptureSamplerCollector):
             Detects if the lock is being created from within the stdlib module
             (i.e., internal to Semaphore/Condition) to avoid double-counting.
             """
-            # Check if caller is from the internal module (internal lock)
-            is_internal: bool = False
+            cdef bint is_internal = False
+            cdef str caller_filename
+            cdef str internal_file
             try:
                 # In Cython, intermediate frames are invisible; caller is at index 0
                 caller_filename = sys._getframe(0).f_code.co_filename
                 if internal_module_file and caller_filename:
-                    # Normalize paths to handle symlinks and different path formats
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
                     internal_file = os.path.normpath(os.path.realpath(internal_module_file))
                     is_internal = caller_filename == internal_file
