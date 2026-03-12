@@ -15,7 +15,7 @@ using namespace Datadog;
 void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    std::string_view name,
-                                   microsecond_t wall_time_us,
+                                   int64_t wall_time_us,
                                    uintptr_t thread_id,
                                    unsigned long native_id)
 {
@@ -47,7 +47,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.native_id = native_id;
     thread_state.name = std::string(name);
     thread_state.now_time_ns = now_ns;
-    thread_state.wall_time_ns = 1000LL * wall_time_us;
+    thread_state.wall_time_ns = 1000 * wall_time_us;
     thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
                                   // since we don't know if we'll get a CPU time here.
 
@@ -209,7 +209,7 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
-StackRenderer::render_cpu_time(uint64_t cpu_time_us)
+StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
 {
     if (sample == nullptr) {
         std::cerr << "Received a CPU time without sample storage.  Some profiling data has been lost." << std::endl;
@@ -218,7 +218,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
-    thread_state.cpu_time_ns = 1000LL * cpu_time_us;
+    thread_state.cpu_time_ns = 1000 * cpu_time_us;
     sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 

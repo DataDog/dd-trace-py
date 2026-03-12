@@ -62,6 +62,7 @@ class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
     tags: list[str]
+    sds: list
 
 
 class Options(TypedDict, total=False):
@@ -87,10 +88,11 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None):
+    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None, sds: Optional[list] = None):
         self.action = action
         self.reason = reason
         self.tags = tags
+        self.sds = sds or []
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
@@ -248,7 +250,7 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
-                        sds_findings = attributes.get("sds_findings", [])
+                        sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -290,9 +292,9 @@ class AIGuardClient:
                     _aiguard_manual_keep(root_span)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
+                    raise AIGuardAbortError(action=action, reason=reason, tags=tags, sds=sds_findings)
 
-                return Evaluation(action=action, reason=reason, tags=tags)
+                return Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings)
 
             except AIGuardAbortError:
                 raise

@@ -1643,8 +1643,7 @@ class Contrib_TestClass_For_Threats:
                 response = interface.client.get("/new_service/awesome_test")
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
-            # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
+            assert _asm_request_context.API_SEC_CALLBACK is not None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])

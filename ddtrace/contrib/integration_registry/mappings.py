@@ -34,6 +34,7 @@ DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "aiohttp_jinja2": "aiohttp_jinja2",
     "azure-cosmos": "azure_cosmos",
     "azure-eventhub": "azure_eventhubs",
+    "azure-functions-durable": "azure_durable_functions",
     "azure-functions": "azure_functions",
     "azure-servicebus": "azure_servicebus",
 }
