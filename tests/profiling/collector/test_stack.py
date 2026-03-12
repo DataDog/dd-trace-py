@@ -95,8 +95,6 @@ def test_collect_truncate() -> None:
 
 
 def test_stack_locations(tmp_path: Path) -> None:
-    if not _main_thread_has_native_id():
-        pytest.skip("Main thread is _DummyThread (no native_id); thread name correlation unreliable")
     test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -125,9 +123,11 @@ def test_stack_locations(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     expected_sample = pprof_utils.StackEvent(
         thread_id=_thread.get_ident(),
-        thread_name="MainThread",
+        thread_name=expected_thread_name,
         locations=[
             pprof_utils.StackLocation(
                 function_name="baz",
