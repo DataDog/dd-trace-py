@@ -7,26 +7,24 @@ metric logging during active runs.
 Enabling
 ~~~~~~~~
 
-The MLflow integration is enabled automatically when you use
-:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the MLflow integration::
+The MLflow integration is not enabled by default. Enable it with
+:ref:`ddtrace-run<ddtracerun>` using ``DD_TRACE_MLFLOW_ENABLED=true`` or
+``DD_PATCH_MODULES=mlflow:true``, or call :func:`patch() <ddtrace.patch>`.
+When ``DD_MODEL_LAB_ENABLED=true``, the MLflow integration is enabled
+automatically.
+
+Manual patching example::
 
     from ddtrace import patch
     patch(mlflow=True)
 
-Configuration
-~~~~~~~~~~~~~
-
-.. py:data:: ddtrace.config.mlflow["service"]
-   The service name reported by default for MLflow requests.
-   Alternatively, set this option with the ``DD_MLFLOW_SERVICE`` environment variable.
-
 Log injection
 ~~~~~~~~~~~~~
 
-When log injection is enabled, logs emitted during an active MLflow run
-includes the current run ID via ``%(dd.mlflow.run_id)s``. For example, this
-format string includes run correlation with trace correlation fields:
+When log injection and the MLflow integration are enabled, your logging format must include
+``%(dd.mlflow.run_id)s`` to safely reference the injected run ID field.
+For example, this format string includes run correlation with trace
+correlation fields:
 
 .. code-block:: python
 
@@ -38,4 +36,15 @@ format string includes run correlation with trace correlation fields:
 
 Outside an active ``mlflow.start_run()`` context, ``dd.mlflow.run_id`` is
 empty. Inside a run, it is populated with the active MLflow run ID.
-"""  # noqa: E501
+
+Set ``DD_TRACE_MLFLOW_LOGS_INJECTION=false`` (or
+``ddtrace.config.mlflow["log_injection"] = False``) to disable injecting
+``dd.mlflow.run_id`` into logs.
+
+MLflow auth plugin
+~~~~~~~~~~~~~~~~~~
+
+If ``DD_API_KEY``, ``DD_APP_KEY``, and ``DD_MODEL_LAB_ENABLED`` are set, the
+MLflow authentication plugin includes ``DD-API-KEY`` and
+``DD-APPLICATION-KEY`` headers in requests to the MLflow tracking server.
+"""

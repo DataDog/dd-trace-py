@@ -119,8 +119,6 @@ components:
     - ddtrace/contrib/internal/mlflow/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
-  mlflow:
-    - ddtrace/contrib/internal/mlflow/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:

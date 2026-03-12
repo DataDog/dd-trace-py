@@ -595,10 +595,10 @@ integrations:
       min: 2.11.4
       max: 3.10.0
     mlflow-skinny:
-      min: 3.10.0
+      min: 3.9.0
       max: 3.10.0
     mlflow-tracing:
-      min: 3.10.0
+      min: 3.9.0
       max: 3.10.0
 
 - integration_name: molten

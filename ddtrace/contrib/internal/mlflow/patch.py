@@ -1,3 +1,4 @@
+import atexit
 import sys
 
 import mlflow
@@ -20,20 +21,14 @@ from ddtrace.internal.utils.formats import asbool
 MLFLOW_ACTIVE_RUN_SPANS = {}
 MLFLOW_ACTIVE_STEP_SPANS = {}
 MLFLOW_CURRENT_STEPS = {}
-
-
-def _on_span_start(span):
-    # this function is tracing specific but having it here prevents dispatching another event
-    run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
-    if run_id:
-        span._set_tag_str(MLFLOW_RUN_ID_TAG, str(run_id))
-
+_MLFLOW_ATEXIT_REGISTERED = False
 
 config._add(
     "mlflow",
     dict(
         _default_service=schematize_service_name("mlflow"),
         trace_run_tags=_get_config("DD_TRACE_MLFLOW_RUN_TAGS", default=False, modifier=asbool),
+        log_injection=_get_config("DD_TRACE_MLFLOW_LOGS_INJECTION", default=True, modifier=asbool),
     ),
 )
 
@@ -46,9 +41,46 @@ def _supported_versions() -> dict[str, str]:
     return {"mlflow": ">=2.11.4"}
 
 
+def _finish_unfinished_spans_at_exit():
+    # Finish child spans before run spans to preserve parent/child ordering.
+    for step_span in list(MLFLOW_ACTIVE_STEP_SPANS.values()):
+        if step_span is not None:
+            try:
+                step_span.finish()
+            except Exception:  # nosec B110
+                pass
+
+    for run_span in list(MLFLOW_ACTIVE_RUN_SPANS.values()):
+        if run_span is not None:
+            try:
+                run_span.finish()
+            except Exception:  # nosec B110
+                pass
+
+    MLFLOW_ACTIVE_RUN_SPANS.clear()
+    MLFLOW_ACTIVE_STEP_SPANS.clear()
+    MLFLOW_CURRENT_STEPS.clear()
+
+
+def _on_span_start(span):
+    # this function is tracing specific but having it here prevents dispatching another event
+    run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
+    if not run_id and span._parent:
+        # if we enter another thread, active_run() can be None
+        run_id = span._parent.get_tag(MLFLOW_RUN_ID_TAG)
+    if run_id:
+        span._set_tag_str(MLFLOW_RUN_ID_TAG, str(run_id))
+
+
 def _traced_start_run(wrapped, instance, args, kwargs):
+    requested_run_id = get_argument_value(args, kwargs, 0, "run_id", True)
+    if requested_run_id is not None and requested_run_id in MLFLOW_ACTIVE_RUN_SPANS:
+        # it is possible to restart a run in mlflow, we are not supporting it right now
+        return wrapped(*args, **kwargs)
+
     experiment_id = get_argument_value(args, kwargs, 1, "experiment_id", True)
     run_name = get_argument_value(args, kwargs, 2, "run_name", True)
+    parent_run_id = get_argument_value(args, kwargs, 4, "parent_run_id", True)
     run_tags = get_argument_value(args, kwargs, 5, "tags", True) or {}
 
     with core.context_with_data(
@@ -62,8 +94,10 @@ def _traced_start_run(wrapped, instance, args, kwargs):
 
         MLFLOW_CURRENT_STEPS[run_id] = 0
         # we use a different event than mflow.run because we cannot now the run_id before
-        core.dispatch("mlflow.new.run", (ctx, run_id, experiment_id, run_name, run_tags, MLFLOW_ACTIVE_RUN_SPANS))
-        core.dispatch("mlflow.new.step", (run_id, MLFLOW_ACTIVE_STEP_SPANS))
+        core.dispatch(
+            "mlflow.new.run", (ctx, run_id, experiment_id, run_name, run_tags, parent_run_id, MLFLOW_ACTIVE_RUN_SPANS)
+        )
+        core.dispatch("mlflow.new.step", (run_id, MLFLOW_ACTIVE_RUN_SPANS, MLFLOW_ACTIVE_STEP_SPANS))
 
         return run
 
@@ -129,21 +163,26 @@ def _traced_log_metric(wrapped, instance, args, kwargs):
     if step is not None:
         MLFLOW_CURRENT_STEPS[run_id] = step
         core.dispatch("mlflow.end.step", (run_id, step, MLFLOW_ACTIVE_STEP_SPANS))
-        core.dispatch("mlflow.new.step", (run_id, MLFLOW_ACTIVE_STEP_SPANS))
+        core.dispatch("mlflow.new.step", (run_id, MLFLOW_ACTIVE_RUN_SPANS, MLFLOW_ACTIVE_STEP_SPANS))
 
     return wrapped(*args, **kwargs)
 
 
 def _mlflow_log_correlation_context(log_context):
+    if not config.mlflow.get("log_injection", True):
+        return
     log_context[LOG_ATTR_MLFLOW_RUN_ID] = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
 
 
 def patch():
+    global _MLFLOW_ATEXIT_REGISTERED
+
     if getattr(mlflow, "_datadog_patch", False):
         return
 
     mlflow._datadog_patch = True
     _w(mlflow, "start_run", _traced_start_run)
+    _w(mlflow_fluent, "start_run", _traced_start_run)
     _w(mlflow, "end_run", _traced_end_run)
 
     # When using with mlflow.start_run, context manager exit will trigger
@@ -155,6 +194,10 @@ def patch():
 
     core.on("trace.log_correlation_context", _mlflow_log_correlation_context)
     core.on("trace.span_start", _on_span_start)
+
+    if not _MLFLOW_ATEXIT_REGISTERED:
+        atexit.register(_finish_unfinished_spans_at_exit)
+        _MLFLOW_ATEXIT_REGISTERED = True
 
 
 def unpatch():
@@ -171,8 +214,3 @@ def unpatch():
 
     core.reset_listeners("trace.log_correlation_context", _mlflow_log_correlation_context)
     core.reset_listeners("trace.span_start", _on_span_start)
-
-    # Empty global dict
-    MLFLOW_ACTIVE_RUN_SPANS.clear()
-    MLFLOW_ACTIVE_STEP_SPANS.clear()
-    MLFLOW_CURRENT_STEPS.clear()

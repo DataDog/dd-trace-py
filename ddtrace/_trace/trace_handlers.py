@@ -28,6 +28,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
@@ -1396,6 +1397,7 @@ def _on_mlflow_new_run(
     experiment_id: str,
     run_name: str,
     run_tags: dict[str, Any],
+    parent_run_id: str,
     active_run_spans,
 ):
     span = ctx.span
@@ -1406,6 +1408,8 @@ def _on_mlflow_new_run(
         span._set_tag_str(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
     if run_name:
         span._set_tag_str(MLFLOW_RUN_NAME_TAG, run_name)
+    if parent_run_id:
+        span._set_tag_str(MLFLOW_PARENT_RUN_ID_TAG, parent_run_id)
 
     if run_tags and config.mlflow.trace_run_tags:
         for key, value in run_tags.items():
@@ -1432,7 +1436,7 @@ def _on_mlflow_end_run(
     else:
         step_span: Span = active_step_spans.pop(run_id, None)
         if step_span:
-            step_span.resource = "mflow.tail"
+            step_span.resource = "tail"
             step_span.finish()
 
     span = active_run_spans.pop(run_id, None)
@@ -1446,11 +1450,14 @@ def _on_mlflow_end_run(
         span.finish()
 
 
-def _on_mlflow_new_step(run_id: str, active_step_spans):
-    new_step_span = tracer.trace(
+def _on_mlflow_new_step(run_id: str, active_run_spans, active_step_spans):
+    run_span: Optional[Span] = active_run_spans.get(run_id, None)
+    new_step_span = tracer.start_span(
         "run.step",
+        child_of=run_span,
         service=config.mlflow.get("service", config.mlflow._default_service),
         span_type=SpanTypes.WORKER,
+        activate=True,
     )
     new_step_span._set_tag_str(COMPONENT, config.mlflow.integration_name)
     new_step_span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
@@ -1466,14 +1473,14 @@ def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_in
         step_span.finish()
 
 
-def _on_mlflow_log(run_id: str, log_type: str, active_step_spans, key_value: tuple[str, Any]):
+def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_value: tuple[str, Any]):
     step_span: Optional[Span] = active_step_spans.get(run_id, None)
     if step_span:
         if log_type == MLflowLogType.METRICS:
-            step_span.set_metric(f"mlflow.{log_type}.{key_value[0]}", key_value[1])
+            step_span.set_metric(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
         else:
             try:
-                step_span._set_tag_str(f"mlflow.{log_type}.{key_value[0]}", str(key_value[1]))
+                step_span._set_tag_str(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
             except Exception:  # nosec B110
                 # If the value cannot be stringified, skip setting the tag
                 pass
