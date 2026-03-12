@@ -117,8 +117,8 @@ def test_trigger_wrapper(func_name, trigger_name, context_name):
         assert span.service == int_service(None, config.azure_functions)
         assert span.resource == f"{trigger_name} {func_name}"
         assert span.span_type == SpanTypes.SERVERLESS
-        assert span.get_tag("aas.function.name") == func_name
-        assert span.get_tag("aas.function.trigger") == trigger_name
+        assert span.get_tag("aas.function.name") == func_name  # codespell:ignore
+        assert span.get_tag("aas.function.trigger") == trigger_name  # codespell:ignore
         assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
