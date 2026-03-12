@@ -181,6 +181,7 @@ class _ProfiledLock:
         if result is False and error_info is None:
             return result
 
+
         cdef long long end = time.monotonic_ns()
         self.acquired_time = end
         if not self.is_internal:
