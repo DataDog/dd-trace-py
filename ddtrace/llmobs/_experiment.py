@@ -718,6 +718,7 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
+    import json
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
@@ -766,7 +767,7 @@ if PydanticEvaluator is not None:
                 if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
             else:
-                eval_result.value = eval_result
+                eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             
             return eval_result
         
@@ -809,7 +810,7 @@ if PydanticEvaluator is not None:
                 if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
             else:
-                eval_result.value = eval_result
+                eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             
             return eval_result
         
