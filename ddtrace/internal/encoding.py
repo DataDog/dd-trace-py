@@ -173,25 +173,27 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     """
 
     content_type = "application/json"
-
-    # Overhead of the {"traces":[]} wrapper
-    _WRAPPER_SIZE = len(b'{"traces":[]}')
+    _PREFIX = b'{"traces":['
+    _SUFFIX = b"]}"
 
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._traces: list[bytes] = []
-        self._size = 0
         self._lock = RLock()
+        self._reset()
+
+    def _reset(self) -> None:
+        self._buffer = bytearray(self._PREFIX)
+        self._count = 0
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._traces)
+            return self._count
 
     @property
     def size(self) -> int:
         with self._lock:
-            return self._size
+            return len(self._buffer) + len(self._SUFFIX)
 
     def put(self, item) -> None:
         item = typing.cast(list["Span"], item)
@@ -208,28 +210,25 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)
 
-            # Full payload size: wrapper + all trace bytes + commas between traces
-            if self._traces:
-                new_size = self._size + 1 + item_size  # +1 for comma separator
-            else:
-                new_size = self._WRAPPER_SIZE + item_size
+            # Projected size: current buffer + separator (if not first) + new trace + suffix
+            added = item_size + (1 if self._count > 0 else 0)
+            if len(self._buffer) + added + len(self._SUFFIX) > self.max_size:
+                raise BufferFull(len(self._buffer) + added + len(self._SUFFIX))
 
-            if new_size > self.max_size:
-                raise BufferFull(new_size)
-
-            self._size = new_size
-            self._traces.append(encoded_trace)
+            if self._count > 0:
+                self._buffer += b","
+            self._buffer += encoded_trace
+            self._count += 1
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
-            traces = self._traces
-            n_traces = len(traces)
-            self._traces = []
-            self._size = 0
-        if not traces:
-            return []
-        payload = b'{"traces":[' + b",".join(traces) + b"]}"
-        return [(payload, n_traces)]
+            if self._count == 0:
+                return []
+            self._buffer += self._SUFFIX
+            payload = self._buffer
+            count = self._count
+            self._reset()
+        return [(payload, count)]
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
         if not item.parent_id:
