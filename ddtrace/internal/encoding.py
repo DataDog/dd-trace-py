@@ -1,8 +1,8 @@
 import json
+import typing  # noqa:F401
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Optional
-import typing  # noqa:F401
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
 from ddtrace.internal.threads import RLock

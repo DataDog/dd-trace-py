@@ -1554,8 +1554,12 @@ def test_agentless_writer_enabled():
     # Find each trace by matching trace_id across all spans
     trace1_id = "{:016x}".format(root1._trace_id_64bits)
     trace2_id = "{:016x}".format(root2._trace_id_64bits)
-    trace1_spans_list = next(t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"]))
-    trace2_spans_list = next(t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"]))
+    trace1_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"])
+    )
+    trace2_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"])
+    )
 
     # trace1: root1, child1, child2
     assert len(trace1_spans_list) == 3

@@ -266,7 +266,9 @@ class TestEncoders(TestCase):
                             "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
                             "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
                             "type": "web",
-                            "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
+                            "span_links": [
+                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
+                            ],
                             "meta_struct": {"payload": {"key": "value"}},
                         }
                     ]
