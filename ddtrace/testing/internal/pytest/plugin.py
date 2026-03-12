@@ -1036,11 +1036,14 @@ def pytest_configure(config: pytest.Config) -> None:
         plugin_class = TestOptPluginWithProtocol
     elif detected_rerun_plugins:
         if session_manager.settings.test_management.enabled:
+            session_manager.settings.test_management.enabled = False
             for plugin_name in detected_rerun_plugins:
                 log.warning(
-                    "%s is installed alongside Datadog Test Optimization. "
-                    "Attempt to Fix (Test Management) retries will not work while %s drives test execution. "
-                    "To use Attempt to Fix, run with: -p %s",
+                    "%s is installed and Datadog Auto Test Retries and Early Flake Detection are disabled. "
+                    "Flaky Test Management features (quarantined tests, disabled tests, Attempt to Fix) will be "
+                    "disabled for this session so that %s can drive test execution. "
+                    "To use Flaky Test Management, disable %s with: -p %s",
+                    plugin_name,
                     plugin_name,
                     plugin_name,
                     _EXTERNAL_RERUN_PLUGINS[plugin_name],
