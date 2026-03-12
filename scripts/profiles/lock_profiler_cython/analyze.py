@@ -17,7 +17,8 @@ import sys
 
 import zstandard as zstd
 
-from tests.profiling.collector.pprof_utils import get_samples_with_value_type, pprof_pb2
+from tests.profiling.collector.pprof_utils import get_samples_with_value_type
+from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 def load_timing_results(results_dir: str) -> list[dict]:
@@ -103,7 +104,9 @@ def analyze_one_rate(results_dir: str, capture_pct: int) -> bool:
         print(f"    {'':28s} {'----':>14s}   {'------':>14s}   {'-----':>10s}")
         print(f"    {'median ops/sec':28s} {main_ops:>14,.0f}   {cython_ops:>14,.0f}   {delta_pct:>+9.1f}%")
         print(f"    {'median elapsed (ms)':28s} {main_ms:>14.1f}   {cython_ms:>14.1f}   {time_delta_pct:>+9.1f}%")
-        print(f"    {'stdev ops/sec':28s} {main_s['stdev_ops_per_sec']:>14,.0f}   {cython_s['stdev_ops_per_sec']:>14,.0f}")
+        print(
+            f"    {'stdev ops/sec':28s} {main_s['stdev_ops_per_sec']:>14,.0f}   {cython_s['stdev_ops_per_sec']:>14,.0f}"
+        )
 
     # Lock samples
     main_counts = parse_pprof_files(main_dir)
@@ -115,7 +118,7 @@ def analyze_one_rate(results_dir: str, capture_pct: int) -> bool:
         m_rel = statistics.median([c[1] for c in main_counts])
         c_rel = statistics.median([c[1] for c in cython_counts])
 
-        print(f"\n    LOCK SAMPLES")
+        print("\n    LOCK SAMPLES")
         print(f"    {'':28s} {'main':>14s}   {'cython':>14s}")
         print(f"    {'':28s} {'----':>14s}   {'------':>14s}")
         print(f"    {'median lock-acquire':28s} {m_acq:>14.0f}   {c_acq:>14.0f}")
@@ -151,7 +154,7 @@ def analyze_one_rate(results_dir: str, capture_pct: int) -> bool:
 def print_summary_table(results_dir: str, capture_pcts: list[int]) -> None:
     """Print a compact cross-rate comparison table."""
     print(f"\n  {'=' * 68}")
-    print(f"  SUMMARY: Speedup by capture rate")
+    print("  SUMMARY: Speedup by capture rate")
     print(f"  {'=' * 68}")
     print(f"  {'capture %':>10s}   {'uncontended':>14s}   {'contended':>14s}")
     print(f"  {'':>10s}   {'(ops/sec delta)':>14s}   {'(ops/sec delta)':>14s}")
