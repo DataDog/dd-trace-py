@@ -1,5 +1,6 @@
 from __future__ import division
 
+import threading
 import time
 
 import mock
@@ -280,3 +281,68 @@ def test_rate_limiter_with_jitter_not_raise():
     limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
 
     assert [limiter.limit(lambda: None) for _ in range(10)][1:] == [RateLimitExceeded] * 9
+
+
+def test_budget_rate_limiter_concurrent_calls():
+    """Verify that the budget decrement is atomic under concurrent access.
+
+    With limit_rate=1 and tau=1, the initial budget is 1.0.  In a tight loop
+    the elapsed time is near-zero so almost no budget is replenished.  At most
+    ~1-2 calls should be allowed.  Before the fix, the budget decrement happened
+    outside the lock, letting multiple threads see budget >= 1.0 simultaneously
+    and all proceed — exceeding the rate limit.
+    """
+    num_threads = 8
+    iterations = 200
+
+    for _ in range(5):
+        limiter = BudgetRateLimiterWithJitter(limit_rate=1, tau=1.0, raise_on_exceed=False)
+        call_count = 0
+        count_lock = threading.Lock()
+        barrier = threading.Barrier(num_threads)
+
+        def worker():
+            nonlocal call_count
+            barrier.wait()
+            for _ in range(iterations):
+                result = limiter.limit(lambda: "ok")
+                if result == "ok":
+                    with count_lock:
+                        call_count += 1
+
+        threads = [threading.Thread(target=worker) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert call_count <= 2, (
+            f"Expected at most ~1-2 calls but got {call_count}; budget decrement may not be inside the lock"
+        )
+        assert limiter.budget >= 0, f"Budget went to {limiter.budget}; budget decrement may not be inside the lock"
+
+
+def test_budget_rate_limiter_on_exceed_called_once_concurrent():
+    """Verify on_exceed with call_once=True fires at most once under concurrent access."""
+    num_threads = 8
+    iterations = 50
+
+    for _ in range(5):
+        callback = mock.Mock()
+        limiter = BudgetRateLimiterWithJitter(limit_rate=1, on_exceed=callback, call_once=True, raise_on_exceed=False)
+        barrier = threading.Barrier(num_threads)
+
+        def worker():
+            barrier.wait()
+            for _ in range(iterations):
+                limiter.limit(lambda: None)
+
+        threads = [threading.Thread(target=worker) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert callback.call_count == 1, (
+            f"Expected on_exceed to be called exactly once but was called {callback.call_count} times"
+        )

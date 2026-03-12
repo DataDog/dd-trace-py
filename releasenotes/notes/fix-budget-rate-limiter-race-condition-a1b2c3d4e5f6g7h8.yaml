@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    debugging: Fixes a race condition in ``BudgetRateLimiterWithJitter`` where the budget
+    decrement and ``_on_exceed_called`` flag were modified outside the lock. Under concurrent
+    access, multiple threads could observe sufficient budget simultaneously, allowing more
+    calls than the rate limit permits and driving the budget negative. All shared state
+    mutations now occur atomically inside the lock.
