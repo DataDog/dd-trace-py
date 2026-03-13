@@ -235,4 +235,4 @@ def test_single_span_sampling():
     with tracer.trace("parent", service="test"):
         with tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
-            child.set_metric("_dd.span_sampling.mechanism", 8)
+            child._set_attribute("_dd.span_sampling.mechanism", 8)

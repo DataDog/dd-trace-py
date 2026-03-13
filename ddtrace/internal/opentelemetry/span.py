@@ -51,7 +51,7 @@ def _ddmap(span, attribute, value):
             if isinstance(value, (str, bytes)):
                 span.set_tag(meta_key, ensure_text(value))
             if isinstance(value, (int, float)):
-                span.set_metric(meta_key, value)
+                span._set_attribute(meta_key, value)
     else:
         setattr(span, attribute, value)
     return span
@@ -201,7 +201,7 @@ class Span(OtelSpan):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)
         elif isinstance(value, (int, float)):
-            self._ddspan.set_metric(key, value)
+            self._ddspan._set_attribute(key, value)
         else:
             # TODO: get rid of this usage, `set_tag` only takes str values
             self._ddspan.set_tag(key, value)

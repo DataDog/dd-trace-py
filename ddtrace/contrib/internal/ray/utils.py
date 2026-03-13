@@ -87,11 +87,11 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span._set_attribute("component", RAY_COMPONENT)
     span._set_attribute(RAY_HOSTNAME, socket.gethostname())
-    span.set_metric(_AI_OBS_ENABLED_KEY, 1)
-    span.set_metric(_DJM_ENABLED_KEY, 1)
-    span.set_metric(_FILTER_KEPT_KEY, 1)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+    span._set_attribute(_AI_OBS_ENABLED_KEY, 1)
+    span._set_attribute(_DJM_ENABLED_KEY, 1)
+    span._set_attribute(_FILTER_KEPT_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
     submission_id = os.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:

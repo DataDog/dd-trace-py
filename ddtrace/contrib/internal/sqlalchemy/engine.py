@@ -93,7 +93,7 @@ class EngineTracer(object):
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
@@ -157,4 +157,6 @@ def _set_tags_from_cursor(span, vendor, cursor):
                 if host is not None:
                     span._set_attribute(netx.TARGET_HOST, host)
                     span._set_attribute(netx.SERVER_ADDRESS, host)
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                port = d.get("port")
+                if port is not None:
+                    span._set_attribute(netx.TARGET_PORT, int(port))

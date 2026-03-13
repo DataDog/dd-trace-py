@@ -62,7 +62,7 @@ def trace_prerun(*args, **kwargs):
     span._set_attribute(COMPONENT, config.celery.integration_name)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -137,7 +137,7 @@ def trace_before_publish(*args, **kwargs):
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span._set_attribute("celery.id", task_id)
     set_tags_from_context(span, kwargs)
@@ -198,7 +198,7 @@ def trace_after_publish(*args, **kwargs):
             host = parsed_url.hostname
 
         if parsed_url.port:
-            span.set_metric(net.TARGET_PORT, parsed_url.port)
+            span._set_attribute(net.TARGET_PORT, parsed_url.port)
 
     if host:
         span._set_attribute(net.TARGET_HOST, host)

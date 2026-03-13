@@ -100,7 +100,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             s._set_attribute(COMPONENT, config.flask_cache.integration_name)
 
             # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # set span tags
             cache_type = self.config.get("CACHE_TYPE")
             if cache_type is not None:
@@ -125,7 +125,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 if len(args) > 0:
                     span._set_attribute(COMMAND_KEY, args[0])
                 result = super(TracedCache, self).get(*args, **kwargs)
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result else 0)
                 return result
 
         def set(self, *args, **kwargs):
@@ -184,7 +184,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.set_tag(COMMAND_KEY, list(args))
                 result = super(TracedCache, self).get_many(*args, **kwargs)
                 # get many returns a list, with either the key value or None if it doesn't exist
-                span.set_metric(db.ROWCOUNT, sum(1 for val in result if val))
+                span._set_attribute(db.ROWCOUNT, sum(1 for val in result if val))
                 return result
 
         def set_many(self, *args, **kwargs):
