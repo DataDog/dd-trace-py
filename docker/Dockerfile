@@ -108,4 +108,10 @@ RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYE
 
 RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}" "uv==${UV_VERSION}"
 
+ENV INDEX_URL=https://dd-trace-py-builds.s3.amazonaws.com/102365409/index-manylinux2014.html
+
+RUN pip download ddtrace --no-deps --no-index --find-links $INDEX_URL
+RUN pip uninstall -y ddtrace || echo "ddtrace not installed"
+RUN pip install ddtrace-*.whl
+
 CMD ["/bin/bash"]
