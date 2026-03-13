@@ -2082,6 +2082,65 @@ class TestThreadInfoCache:
             lock: LockTypeInst = threading.Lock()
             assert isinstance(lock, _ProfiledLock)
 
-            assert lock._cached_thread_id == -1
+            assert lock._cached_thread_id is None
             assert lock._cached_thread_name is None
-            assert lock._cached_thread_native_id == 0
+            assert lock._cached_thread_native_id is None
+
+    def test_cache_invalidates_on_thread_id_reuse(self) -> None:
+        """When a thread dies and a new thread reuses its ident, the stale native ID
+        mismatch must cause the cache to refresh rather than return stale metadata.
+        """
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            lock.acquire()
+            lock.release()
+
+            current_native_id: int = _thread.get_native_id()
+            assert lock._cached_thread_id == _thread.get_ident()
+            assert lock._cached_thread_native_id == current_native_id
+
+            # Simulate a stale cache entry from a dead thread that had the same
+            # Python thread ID but a different OS-level native ID.
+            lock._cached_thread_native_id = current_native_id + 9999
+
+            lock.acquire()
+            lock.release()
+
+            # Cache must have refreshed: native ID should match the real value again
+            assert lock._cached_thread_native_id == current_native_id
+            assert lock._cached_thread_id == _thread.get_ident()
+            assert lock._cached_thread_name == threading.current_thread().name
+
+    def test_cache_hit_same_thread(self) -> None:
+        """Using a lock twice from the same thread should hit the cache and not
+        call get_thread_info again.
+        """
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            # First use — populates the cache
+            lock.acquire()
+            lock.release()
+
+            cached_tid: Optional[int] = lock._cached_thread_id
+            cached_name: Optional[str] = lock._cached_thread_name
+            cached_native_id: Optional[int] = lock._cached_thread_native_id
+            assert cached_tid is not None
+
+            # Second use — should hit the cache
+            with mock.patch("ddtrace.profiling._threading.get_thread_info") as mock_get_info:
+                lock.acquire()
+                lock.release()
+                mock_get_info.assert_not_called()
+
+            # Cached values unchanged
+            assert lock._cached_thread_id == cached_tid
+            assert lock._cached_thread_name == cached_name
+            assert lock._cached_thread_native_id == cached_native_id
