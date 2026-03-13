@@ -274,6 +274,9 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
     // These are borrowed references owned by the traceback chain, so no
     // ref-counting is needed here.
     std::vector<PyTracebackObject*> tb_nodes;
+
+    // Bias for bigger upfront allocations than multiple reallocations (Can revisit this with DOE)
+    tb_nodes.reserve(max_nframes);
     for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
         tb_nodes.push_back(tb);
     }
