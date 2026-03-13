@@ -1880,20 +1880,6 @@ class Experiment:
         ]
         return list(await asyncio.gather(*coros))
 
-    def _flush_pending_evals(self, pending: list["LLMObsExperimentEvalMetricEvent"]) -> None:
-        if not pending or not self._llmobs_instance:
-            return
-        try:
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                cast(str, self._id),
-                list(pending),
-                convert_tags_dict_to_list(self._tags),
-            )
-        except Exception:
-            logger.debug("Failed to flush pending eval metrics", exc_info=True)
-            return
-        pending.clear()
-        self._llmobs_instance.flush()
 
     async def _run_tasks_with_evaluators(
         self,
@@ -1933,7 +1919,17 @@ class Experiment:
                 async with eval_lock:
                     pending_evals.extend(metrics)
                     if len(pending_evals) >= flush_threshold:
-                        self._flush_pending_evals(pending_evals)
+                        try:
+                            self._llmobs_instance._dne_client.experiment_eval_post(
+                                cast(str, self._id),
+                                list(pending_evals),
+                                convert_tags_dict_to_list(self._tags),
+                            )
+                        except Exception:
+                            logger.debug("Failed to flush pending eval metrics", exc_info=True)
+                        else:
+                            pending_evals.clear()
+                            self._llmobs_instance.flush()
             return task_result, evaluation
 
         coros = [_process_and_evaluate(idx_record) for idx_record in enumerate(subset_dataset)]
@@ -1956,7 +1952,17 @@ class Experiment:
             if evaluation is not None:
                 evaluations.append(evaluation)
 
-        self._flush_pending_evals(pending_evals)
+        if pending_evals and self._llmobs_instance:
+            try:
+                self._llmobs_instance._dne_client.experiment_eval_post(
+                    cast(str, self._id),
+                    list(pending_evals),
+                    convert_tags_dict_to_list(self._tags),
+                )
+            except Exception:
+                logger.debug("Failed to flush pending eval metrics", exc_info=True)
+            else:
+                pending_evals.clear()
         self._llmobs_instance.flush()
         return task_results, evaluations
 
