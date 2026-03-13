@@ -122,11 +122,11 @@ class ExceptionCollector(collector.Collector):
         if HAS_MONITORING:
             try:
                 sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
+                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
                 return
             _state = _SamplerState(self._sampling_interval, self._collect_message)
-            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
             sys.monitoring.register_callback(
                 sys.monitoring.PROFILER_ID,
                 sys.monitoring.events.EXCEPTION_HANDLED,
