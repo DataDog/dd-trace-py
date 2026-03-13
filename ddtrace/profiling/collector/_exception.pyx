@@ -46,16 +46,18 @@ cdef class _SamplerState:
 # to share sampler state, because the profiler is process scoped, not thread scoped
 cdef _SamplerState _state = None
 
+# Reentrancy guard: _collect_exception can trigger EXCEPTION_HANDLED callbacks
+# (via str(exc_value) raising, or ddup internals). Without this guard,
+# the callback would recurse.
+cdef bint _collecting = False
+
 
 cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object exc_traceback) except *:
     if not ddup.is_available:
         return
 
-    cdef str module = exc_type.__module__
-    cdef str exception_type = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
-
     cdef object handle = ddup.SampleHandle()
-    handle.push_exceptioninfo(exception_type, 1)
+    handle.push_exceptioninfo(exc_type, 1)
 
     # Custom exception __str__ can raise, so guard with fallbacks.
     if state.collect_message:
@@ -83,11 +85,11 @@ cdef void _collect_exception(_SamplerState state, object exc_type, object exc_va
 
 cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
     """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
-    cdef bint _collecting = False
+    global _collecting
+
     if _collecting:
         return
 
-    _collecting = True
     cdef _SamplerState state = _state
     if state is None:
         return
@@ -100,11 +102,11 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
     state.counter = 0
 
-    # If an exception ever leaks from _collect_exception, this will silently disable
-    # sys.monitoring. This is rare, but we should catch all exception here to avoid this
-    #
-    # Rare, but if next_sample is 1, then reentrant calls will cause this to fire again
-    # We should guard against re-entrancy explictly here
+    # If an exception ever leaks from _collect_exception, this will silently
+    # disable sys.monitoring. Guard against that and against reentrancy
+    # (next_sample == 1 and _collect_exception triggers another
+    # EXCEPTION_HANDLED callback internally).
+    _collecting = True
     try:
         _collect_exception(state, type(exception), exception, exception.__traceback__)
     except Exception:
