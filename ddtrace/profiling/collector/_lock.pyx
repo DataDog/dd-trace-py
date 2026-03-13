@@ -82,6 +82,7 @@ class _ProfiledLock:
         "_cached_thread_id",
         "_cached_thread_name",
         "_cached_thread_native_id",
+        "_frame_cache",
     )
 
     def __init__(
@@ -113,6 +114,7 @@ class _ProfiledLock:
         self._cached_thread_id: Optional[int] = None
         self._cached_thread_name: Optional[str] = None
         self._cached_thread_native_id: Optional[int] = None
+        self._frame_cache: Optional[dict] = None
 
     # DUNDER methods
 
@@ -283,7 +285,27 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
             frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
-            handle.push_pyframes(frame)
+            leaf_code: CodeType = frame.f_code
+            leaf_lineno: int = frame.f_lineno
+            cache_key: tuple = (leaf_code, leaf_lineno)
+
+            cached_frames: Optional[tuple] = self._frame_cache.get(cache_key) if self._frame_cache else None
+            if cached_frames is not None:
+                for cached_frame in cached_frames:
+                    handle.push_frame(cached_frame[0], cached_frame[1], cached_frame[2], cached_frame[3])
+            else:
+                frame_data = []
+                f: Optional[FrameType] = frame
+                while f is not None:
+                    code: CodeType = f.f_code
+                    fname: str = getattr(code, "co_qualname", None) or code.co_name
+                    frame_data.append((fname, code.co_filename, 0, f.f_lineno))
+                    handle.push_frame(fname, code.co_filename, 0, f.f_lineno)
+                    f = f.f_back
+                if self._frame_cache is None:
+                    self._frame_cache = {}
+                if len(self._frame_cache) < 4:
+                    self._frame_cache[cache_key] = tuple(frame_data)
 
             handle.flush_sample()
         except AssertionError:
