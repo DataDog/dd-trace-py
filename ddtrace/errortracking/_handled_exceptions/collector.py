@@ -30,7 +30,7 @@ def _add_span_events(span: Span) -> None:
     exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
     events = [event for _exc, event in exception_data]
     if events:
-        span._set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
+        span._set_attribute(SPAN_EVENTS_HAS_EXCEPTION, "true")
         for event in events:
             span._add_event(event.name, event.attributes, event.time_unix_nano)
     HandledExceptionCollector.clear_exception_events(span.span_id)
