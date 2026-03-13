@@ -8,8 +8,8 @@ from ddtrace.internal.core.events import Event
 
 
 if TYPE_CHECKING:
-    # DEV: potential source of circular import in the future
     from ddtrace._trace.provider import ActiveTrace
+    from ddtrace._trace.span import Span
 
 
 @dataclass
@@ -37,3 +37,13 @@ class TracingEvent(Event):
     resource: Optional[str] = None
     measured: bool = True
     activate_distributed_headers: bool = False
+
+    def finish_span(self, span: "Span") -> None:
+        """Manually finish a span that was deferred via ``_end_span = False``.
+
+        Use this when span finishing is handled outside the normal context
+        lifecycle (e.g. streaming responses that finish on iterator exhaustion).
+        Subclasses can override to add finalization logic (LLMObs tags, etc.)
+        before the span is finished.
+        """
+        span.finish()

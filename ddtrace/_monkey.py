@@ -98,6 +98,7 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_eventhubs": True,
     "azure_functions": True,
+    "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
     "openai": True,
@@ -155,6 +156,7 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "azure_eventhubs": ("azure.eventhub",),
+    "azure_durable_functions": ("azure.durable_functions",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),

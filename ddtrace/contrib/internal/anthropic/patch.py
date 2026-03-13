@@ -1,12 +1,16 @@
-import sys
+from typing import Any
+from typing import Callable
 
 import anthropic
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
@@ -29,69 +33,63 @@ def _supported_versions() -> dict[str, str]:
 config._add("anthropic", {})
 
 
-def traced_chat_model_generate(func, instance, args, kwargs):
-    integration = anthropic._datadog_integration
-    stream = False
-
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
-        interface_type="chat_model",
+def _create_llm_event(
+    integration: AnthropicIntegration,
+    instance: Any,
+    func: Callable[..., Any],
+    kwargs: dict[str, Any],
+) -> LlmRequestEvent:
+    """Create an LlmRequestEvent for an Anthropic call."""
+    return LlmRequestEvent(
+        component="anthropic",
+        service=int_service(None, integration.integration_config),
+        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
+        integration_name="anthropic",
         provider="anthropic",
         model=kwargs.get("model", ""),
+        integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=kwargs,
+        interface_type="chat_model",
         instance=instance,
     )
 
-    chat_completions = None
-    try:
-        chat_completions = func(*args, **kwargs)
 
-        if is_streaming_operation(chat_completions):
-            stream = True
-            return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
-        if span.error or not stream:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
-            span.finish()
+def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
+    event = _create_llm_event(integration, instance, func, kwargs)
+
+    with core.context_with_event(event) as ctx:
+        chat_completions = None
+        try:
+            chat_completions = func(*args, **kwargs)
+            if is_streaming_operation(chat_completions):
+                ctx.set_item("is_stream", True)
+                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
+        finally:
+            if not ctx.get_item("is_stream", False):
+                ctx.set_item("response", chat_completions)
     return chat_completions
 
 
-async def traced_async_chat_model_generate(func, instance, args, kwargs):
-    integration = anthropic._datadog_integration
-    stream = False
+async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
+    event = _create_llm_event(integration, instance, func, kwargs)
 
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
-        interface_type="chat_model",
-        provider="anthropic",
-        model=kwargs.get("model", ""),
-        instance=instance,
-    )
-
-    chat_completions = None
-    try:
-        chat_completions = await func(*args, **kwargs)
-
-        if is_streaming_operation(chat_completions):
-            stream = True
-            return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
-        if span.error or not stream:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=chat_completions)
-            span.finish()
+    with core.context_with_event(event) as ctx:
+        chat_completions = None
+        try:
+            chat_completions = await func(*args, **kwargs)
+            if is_streaming_operation(chat_completions):
+                ctx.set_item("is_stream", True)
+                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
+        finally:
+            if not ctx.get_item("is_stream", False):
+                ctx.set_item("response", chat_completions)
     return chat_completions
 
 
-def patch():
+def patch() -> None:
     if getattr(anthropic, "_datadog_patch", False):
         return
 
@@ -117,7 +115,7 @@ def patch():
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
 
-def unpatch():
+def unpatch() -> None:
     if not getattr(anthropic, "_datadog_patch", False):
         return
 
