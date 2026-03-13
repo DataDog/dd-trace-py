@@ -35,13 +35,18 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     Sampler::get().stop();
 
+    Py_BEGIN_ALLOW_THREADS; // Release GIL
+
     // Explicitly clear ThreadSpanLinks. The memory should be cleared up
     // when the program exits as ThreadSpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
-    Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
+
+    // Clear the native call registry. This is safe because we stop the
+    // Sampler at the beginning of this function.
     ProfilerState::get().native_call_registry.reset();
+
     Py_END_ALLOW_THREADS; // Re-acquire GIL
 
     Py_RETURN_NONE;
