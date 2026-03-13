@@ -529,7 +529,7 @@ class LLMObs(Service):
             telemetry.record_llmobs_user_processor_called(error)
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
-        """Generate LLMObs span event using either the meta_struct path or the legacy _store path."""
+        """Generate LLMObs span event from span's stored meta_struct LLMObsSpanData."""
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             return None
