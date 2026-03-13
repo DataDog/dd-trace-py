@@ -102,7 +102,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 return result
             finally:
                 s._set_attribute(db.ROWCOUNT, self.rowcount)
-                s._set_attribute("db.rownumber", self.rownumber)
+                if self.rownumber is not None:
+                    s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
         result = await self._trace_method(
