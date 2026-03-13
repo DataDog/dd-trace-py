@@ -196,9 +196,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
 
     assert len(buckets) == 1
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    # Assert the produce was tracked by checking key presence rather than offset value.
-    # Offset 0 is valid (first message in a fresh partition) and indistinguishable from
-    # an unset defaultdict(int) key, so a value check would be unreliable.
+    # Verify DSM tracked the produce — key presence confirms the delivery callback fired.
     assert PartitionKey(kafka_topic, 0, cluster_id) in list(buckets.values())[0].latest_produce_offsets
 
     def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
