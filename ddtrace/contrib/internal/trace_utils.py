@@ -386,10 +386,6 @@ def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfi
         span.set_tag("_dd.svc.src", "opt.split_by_domain")
 
 
-def set_service_source_tag(span: Span, value: str) -> None:
-    span.set_tag("_dd.svc.src", value)
-
-
 def set_http_meta(
     span: Span,
     integration_config: "IntegrationConfig",
