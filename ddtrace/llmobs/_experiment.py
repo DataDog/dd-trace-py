@@ -773,10 +773,11 @@ if PydanticEvaluator is not None:
                 eval_result.reasoning = first_item.reason
                 if isinstance(first_item.value, bool):
                     eval_result.assessment = "pass" if first_item.value else "fail"
+                eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
             elif isinstance(_eval_result, Mapping) and len(_eval_result) == 2:
                 # this is to identify the pass/fail assessment for LLMJudge evaluators
                 first_item = next(iter(_eval_result.values()))
-                second_item = next(iter(_eval_result.values()))
+                second_item = list(_eval_result.values())[1]
                 first_item_value = first_item.value
                 second_item_value = second_item.value
                 if isinstance(first_item_value, bool):
@@ -790,9 +791,11 @@ if PydanticEvaluator is not None:
                     value = None
                 if first_item.reason == second_item.reason :
                     eval_result.value = value
+                    eval_result.assessment = assessment
                     eval_result.reasoning = second_item.reason
                 else:
                     eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+                eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
             else:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             
@@ -846,7 +849,7 @@ if PydanticEvaluator is not None:
             elif isinstance(_eval_result, Mapping) and len(_eval_result) == 2:
                 # this is to identify the pass/fail assessment for LLMJudge evaluators
                 first_item = next(iter(_eval_result.values()))
-                second_item = next(iter(_eval_result.values()))
+                second_item = list(_eval_result.values())[1]
                 first_item_value = first_item.value
                 second_item_value = second_item.value
                 if isinstance(first_item_value, bool):
