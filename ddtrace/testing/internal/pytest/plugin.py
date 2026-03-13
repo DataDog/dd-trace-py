@@ -586,40 +586,6 @@ class TestOptPlugin:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
             self._mark_test_report_as_retry(reports, retry_handler, TestPhase.SETUP)
 
-    def _mark_quarantined_test_report_as_skipped(
-        self, item: pytest.Item, report: t.Optional[pytest.TestReport]
-    ) -> None:
-        """
-        Modify a test report for a quarantined test to make it look like it was skipped.
-        """
-        # For junitxml, probably the least confusing way to report a quarantined test is as skipped.
-        # In `pytest_runtest_logreport`, we can still identify the test as quarantined via the `dd_quarantined`
-        # user property.
-        if report is None:
-            return
-
-        if report.when == TestPhase.TEARDOWN:
-            report.outcome = "passed"
-        else:
-            # TODO: distinguish quarantine vs disabled
-            line_number = item.location[1] or 0
-            longrepr: _Longrepr = (str(item.path), line_number, "Quarantined")
-            report.longrepr = longrepr
-            report.outcome = "skipped"
-
-    def _mark_quarantined_test_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
-        """
-        Modify the test reports for a quarantined test to make it look like it was skipped.
-        """
-        if call_report := reports.get(TestPhase.CALL):
-            self._mark_quarantined_test_report_as_skipped(item, call_report)
-            reports[TestPhase.SETUP].outcome = "passed"
-            reports[TestPhase.TEARDOWN].outcome = "passed"
-        else:
-            setup_report = reports.get(TestPhase.SETUP)
-            self._mark_quarantined_test_report_as_skipped(item, setup_report)
-            reports[TestPhase.TEARDOWN].outcome = "passed"
-
     def _mark_test_report_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler, when: str) -> bool:
         if call_report := reports.get(when):
             call_report.user_properties += [
@@ -659,10 +625,7 @@ class TestOptPlugin:
             return ("rerun", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
 
         if getattr(report, "wasxfail", None) == "dd_quarantined":
-            if report.when == TestPhase.TEARDOWN:
-                return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
-            else:
-                return ("", "", "")
+            return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
         if _get_user_property(report, "dd_flaky"):
             return ("flaky", "K", ("FLAKY", {"yellow": True}))
@@ -686,7 +649,7 @@ class TestOptPlugin:
             if not report:
                 continue
 
-            if wasxfail := getattr(report, "wasxfail", None):
+            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
                 tags[TestTag.XFAIL_REASON] = str(wasxfail)
                 tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
 
