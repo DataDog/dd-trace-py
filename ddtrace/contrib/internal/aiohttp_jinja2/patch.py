@@ -41,9 +41,9 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     template_meta = "%s/%s" % (template_prefix, template_name)
 
     with tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
-        span._set_tag_str(COMPONENT, config.aiohttp_jinja2.integration_name)
+        span._set_attribute(COMPONENT, config.aiohttp_jinja2.integration_name)
 
-        span._set_tag_str("aiohttp.template", template_meta)
+        span._set_attribute("aiohttp.template", template_meta)
         return func(*args, **kwargs)
 
 
