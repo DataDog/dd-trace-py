@@ -16,7 +16,7 @@ except ImportError:
             if capture_pct < 0 or capture_pct > 100:
                 raise ValueError("Capture percentage should be between 0 and 100 included")
             self.capture_pct: float = capture_pct
-            self._counter: float = 0
+            self._counter: float = 0.0
 
         def __repr__(self) -> str:
             return f"CaptureSampler(capture_pct={self.capture_pct})"
