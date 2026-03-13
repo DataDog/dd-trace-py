@@ -3271,6 +3271,7 @@ venv = Venv(
                 "azure.functions": ["~=1.10.1", latest],
                 "azure.cosmos": latest,
                 "azure.storage.blob": latest,
+                "aiohttp": latest,
             },
         ),
         Venv(

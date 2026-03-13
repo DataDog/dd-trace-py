@@ -14,6 +14,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
@@ -64,9 +65,9 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         request_params = get_argument_value(args, kwargs, 1, "request_params")
         request = get_argument_value(args, kwargs, 5, "request")
         request_data = get_argument_value(args, kwargs, 6, "request_data")
-    except:
+    except ArgumentError:
         return wrapped(*args, **kwargs)
-    
+
     if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:
         return wrapped(*args, **kwargs)
 
@@ -113,7 +114,7 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
         request_params = get_argument_value(args, kwargs, 1, "request_params")
         request = get_argument_value(args, kwargs, 5, "request")
         request_data = get_argument_value(args, kwargs, 6, "request_data")
-    except:
+    except ArgumentError:
         return await wrapped(*args, **kwargs)
 
     if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:

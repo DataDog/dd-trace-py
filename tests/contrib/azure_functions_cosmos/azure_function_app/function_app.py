@@ -1,6 +1,8 @@
 import os
-
-from azure.cosmos import CosmosClient, PartitionKey
+import traceback
+import aiohttp
+from azure.cosmos import CosmosClient
+from azure.cosmos import PartitionKey
 from azure.cosmos.aio import CosmosClient as CosmosClientAio
 import azure.functions as func
 
@@ -19,22 +21,28 @@ app = func.FunctionApp()
 @app.route(route="create_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
-        client = CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False)
+        try:
+            async with CosmosClientAio.from_connection_string(
+                CONNECTION_STRING, connection_verify=False
+            ) as client:
+                database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
+                print(database)
+                container = await database.create_container_if_not_exists(
+                    id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+                )
 
-        database = client.create_database_if_not_exists(ASYNC_DB_NAME)
-        container = database.create_container_if_not_exists(
-            id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-        )
-
-        await container.create_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model 1",
-            }
-        )
-
-        await client.close()
+                await container.create_item(
+                    {
+                        "id": "item1",
+                        "productName": "Widget",
+                        "productModel": "Model 1",
+                    }
+                )
+        except Exception as e:
+            return func.HttpResponse(
+                f"create_item async error: {e!r}\n{traceback.format_exc()}",
+                status_code=500,
+            )
 
     else:
         client = CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
@@ -58,21 +66,24 @@ async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="read_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
-        client = CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False)
+        try:
+            async with CosmosClientAio.from_connection_string(
+                CONNECTION_STRING, connection_verify=False
+            ) as client:
+                database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
+                container = await database.create_container_if_not_exists(
+                    id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+                )
 
-        database = client.create_database_if_not_exists(ASYNC_DB_NAME)
-        container = database.create_container_if_not_exists(
-            id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-        )
-
-       await container.read_item(
-            {
-                "id": "item1",
-                "partition_key": "Widget",
-            }
-        )
-
-        await client.close()
+                await container.read_item(
+                    item="item1",
+                    partition_key="Widget",
+                )
+        except Exception as e:
+            return func.HttpResponse(
+                f"read_item async error: {e!r}\n{traceback.format_exc()}",
+                status_code=500,
+            )
 
     else:
         client = CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
@@ -83,10 +94,8 @@ async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
         )
 
         container.read_item(
-            {
-                "id": "item1",
-                "partition_key": "Widget",
-            }
+            item="item1",
+            partition_key="Widget",
         )
 
     return func.HttpResponse("Hello Datadog!")
@@ -95,22 +104,28 @@ async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="upsert_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
-        client = CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False)
+        try:
+            async with CosmosClientAio.from_connection_string(
+                CONNECTION_STRING, connection_verify=False
+            ) as client:
+                database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
+                container = await database.create_container_if_not_exists(
+                    id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+                )
 
-        database = client.create_database_if_not_exists(ASYNC_DB_NAME)
-        container = database.create_container_if_not_exists(
-            id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-        )
+                await container.upsert_item(
+                    {
+                        "id": "item1",
+                        "productName": "Widget",
+                        "productModel": "Model X",
+                    }
+                )
+        except Exception as e:
+            return func.HttpResponse(
+                f"upsert_item async error: {e!r}\n{traceback.format_exc()}",
+                status_code=500,
+            )
 
-        await container.upsert_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model X",
-            }
-        )
-
-        await client.close()
     else:
         client = CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
 
@@ -133,19 +148,24 @@ async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="delete_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 async def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
-        client = CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False)
+        try:
+            async with CosmosClientAio.from_connection_string(
+                CONNECTION_STRING, connection_verify=False
+            ) as client:
+                database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
+                container = await database.create_container_if_not_exists(
+                    id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+                )
 
-        database = client.create_database_if_not_exists(ASYNC_DB_NAME)
-        container = database.create_container_if_not_exists(
-            id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-        )
-
-        async for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-        ):
-            await container.delete_item(item["id"], partition_key="Widget")
-
-        await client.close()
+                async for item in container.query_items(
+                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+                ):
+                    await container.delete_item(item["id"], partition_key="Widget")
+        except Exception as e:
+            return func.HttpResponse(
+                f"delete_item async error: {e!r}\n{traceback.format_exc()}",
+                status_code=500,
+            )
 
     else:
         client = CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
