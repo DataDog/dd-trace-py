@@ -27,6 +27,14 @@ def test_none_attributes_defaults_to_empty():
     assert event.attributes == {}
 
 
+def test_mapping_attributes_accepted():
+    from types import MappingProxyType
+
+    proxy = MappingProxyType({"k": "v"})
+    event = SpanEvent("myevent", proxy, 12345)
+    assert event.attributes == {"k": "v"}
+
+
 def test_import_from_span_module():
     from ddtrace._trace.span import SpanEvent as SE  # noqa: F401
 

@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyStringMethods as _, PyTuple},
+    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyMapping, PyStringMethods as _, PyTuple},
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
@@ -24,20 +24,31 @@ impl SpanEvent {
     fn __new__(
         py: Python<'_>,
         name: &Bound<'_, PyAny>,
-        attributes: Option<&Bound<'_, PyDict>>,
+        attributes: Option<&Bound<'_, PyAny>>,
         time_unix_nano: Option<i64>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let name = extract_backed_string_or_default(name);
         let time_unix_nano = time_unix_nano.unwrap_or_else(wall_clock_ns);
         let attributes = match attributes {
-            Some(attrs) => attrs.clone().unbind(),
             None => PyDict::new(py).unbind(),
+            Some(obj) if obj.is_none() => PyDict::new(py).unbind(),
+            Some(obj) => {
+                if let Ok(d) = obj.downcast::<PyDict>() {
+                    d.clone().unbind()
+                } else {
+                    // Accept any mapping by copying into a new dict
+                    let dict = PyDict::new(py);
+                    let mapping = obj.downcast::<PyMapping>()?;
+                    dict.update(mapping)?;
+                    dict.unbind()
+                }
+            }
         };
-        Self {
+        Ok(Self {
             name,
             time_unix_nano,
             attributes,
-        }
+        })
     }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
