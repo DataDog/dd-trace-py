@@ -23,7 +23,6 @@ components:
     - ddtrace/ext/aws.py
   azure_cosmos:
     - ddtrace/contrib/internal/azure_cosmos/*
-    - ddtrace/ext/azure_cosmos.py
   azure_durable_functions:
     - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:

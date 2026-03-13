@@ -3266,7 +3266,7 @@ venv = Venv(
         Venv(
             name="azure_functions:cosmos",
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
-            pys=select_pys(min_version="3.14", max_version="3.13"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "azure.cosmos": ["~=4.14.6", latest],
