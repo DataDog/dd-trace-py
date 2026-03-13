@@ -4,13 +4,22 @@ Data extraction from LlamaIndex objects (model names, kwargs building)
 lives here, keeping patch.py focused on the wrapping/unwrapping logic.
 """
 
-import asyncio
+import inspect
 from typing import Any
 from typing import Generator
 
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
 
 def get_model_name(instance: Any) -> str:
-    """Extract model name from a LlamaIndex LLM instance."""
+    """Extract model name from a LlamaIndex LLM instance.
+
+    Checks ``instance.model``, ``instance.model_name``, and
+    ``instance.metadata.model_name`` in order.
+    """
     for attr in ("model", "model_name"):
         val = getattr(instance, attr, None)
         if val:
@@ -24,22 +33,16 @@ def get_model_name(instance: Any) -> str:
 
 
 def is_generator(obj: Any) -> bool:
+    """Return True if *obj* is a synchronous generator."""
     return isinstance(obj, Generator)
 
 
 def is_async_generator(obj: Any) -> bool:
-    return hasattr(obj, "__aiter__") and hasattr(obj, "__anext__") and not asyncio.isfuture(obj)
+    """Return True if *obj* is an asynchronous generator."""
+    return inspect.isasyncgen(obj)
 
 
-# ---------------------------------------------------------------------------
-# Kwargs builders — extract operation-specific data for the integration layer.
-#
-# All builders have the same signature: (instance, args, kwargs) -> dict.
-# Non-LLM builders ignore ``instance``.
-# ---------------------------------------------------------------------------
-
-
-def _add_model_info(trace_kwargs: dict, instance: Any) -> None:
+def _add_model_info(trace_kwargs: dict[str, Any], instance: Any) -> None:
     """Add model name and max_tokens from an LLM instance into *trace_kwargs* (in-place)."""
     trace_kwargs["model"] = get_model_name(instance)
     max_tokens = getattr(instance, "max_tokens", None)
@@ -47,8 +50,9 @@ def _add_model_info(trace_kwargs: dict, instance: Any) -> None:
         trace_kwargs["max_tokens"] = max_tokens
 
 
-def build_chat_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_chat_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a chat LLM call, extracting messages and model info."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         trace_kwargs["messages"] = args[0]
     elif "messages" in kwargs:
@@ -57,8 +61,9 @@ def build_chat_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_complete_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_complete_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a completion LLM call, extracting prompt and model info."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         trace_kwargs["prompt"] = args[0]
     elif "prompt" in kwargs:
@@ -67,9 +72,9 @@ def build_complete_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_predict_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    """The first arg is a PromptTemplate; capture the template text as the prompt string."""
-    trace_kwargs = dict(kwargs)
+def build_predict_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a predict call, extracting the prompt template text."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         prompt_template = args[0]
         template = getattr(prompt_template, "template", None)
@@ -78,11 +83,11 @@ def build_predict_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_query_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_query_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a query engine call, extracting the query string."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         query = args[0]
-        # QueryBundle has a query_str attribute; plain strings are used directly
         trace_kwargs["query_str"] = getattr(query, "query_str", str(query))
     elif "str_or_query_bundle" in kwargs:
         query = kwargs["str_or_query_bundle"]
@@ -90,8 +95,9 @@ def build_query_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_retrieve_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_retrieve_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a retriever call, extracting the query string."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         trace_kwargs["query_str"] = str(args[0])
     elif "str_or_query_bundle" in kwargs:
@@ -100,8 +106,9 @@ def build_retrieve_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_embedding_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_embedding_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a single embedding call, extracting the query text."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         trace_kwargs["query"] = str(args[0])
     elif "query" in kwargs:
@@ -109,8 +116,9 @@ def build_embedding_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_embedding_batch_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_embedding_batch_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a batch embedding call, extracting the batch size."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         texts = args[0]
         trace_kwargs["query"] = "[%d texts]" % len(texts) if texts else ""
@@ -120,8 +128,9 @@ def build_embedding_batch_kwargs(instance: Any, args: tuple, kwargs: dict) -> di
     return trace_kwargs
 
 
-def build_agent_run_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_agent_run_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for an agent run call, extracting the user message."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     if args:
         user_msg = args[0]
         if user_msg is not None:
@@ -134,8 +143,9 @@ def build_agent_run_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
     return trace_kwargs
 
 
-def build_agent_tool_kwargs(instance: Any, args: tuple, kwargs: dict) -> dict:
-    trace_kwargs = dict(kwargs)
+def build_agent_tool_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for a tool call, extracting the tool name."""
+    trace_kwargs: dict[str, Any] = dict(kwargs)
     # call_tool receives (ctx, ev) where ev is a ToolCall event
     if len(args) >= 2:
         tool_call_ev = args[1]

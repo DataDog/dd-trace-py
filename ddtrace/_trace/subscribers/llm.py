@@ -49,6 +49,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             instance=event.instance,
         )
 
+        if event.is_chat is not None:
+            span._set_ctx_item("_dd_is_chat", event.is_chat)
+
         # Proxy detection
         base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.integration._is_instrumented_proxy_url(base_url):
@@ -65,15 +68,22 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         # AIDEV-NOTE: This fires for both streaming and non-streaming paths.
-        # For non-streaming, the context exits normally after setting response.
-        # For streaming, the stream handler manually closes the context after
-        # exhausting the stream and setting the response.
+        # For non-streaming (and anthropic streaming where the context stays open
+        # until the stream is exhausted), the response is already set on the context.
+        # For llama-index streaming where the context exits before the stream is
+        # consumed, we skip tag setting and defer span finishing to the stream handler.
         event: LlmRequestEvent = ctx.event
-        response = ctx.get_item("response")
-        event.integration.llmobs_set_tags(
-            ctx.span,
-            args=[],
-            kwargs=event.request_kwargs,
-            response=response,
-            operation=ctx.get_item("operation", ""),
-        )
+        has_error = exc_info[1] is not None
+
+        if not event.is_stream or has_error:
+            response = ctx.get_item("response")
+            event.integration.llmobs_set_tags(
+                ctx.span,
+                args=[],
+                kwargs=event.request_kwargs,
+                response=response,
+                operation=event.operation,
+            )
+        else:
+            # Streaming: defer span finishing to the stream handler's finalize_stream()
+            event._end_span = False
