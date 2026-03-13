@@ -385,7 +385,18 @@ class TestOptPlugin:
         elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
             # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e.,
             # it is effectively quarantined). We may want to present it in a different way in the output though.
-            item.user_properties += [("dd_quarantined", True)]
+            item.add_marker(pytest.mark.xfail(strict=False, reason="quarantined", run=True))
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logreport(self, report: "pytest.TestReport") -> None:
+        # When an external rerun plugin drives execution (no pytest_runtest_protocol),
+        # neutralize failing reports for quarantined/disabled tests so they don't fail the session.
+        # Skip retry reports (dd_retry_outcome means we're in our own retry loop).
+        if _get_user_property(report, "dd_quarantined") and not _get_user_property(report, "dd_retry_outcome"):
+            if report.failed:
+                report.outcome = "skipped"
+                if report.when != TestPhase.TEARDOWN:
+                    report.longrepr = "Quarantined"
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
@@ -483,8 +494,6 @@ class TestOptPlugin:
         if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
-            if test.is_quarantined() or test.is_disabled():
-                self._mark_quarantined_test_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
@@ -555,16 +564,11 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
-        if test.is_quarantined() or test.is_disabled():
-            self._mark_quarantined_test_report_as_skipped(item, final_report)
-
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = reports.get(TestPhase.TEARDOWN)
-        if test.is_quarantined() or test.is_disabled():
-            self._mark_quarantined_test_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -665,7 +669,7 @@ class TestOptPlugin:
             retry_reason = _get_user_property(report, "dd_retry_reason")
             return ("rerun", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
 
-        if _get_user_property(report, "dd_quarantined"):
+        if getattr(report, "wasxfail", None) == "quarantined":
             if report.when == TestPhase.TEARDOWN:
                 return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
             else:
@@ -1040,14 +1044,11 @@ def pytest_configure(config: pytest.Config) -> None:
         plugin_class = TestOptPluginWithProtocol
     elif detected_rerun_plugins:
         if session_manager.settings.test_management.enabled:
-            session_manager.settings.test_management.enabled = False
-            session_manager.test_properties = {}
             for plugin_name in detected_rerun_plugins:
                 log.warning(
                     "%s is installed and Datadog Auto Test Retries and Early Flake Detection are disabled. "
-                    "Flaky Test Management features (quarantined tests, disabled tests, Attempt to Fix) will be "
-                    "disabled for this session so that %s can drive test execution. "
-                    "To use Flaky Test Management, disable %s with: -p %s",
+                    "Attempt to Fix retries will not work while %s drives test execution. "
+                    "To use Attempt to Fix, disable %s with: -p %s",
                     plugin_name,
                     plugin_name,
                     plugin_name,

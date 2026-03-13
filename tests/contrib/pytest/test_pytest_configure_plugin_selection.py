@@ -104,17 +104,16 @@ class TestPluginClassSelection:
         assert caplog.text == ""
 
     @pytest.mark.parametrize("plugin_name,disable_flag", list(_EXTERNAL_RERUN_PLUGINS.items()))
-    def test_external_plugin_with_test_management_warns_and_disables(self, plugin_name, disable_flag, caplog):
-        """When only test management is enabled (no ATR/EFD), external plugin drives and test management is disabled."""
+    def test_external_plugin_with_test_management_warns_about_atf(self, plugin_name, disable_flag, caplog):
+        """When only test management is enabled (no ATR/EFD), external plugin drives but ATF won't work."""
         config, session_manager = _make_mock_config(plugin_names={plugin_name}, atf_enabled=True)
 
         with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.pytest.plugin"):
             pytest_configure(config)
 
-        assert "Test Management" in caplog.text
+        assert "Attempt to Fix" in caplog.text
         assert disable_flag in caplog.text
-        assert session_manager.settings.test_management.enabled is False
-        assert session_manager.test_properties == {}
+        assert session_manager.settings.test_management.enabled is True
 
     def test_multiple_external_plugins_warns_about_each(self, caplog):
         config, _ = _make_mock_config(plugin_names={"rerunfailures", "flaky"}, efd_enabled=True)
@@ -168,7 +167,4 @@ class TestPluginClassSelection:
 
         TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
 
-        if is_disabled:
-            item.add_marker.assert_called_once()
-        else:
-            assert item.user_properties == [("dd_quarantined", True)]
+        item.add_marker.assert_called_once()
