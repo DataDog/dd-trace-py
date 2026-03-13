@@ -15,6 +15,21 @@ from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
 
 
+def _record_itr_telemetry(method_name: str) -> None:
+    try:
+        from ddtrace.testing.internal.telemetry import EventType
+        from ddtrace.testing.internal.telemetry import TelemetryAPI
+    except Exception:
+        return
+
+    try:
+        telemetry_api = TelemetryAPI.get()
+    except RuntimeError:
+        return
+
+    getattr(telemetry_api, method_name)(EventType.TEST)
+
+
 @dataclass(frozen=True)
 class ModuleRef:
     name: str
@@ -282,12 +297,14 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def mark_unskippable(self) -> None:
         self.tags[TestTag.ITR_UNSKIPPABLE] = TAG_TRUE
+        _record_itr_telemetry("record_itr_unskippable")
 
     def is_unskippable(self) -> bool:
         return self.tags.get(TestTag.ITR_UNSKIPPABLE) == TAG_TRUE
 
     def mark_forced_run(self) -> None:
         self.tags[TestTag.ITR_FORCED_RUN] = TAG_TRUE
+        _record_itr_telemetry("record_itr_forced_run")
 
     def is_forced_run(self) -> bool:
         return self.tags.get(TestTag.ITR_FORCED_RUN) == TAG_TRUE
@@ -295,6 +312,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def mark_skipped_by_itr(self) -> None:
         self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
         self.session.tests_skipped_by_itr += 1
+        _record_itr_telemetry("record_itr_skipped")
 
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
@@ -349,6 +367,9 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def __init__(self, name: str):
         super().__init__(name=name, parent=None)  # type: ignore
         self.tests_skipped_by_itr = 0
+        self.itr_enabled = False
+        self.itr_skipping_enabled = False
+        self.itr_skipping_level = ITRSkippingLevel.TEST
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -357,6 +378,11 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.test_command = test_command
         self.test_framework = test_framework
         self.test_framework_version = test_framework_version
+
+    def set_itr_attributes(self, itr_enabled: bool, skipping_enabled: bool, skipping_level: ITRSkippingLevel) -> None:
+        self.itr_enabled = itr_enabled
+        self.itr_skipping_enabled = skipping_enabled
+        self.itr_skipping_level = skipping_level
 
     def set_early_flake_detection_abort_reason(self, reason: str) -> None:
         self.tags[TestTag.EFD_ABORT_REASON] = reason
@@ -367,9 +393,13 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def set_final_tags(self) -> None:
         super().set_final_tags()
 
-        if self.tests_skipped_by_itr > 0:
-            self.tags[TestTag.ITR_TESTS_SKIPPED] = TAG_TRUE
-            self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = "test"
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = TAG_TRUE if self.itr_skipping_enabled else "false"
+
+        if self.itr_enabled:
+            has_itr_skips = self.tests_skipped_by_itr > 0
+            self.tags[TestTag.ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
+            self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
+            self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = self.itr_skipping_level.value
             self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = self.tests_skipped_by_itr
 
 
@@ -412,7 +442,9 @@ class TestTag:
     ITR_UNSKIPPABLE = "test.itr.unskippable"
     ITR_FORCED_RUN = "test.itr.forced_run"
     SKIPPED_BY_ITR = "test.skipped_by_itr"
+    ITR_TESTS_SKIPPING_ENABLED = "test.itr.tests_skipping.enabled"
     ITR_TESTS_SKIPPED = "test.itr.tests_skipping.tests_skipped"
+    ITR_DD_CI_ITR_TESTS_SKIPPED = "_dd.ci.itr.tests_skipped"
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 

@@ -144,6 +144,15 @@ class TelemetryAPI:
         )
         self.add_count_metric(skippable_count_metric, count)
 
+    def record_itr_skipped(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_skipped", 1, {"event_type": event_type.value})
+
+    def record_itr_unskippable(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_unskippable", 1, {"event_type": event_type.value})
+
+    def record_itr_forced_run(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_forced_run", 1, {"event_type": event_type.value})
+
     def record_settings(self, settings: Settings) -> None:
         tags = {
             "coverage_enabled": settings.coverage_enabled,
