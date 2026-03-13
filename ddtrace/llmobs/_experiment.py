@@ -1495,9 +1495,7 @@ class Experiment:
                 task_results, evaluations = await self._run_tasks_with_evaluators(
                     jobs, run, raise_errors, sample_size, max_retries=max_retries, retry_delay=retry_delay
                 )
-                summary_evals = await self._run_summary_evaluators(
-                    task_results, evaluations, raise_errors, jobs=jobs
-                )
+                summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
                 run_result = self._merge_results(run, task_results, evaluations, summary_evals)
                 self._run_results.append(run_result)
         except BaseException:
@@ -1873,13 +1871,10 @@ class Experiment:
     ) -> list[EvaluationResult]:
         semaphore = asyncio.Semaphore(jobs)
         coros = [
-            self._evaluate_record(
-                self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay
-            )
+            self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
             for idx, task_result in enumerate(task_results)
         ]
         return list(await asyncio.gather(*coros))
-
 
     async def _run_tasks_with_evaluators(
         self,
