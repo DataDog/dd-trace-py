@@ -407,34 +407,18 @@ class TestReportGeneration:
 
         assert result == ("rerun", "R", "RETRY FAILED (Auto Test Retries)")
 
-    def test_pytest_report_teststatus_quarantined(self) -> None:
-        """Test report status for quarantined tests in call phase."""
+    @pytest.mark.parametrize("when", ["call", "teardown"])
+    def test_pytest_report_teststatus_quarantined(self, when: str) -> None:
+        """Test report status for quarantined tests: QUARANTINED shown for any phase with wasxfail."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        # Mock report with quarantined property (call phase)
         mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "call"
+        mock_report.when = when
+        mock_report.wasxfail = "dd_quarantined"
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        # In non-teardown phases, quarantined tests return empty strings (no logging)
-        assert result == ("", "", "")
-
-    def test_pytest_report_teststatus_quarantined_teardown(self) -> None:
-        """Test report status for quarantined tests in teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        # Mock report with quarantined property (teardown phase)
-        mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "teardown"
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        # In teardown phase, quarantined tests show the quarantined status
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
     def test_pytest_report_teststatus_normal(self) -> None:
@@ -933,43 +917,6 @@ class TestPrivateMethods:
 
         assert result is None
 
-    def test_mark_quarantined_test_report_as_skipped_call_phase(self) -> None:
-        """Test quarantined test report modification for call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "call"
-
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "skipped"
-        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined")
-
-    def test_mark_quarantined_test_report_as_skipped_teardown_phase(self) -> None:
-        """Test quarantined test report modification for teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "teardown"
-
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "passed"
-
-    def test_mark_quarantined_test_report_as_skipped_none_report(self) -> None:
-        """Test quarantined test report modification with None report."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-
-        # Should not raise exception
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, None)
-
 
 # =============================================================================
 # COVERAGE GAPS - Additional tests for missing methods
@@ -1122,53 +1069,6 @@ class TestReportAndLoggingMethods:
 
         # Should mark setup report
         assert mock_setup_report.outcome == "rerun"
-
-
-class TestQuarantineHandling:
-    """Test quarantine handling methods."""
-
-    def test_mark_quarantined_test_report_group_as_skipped_with_call(self) -> None:
-        """Test quarantine group marking when call report exists."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_call = Mock()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "call": mock_call,
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
-
-        # Call should be marked as skipped, others as passed
-        assert mock_call.outcome == "skipped"
-        assert mock_setup.outcome == "passed"
-        assert mock_teardown.outcome == "passed"
-
-    def test_mark_quarantined_test_report_group_as_skipped_no_call(self) -> None:
-        """Test quarantine group marking when call report is missing."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
-
-        # Setup should be marked as skipped, teardown as passed
-        assert mock_setup.outcome == "skipped"
-        assert mock_teardown.outcome == "passed"
 
 
 class TestXdistPlugin:
