@@ -27,6 +27,9 @@ def start() -> None:
     if _started:
         return
 
+    if sys.version_info < (3, 12):
+        return
+
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
 
     try:
