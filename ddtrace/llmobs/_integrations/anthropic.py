@@ -6,6 +6,8 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -228,6 +230,15 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         if cache_write_tokens is not None:
             metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+            cache_creation_breakdown = _get_attr(usage, "cache_creation", {})
+            cache_creation_1h_tokens = _get_attr(cache_creation_breakdown, "ephemeral_1h_input_tokens", None)
+            cache_creation_5m_tokens = _get_attr(cache_creation_breakdown, "ephemeral_5m_input_tokens", None)
+            if cache_creation_1h_tokens is None and cache_creation_5m_tokens is None:
+                # Legacy API response without cache_creation breakdown; assume all writes are 5m TTL.
+                cache_creation_5m_tokens = cache_write_tokens
+            metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = cache_creation_1h_tokens or 0
+            metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_5m_tokens or 0
+
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics

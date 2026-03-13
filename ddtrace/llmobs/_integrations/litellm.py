@@ -3,6 +3,8 @@ from typing import Optional
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
@@ -218,16 +220,29 @@ class LiteLLMIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
-            # cache_creation_tokens is on prompt_tokens_details in litellm >=1.80.16
+            # cache_creation_tokens + cache TTL breakdown is on prompt_tokens_details in litellm >=1.77.3
             cache_creation_tokens = _get_attr(prompt_tokens_details, "cache_creation_tokens", None)
             if cache_creation_tokens:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+                cache_creation_token_details = _get_attr(prompt_tokens_details, "cache_creation_token_details", None)
+                if cache_creation_token_details is not None:
+                    ephemeral_1h = _get_attr(cache_creation_token_details, "ephemeral_1h_input_tokens", None)
+                    ephemeral_5m = _get_attr(cache_creation_token_details, "ephemeral_5m_input_tokens", None)
+                    metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = ephemeral_1h or 0
+                    metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = ephemeral_5m or 0
+                else:
+                    # if no cache write TTL breakdown available, assume all writes are 5m TTL
+                    metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
+                    metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
 
         # Fallback: cache_creation_input_tokens on usage object (litellm 1.65.4)
         if CACHE_WRITE_INPUT_TOKENS_METRIC_KEY not in metrics:
             cache_creation_tokens = _get_attr(token_usage, "cache_creation_input_tokens", None)
             if cache_creation_tokens:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+                # if no cache write TTL breakdown available, assume all writes are 5m TTL
+                metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
+                metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
 
         return metrics
 
