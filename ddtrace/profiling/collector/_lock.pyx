@@ -182,7 +182,6 @@ class _ProfiledLock:
         self.acquired_time = end
         if not self.is_internal:
             try:
-                self._update_name()
                 self._flush_sample(start, end, True)
             except AssertionError:
                 if config.enable_asserts:
@@ -246,6 +245,18 @@ class _ProfiledLock:
         thread_id: int = _thread.get_ident()
         thread_native_id: int = _thread.get_native_id()
         try:
+            task_id: Optional[int]
+            task_name: Optional[str]
+            task_frame: Optional[FrameType]
+            task_id, task_name, task_frame = _task.get_task()
+
+            # Single sys._getframe() call shared by both name resolution and frame pushing.
+            # Previously _update_name() and _flush_sample() each called sys._getframe() independently.
+            frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
+
+            if self.name is None and is_acquire:
+                self._resolve_name(frame)
+
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
             handle.push_monotonic_ns(end)
@@ -267,11 +278,6 @@ class _ProfiledLock:
                 self._cached_thread_name = thread_name
                 self._cached_thread_native_id = thread_native_id
 
-            task_id: Optional[int]
-            task_name: Optional[str]
-            task_frame: Optional[FrameType]
-            task_id, task_name, task_frame = _task.get_task()
-
             handle.push_task_id(task_id)
             handle.push_task_name(task_name)
 
@@ -280,9 +286,6 @@ class _ProfiledLock:
             if self.tracer is not None:
                 handle.push_span(self.tracer.current_span())
 
-            # If we can't get the task frame, we use the caller frame.
-            # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
-            frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
             handle.push_pyframes(frame)
 
             handle.flush_sample()
@@ -312,15 +315,13 @@ class _ProfiledLock:
                         pass
         return None
 
-    def _update_name(self) -> None:
-        """Get lock variable name from the caller's frame."""
-        if self.name is not None:
-            return
+    def _resolve_name(self, frame: FrameType) -> None:
+        """Resolve lock variable name from the given caller frame.
 
+        Uses the frame already retrieved by _flush_sample() to avoid a
+        redundant sys._getframe() call.
+        """
         try:
-            # In Cython, intermediate frames (_acquire, acquire, etc.) are invisible to
-            # sys._getframe(), so the caller frame is at index 0.
-            frame: FrameType = sys._getframe(_CALLER_FRAME_INDEX)
             self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
         except AssertionError:
             if config.enable_asserts:
