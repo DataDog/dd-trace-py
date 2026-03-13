@@ -101,7 +101,7 @@ def record_span_started():
 
 def record_span_created(span: Span):
     is_root_span = get_llmobs_parent_id(span) is None
-    llmobs_tags = get_llmobs_tags(span)
+    llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
     integration = llmobs_tags.get("integration")
     autoinstrumented = integration is not None
