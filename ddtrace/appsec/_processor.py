@@ -22,6 +22,8 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+from ddtrace.appsec._metrics import set_waf_init_metric
+from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import Block_config
@@ -139,18 +141,16 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
                 from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
-                import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 DDWaf = waf_module()
                 if DDWaf is None:
                     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
                     self._ddwaf = None
                     return
-                self.metrics = metrics
                 self._ddwaf = DDWaf(
-                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
+                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
+                set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
@@ -180,7 +180,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(removals, updates)
-        self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
+        set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
 
@@ -232,7 +232,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         entry_span = span._service_entry_span
         entry_span.set_metric(APPSEC.ENABLED, 1.0)
-        entry_span._set_tag_str(_RUNTIME_FAMILY, "python")
+        entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 
         ctx = self._ddwaf._at_request_start()
         if ctx is not None:
@@ -336,13 +336,13 @@ class AppSecSpanProcessor(SpanProcessor):
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
             previous = entry_span.get_tag(error_tag)
             if previous is None:
-                entry_span._set_tag_str(error_tag, str(waf_results.return_code))
+                entry_span._set_attribute(error_tag, str(waf_results.return_code))
             else:
                 try:
                     int_previous = int(previous)
                 except ValueError:
                     int_previous = -128
-                entry_span._set_tag_str(error_tag, str(max(int_previous, waf_results.return_code)))
+                entry_span._set_attribute(error_tag, str(max(int_previous, waf_results.return_code)))
 
         blocked = {}
         for action, parameters in waf_results.actions.items():
@@ -361,7 +361,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         # Trace tagging
         for key, value in waf_results.meta_tags.items():
-            entry_span._set_tag_str(key, value)
+            entry_span._set_attribute(key, value)
         for key, value in waf_results.metrics.items():
             entry_span.set_metric(key, value)
 
@@ -389,18 +389,18 @@ class AppSecSpanProcessor(SpanProcessor):
                 entry_span.set_tag(APPSEC.BLOCKED, "true")
 
             # Partial DDAS-011-00
-            entry_span._set_tag_str(APPSEC.EVENT, "true")
+            entry_span._set_attribute(APPSEC.EVENT, "true")
 
             remote_ip = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
-                entry_span._set_tag_str("actor.ip", remote_ip)
+                entry_span._set_attribute("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
             if entry_span.get_tag(_ORIGIN_KEY) is None:
-                entry_span._set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+                entry_span._set_attribute(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         if waf_results.keep and allowed:
             _asm_manual_keep(entry_span)

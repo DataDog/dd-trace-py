@@ -29,7 +29,7 @@ def generate(func, renderer, args, kwargs):
     # trace the original call
     with tracer.trace("tornado.template", service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE) as span:
         maybe_set_service_source_tag(span, config.tornado)
-        span._set_tag_str(COMPONENT, config.tornado.integration_name)
+        span._set_attribute(COMPONENT, config.tornado.integration_name)
 
-        span._set_tag_str("tornado.template_name", template_name)
+        span._set_attribute("tornado.template_name", template_name)
         return func(*args, **kwargs)
