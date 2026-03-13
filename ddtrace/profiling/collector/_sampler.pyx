@@ -15,11 +15,11 @@ cdef class CaptureSampler:
     def __cinit__(self, double capture_pct=100.0) -> None:
         if capture_pct < 0 or capture_pct > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
-        self.capture_pct: float = capture_pct
-        self._counter: float = 0.0
+        self.capture_pct = capture_pct
+        self._counter = 0.0
 
     def __repr__(self) -> str:
-        return "CaptureSampler(capture_pct=%r)" % self.capture_pct
+        return f"CaptureSampler(capture_pct={self.capture_pct!r})"
 
     cpdef bint capture(self):
         self._counter += self.capture_pct
