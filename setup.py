@@ -24,7 +24,6 @@ from setuptools import Distribution, Extension, find_packages, setup  # isort: s
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
-from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 from distutils.dep_util import newer_group
 
@@ -49,6 +48,7 @@ from urllib.request import urlretrieve
 
 
 HERE = Path(__file__).resolve().parent
+get_build_platform = sysconfig.get_platform
 
 CURRENT_OS = platform.system()
 
