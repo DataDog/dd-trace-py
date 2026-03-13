@@ -165,15 +165,9 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
-        result: Any = None
-        try:
-            result = inner_func(*args, **kwargs)
-            if result is False:
-                return False
-        except BaseException as exc:
-            error_info = (exc, exc.__traceback__)
-            err, tb = error_info
-            raise err.with_traceback(tb)
+        result = inner_func(*args, **kwargs)
+        if result is False:
+            return False
 
         end: int = time.monotonic_ns()
 
