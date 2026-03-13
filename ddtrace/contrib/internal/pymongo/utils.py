@@ -125,7 +125,14 @@ def set_query_metadata(span, cmd):
     if cmd.query:
         nq = normalize_filter(cmd.query)
         q = json.dumps(nq)
-        span.set_tag("mongodb.query", q)
+        tag_query = q
+        if not config.pymongo.get("mongodb_obfuscation", True):
+            try:
+                tag_query = json.dumps(cmd.query)
+            except Exception:
+                # Keep legacy-safe behavior if the raw query isn't JSON serializable.
+                tag_query = q
+        span.set_tag("mongodb.query", tag_query)
         span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
