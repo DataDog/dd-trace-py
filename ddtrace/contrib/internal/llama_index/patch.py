@@ -1,8 +1,11 @@
 import functools
+import inspect
 import sys
 from typing import Any
+from typing import Callable
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.llama_index._streaming import handle_async_streamed_response
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
 from ddtrace.contrib.internal.llama_index._utils import build_agent_run_kwargs
@@ -17,6 +20,8 @@ from ddtrace.contrib.internal.llama_index._utils import build_retrieve_kwargs
 from ddtrace.contrib.internal.llama_index._utils import get_model_name
 from ddtrace.contrib.internal.llama_index._utils import is_async_generator
 from ddtrace.contrib.internal.llama_index._utils import is_generator
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
@@ -56,7 +61,7 @@ _integration = None
 
 
 # ---------------------------------------------------------------------------
-# Method wrapper factories
+# Method wrapper factory
 # ---------------------------------------------------------------------------
 
 # AIDEV-NOTE: We use functools.wraps-based monkey-patching instead of wrapt's wrap()/unwrap()
@@ -69,233 +74,160 @@ _integration = None
 _DD_WRAPPED = "__dd_wrapped__"
 
 
-def _make_sync_wrapper(wrapper_fn, original_fn):
-    @functools.wraps(original_fn)
-    def wrapper(self, *args, **kwargs):
-        return wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
+def _make_wrapper(wrapper_fn, original_fn):
+    """Create a sync or async method wrapper, auto-detected from *wrapper_fn*."""
+    if inspect.iscoroutinefunction(wrapper_fn):
+
+        @functools.wraps(original_fn)
+        async def wrapper(self, *args, **kwargs):
+            return await wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
+    else:
+
+        @functools.wraps(original_fn)
+        def wrapper(self, *args, **kwargs):
+            return wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
 
     wrapper.__dd_wrapped__ = original_fn
     return wrapper
 
 
-def _make_async_wrapper(wrapper_fn, original_fn):
-    @functools.wraps(original_fn)
-    async def wrapper(self, *args, **kwargs):
-        return await wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
+# ---------------------------------------------------------------------------
+# Event creation helper
+# ---------------------------------------------------------------------------
 
-    wrapper.__dd_wrapped__ = original_fn
-    return wrapper
+
+def _create_llm_event(
+    integration: LlamaIndexIntegration,
+    instance: Any,
+    func: Callable[..., Any],
+    request_kwargs: dict[str, Any],
+    interface_type: str,
+    model: str = "",
+    is_chat: bool | None = None,
+    operation: str = "",
+) -> LlmRequestEvent:
+    """Create an LlmRequestEvent for a LlamaIndex call."""
+    return LlmRequestEvent(
+        component="llama_index",
+        service=int_service(None, integration.integration_config),
+        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
+        integration_name="llama_index",
+        provider="llama_index",
+        model=model,
+        integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=request_kwargs,
+        interface_type=interface_type,
+        instance=instance,
+        is_chat=is_chat,
+        operation=operation,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Traced function factories
 #
-# All build_kwargs_fn callables share the same signature:
-#   (instance, args, kwargs) -> dict
+# AIDEV-NOTE: Two parallel factories (_traced_sync / _traced_async) that share
+# identical structure. Uses core.context_with_event directly — typed fields on
+# LlmRequestEvent (is_chat, operation, is_stream) replace ad-hoc ctx items.
+# When is_chat is not None → LLM mode (model extraction, streaming support).
+# When is_chat is None → operation mode (sets operation on event).
 # ---------------------------------------------------------------------------
 
 
-def _traced_llm(build_kwargs_fn, *, is_chat, may_stream=False, always_stream=False):
-    """Factory for sync LLM traced wrappers.
+def _traced_sync(build_kw, *, is_chat=None, may_stream=False, always_stream=False, interface_type="", operation=""):
+    """Factory for sync traced wrappers."""
+    is_llm = is_chat is not None
+    if is_llm:
+        interface_type = "chat_model" if is_chat else "completion"
 
-    Handles three modes:
-    - Simple (default): try/except/finally with llmobs_set_tags in finally
-    - may_stream: check if response is a generator; delegate to streaming handler if so
-    - always_stream: always delegate to streaming handler; tags set in except on error
-    """
-    interface_type = "chat_model" if is_chat else "completion"
-
-    def traced(func, instance, args, kwargs):
-        model = get_model_name(instance)
-        span = _integration.trace(
-            "%s.%s" % (instance.__class__.__name__, func.__name__),
-            submit_to_llmobs=True,
-            interface_type=interface_type,
-            provider="llama_index",
-            model=model,
-            instance=instance,
+    def wrapper(func, instance, args, kwargs):
+        model = get_model_name(instance) if is_llm else ""
+        kw = build_kw(instance, args, kwargs)
+        event = _create_llm_event(
+            _integration, instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation
         )
-        span._set_ctx_item("_dd_is_chat", is_chat)
 
-        if always_stream:
-            try:
-                response = func(*args, **kwargs)
-                kw = build_kwargs_fn(instance, args, kwargs)
-                return handle_streamed_response(_integration, response, args, kw, span, is_chat=is_chat)
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
-                _integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
-                span.finish()
-                raise
+        with core.context_with_event(event) as ctx:
+            resp = func(*args, **kwargs)
+            if always_stream or (may_stream and is_generator(resp)):
+                event.is_stream = True
+                return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
+            ctx.set_item("response", resp)
+            return resp
 
-        response = None
-        stream = False
-        try:
-            response = func(*args, **kwargs)
-            if may_stream and is_generator(response):
-                stream = True
-                kw = build_kwargs_fn(instance, args, kwargs)
-                return handle_streamed_response(_integration, response, args, kw, span, is_chat=is_chat)
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            if span.error or not stream:
-                kw = build_kwargs_fn(instance, args, kwargs)
-                _integration.llmobs_set_tags(span, args=args, kwargs=kw, response=response)
-                span.finish()
-        return response
-
-    return traced
+    return wrapper
 
 
-def _traced_llm_async(build_kwargs_fn, *, is_chat, may_stream=False, always_stream=False):
-    """Factory for async LLM traced wrappers. See _traced_llm for mode descriptions."""
-    interface_type = "chat_model" if is_chat else "completion"
+def _traced_async(build_kw, *, is_chat=None, may_stream=False, always_stream=False, interface_type="", operation=""):
+    """Factory for async traced wrappers."""
+    is_llm = is_chat is not None
+    if is_llm:
+        interface_type = "chat_model" if is_chat else "completion"
 
-    async def traced(func, instance, args, kwargs):
-        model = get_model_name(instance)
-        span = _integration.trace(
-            "%s.%s" % (instance.__class__.__name__, func.__name__),
-            submit_to_llmobs=True,
-            interface_type=interface_type,
-            provider="llama_index",
-            model=model,
-            instance=instance,
+    async def wrapper(func, instance, args, kwargs):
+        model = get_model_name(instance) if is_llm else ""
+        kw = build_kw(instance, args, kwargs)
+        event = _create_llm_event(
+            _integration, instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation
         )
-        span._set_ctx_item("_dd_is_chat", is_chat)
 
-        if always_stream:
-            try:
-                response = await func(*args, **kwargs)
-                kw = build_kwargs_fn(instance, args, kwargs)
-                return handle_async_streamed_response(_integration, response, args, kw, span, is_chat=is_chat)
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
-                _integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
-                span.finish()
-                raise
+        with core.context_with_event(event) as ctx:
+            resp = await func(*args, **kwargs)
+            if always_stream or (may_stream and is_async_generator(resp)):
+                event.is_stream = True
+                return handle_async_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
+            ctx.set_item("response", resp)
+            return resp
 
-        response = None
-        stream = False
-        try:
-            response = await func(*args, **kwargs)
-            if may_stream and is_async_generator(response):
-                stream = True
-                kw = build_kwargs_fn(instance, args, kwargs)
-                return handle_async_streamed_response(_integration, response, args, kw, span, is_chat=is_chat)
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            if span.error or not stream:
-                kw = build_kwargs_fn(instance, args, kwargs)
-                _integration.llmobs_set_tags(span, args=args, kwargs=kw, response=response)
-                span.finish()
-        return response
-
-    return traced
-
-
-def _traced_operation(interface_type, build_kwargs_fn, operation):
-    """Factory for sync non-LLM traced wrappers (query, retrieve, embed, agent)."""
-
-    def traced(func, instance, args, kwargs):
-        span = _integration.trace(
-            "%s.%s" % (instance.__class__.__name__, func.__name__),
-            submit_to_llmobs=True,
-            interface_type=interface_type,
-            provider="llama_index",
-        )
-        response = None
-        try:
-            response = func(*args, **kwargs)
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            kw = build_kwargs_fn(instance, args, kwargs)
-            _integration.llmobs_set_tags(span, args=args, kwargs=kw, response=response, operation=operation)
-            span.finish()
-        return response
-
-    return traced
-
-
-def _traced_operation_async(interface_type, build_kwargs_fn, operation):
-    """Factory for async non-LLM traced wrappers."""
-
-    async def traced(func, instance, args, kwargs):
-        span = _integration.trace(
-            "%s.%s" % (instance.__class__.__name__, func.__name__),
-            submit_to_llmobs=True,
-            interface_type=interface_type,
-            provider="llama_index",
-        )
-        response = None
-        try:
-            response = await func(*args, **kwargs)
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            kw = build_kwargs_fn(instance, args, kwargs)
-            _integration.llmobs_set_tags(span, args=args, kwargs=kw, response=response, operation=operation)
-            span.finish()
-        return response
-
-    return traced
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
 # AIDEV-NOTE: Method-to-wrapper mappings per component type.
-# Each tuple is (sync_wrappers, async_wrappers).
+# Each dict maps method_name -> wrapper_fn (sync and async combined).
+# _make_wrapper auto-detects sync/async from the wrapper function.
 # ---------------------------------------------------------------------------
 
-_LLM_WRAPPERS = (
-    {
-        "chat": _traced_llm(build_chat_kwargs, is_chat=True, may_stream=True),
-        "complete": _traced_llm(build_complete_kwargs, is_chat=False, may_stream=True),
-        "stream_chat": _traced_llm(build_chat_kwargs, is_chat=True, always_stream=True),
-        "stream_complete": _traced_llm(build_complete_kwargs, is_chat=False, always_stream=True),
-        "predict": _traced_llm(build_predict_kwargs, is_chat=False),
-    },
-    {
-        "achat": _traced_llm_async(build_chat_kwargs, is_chat=True, may_stream=True),
-        "acomplete": _traced_llm_async(build_complete_kwargs, is_chat=False, may_stream=True),
-        "astream_chat": _traced_llm_async(build_chat_kwargs, is_chat=True, always_stream=True),
-        "astream_complete": _traced_llm_async(build_complete_kwargs, is_chat=False, always_stream=True),
-        "apredict": _traced_llm_async(build_predict_kwargs, is_chat=False),
-    },
-)
+_LLM_WRAPPERS = {
+    "chat": _traced_sync(build_chat_kwargs, is_chat=True, may_stream=True),
+    "complete": _traced_sync(build_complete_kwargs, is_chat=False, may_stream=True),
+    "stream_chat": _traced_sync(build_chat_kwargs, is_chat=True, always_stream=True),
+    "stream_complete": _traced_sync(build_complete_kwargs, is_chat=False, always_stream=True),
+    "predict": _traced_sync(build_predict_kwargs, is_chat=False),
+    "achat": _traced_async(build_chat_kwargs, is_chat=True, may_stream=True),
+    "acomplete": _traced_async(build_complete_kwargs, is_chat=False, may_stream=True),
+    "astream_chat": _traced_async(build_chat_kwargs, is_chat=True, always_stream=True),
+    "astream_complete": _traced_async(build_complete_kwargs, is_chat=False, always_stream=True),
+    "apredict": _traced_async(build_predict_kwargs, is_chat=False),
+}
 
-_QUERY_ENGINE_WRAPPERS = (
-    {"query": _traced_operation("query", build_query_kwargs, "query")},
-    {"aquery": _traced_operation_async("query", build_query_kwargs, "query")},
-)
+_QUERY_ENGINE_WRAPPERS = {
+    "query": _traced_sync(build_query_kwargs, interface_type="query", operation="query"),
+    "aquery": _traced_async(build_query_kwargs, interface_type="query", operation="query"),
+}
 
-_RETRIEVER_WRAPPERS = (
-    {"retrieve": _traced_operation("retrieval", build_retrieve_kwargs, "retrieval")},
-    {"aretrieve": _traced_operation_async("retrieval", build_retrieve_kwargs, "retrieval")},
-)
+_RETRIEVER_WRAPPERS = {
+    "retrieve": _traced_sync(build_retrieve_kwargs, interface_type="retrieval", operation="retrieval"),
+    "aretrieve": _traced_async(build_retrieve_kwargs, interface_type="retrieval", operation="retrieval"),
+}
 
-_EMBEDDING_WRAPPERS = (
-    {
-        "get_query_embedding": _traced_operation("embedding", build_embedding_kwargs, "embedding"),
-        "get_text_embedding_batch": _traced_operation("embedding", build_embedding_batch_kwargs, "embedding"),
-    },
-    {
-        "aget_query_embedding": _traced_operation_async("embedding", build_embedding_kwargs, "embedding"),
-        "aget_text_embedding_batch": _traced_operation_async("embedding", build_embedding_batch_kwargs, "embedding"),
-    },
-)
+_EMBEDDING_WRAPPERS = {
+    "get_query_embedding": _traced_sync(build_embedding_kwargs, interface_type="embedding", operation="embedding"),
+    "get_text_embedding_batch": _traced_sync(
+        build_embedding_batch_kwargs, interface_type="embedding", operation="embedding"
+    ),
+    "aget_query_embedding": _traced_async(build_embedding_kwargs, interface_type="embedding", operation="embedding"),
+    "aget_text_embedding_batch": _traced_async(
+        build_embedding_batch_kwargs, interface_type="embedding", operation="embedding"
+    ),
+}
 
-_AGENT_WRAPPERS = (
-    {"run": _traced_operation("agent", build_agent_run_kwargs, "agent")},
-    {"call_tool": _traced_operation_async("tool", build_agent_tool_kwargs, "tool")},
-)
+_AGENT_WRAPPERS = {
+    "run": _traced_sync(build_agent_run_kwargs, interface_type="agent", operation="agent"),
+    "call_tool": _traced_async(build_agent_tool_kwargs, interface_type="tool", operation="tool"),
+}
 
-# All wrapper configs for bulk unwrap during unpatch
 _ALL_WRAPPERS = [_LLM_WRAPPERS, _QUERY_ENGINE_WRAPPERS, _RETRIEVER_WRAPPERS, _EMBEDDING_WRAPPERS, _AGENT_WRAPPERS]
 
 
@@ -308,32 +240,22 @@ def _is_dd_wrapped(method):
     return hasattr(method, _DD_WRAPPED)
 
 
-def _wrap_class(cls, sync_wrappers, async_wrappers):
+def _wrap_class(cls, wrappers):
     """Wrap methods on a class using plain function replacement."""
-    for method_name, wrapper_fn in sync_wrappers.items():
+    for method_name, wrapper_fn in wrappers.items():
         original = cls.__dict__.get(method_name)
         if original is not None and not _is_dd_wrapped(original):
             try:
                 _originals[(cls, method_name)] = original
-                setattr(cls, method_name, _make_sync_wrapper(wrapper_fn, original))
+                setattr(cls, method_name, _make_wrapper(wrapper_fn, original))
             except Exception:
                 log.debug("Failed to wrap %s.%s", cls.__name__, method_name, exc_info=True)
-
-    for method_name, wrapper_fn in async_wrappers.items():
-        original = cls.__dict__.get(method_name)
-        if original is not None and not _is_dd_wrapped(original):
-            try:
-                _originals[(cls, method_name)] = original
-                setattr(cls, method_name, _make_async_wrapper(wrapper_fn, original))
-            except Exception:
-                log.debug("Failed to wrap %s.%s", cls.__name__, method_name, exc_info=True)
-
     _wrapped_classes.add(cls)
 
 
-def _unwrap_class(cls, sync_wrappers, async_wrappers):
+def _unwrap_class(cls, wrappers):
     """Unwrap methods on a class by restoring originals."""
-    for method_name in list(sync_wrappers) + list(async_wrappers):
+    for method_name in wrappers:
         key = (cls, method_name)
         if key in _originals:
             try:
@@ -358,7 +280,7 @@ def _patched_init(original_init):
         result = original_init(self, *args, **kwargs)
         cls = type(self)
         if cls not in _wrapped_classes:
-            _wrap_class(cls, *_LLM_WRAPPERS)
+            _wrap_class(cls, _LLM_WRAPPERS)
         return result
 
     wrapper.__dd_wrapped__ = original_init
@@ -373,19 +295,19 @@ def _patched_init(original_init):
 def patch():
     global _integration
 
-    core = _get_llama_index_core()
-    BaseLLM = core.base.llms.base.BaseLLM
-    BaseQueryEngine = core.base.base_query_engine.BaseQueryEngine
-    BaseRetriever = core.base.base_retriever.BaseRetriever
-    BaseEmbedding = core.base.embeddings.base.BaseEmbedding
+    core_mod = _get_llama_index_core()
+    BaseLLM = core_mod.base.llms.base.BaseLLM
+    BaseQueryEngine = core_mod.base.base_query_engine.BaseQueryEngine
+    BaseRetriever = core_mod.base.base_retriever.BaseRetriever
+    BaseEmbedding = core_mod.base.embeddings.base.BaseEmbedding
 
-    if getattr(core, "_datadog_patch", False):
+    if getattr(core_mod, "_datadog_patch", False):
         return
 
-    core._datadog_patch = True
+    core_mod._datadog_patch = True
 
     integration = LlamaIndexIntegration(integration_config=config.llama_index)
-    core._datadog_integration = integration
+    core_mod._datadog_integration = integration
     _integration = integration
 
     # AIDEV-NOTE: Hook __init__ on BaseLLM to wrap subclass methods on first instantiation.
@@ -395,17 +317,14 @@ def patch():
     BaseLLM.__init__ = _patched_init(original_init)
 
     # Wrap base classes and all existing subclasses
-    for cls in [BaseLLM] + list(_get_all_subclasses(BaseLLM)):
-        _wrap_class(cls, *_LLM_WRAPPERS)
-
-    for cls in [BaseQueryEngine] + list(_get_all_subclasses(BaseQueryEngine)):
-        _wrap_class(cls, *_QUERY_ENGINE_WRAPPERS)
-
-    for cls in [BaseRetriever] + list(_get_all_subclasses(BaseRetriever)):
-        _wrap_class(cls, *_RETRIEVER_WRAPPERS)
-
-    for cls in [BaseEmbedding] + list(_get_all_subclasses(BaseEmbedding)):
-        _wrap_class(cls, *_EMBEDDING_WRAPPERS)
+    for base_cls, wrappers in [
+        (BaseLLM, _LLM_WRAPPERS),
+        (BaseQueryEngine, _QUERY_ENGINE_WRAPPERS),
+        (BaseRetriever, _RETRIEVER_WRAPPERS),
+        (BaseEmbedding, _EMBEDDING_WRAPPERS),
+    ]:
+        for cls in [base_cls] + list(_get_all_subclasses(base_cls)):
+            _wrap_class(cls, wrappers)
 
     # AIDEV-NOTE: Wrap BaseWorkflowAgent.run()/call_tool() — AI agent execution.
     # This module may not exist in older llama-index-core versions (e.g. ~=0.11.0).
@@ -415,7 +334,7 @@ def patch():
         )
         BaseWorkflowAgent = agent_mod.BaseWorkflowAgent
         for cls in [BaseWorkflowAgent] + list(_get_all_subclasses(BaseWorkflowAgent)):
-            _wrap_class(cls, *_AGENT_WRAPPERS)
+            _wrap_class(cls, _AGENT_WRAPPERS)
     except (ImportError, ModuleNotFoundError, AttributeError):
         log.debug("llama_index.core.agent.workflow not available, skipping agent instrumentation")
 
@@ -423,43 +342,24 @@ def patch():
 def unpatch():
     global _integration
 
-    core = _get_llama_index_core()
-    BaseLLM = core.base.llms.base.BaseLLM
-    BaseQueryEngine = core.base.base_query_engine.BaseQueryEngine
-    BaseRetriever = core.base.base_retriever.BaseRetriever
-    BaseEmbedding = core.base.embeddings.base.BaseEmbedding
+    core_mod = _get_llama_index_core()
 
-    if not getattr(core, "_datadog_patch", False):
+    if not getattr(core_mod, "_datadog_patch", False):
         return
 
-    core._datadog_patch = False
+    core_mod._datadog_patch = False
 
-    init_key = (BaseLLM, "__init__")
+    init_key = (core_mod.base.llms.base.BaseLLM, "__init__")
     if init_key in _originals:
-        BaseLLM.__init__ = _originals.pop(init_key)
+        core_mod.base.llms.base.BaseLLM.__init__ = _originals.pop(init_key)
 
-    # Unwrap base classes
-    _unwrap_class(BaseLLM, *_LLM_WRAPPERS)
-    _unwrap_class(BaseQueryEngine, *_QUERY_ENGINE_WRAPPERS)
-    _unwrap_class(BaseRetriever, *_RETRIEVER_WRAPPERS)
-    _unwrap_class(BaseEmbedding, *_EMBEDDING_WRAPPERS)
-
-    try:
-        agent_mod = sys.modules.get("llama_index.core.agent.workflow.base_agent") or __import__(
-            "llama_index.core.agent.workflow.base_agent", fromlist=["base_agent"]
-        )
-        BaseWorkflowAgent = agent_mod.BaseWorkflowAgent
-        _unwrap_class(BaseWorkflowAgent, *_AGENT_WRAPPERS)
-    except (ImportError, ModuleNotFoundError, AttributeError):
-        pass
-
-    # Unwrap all wrapped subclasses
+    # Unwrap all wrapped classes (base classes + subclasses)
     for cls in list(_wrapped_classes):
-        for sync_w, async_w in _ALL_WRAPPERS:
-            _unwrap_class(cls, sync_w, async_w)
+        for wrappers in _ALL_WRAPPERS:
+            _unwrap_class(cls, wrappers)
     _wrapped_classes.clear()
     _originals.clear()
 
-    if hasattr(core, "_datadog_integration"):
-        delattr(core, "_datadog_integration")
+    if hasattr(core_mod, "_datadog_integration"):
+        delattr(core_mod, "_datadog_integration")
     _integration = None
