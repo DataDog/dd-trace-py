@@ -10,7 +10,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
-import ddtrace.constants as constants
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
@@ -26,7 +26,7 @@ def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
-    span.set_tag(constants.MANUAL_KEEP_KEY)
+    span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
     span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
 
@@ -39,7 +39,7 @@ def _aiguard_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
-    span.set_tag(constants.MANUAL_KEEP_KEY)
+    span._override_sampling_decision(USER_KEEP)
     # set decision maker to AI_GUARD = -13
     span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.AI_GUARD)
 
