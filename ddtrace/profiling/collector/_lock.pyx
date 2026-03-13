@@ -22,8 +22,8 @@ from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
 
+from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
-from ddtrace.profiling._threading cimport get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
 
 
