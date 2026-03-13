@@ -44,9 +44,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
-from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.version import __version__
@@ -1616,12 +1614,12 @@ class Experiment:
                     self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-
-                span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
-                if "metadata" in record:
-                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                if self._config:
-                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
+                _annotate_llmobs_span_data(
+                    span,
+                    expected_output=record.get("expected_output"),
+                    metadata=record.get("metadata"),
+                    config=self._config or None,
+                )
 
                 return {
                     "idx": idx,
