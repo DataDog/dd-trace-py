@@ -21,6 +21,8 @@ from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
+import ddtrace.appsec._metrics as appsec_metrics
+from ddtrace.appsec._metrics import report_error
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
@@ -46,11 +48,7 @@ class DDWaf(WAF):
         ruleset_json_str: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
-        metrics: Any,
     ) -> None:
-        # avoid circular import
-
-        self.report_error = metrics._set_waf_error_log
         config = ddwaf_config(
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
@@ -75,7 +73,7 @@ class DDWaf(WAF):
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
-        metrics.ddwaf_version = version()
+        appsec_metrics.ddwaf_version = version()
         self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
@@ -94,9 +92,9 @@ class DDWaf(WAF):
         for key, value in info_struct.items():
             if isinstance(value, dict):
                 if error := value.get("error", False):
-                    self.report_error(f"appsec.waf.error::{action}::{key}::{error}", self._cached_version, action)
+                    report_error(f"appsec.waf.error::{action}::{key}::{error}", self._cached_version, action)
                 elif errors := value.get("errors", False):
-                    self.report_error(
+                    report_error(
                         f"appsec.waf.error::{action}::{key}::{str(errors)}",
                         self._cached_version,
                         action,
