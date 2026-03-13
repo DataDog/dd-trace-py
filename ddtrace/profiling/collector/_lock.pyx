@@ -19,11 +19,11 @@ from typing import Union
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
+from ddtrace.profiling.collector import _task
 from ddtrace.trace import Tracer
 
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
 from ddtrace.profiling._threading cimport get_thread_info
-from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -270,7 +270,7 @@ class _ProfiledLock:
             task_id: Optional[int]
             task_name: Optional[str]
             task_frame: Optional[FrameType]
-            task_id, task_name, task_frame = _c_get_task()
+            task_id, task_name, task_frame = _task.get_task()
 
             handle.push_task_id(task_id)
             handle.push_task_name(task_name)
@@ -457,7 +457,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
-        _c_initialize_gevent_support()
+        _task.initialize_gevent_support()
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
