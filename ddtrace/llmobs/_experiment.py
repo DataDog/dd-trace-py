@@ -1089,6 +1089,11 @@ class Experiment:
         self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
         self._dataset = dataset
         self._evaluators = list(evaluators)
+        self._remote_evaluator_names: set[str] = {
+            evaluator.name  # type: ignore[union-attr]
+            for evaluator in self._evaluators
+            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator
+        }
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
         self._description = description
         self._tags: dict[str, str] = tags or {}
@@ -1215,11 +1220,6 @@ class Experiment:
     ) -> list["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
-        remote_evaluator_names = {
-            evaluator.name  # type: ignore[union-attr]
-            for evaluator in self._evaluators
-            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator
-        }
 
         for exp_result in experiment_result.rows:
             evaluations = exp_result.get("evaluations") or {}
@@ -1250,7 +1250,7 @@ class Experiment:
                     tags=cast(dict[str, str], eval_data.get("tags"))
                     if isinstance(eval_data.get("tags"), dict)
                     else None,
-                    eval_source_type="managed" if eval_name in remote_evaluator_names else None,
+                    eval_source_type="managed" if eval_name in self._remote_evaluator_names else None,
                     status=str(eval_data.get("status")) if isinstance(eval_data.get("status"), str) else "OK",
                 )
                 eval_metrics.append(eval_metric)
@@ -1269,6 +1269,65 @@ class Experiment:
             )
             eval_metrics.append(eval_metric)
         return eval_metrics
+
+    def _generate_metrics_for_record(
+        self,
+        task_result: TaskResult,
+        evaluation: EvaluationResult,
+    ) -> list["LLMObsExperimentEvalMetricEvent"]:
+        evaluations = evaluation.get("evaluations") or {}
+        span_id = task_result.get("span_id", "")
+        trace_id = task_result.get("trace_id", "")
+        timestamp_ns = cast(int, task_result.get("timestamp", 0))
+        metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        for eval_name, eval_data in evaluations.items():
+            if not eval_data:
+                continue
+            metrics.append(
+                self._generate_metric_from_evaluation(
+                    eval_name,
+                    eval_data.get("value"),
+                    eval_data.get("error"),
+                    span_id,
+                    trace_id,
+                    timestamp_ns,
+                    reasoning=str(eval_data.get("reasoning")) if isinstance(eval_data.get("reasoning"), str) else None,
+                    assessment=str(eval_data.get("assessment"))
+                    if isinstance(eval_data.get("assessment"), str)
+                    else None,
+                    metadata=cast(dict[str, JSONType], eval_data.get("metadata"))
+                    if isinstance(eval_data.get("metadata"), dict)
+                    else None,
+                    tags=cast(dict[str, str], eval_data.get("tags"))
+                    if isinstance(eval_data.get("tags"), dict)
+                    else None,
+                    eval_source_type="managed" if eval_name in self._remote_evaluator_names else None,
+                    status=str(eval_data.get("status")) if isinstance(eval_data.get("status"), str) else "OK",
+                )
+            )
+        return metrics
+
+    def _generate_summary_metrics(self, experiment_result: ExperimentRun) -> list["LLMObsExperimentEvalMetricEvent"]:
+        latest_timestamp = max(
+            (cast(int, r.get("timestamp", 0)) for r in experiment_result.rows),
+            default=0,
+        )
+        metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+        for name, summary_eval_data in experiment_result.summary_evaluations.items():
+            if not summary_eval_data:
+                continue
+            metrics.append(
+                self._generate_metric_from_evaluation(
+                    name,
+                    summary_eval_data.get("value"),
+                    summary_eval_data.get("error"),
+                    "",
+                    "",
+                    latest_timestamp,
+                    source="summary",
+                )
+            )
+        return metrics
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
@@ -1434,20 +1493,11 @@ class Experiment:
                 run = _ExperimentRunInfo(run_iteration)
                 self._tags["run_id"] = str(run._id)
                 self._tags["run_iteration"] = str(run._run_iteration)
-                task_results = await self._run_task(
+                task_results, evaluations = await self._run_tasks_with_evaluators(
                     jobs, run, raise_errors, sample_size, max_retries=max_retries, retry_delay=retry_delay
-                )
-                evaluations = await self._run_evaluators(
-                    task_results, raise_errors=raise_errors, jobs=jobs, max_retries=max_retries, retry_delay=retry_delay
                 )
                 summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
                 run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-                experiment_evals = self._generate_metrics_from_exp_results(run_result)
-                self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
-                    cast(str, self._id),
-                    experiment_evals,
-                    convert_tags_dict_to_list(self._tags),
-                )
                 self._run_results.append(run_result)
         except BaseException:
             self._interrupted = True
@@ -1541,14 +1591,16 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore: Optional[asyncio.Semaphore] = None,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
-        async with semaphore:
+        if semaphore is not None:
+            await semaphore.acquire()
+        try:
             idx, record = idx_record
             with self._llmobs_instance._experiment(
                 name=self._task.__name__,
@@ -1605,11 +1657,13 @@ class Experiment:
                             self._retries.append(
                                 "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
                             )
-                            semaphore.release()
+                            if semaphore is not None:
+                                semaphore.release()
                             try:
                                 await asyncio.sleep(retry_delay(attempt))
                             finally:
-                                await semaphore.acquire()
+                                if semaphore is not None:
+                                    await semaphore.acquire()
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
@@ -1640,6 +1694,20 @@ class Experiment:
                         "type": span.get_tag(ERROR_TYPE),
                     },
                 }
+        finally:
+            if semaphore is not None:
+                semaphore.release()
+
+    def _check_task_result_error(self, task_result: TaskResult, raise_errors: bool) -> None:
+        err_dict = task_result.get("error") or {}
+        if isinstance(err_dict, dict):
+            err_msg = err_dict.get("message")
+            err_stack = err_dict.get("stack")
+            err_type = err_dict.get("type")
+            if raise_errors and err_msg:
+                raise RuntimeError(
+                    "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
+                )
 
     async def _run_task(
         self,
@@ -1671,18 +1739,128 @@ class Experiment:
                 continue
             task_result: TaskResult = result
             task_results.append(task_result)
-            err_dict = task_result.get("error") or {}
-            if isinstance(err_dict, dict):
-                err_msg = err_dict.get("message")
-                err_stack = err_dict.get("stack")
-                err_type = err_dict.get("type")
-                if raise_errors and err_msg:
-                    raise RuntimeError(
-                        "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
-                    )
+            self._check_task_result_error(task_result, raise_errors)
 
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
+
+    async def _evaluate_record(
+        self,
+        record: DatasetRecord,
+        task_result: TaskResult,
+        semaphore: Optional[asyncio.Semaphore] = None,
+        raise_errors: bool = False,
+        max_retries: int = 0,
+        retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
+    ) -> EvaluationResult:
+        if semaphore is not None:
+            await semaphore.acquire()
+        try:
+            idx = task_result["idx"]
+            input_data = record["input_data"]
+            output_data = task_result["output"]
+            expected_output = record["expected_output"]
+            metadata = record.get("metadata", {})
+
+            row_results: dict[str, dict[str, JSONType]] = {}
+
+            for evaluator in self._evaluators:
+                eval_result_value: JSONType = None
+                eval_err: JSONType = None
+                extra_return_values: dict[str, JSONType] = {}
+                evaluator_name = ""
+
+                for attempt in range(1 + max_retries):
+                    eval_result_value = None
+                    eval_err = None
+                    try:
+                        if isinstance(evaluator, BaseAsyncEvaluator):
+                            evaluator_name = evaluator.name
+                            combined_metadata = {
+                                **metadata,
+                                "experiment_config": self._config,
+                            }
+                            context = EvaluatorContext(
+                                input_data=input_data,
+                                output_data=output_data,
+                                expected_output=expected_output,
+                                metadata=combined_metadata,
+                                span_id=task_result.get("span_id"),
+                                trace_id=task_result.get("trace_id"),
+                            )
+                            eval_result = await evaluator.evaluate(context)
+                        elif asyncio.iscoroutinefunction(evaluator):
+                            evaluator_name = evaluator.__name__
+                            eval_result = await evaluator(input_data, output_data, expected_output)
+                        elif _is_class_evaluator(evaluator):
+                            evaluator_name = evaluator.name  # type: ignore[union-attr]
+                            combined_metadata = {
+                                **metadata,
+                                "experiment_config": self._config,
+                            }
+                            context = EvaluatorContext(
+                                input_data=input_data,
+                                output_data=output_data,
+                                expected_output=expected_output,
+                                metadata=combined_metadata,
+                                span_id=task_result.get("span_id"),
+                                trace_id=task_result.get("trace_id"),
+                            )
+                            eval_result = await asyncio.to_thread(
+                                evaluator.evaluate,  # type: ignore[union-attr]
+                                context,
+                            )
+                        elif _is_function_evaluator(evaluator):
+                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                            eval_result = await asyncio.to_thread(
+                                evaluator,  # type: ignore[arg-type]
+                                input_data,
+                                output_data,
+                                expected_output,
+                            )
+                        else:
+                            logger.warning(
+                                "Evaluator %s is neither a BaseEvaluator instance nor a callable function",
+                                evaluator,
+                            )
+                            evaluator_name = str(evaluator)
+                            eval_result = None
+
+                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
+                        break
+
+                    except Exception as e:
+                        extra_return_values = {}
+                        eval_err = self._build_evaluator_error(e)
+                        if attempt < max_retries:
+                            self._retries.append(
+                                "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
+                                    evaluator_name, idx, attempt + 1, max_retries + 1, e
+                                )
+                            )
+                            if semaphore is not None:
+                                semaphore.release()
+                            try:
+                                await asyncio.sleep(retry_delay(attempt))
+                            finally:
+                                if semaphore is not None:
+                                    await semaphore.acquire()
+                            continue
+                        extra_return_values = {"status": self._build_evaluator_status(e)}
+                        self._has_errors = True
+                        if raise_errors:
+                            raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+
+                row_results[evaluator_name] = {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                    **extra_return_values,
+                }
+
+            return {"idx": idx, "evaluations": row_results}
+        finally:
+            if semaphore is not None:
+                semaphore.release()
 
     async def _run_evaluators(
         self,
@@ -1693,118 +1871,96 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
         semaphore = asyncio.Semaphore(jobs)
+        coros = [
+            self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
+            for idx, task_result in enumerate(task_results)
+        ]
+        return list(await asyncio.gather(*coros))
 
-        async def _evaluate_row(idx: int, task_result: TaskResult) -> dict[str, dict[str, JSONType]]:
+    async def _run_tasks_with_evaluators(
+        self,
+        jobs: int,
+        run: _ExperimentRunInfo,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+        max_retries: int = 0,
+        retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
+    ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return [], []
+        subset_dataset = self._get_subset_dataset(sample_size)
+        semaphore = asyncio.Semaphore(jobs)
+        pending_evals: list["LLMObsExperimentEvalMetricEvent"] = []
+        eval_lock = asyncio.Lock()
+        flush_threshold = jobs
+
+        async def _process_and_evaluate(
+            idx_record: tuple[int, DatasetRecord],
+        ) -> tuple[Optional[TaskResult], Optional[EvaluationResult]]:
             async with semaphore:
-                record: DatasetRecord = self._dataset[idx]
-                input_data = record["input_data"]
-                output_data = task_result["output"]
-                expected_output = record["expected_output"]
-                metadata = record.get("metadata", {})
-
-                row_results: dict[str, dict[str, JSONType]] = {}
-
-                for evaluator in self._evaluators:
-                    eval_result_value: JSONType = None
-                    eval_err: JSONType = None
-                    extra_return_values: dict[str, JSONType] = {}
-                    evaluator_name = ""
-
-                    for attempt in range(1 + max_retries):
-                        eval_result_value = None
-                        eval_err = None
+                task_result = await self._process_record(
+                    idx_record, run, max_retries=max_retries, retry_delay=retry_delay
+                )
+                if task_result is None:
+                    return None, None
+                evaluation = await self._evaluate_record(
+                    idx_record[1],
+                    task_result,
+                    raise_errors=raise_errors,
+                    max_retries=max_retries,
+                    retry_delay=retry_delay,
+                )
+            if evaluation:
+                metrics = self._generate_metrics_for_record(task_result, evaluation)
+                async with eval_lock:
+                    pending_evals.extend(metrics)
+                    if len(pending_evals) >= flush_threshold:
                         try:
-                            if isinstance(evaluator, BaseAsyncEvaluator):
-                                evaluator_name = evaluator.name
-                                combined_metadata = {
-                                    **metadata,
-                                    "experiment_config": self._config,
-                                }
-                                context = EvaluatorContext(
-                                    input_data=input_data,
-                                    output_data=output_data,
-                                    expected_output=expected_output,
-                                    metadata=combined_metadata,
-                                    span_id=task_result.get("span_id"),
-                                    trace_id=task_result.get("trace_id"),
-                                )
-                                eval_result = await evaluator.evaluate(context)
-                            elif asyncio.iscoroutinefunction(evaluator):
-                                evaluator_name = evaluator.__name__
-                                eval_result = await evaluator(input_data, output_data, expected_output)
-                            elif _is_class_evaluator(evaluator):
-                                evaluator_name = evaluator.name  # type: ignore[union-attr]
-                                combined_metadata = {
-                                    **metadata,
-                                    "experiment_config": self._config,
-                                }
-                                context = EvaluatorContext(
-                                    input_data=input_data,
-                                    output_data=output_data,
-                                    expected_output=expected_output,
-                                    metadata=combined_metadata,
-                                    span_id=task_result.get("span_id"),
-                                    trace_id=task_result.get("trace_id"),
-                                )
-                                eval_result = await asyncio.to_thread(
-                                    evaluator.evaluate,  # type: ignore[union-attr]
-                                    context,
-                                )
-                            elif _is_function_evaluator(evaluator):
-                                evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                                eval_result = await asyncio.to_thread(
-                                    evaluator,  # type: ignore[arg-type]
-                                    input_data,
-                                    output_data,
-                                    expected_output,
-                                )
-                            else:
-                                logger.warning(
-                                    "Evaluator %s is neither a BaseEvaluator instance nor a callable function",
-                                    evaluator,
-                                )
-                                evaluator_name = str(evaluator)
-                                eval_result = None
+                            self._llmobs_instance._dne_client.experiment_eval_post(
+                                cast(str, self._id),
+                                list(pending_evals),
+                                convert_tags_dict_to_list(self._tags),
+                            )
+                        except Exception:
+                            logger.debug("Failed to flush pending eval metrics", exc_info=True)
+                        else:
+                            pending_evals.clear()
+                            self._llmobs_instance.flush()
+            return task_result, evaluation
 
-                            eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
-                            break
+        coros = [_process_and_evaluate(idx_record) for idx_record in enumerate(subset_dataset)]
+        results = await asyncio.gather(*coros, return_exceptions=True)
 
-                        except Exception as e:
-                            extra_return_values = {}
-                            eval_err = self._build_evaluator_error(e)
-                            if attempt < max_retries:
-                                self._retries.append(
-                                    "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
-                                        evaluator_name, idx, attempt + 1, max_retries + 1, e
-                                    )
-                                )
-                                semaphore.release()
-                                try:
-                                    await asyncio.sleep(retry_delay(attempt))
-                                finally:
-                                    await semaphore.acquire()
-                                continue
-                            extra_return_values = {"status": self._build_evaluator_status(e)}
-                            self._has_errors = True
-                            if raise_errors:
-                                raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
-
-                    row_results[evaluator_name] = {
-                        "value": eval_result_value,
-                        "error": eval_err,
-                        **extra_return_values,
-                    }
-
-                return row_results
-
-        coros = [_evaluate_row(idx, task_result) for idx, task_result in enumerate(task_results)]
-        results: list[dict[str, dict[str, JSONType]]] = await asyncio.gather(*coros)
-
+        task_results: list[TaskResult] = []
         evaluations: list[EvaluationResult] = []
-        for idx, row_results in enumerate(results):
-            evaluations.append({"idx": idx, "evaluations": row_results})
+        for result in results:
+            if isinstance(result, BaseException):
+                if raise_errors:
+                    raise result
+                continue
+            if result is None:
+                continue
+            task_result, evaluation = result
+            if task_result is None:
+                continue
+            task_results.append(task_result)
+            self._check_task_result_error(task_result, raise_errors)
+            if evaluation is not None:
+                evaluations.append(evaluation)
 
-        return evaluations
+        if pending_evals and self._llmobs_instance:
+            try:
+                self._llmobs_instance._dne_client.experiment_eval_post(
+                    cast(str, self._id),
+                    list(pending_evals),
+                    convert_tags_dict_to_list(self._tags),
+                )
+            except Exception:
+                logger.debug("Failed to flush pending eval metrics", exc_info=True)
+            else:
+                pending_evals.clear()
+        self._llmobs_instance.flush()
+        return task_results, evaluations
 
     async def _run_summary_evaluators(
         self,
@@ -1891,6 +2047,33 @@ class Experiment:
             evaluator_name, eval_data = cast(tuple[str, dict[str, JSONType]], result)
             evals_dict[evaluator_name] = eval_data
             evaluations.append({"idx": idx, "evaluations": evals_dict})
+
+        if evals_dict and self._id and self._llmobs_instance:
+            latest_timestamp = max(
+                (cast(int, r.get("timestamp", 0)) for r in task_results),
+                default=0,
+            )
+            metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+            for name, summary_eval_data in evals_dict.items():
+                if not summary_eval_data:
+                    continue
+                metrics.append(
+                    self._generate_metric_from_evaluation(
+                        name,
+                        summary_eval_data.get("value"),
+                        summary_eval_data.get("error"),
+                        "",
+                        "",
+                        latest_timestamp,
+                        source="summary",
+                    )
+                )
+            if metrics:
+                self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                    cast(str, self._id),
+                    metrics,
+                    convert_tags_dict_to_list(self._tags),
+                )
 
         return evaluations
 
