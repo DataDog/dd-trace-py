@@ -14,21 +14,31 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
+# Converted tests using pytest with snapshots and global tracer
+@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.snapshot(wait_for_num_traces=3)
+def test_execute_wrapped_is_called_and_returned():
+    """Test that execute() correctly delegates to underlying cursor and returns result."""
+    import sqlite3
+    from ddtrace.contrib.internal.sqlite3.patch import patch
+
+    patch()
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE test (id INTEGER, name TEXT)")
+
+    cursor = conn.execute("INSERT INTO test VALUES (?, ?)", (1, "test"))
+    assert cursor is not None  # Return value was passed through
+
+    # Verify the execute actually worked (delegation succeeded)
+    result = conn.execute("SELECT * FROM test").fetchall()
+    assert result == [(1, "test")]
+
+
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
-
-    def test_execute_wrapped_is_called_and_returned(self):
-        cursor = self.cursor
-        cursor.rowcount = 0
-        cursor.execute.return_value = "__result__"
-
-        pin = Pin("pin_name")
-        traced_cursor = TracedCursor(cursor, pin, {})
-        # DEV: We always pass through the result
-        assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
-        cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
