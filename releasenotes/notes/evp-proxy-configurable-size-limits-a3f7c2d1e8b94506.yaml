@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: The payload size limit and event size limit are now configurable
+    via the ``DD_LLMOBS_PAYLOAD_SIZE_BYTES`` and ``DD_LLMOBS_EVENT_SIZE_BYTES`` environment
+    variables respectively. These default to ``5242880`` (5 MiB) and ``5000000`` (5 MB), matching
+    the previous hardcoded values.
