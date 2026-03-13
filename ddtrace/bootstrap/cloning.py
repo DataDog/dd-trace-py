@@ -36,6 +36,8 @@ def cleanup_loaded_modules() -> None:
     if not enabled:
         return
 
+    stale_reprlib_module = sys.modules.get("reprlib")
+
     def drop(module_name: str) -> None:
         module = sys.modules.get(module_name)
         # Don't delete modules that are currently being imported (they might be None or incomplete)
@@ -103,12 +105,29 @@ def cleanup_loaded_modules() -> None:
             # CPython on boot.
             "threading",
             "_thread",
+            # reprlib binds _thread.get_ident at import time. If _thread gets
+            # re-imported but reprlib does not, pickle/cloudpickle can see two
+            # different builtin function objects and fail serializing classes
+            # that close over reprlib state.
+            "reprlib",
         ]
     )
     for u in UNLOAD_MODULES:
         for m in list(sys.modules):
             if m == u or m.startswith(u + "."):
                 drop(m)
+
+    if stale_reprlib_module is not None or "reprlib" in sys.modules:
+        # Modules imported before cleanup can keep direct references to the old
+        # reprlib object. If _thread is re-imported, stale reprlib references
+        # can retain the old get_ident builtin and become unpicklable.
+        import _thread
+
+        stale_get_ident = _thread.get_ident
+        if stale_reprlib_module is not None:
+            stale_reprlib_module.get_ident = stale_get_ident
+        if "reprlib" in sys.modules:
+            sys.modules["reprlib"].get_ident = stale_get_ident
 
     # Because we are not unloading it, the logging module requires a reference
     # to the newly imported threading module to allow it to retrieve the correct
