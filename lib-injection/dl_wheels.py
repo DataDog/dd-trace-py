@@ -84,7 +84,7 @@ print("saving wheels to %s" % dl_dir)
 
 package_basename = "ddtrace"
 if args.ddtrace_flavor:
-    package_basename = f"ddtrace_{args.ddtrace_flavor}"
+    package_basename = f"ddtrace{args.ddtrace_flavor}"
 
 
 for python_version, platform in itertools.product(args.python_version, args.platform):
