@@ -119,18 +119,18 @@ def _on_django_process(result_user, session_key, mode, kwargs, info_retriever, d
             hash_id = ""
             if isinstance(user_id, str):
                 hash_id = _hash_user_id(user_id)
-                span._set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+                span._set_attribute(APPSEC.USER_LOGIN_USERID, hash_id)
             if isinstance(user_login, str):
                 hash_login = _hash_user_id(user_login)
-                span._set_tag_str(APPSEC.USER_LOGIN_USERNAME, hash_login)
-            span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, hash_login)
+            span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(None, hash_id, propagate=True, may_block=False, span=span)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
             if user_id:
-                span._set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+                span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
             if user_login:
-                span._set_tag_str(APPSEC.USER_LOGIN_USERNAME, str(user_login))
-            span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, str(user_login))
+            span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(
                 None,
                 str(user_id),
@@ -165,20 +165,20 @@ def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, use
         if span is None:
             return
         _asm_manual_keep(span)
-        span._set_tag_str(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
-        span._set_tag_str(APPSEC.USER_SIGNUP_EVENT, "true")
+        span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
+        span._set_attribute(APPSEC.USER_SIGNUP_EVENT, "true")
         if "login" in user_extra:
             login = user_extra["login"]
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
                 login = _hash_user_id(login)
-            span._set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)
-            span._set_tag_str(APPSEC.USER_LOGIN_USERNAME, login)
+            span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)
+            span._set_attribute(APPSEC.USER_LOGIN_USERNAME, login)
         if user_id:
             user_id = str(user_id)
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
                 user_id = _hash_user_id(str(user_id))
-            span._set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERID, user_id)
-            span._set_tag_str(APPSEC.USER_LOGIN_USERID, user_id)
+            span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERID, user_id)
+            span._set_attribute(APPSEC.USER_LOGIN_USERID, user_id)
 
 
 def listen():

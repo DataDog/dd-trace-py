@@ -32,7 +32,7 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 
 
 @deduplication
-def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = True) -> None:
+def report_error(msg: str, version: str, action: str, error_level: bool = True) -> None:
     """used for waf configuration errors"""
     try:
         log_tags = {
@@ -56,7 +56,7 @@ def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = 
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
+def set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
     try:
         tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
@@ -71,7 +71,7 @@ def _set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
+def set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
     try:
         tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
@@ -105,7 +105,7 @@ TAGS_CONTAINER_SIZE = (("truncation_reason", "2"),)
 TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
 
 
-def _report_waf_truncations(observator: _observator) -> None:
+def report_waf_truncation(observator: _observator) -> None:
     try:
         bitfield = 0
         if observator.string_length is not None:
@@ -135,7 +135,7 @@ def _report_waf_truncations(observator: _observator) -> None:
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optional[str]) -> None:
+def report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optional[str]) -> None:
     """used for waf run errors"""
     try:
         if rule_type is None:
@@ -158,7 +158,7 @@ def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optio
         raise
 
 
-def _set_waf_request_metrics(result: Telemetry_result) -> None:
+def set_waf_request_metrics(result: Telemetry_result) -> None:
     try:
         truncation = result.truncation
         input_truncated = bool(truncation.string_length or truncation.container_size or truncation.container_depth)
@@ -191,7 +191,7 @@ def _set_waf_request_metrics(result: Telemetry_result) -> None:
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_api_security(route: bool, schemas: int, framework: str = "") -> None:
+def report_api_security(route: bool, schemas: int, framework: str = "") -> None:
     try:
         if route:
             metric_name = "api_security.request.schema" if schemas > 0 else "api_security.request.no_schema"
@@ -207,7 +207,7 @@ def _report_api_security(route: bool, schemas: int, framework: str = "") -> None
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_rasp_skipped(rule_type: str, import_error: bool) -> None:
+def report_rasp_skipped(rule_type: str, import_error: bool) -> None:
     try:
         tags = _TYPES_AND_TAGS.get(rule_type, ()) + (("reason", "app-startup" if import_error else "out-of-request"),)
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "rasp.rule.skipped", 1, tags=tags)
@@ -220,7 +220,7 @@ def _report_rasp_skipped(rule_type: str, import_error: bool) -> None:
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_ato_sdk_usage(event_type: str, v2: bool = True) -> None:
+def report_ato_sdk_usage(event_type: str, v2: bool = True) -> None:
     version = "v2" if v2 else "v1"
     try:
         tags = (("event_type", event_type), ("sdk_version", version))
