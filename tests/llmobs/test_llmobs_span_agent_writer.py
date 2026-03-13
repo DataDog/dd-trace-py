@@ -121,8 +121,8 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
 def test_configurable_payload_size_limit(mock_send_payload, mock_writer_logs):
-    """DD_EVP_PROXY_PAYLOAD_SIZE_BYTES overrides the flush threshold."""
-    with override_global_config(dict(_evp_proxy_payload_size_limit=100)):
+    """DD_LLMOBS_PAYLOAD_SIZE_BYTES overrides the flush threshold."""
+    with override_global_config(dict(_llmobs_payload_size_limit=100)):
         llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
         llmobs_span_writer.enqueue(_completion_event())
         llmobs_span_writer.enqueue(_completion_event())
@@ -132,8 +132,8 @@ def test_configurable_payload_size_limit(mock_send_payload, mock_writer_logs):
 
 
 def test_configurable_event_size_limit(mock_writer_logs):
-    """DD_EVP_PROXY_EVENT_SIZE_BYTES overrides the truncation threshold."""
-    with override_global_config(dict(_evp_proxy_event_size_limit=100)):
+    """DD_LLMOBS_EVENT_SIZE_BYTES overrides the truncation threshold."""
+    with override_global_config(dict(_llmobs_event_size_limit=100)):
         llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
         llmobs_span_writer.enqueue(_completion_event())
     mock_writer_logs.warning.assert_called_once_with(

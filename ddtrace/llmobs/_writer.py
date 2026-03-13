@@ -237,7 +237,7 @@ class BaseLLMObsWriter(PeriodicService):
                 )
                 telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
                 return
-            if self._buffer_size + event_size > config._evp_proxy_payload_size_limit:
+            if self._buffer_size + event_size > config._llmobs_payload_size_limit:
                 logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
                 self.periodic()
             self._buffer.append(event)
@@ -925,12 +925,12 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
         truncated_event_size = None
-        should_truncate = raw_event_size >= config._evp_proxy_event_size_limit
+        should_truncate = raw_event_size >= config._llmobs_event_size_limit
         if should_truncate:
             logger.warning(
                 "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
                 raw_event_size,
-                config._evp_proxy_event_size_limit,
+                config._llmobs_event_size_limit,
             )
             event = _truncate_span_event(event)
             truncated_event_size = len(safe_json(event))
