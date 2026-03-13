@@ -3,11 +3,14 @@ import collections
 import gzip
 import json
 import time
+from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -37,21 +40,21 @@ class TooLargeSchemaException(Exception):
     pass
 
 
-def path_param_transform(v):
+def path_param_transform(v: Any) -> Union[dict, list]:
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)
 
 
 class APIManager(Service):
-    BLOCK_COLLECTED = [
+    BLOCK_COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, path_param_transform),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
     ]
-    COLLECTED = BLOCK_COLLECTED + [
+    COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f() if callable(f) else f),
     ]
@@ -90,18 +93,16 @@ class APIManager(Service):
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
         self.simplified_endpoint_computer = SimplifiedEndpointComputer()
 
-        import ddtrace.appsec._asm_request_context as _asm_request_context
         import ddtrace.appsec._metrics as _metrics
 
-        self._asm_context = _asm_request_context
         self._metrics = _metrics
 
     def _stop_service(self) -> None:
-        self._asm_context.remove_context_callback(self._schema_callback, global_callback=True)
+        _asm_request_context.API_SEC_CALLBACK = None
         self._hashtable.clear()
 
     def _start_service(self) -> None:
-        self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
+        _asm_request_context.API_SEC_CALLBACK = self._schema_callback
 
     def _should_collect_schema(self, env: ASM_Environment, priority: NumericType) -> Optional[bool]:
         """

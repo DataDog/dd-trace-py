@@ -543,16 +543,22 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
+    from unittest import mock
+
+    import httpx
     from openai import APITimeoutError
 
-    chat_model = langchain_openai.ChatOpenAI(base_url=openai_url, timeout=0.0001)
+    chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
     result = chat_model.stream("Hello, my name is")
-    try:
-        next(result)
-    except Exception as e:
-        if not isinstance(e, APITimeoutError):
-            assert False, f"Expected APITimeoutError, got {e}"
+    # Mock httpx.Client.send to raise a ReadTimeout so the test does not depend on
+    # the testagent's response latency (which varies by cassette format).
+    with mock.patch("httpx.Client.send", side_effect=httpx.ReadTimeout("Request timed out.")):
+        try:
+            next(result)
+        except Exception as e:
+            if not isinstance(e, APITimeoutError):
+                assert False, f"Expected APITimeoutError, got {e}"
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
