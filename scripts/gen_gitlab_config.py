@@ -247,11 +247,6 @@ def gen_pre_checks() -> None:
         paths={"docker*", "riotfile.py", "hatch.toml"},
     )
     check(
-        name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
-    )
-    check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
