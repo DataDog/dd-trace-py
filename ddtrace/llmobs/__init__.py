@@ -6,6 +6,8 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
+from ddtrace.llmobs._eval_tuning import EvalTuningProject
+from ddtrace.llmobs._eval_tuning import split_dataset
 from ddtrace.llmobs._evaluators import BaseAsyncEvaluator
 from ddtrace.llmobs._evaluators import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._evaluators import BaseEvaluator
@@ -27,11 +29,13 @@ from ddtrace.llmobs.types import Prompt
 
 
 __all__ = [
+    "EvalTuningProject",
     "LLMObs",
     "LLMObsSpan",
     "Dataset",
     "DatasetRecord",
     "Prompt",
+    "split_dataset",
     "BaseEvaluator",
     "BaseSummaryEvaluator",
     "BaseAsyncEvaluator",
