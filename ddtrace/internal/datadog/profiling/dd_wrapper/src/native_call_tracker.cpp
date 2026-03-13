@@ -21,7 +21,7 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr,
     }
 }
 
-std::optional<NativeCallEntry>
+std::optional<std::reference_wrapper<NativeCallEntry>>
 NativeCallRegistry::lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno)
 {
     CallSiteKey key{ code_ptr, offset_bytes, first_lineno };
@@ -29,7 +29,7 @@ NativeCallRegistry::lookup(uintptr_t code_ptr, int offset_bytes, int first_linen
 
     auto it = call_sites.find(key);
     if (it != call_sites.end()) {
-        return it->second;
+        return std::ref(it->second);
     }
 
     return std::nullopt;

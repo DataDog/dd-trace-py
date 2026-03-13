@@ -54,10 +54,21 @@ class NativeCallRegistry
 
     // Checks if there is a known native call metadata object for a bytecode location and
     // returns it when found.
-    // Note: this returns a copied NativeCallEntry (and the std::string's it contains) because
-    // the NativeCallEntry's are stored in an std::unordered_map which may be rehashed at any point,
-    // potentially making existing references to NativeCallEntry's invalid.
-    std::optional<NativeCallEntry> lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
+    // Note: it is safe to return a reference to the NativeCallEntry because according to
+    // the standard, "References and pointers to either key or data stored in the container
+    // are only invalidated by erasing that element, even when the corresponding iterator
+    // is invalidated."
+    // All the emplace's we do happen under the lock, which means there can never be a
+    // duplicate emplace happening (as we check for existence first).
+    std::optional<std::reference_wrapper<NativeCallEntry>> lookup(uintptr_t code_ptr,
+                                                                  int offset_bytes,
+                                                                  int first_lineno);
+
+    // Clears the registry.
+    // Note: this frees the NativeCallEntry's, meaning any reference to a NativeCallEntry from
+    // the map is invalid after calling reset.
+    // Ensure reset is only ever called after users of lookup (and its return values) have been
+    // stopped (typically, the sampling thread).
     void reset();
 
     void postfork_child();
