@@ -44,7 +44,7 @@ def _create_llm_event(
     return LlmRequestEvent(
         component="anthropic",
         service=int_service(None, integration.integration_config),
-        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
+        resource=f"{instance.__class__.__name__}.{func.__name__}",
         integration_name="anthropic",
         provider="anthropic",
         model=kwargs.get("model", ""),
