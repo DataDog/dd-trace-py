@@ -60,16 +60,12 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     event = _create_llm_event(integration, instance, func, kwargs)
 
     with core.context_with_event(event) as ctx:
-        chat_completions = None
-        try:
-            chat_completions = func(*args, **kwargs)
-            if is_streaming_operation(chat_completions):
-                ctx.set_item("is_stream", True)
-                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
-        finally:
-            if not ctx.get_item("is_stream", False):
-                ctx.set_item("response", chat_completions)
-    return chat_completions
+        resp = func(*args, **kwargs)
+        if is_streaming_operation(resp):
+            event.is_stream = True
+            return handle_streamed_response(integration, resp, args, kwargs, ctx.span)
+        ctx.set_item("response", resp)
+        return resp
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
@@ -77,16 +73,12 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     event = _create_llm_event(integration, instance, func, kwargs)
 
     with core.context_with_event(event) as ctx:
-        chat_completions = None
-        try:
-            chat_completions = await func(*args, **kwargs)
-            if is_streaming_operation(chat_completions):
-                ctx.set_item("is_stream", True)
-                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
-        finally:
-            if not ctx.get_item("is_stream", False):
-                ctx.set_item("response", chat_completions)
-    return chat_completions
+        resp = await func(*args, **kwargs)
+        if is_streaming_operation(resp):
+            event.is_stream = True
+            return handle_streamed_response(integration, resp, args, kwargs, ctx.span)
+        ctx.set_item("response", resp)
+        return resp
 
 
 def patch() -> None:

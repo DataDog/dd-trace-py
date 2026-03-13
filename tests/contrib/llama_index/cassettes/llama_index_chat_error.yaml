@@ -1,0 +1,19 @@
+interactions:
+- request:
+    body: '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}],
+      "max_tokens": 15}'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"error":{"message":"Incorrect API key provided","type":"invalid_request_error","param":null,"code":"invalid_api_key"}}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

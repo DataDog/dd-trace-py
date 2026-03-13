@@ -45,6 +45,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             instance=event.instance,
         )
 
+        if event.is_chat is not None:
+            span._set_ctx_item("_dd_is_chat", event.is_chat)
+
         # Proxy detection
         base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.integration._is_instrumented_proxy_url(base_url):
@@ -61,19 +64,18 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: LlmRequestEvent = ctx.event
-        is_stream = ctx.get_item("is_stream", False)
         has_error = exc_info[1] is not None
 
         # For non-streaming or streaming with errors, call llmobs_set_tags and
         # re-enable span finishing. LlmRequestEvent defaults to _end_span=False
         # so we explicitly opt back in here to let the base subscriber finish the span.
-        if not is_stream or has_error:
+        if not event.is_stream or has_error:
             response = ctx.get_item("response")
             event.integration.llmobs_set_tags(
                 ctx.span,
                 args=[],
                 kwargs=event.request_kwargs,
                 response=response,
-                operation=ctx.get_item("operation", ""),
+                operation=event.operation,
             )
             event._end_span = True

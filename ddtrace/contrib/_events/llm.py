@@ -35,6 +35,9 @@ class LlmRequestEvent(TracingEvent):
     submit_to_llmobs: bool = event_field(default=False)
     interface_type: str = event_field(default="")
     instance: Optional[Any] = event_field(default=None)
+    is_chat: Optional[bool] = event_field(default=None)
+    operation: str = event_field(default="")
+    is_stream: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
         self.component = self.integration_name
@@ -46,7 +49,7 @@ class LlmRequestEvent(TracingEvent):
         if not (self.submit_to_llmobs and self.integration.llmobs_enabled):
             self.__dict__["span_type"] = None
 
-    def finish_span(self, span: "Span", response: Any = None, operation: str = "") -> None:
+    def finish_span(self, span: "Span", response: Any = None) -> None:
         """Finish the span with LLMObs tag extraction.
 
         Called manually when ``_end_span`` is ``False`` (e.g. streaming responses
@@ -57,6 +60,6 @@ class LlmRequestEvent(TracingEvent):
             args=[],
             kwargs=self.request_kwargs,
             response=response,
-            operation=operation,
+            operation=self.operation,
         )
         span.finish()
