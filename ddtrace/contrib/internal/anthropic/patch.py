@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Callable
+
 import anthropic
 
 from ddtrace import config
@@ -30,7 +33,12 @@ def _supported_versions() -> dict[str, str]:
 config._add("anthropic", {})
 
 
-def _create_llm_event(integration, instance, func, kwargs):
+def _create_llm_event(
+    integration: AnthropicIntegration,
+    instance: Any,
+    func: Callable[..., Any],
+    kwargs: dict[str, Any],
+) -> LlmRequestEvent:
     """Create an LlmRequestEvent for an Anthropic call."""
     return LlmRequestEvent(
         component="anthropic",
@@ -42,17 +50,13 @@ def _create_llm_event(integration, instance, func, kwargs):
         integration=integration,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
-        base_tag_kwargs={
-            "model": kwargs.get("model", ""),
-            "interface_type": "chat_model",
-            "provider": "anthropic",
-            "instance": instance,
-        },
+        interface_type="chat_model",
+        instance=instance,
     )
 
 
-def traced_chat_model_generate(func, instance, args, kwargs):
-    integration = anthropic._datadog_integration
+def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
     with core.context_with_event(event) as ctx:
@@ -61,7 +65,6 @@ def traced_chat_model_generate(func, instance, args, kwargs):
             chat_completions = func(*args, **kwargs)
             if is_streaming_operation(chat_completions):
                 ctx.set_item("is_stream", True)
-                event._end_span = False
                 return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
         finally:
             if not ctx.get_item("is_stream", False):
@@ -69,8 +72,8 @@ def traced_chat_model_generate(func, instance, args, kwargs):
     return chat_completions
 
 
-async def traced_async_chat_model_generate(func, instance, args, kwargs):
-    integration = anthropic._datadog_integration
+async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
     with core.context_with_event(event) as ctx:
@@ -79,7 +82,6 @@ async def traced_async_chat_model_generate(func, instance, args, kwargs):
             chat_completions = await func(*args, **kwargs)
             if is_streaming_operation(chat_completions):
                 ctx.set_item("is_stream", True)
-                event._end_span = False
                 return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
         finally:
             if not ctx.get_item("is_stream", False):
@@ -87,7 +89,7 @@ async def traced_async_chat_model_generate(func, instance, args, kwargs):
     return chat_completions
 
 
-def patch():
+def patch() -> None:
     if getattr(anthropic, "_datadog_patch", False):
         return
 
@@ -113,7 +115,7 @@ def patch():
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
 
-def unpatch():
+def unpatch() -> None:
     if not getattr(anthropic, "_datadog_patch", False):
         return
 

@@ -14,7 +14,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 log = get_logger(__name__)
 
 
-class LlmTracingSubscriber(TracingSubscriber):
+class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
     Handles span creation, base tag setting, proxy detection,
@@ -25,22 +25,28 @@ class LlmTracingSubscriber(TracingSubscriber):
     event_names = (LlmRequestEvent.event_name,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
         event: LlmRequestEvent = ctx.event
         span = ctx.span
 
         # Remove component/span.kind tags set by _start_span — the old
         # BaseLLMIntegration.trace() never set these, so existing snapshot
         # tests expect them absent.
-        # TODO: should we keep these tags?
+        # TODO: keep these tags once snapshots are updated
         span._meta.pop(COMPONENT, None)
         span._meta.pop(SPAN_KIND, None)
 
         # Set base span tags (provider-specific)
-        event.integration._set_base_span_tags(span, **(event.base_tag_kwargs or {}))
+        event.integration._set_base_span_tags(
+            span,
+            model=event.model,
+            provider=event.provider,
+            interface_type=event.interface_type,
+            instance=event.instance,
+        )
 
         # Proxy detection
-        base_url = event.integration._get_base_url(**(event.base_tag_kwargs or {}))
+        base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
 
@@ -51,20 +57,16 @@ class LlmTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext["LlmRequestEvent"],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: LlmRequestEvent = ctx.event
         is_stream = ctx.get_item("is_stream", False)
         has_error = exc_info[1] is not None
 
-        # For streaming with errors, re-enable span finishing since StreamHandler
-        # won't get to finalize. This matches the original behavior where
-        # `span.error or not stream` controlled llmobs_set_tags + span.finish.
-        if is_stream and has_error:
-            event._end_span = True
-
-        # Call llmobs_set_tags for non-streaming, or for streaming with errors
+        # For non-streaming or streaming with errors, call llmobs_set_tags and
+        # re-enable span finishing. LlmRequestEvent defaults to _end_span=False
+        # so we explicitly opt back in here to let the base subscriber finish the span.
         if not is_stream or has_error:
             response = ctx.get_item("response")
             event.integration.llmobs_set_tags(
@@ -74,3 +76,4 @@ class LlmTracingSubscriber(TracingSubscriber):
                 response=response,
                 operation=ctx.get_item("operation", ""),
             )
+            event._end_span = True
