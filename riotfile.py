@@ -3363,6 +3363,14 @@ venv = Venv(
                         "deepeval": latest,
                     },
                 ),
+                # Pydantic v1 compatibility (v1 supports up to Python 3.13)
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    pkgs={
+                        "pydantic": "~=1.10",
+                    },
+                ),
             ],
         ),
         Venv(
