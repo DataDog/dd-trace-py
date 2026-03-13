@@ -754,7 +754,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname"
+        " does not exist in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -776,7 +777,7 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         has_errors=True,
         error_msg=(
             "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-            "not exists in client_config and signed targets"
+            "does not exist in client_config and signed targets"
         ),
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -820,7 +821,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
+        "does not exist in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
