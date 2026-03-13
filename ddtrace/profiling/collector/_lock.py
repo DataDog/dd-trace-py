@@ -212,8 +212,6 @@ class _ProfiledLock:
         # What comes next in the function is only code for sampling the lock
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
-        if result is False:
-            return result
 
         # Early return if acquisition was not sampled
         if start is None:
