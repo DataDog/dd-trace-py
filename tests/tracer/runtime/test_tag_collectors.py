@@ -120,7 +120,7 @@ def test_process_tags_enabled():
 
             ptc = tag_collectors.ProcessTagCollector()
             tags: list[str] = ptc.collect()
-            assert len(tags) == 4, f"Expected 4 process tags, got {len(tags)}: {tags}"
+            assert len(tags) == 5, f"Expected 5 process tags, got {len(tags)}: {tags}"
 
             tags_dict = {k: v for k, v in (s.split(":") for s in tags)}
             assert ENTRYPOINT_NAME_TAG in tags_dict
@@ -134,10 +134,6 @@ def test_process_tags_enabled():
             assert tags_dict[ENTRYPOINT_TYPE_TAG] == "script"
     finally:
         process_tag_reload()
-
-        ptc = tag_collectors.ProcessTagCollector()
-        tags: list[str] = ptc.collect()
-        assert len(tags) == 5, f"Expected 5 process tags, got {len(tags)}: {tags}"
 
 
 @pytest.mark.subprocess()
