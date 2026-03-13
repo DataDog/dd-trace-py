@@ -20,8 +20,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_llmobs_trace_id
-from ddtrace.llmobs._utils import _get_span_kind
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
@@ -37,6 +35,8 @@ from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
+from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import get_span_kind
 from ddtrace.llmobs._utils import mark_as_evaluation_span
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
@@ -340,7 +340,7 @@ def test_llm_span(llmobs, llmobs_events):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "llm"
+        assert get_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "test_provider"
     assert len(llmobs_events) == 1
@@ -363,7 +363,7 @@ def test_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "llm"
+        assert get_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "custom"
 
@@ -373,7 +373,7 @@ def test_tool_span(llmobs, llmobs_events):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "tool"
+        assert get_span_kind(span) == "tool"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
 
@@ -383,7 +383,7 @@ def test_task_span(llmobs, llmobs_events):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "task"
+        assert get_span_kind(span) == "task"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
 
@@ -393,7 +393,7 @@ def test_workflow_span(llmobs, llmobs_events):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "workflow"
+        assert get_span_kind(span) == "workflow"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
@@ -403,7 +403,7 @@ def test_agent_span(llmobs, llmobs_events):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "agent"
+        assert get_span_kind(span) == "agent"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
@@ -422,7 +422,7 @@ def test_embedding_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "embedding"
+        assert get_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "custom"
 
@@ -432,7 +432,7 @@ def test_embedding_span(llmobs, llmobs_events):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert _get_span_kind(span) == "embedding"
+        assert get_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "test_provider"
     assert len(llmobs_events) == 1
@@ -985,7 +985,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(_get_llmobs_trace_id(span))
+        assert span_context["trace_id"] == format_trace_id(get_llmobs_trace_id(span))
 
 
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
@@ -1014,7 +1014,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(_get_llmobs_trace_id(span))
+        assert span_context["trace_id"] == format_trace_id(get_llmobs_trace_id(span))
 
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
@@ -1936,7 +1936,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
             _expected_llmobs_eval_metric_event(
                 ml_app="dummy",
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                trace_id=format_trace_id(get_llmobs_trace_id(span)),
                 label="toxicity",
                 metric_type="categorical",
                 categorical_value="high",
@@ -1965,7 +1965,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                trace_id=format_trace_id(get_llmobs_trace_id(span)),
                 label="sentiment",
                 metric_type="score",
                 score_value=0.9,
@@ -2190,7 +2190,7 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                trace_id=format_trace_id(get_llmobs_trace_id(span)),
                 label="is_toxic",
                 metric_type="boolean",
                 boolean_value=False,

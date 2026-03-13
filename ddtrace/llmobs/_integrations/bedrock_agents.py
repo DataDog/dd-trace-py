@@ -11,8 +11,8 @@ from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
-from ddtrace.llmobs._utils import _get_ml_app
-from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import get_ml_app
+from ddtrace.llmobs._utils import get_session_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs.types import Message
@@ -61,8 +61,8 @@ def _build_span_event(
     llmobs_trace_id = root_span._get_ctx_item(LLMOBS_TRACE_ID)
     if llmobs_trace_id is None:
         llmobs_trace_id = root_span.trace_id
-    session_id = _get_session_id(root_span)
-    ml_app = _get_ml_app(root_span)
+    session_id = get_session_id(root_span)
+    ml_app = get_ml_app(root_span)
     tags = [f"ml_app:{ml_app}", f"session_id:{session_id}", "integration:bedrock_agents"]
     span_event: LLMObsSpanEvent = {
         "name": span_name,

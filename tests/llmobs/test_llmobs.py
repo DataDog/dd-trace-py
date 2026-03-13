@@ -10,8 +10,8 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
-from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_session_id
 from ddtrace.llmobs.types import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -53,13 +53,13 @@ def test_set_correct_parent_id(llmobs):
     with llmobs._instance.tracer.trace("root"):
         with llmobs.workflow("llm_span") as llm_span:
             pass
-    assert _get_llmobs_parent_id(llm_span) is None
+    assert get_llmobs_parent_id(llm_span) is None
     with llmobs.workflow("root_llm_span") as root_span:
-        assert _get_llmobs_parent_id(root_span) is None
+        assert get_llmobs_parent_id(root_span) is None
         with llmobs._instance.tracer.trace("child_span") as child_span:
-            assert _get_llmobs_parent_id(child_span) is None
+            assert get_llmobs_parent_id(child_span) is None
             with llmobs.task("llm_span") as grandchild_span:
-                assert _get_llmobs_parent_id(grandchild_span) == root_span.span_id
+                assert get_llmobs_parent_id(grandchild_span) == root_span.span_id
 
 
 class TestSessionId:
@@ -73,7 +73,7 @@ class TestSessionId:
             with tracer.trace("child_span"):
                 with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
                     pass
-        assert _get_session_id(llm_span) == "test_session_id"
+        assert get_session_id(llm_span) == "test_session_id"
 
     def test_if_set_manually(self, tracer):
         """Test that session_id is extracted from the span if it is already set manually."""
@@ -82,7 +82,7 @@ class TestSessionId:
             with tracer.trace("child_span"):
                 with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
                     _annotate_llmobs_span_data(llm_span, session_id="test_different_session_id")
-        assert _get_session_id(llm_span) == "test_different_session_id"
+        assert get_session_id(llm_span) == "test_different_session_id"
 
     def test_propagates_ignore_non_llmobs_spans(self, tracer, llmobs_events):
         """

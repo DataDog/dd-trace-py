@@ -304,7 +304,10 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
 
 
 def _get_parent_prompt(span: Span) -> Optional[Prompt]:
-    """Check the nearest LLMObs ancestor's _store for a prompt to inherit."""
+    """Check the nearest LLMObs ancestor's _store for a prompt to inherit.
+    We check span._store instead of meta_struct because span._store is guaranteed to exist on the parent,
+    while meta_struct is scrubbed at span finish time.
+    """
     parent_span = _get_nearest_llmobs_ancestor(span)
     if parent_span is None:
         return None
@@ -317,30 +320,30 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return llmobs_span_data or {}
 
 
-def _get_ml_app(span: Span) -> Optional[str]:
+def get_ml_app(span: Span) -> Optional[str]:
     """Return the ML app name for a span, falling back to global config."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
 
 
-def _get_session_id(span: Span) -> Optional[str]:
+def get_session_id(span: Span) -> Optional[str]:
     """Return the session ID stored directly on this span."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
 
 
-def _get_span_kind(span: Span) -> Optional[str]:
+def get_span_kind(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
     kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
     return kind
 
 
-def _get_llmobs_parent_id(span: Span) -> Optional[int]:
+def get_llmobs_parent_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
 
 
-def _get_llmobs_trace_id(span: Span) -> Optional[int]:
+def get_llmobs_trace_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
