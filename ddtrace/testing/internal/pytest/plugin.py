@@ -385,18 +385,7 @@ class TestOptPlugin:
         elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
             # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e.,
             # it is effectively quarantined). We may want to present it in a different way in the output though.
-            item.add_marker(pytest.mark.xfail(strict=False, reason="quarantined", run=True))
-
-    @pytest.hookimpl(tryfirst=True)
-    def pytest_runtest_logreport(self, report: "pytest.TestReport") -> None:
-        # When an external rerun plugin drives execution (no pytest_runtest_protocol),
-        # neutralize failing reports for quarantined/disabled tests so they don't fail the session.
-        # Skip retry reports (dd_retry_outcome means we're in our own retry loop).
-        if _get_user_property(report, "dd_quarantined") and not _get_user_property(report, "dd_retry_outcome"):
-            if report.failed:
-                report.outcome = "skipped"
-                if report.when != TestPhase.TEARDOWN:
-                    report.longrepr = "Quarantined"
+            item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
@@ -669,7 +658,7 @@ class TestOptPlugin:
             retry_reason = _get_user_property(report, "dd_retry_reason")
             return ("rerun", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
 
-        if getattr(report, "wasxfail", None) == "quarantined":
+        if getattr(report, "wasxfail", None) == "dd_quarantined":
             if report.when == TestPhase.TEARDOWN:
                 return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
             else:
