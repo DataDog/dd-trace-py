@@ -1333,10 +1333,6 @@ def _on_aiokafka_getmany_message(
 
 
 def listen():
-    # Import subscriber packages — triggers auto-registration via __init_subclass__
-    import ddtrace._trace.subscribers.http_client  # noqa: F401
-    import ddtrace._trace.subscribers.llm  # noqa: F401
-
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)

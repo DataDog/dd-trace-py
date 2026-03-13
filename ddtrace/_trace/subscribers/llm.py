@@ -52,7 +52,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
 
         # LLMObs integration marker
         if event.integration.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, event.integration_name)
+            span._set_ctx_item(INTEGRATION, event.component)
 
     @classmethod
     def on_ended(

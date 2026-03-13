@@ -7,7 +7,6 @@ from typing import TypeVar
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.span import Span
-from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -18,6 +17,28 @@ from ddtrace.trace import tracer
 
 
 TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
+
+
+def _finish_span(
+    ctx: core.ExecutionContext[TracingEventType],
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    """Finish the span in the context.
+
+    Reimplementing finish span here prevents circular import with trace_handlers.
+    Once every integration adopts the events API, trace_handlers._finish_span
+    should be completely removed.
+    """
+    span = ctx.span
+    if not span:
+        return
+
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_type and exc_value and exc_traceback:
+        span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
+    span.finish()
 
 
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:

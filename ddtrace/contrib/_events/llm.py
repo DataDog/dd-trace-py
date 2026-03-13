@@ -26,7 +26,6 @@ class LlmRequestEvent(TracingEvent):
     span_kind = SpanKind.CLIENT
     span_type = SpanTypes.LLM
 
-    integration_name: str = event_field()
     provider: str = event_field()
     model: str = event_field()
     integration: "BaseLLMIntegration" = event_field()
@@ -36,8 +35,7 @@ class LlmRequestEvent(TracingEvent):
     instance: Optional[Any] = event_field(default=None)
 
     def __post_init__(self) -> None:
-        self.component = self.integration_name
-        self.span_name = f"{self.integration_name}.request"
+        self.span_name = f"{self.component}.request"
         # span_type is only LLM when LLMObs is enabled and submit_to_llmobs is True
         if not (self.submit_to_llmobs and self.integration.llmobs_enabled):
             self.__dict__["span_type"] = None
