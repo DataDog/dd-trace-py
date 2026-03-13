@@ -27,7 +27,7 @@ def track_login_success(
     This function should be called when a user successfully logs in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("login_success")
+    _metrics.report_ato_sdk_usage("login_success")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata, login_events_mode=mode)
 
@@ -45,7 +45,7 @@ def track_login_failure(
     This function should be called when a user fails to log in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("login_failure")
+    _metrics.report_ato_sdk_usage("login_failure")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_login_failure_event(
         None, user_id, exists=exists, login=login, metadata=metadata, login_events_mode=mode
@@ -65,7 +65,7 @@ def track_signup(
     This function should be called when a user successfully signs up for the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("signup")
+    _metrics.report_ato_sdk_usage("signup")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_signup_event(None, user_id, success, login=login, login_events_mode=mode)
     if metadata:
@@ -185,5 +185,5 @@ def track_custom_event(event_name: str, metadata: dict[str, t.Any]) -> None:
     This function should be called when a custom user event occurs in the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("custom")
+    _metrics.report_ato_sdk_usage("custom")
     _trace_utils.track_custom_event(None, event_name, metadata=metadata)

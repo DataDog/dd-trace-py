@@ -12,10 +12,13 @@ from typing import Union
 from urllib import parse
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec import _metrics as appsec_metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
-from ddtrace.appsec._metrics import _set_waf_request_metrics
+from ddtrace.appsec._metrics import report_waf_run_error
+from ddtrace.appsec._metrics import report_waf_truncation
+from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
@@ -249,8 +252,6 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    from ddtrace.appsec._metrics import ddwaf_version
-
     entry_span = env.entry_span
     if env.waf_triggers:
         report_list = get_triggers(entry_span)
@@ -273,7 +274,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span._set_attribute(APPSEC.WAF_VERSION, ddwaf_version)
+    entry_span._set_attribute(APPSEC.WAF_VERSION, appsec_metrics.ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
@@ -305,7 +306,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     if API_SEC_CALLBACK is not None:
         API_SEC_CALLBACK(env)
     flush_waf_triggers(env)
-    _set_waf_request_metrics(env.telemetry)
+    set_waf_request_metrics(env.telemetry)
     entry_span = env.entry_span
     if entry_span:
         if env.waf_info:
@@ -520,7 +521,6 @@ def set_waf_telemetry_results(
         return
     result: Telemetry_result = env.telemetry
     is_triggered = bool(waf_results.data)
-    from ddtrace.appsec._metrics import _report_waf_truncations
 
     result.rate_limited |= is_sampled
     if waf_results.return_code < 0:
@@ -528,10 +528,9 @@ def set_waf_telemetry_results(
             result.error = max(result.error, waf_results.return_code)
         else:
             result.error = waf_results.return_code
-        from ddtrace.appsec._metrics import _report_waf_run_error
 
-        _report_waf_run_error(waf_results.return_code, rules_version, rule_type)
-    _report_waf_truncations(waf_results.truncation)
+        report_waf_run_error(waf_results.return_code, rules_version, rule_type)
+    report_waf_truncation(waf_results.truncation)
     for key in ["container_size", "container_depth", "string_length"]:
         res = getattr(waf_results.truncation, key)
         if isinstance(res, int):
@@ -602,7 +601,7 @@ def end_context(span: Span) -> None:
 
 
 def _on_context_ended(
-    ctx: Any,
+    ctx: core.ExecutionContext,
     _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     env = ctx.get_item(_ASM_CONTEXT)

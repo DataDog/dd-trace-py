@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.trace import Span
@@ -181,6 +182,13 @@ def test_set_tag_env():
     s = Span(name="test.span")
     s.set_tag(ENV_KEY, "prod")
     assert s.get_tag(ENV_KEY) == "prod"
+
+
+def test_set_tag_service_key():
+    s = Span(name="test.span")
+    s.set_tag(SERVICE_KEY, "my-service")  # ast-grep-ignore: span-set-tag-service-key
+    assert s.service == "my-service"
+    assert s.get_tag(SERVICE_KEY) == "my-service"
 
 
 # ---------------------------------------------------------------------------

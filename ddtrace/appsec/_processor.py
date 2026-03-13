@@ -22,6 +22,8 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+from ddtrace.appsec._metrics import set_waf_init_metric
+from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import Block_config
@@ -139,18 +141,16 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
                 from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
-                import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 DDWaf = waf_module()
                 if DDWaf is None:
                     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
                     self._ddwaf = None
                     return
-                self.metrics = metrics
                 self._ddwaf = DDWaf(
-                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
+                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
+                set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
@@ -180,7 +180,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(removals, updates)
-        self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
+        set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
 
