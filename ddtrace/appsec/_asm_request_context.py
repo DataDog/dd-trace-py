@@ -12,10 +12,13 @@ from typing import Union
 from urllib import parse
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec import _metrics as appsec_metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
-from ddtrace.appsec._metrics import _set_waf_request_metrics
+from ddtrace.appsec._metrics import report_waf_run_error
+from ddtrace.appsec._metrics import report_waf_truncation
+from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
@@ -75,8 +78,8 @@ def report_error_on_entry_span(error: str, message: str) -> None:
     entry_span = get_entry_span()
     if not entry_span:
         return
-    entry_span._set_tag_str(APPSEC.ERROR_TYPE, error)
-    entry_span._set_tag_str(APPSEC.ERROR_MESSAGE, message)
+    entry_span._set_attribute(APPSEC.ERROR_TYPE, error)
+    entry_span._set_attribute(APPSEC.ERROR_MESSAGE, message)
 
 
 class ASM_Environment:
@@ -249,8 +252,6 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    from ddtrace.appsec._metrics import ddwaf_version
-
     entry_span = env.entry_span
     if env.waf_triggers:
         report_list = get_triggers(entry_span)
@@ -273,7 +274,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span._set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
+    entry_span._set_attribute(APPSEC.WAF_VERSION, appsec_metrics.ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
@@ -305,17 +306,17 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     if API_SEC_CALLBACK is not None:
         API_SEC_CALLBACK(env)
     flush_waf_triggers(env)
-    _set_waf_request_metrics(env.telemetry)
+    set_waf_request_metrics(env.telemetry)
     entry_span = env.entry_span
     if entry_span:
         if env.waf_info:
             info = env.waf_info()
             try:
                 if info.errors:
-                    entry_span._set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    entry_span._set_attribute(APPSEC.EVENT_RULE_ERRORS, info.errors)
                     extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
                     logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
-                entry_span._set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_VERSION, info.version)
                 entry_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
                 entry_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
@@ -330,7 +331,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         if res_headers:
             _set_headers(entry_span, res_headers, kind="response")
         if env.rc_products:
-            entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
+            entry_span._set_attribute(APPSEC.RC_PRODUCTS, env.rc_products)
 
     # Manually clear reference cycles to simplify the work for the GC
     env.block_callable = None
@@ -520,7 +521,6 @@ def set_waf_telemetry_results(
         return
     result: Telemetry_result = env.telemetry
     is_triggered = bool(waf_results.data)
-    from ddtrace.appsec._metrics import _report_waf_truncations
 
     result.rate_limited |= is_sampled
     if waf_results.return_code < 0:
@@ -528,10 +528,9 @@ def set_waf_telemetry_results(
             result.error = max(result.error, waf_results.return_code)
         else:
             result.error = waf_results.return_code
-        from ddtrace.appsec._metrics import _report_waf_run_error
 
-        _report_waf_run_error(waf_results.return_code, rules_version, rule_type)
-    _report_waf_truncations(waf_results.truncation)
+        report_waf_run_error(waf_results.return_code, rules_version, rule_type)
+    report_waf_truncation(waf_results.truncation)
     for key in ["container_size", "container_depth", "string_length"]:
         res = getattr(waf_results.truncation, key)
         if isinstance(res, int):
@@ -602,7 +601,7 @@ def end_context(span: Span) -> None:
 
 
 def _on_context_ended(
-    ctx: Any,
+    ctx: core.ExecutionContext,
     _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     env = ctx.get_item(_ASM_CONTEXT)
