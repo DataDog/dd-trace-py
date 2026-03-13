@@ -61,6 +61,5 @@ def stop(join=False):
         remoteconfig_poller.disable(join=join)
 
 
-def at_exit(join=False):
-    if config._remote_config_enabled and not rc_config.skip_shutdown:
-        stop(join=join)
+def skip_exit():
+    return rc_config.skip_shutdown
