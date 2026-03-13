@@ -3239,10 +3239,18 @@ venv = Venv(
         Venv(
             name="azure_functions",
             command="pytest {cmdargs} tests/contrib/azure_functions",
-            pys=select_pys(min_version="3.9", max_version="3.11"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "requests": latest,
+            },
+        ),
+        Venv(
+            name="azure_durable_functions",
+            command="pytest {cmdargs} tests/contrib/azure_durable_functions",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "azure-functions-durable": ["==1.2.1", latest],
             },
         ),
         Venv(
@@ -3671,12 +3679,6 @@ venv = Venv(
                         "MarkupSafe": "~=1.1",
                         "itsdangerous": "==2.0.1",
                         "Werkzeug": "==2.0.3",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={
-                        "flask": "~=2.2",
                     },
                 ),
                 Venv(
@@ -4164,7 +4166,7 @@ venv = Venv(
             name="ai_guard_strands",
             command="pytest {cmdargs} tests/appsec/ai_guard/strands_hooks/",
             pkgs={
-                "strands-agents": latest,
+                "strands-agents": ">=1.29.0",
             },
             venvs=[
                 Venv(
