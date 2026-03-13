@@ -79,6 +79,17 @@ _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:fla
 log = logging.getLogger(__name__)
 
 
+# The tuple pytest expects as the `longrepr` field of reports for failed or skipped tests.
+_Longrepr = tuple[
+    # 1st field: pathname of the test file
+    str,
+    # 2nd field: line number.
+    int,
+    # 3rd field: skip reason.
+    str,
+]
+
+
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
 _ReportTestStatus = tuple[
     # 1st field: the status category in which the test will be counted in the final stats (X passed, Y failed, etc).
@@ -100,9 +111,6 @@ _ReportTestStatus = tuple[
 # The `pytest_report_teststatus` hook can return a tuple of empty strings ("", "", ""), in which case the test report is
 # not logged at all. On the other hand, if the hook returns `None`, the next hook will be tried (so you can return
 # `None` if you want the default pytest log output).
-
-# The tuple used as `longrepr` for skipped reports (file, line_number, reason).
-_Longrepr = tuple[str, int, str]
 
 # The tuple stored in the `location` attribute of a `pytest.Item`
 _Location = tuple[
@@ -592,19 +600,11 @@ class TestOptPlugin:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
             self._mark_test_report_as_retry(reports, retry_handler, TestPhase.SETUP)
 
-    def _mark_test_report_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler, when: str) -> bool:
-        if call_report := reports.get(when):
-            call_report.user_properties += [
-                ("dd_retry_outcome", call_report.outcome),
-                ("dd_retry_reason", retry_handler.get_pretty_name()),
-            ]
-            call_report.outcome = "rerun"
-            return True
-
-        return False
-
-    def _mark_attempt_to_fix_report_as_skipped(self, item: pytest.Item, report: t.Optional[pytest.TestReport]) -> None:
-        """Mangle an attempt-to-fix test report to look like it was skipped.
+    def _mark_attempt_to_fix_report_as_skipped(
+        self, item: pytest.Item, report: t.Optional[pytest.TestReport]
+    ) -> None:
+        """
+        Modify a test report for an attempt-to-fix test to make it look like it was skipped.
 
         This is called *after* ``_get_test_outcome`` has already captured the real status (FAIL/PASS), so the
         backend sees the true result while the terminal/junitxml shows the test as skipped (quarantined).
@@ -621,7 +621,9 @@ class TestOptPlugin:
             report.outcome = "skipped"
 
     def _mark_attempt_to_fix_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
-        """Mangle all reports for an attempt-to-fix test to look like it was skipped."""
+        """
+        Modify the test reports for an attempt-to-fix test to make it look like it was skipped.
+        """
         if call_report := reports.get(TestPhase.CALL):
             self._mark_attempt_to_fix_report_as_skipped(item, call_report)
             reports[TestPhase.SETUP].outcome = "passed"
@@ -630,6 +632,17 @@ class TestOptPlugin:
             setup_report = reports.get(TestPhase.SETUP)
             self._mark_attempt_to_fix_report_as_skipped(item, setup_report)
             reports[TestPhase.TEARDOWN].outcome = "passed"
+
+    def _mark_test_report_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler, when: str) -> bool:
+        if call_report := reports.get(when):
+            call_report.user_properties += [
+                ("dd_retry_outcome", call_report.outcome),
+                ("dd_retry_reason", retry_handler.get_pretty_name()),
+            ]
+            call_report.outcome = "rerun"
+            return True
+
+        return False
 
     def _log_test_reports(self, item: pytest.Item, reports: _ReportGroup) -> None:
         for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
