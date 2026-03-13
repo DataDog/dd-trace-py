@@ -77,7 +77,9 @@ class TestITR:
 
         # Check that session event has the correct tags.
         [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.enabled"] == "true"
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+        assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
@@ -133,7 +135,9 @@ class TestITR:
 
         # Check that session event has the correct tags.
         [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.enabled"] == "false"
         assert session["content"]["meta"].get("test.itr.tests_skipping.tests_skipped") is None
+        assert session["content"]["meta"].get("_dd.ci.itr.tests_skipped") is None
         assert session["content"]["meta"].get("test.itr.tests_skipping.type") is None
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") is None
 
@@ -204,7 +208,9 @@ class TestITR:
 
         # Check that session event has the correct tags.
         [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.enabled"] == "true"
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+        assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
