@@ -83,6 +83,11 @@ cdef void _collect_exception(_SamplerState state, object exc_type, object exc_va
 
 cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
     """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
+    cdef bint _collecting = False
+    if _collecting:
+        return
+
+    _collecting = True
     cdef _SamplerState state = _state
     if state is None:
         return
@@ -95,11 +100,17 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
     state.counter = 0
 
-    # _collect_exception may trigger internal EXCEPTION_HANDLED events (via the
-    # try/except in message collection), but re-entrant calls are safe: the counter
-    # was just reset to 0 so re-entrant invocations will increment and return.
-    _collect_exception(state, type(exception), exception, exception.__traceback__)
-
+    # If an exception ever leaks from _collect_exception, this will silently disable
+    # sys.monitoring. This is rare, but we should catch all exception here to avoid this
+    #
+    # Rare, but if next_sample is 1, then reentrant calls will cause this to fire again
+    # We should guard against re-entrancy explictly here
+    try:
+        _collect_exception(state, type(exception), exception, exception.__traceback__)
+    except Exception:
+        LOG.exception("Failed to collect exception")
+    finally:
+        _collecting = False
 
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
@@ -121,19 +132,19 @@ class ExceptionCollector(collector.Collector):
 
         if HAS_MONITORING:
             try:
+                _state = _SamplerState(self._sampling_interval, self._collect_message)
                 sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+                sys.monitoring.register_callback(
+                    sys.monitoring.PROFILER_ID,
+                    sys.monitoring.events.EXCEPTION_HANDLED,
+                    _on_exception_handled,
+                )
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
                 return
-            _state = _SamplerState(self._sampling_interval, self._collect_message)
-            sys.monitoring.register_callback(
-                sys.monitoring.PROFILER_ID,
-                sys.monitoring.events.EXCEPTION_HANDLED,
-                _on_exception_handled,
-            )
+
             self._monitoring_registered = True
-            LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
         else:
             LOG.debug("Exception profiling only supports Python 3.12+, skipping")
             return

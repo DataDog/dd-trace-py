@@ -73,6 +73,9 @@ cdef class PoissonSampler:
     at construction. This ensures that separate callers get independent
     sequences, and that state is fresh after fork (when the profiler is
     restarted and a new instance is created).
+
+    This Poisson sampler is only intended to be used with the exception profile 
+    collector
     """
     cdef uint64_t _state
 
