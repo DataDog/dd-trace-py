@@ -1,6 +1,3 @@
-from functools import partial
-
-from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 
@@ -10,28 +7,13 @@ def bootstrap() -> None:
         # Force the upload of symbols, ignoring RCM instructions.
         from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-        SymbolDatabaseUploader.install(shallow=False)
+        SymbolDatabaseUploader.install()
     else:
         # Start the RCM subscriber to determine if and when to upload symbols.
         from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
 
         remoteconfig_poller.register_callback("LIVE_DEBUGGING_SYMBOL_DB", _rc_callback)
         remoteconfig_poller.enable_product("LIVE_DEBUGGING_SYMBOL_DB")
-
-    @partial(core.on, "dynamic-instrumentation.enabled")
-    def _() -> None:
-        if not symdb_config.enabled:
-            return
-
-        from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
-
-        # If dynamic instrumentation is enabled, we need to restart Symbol DB
-        # to ensure that we recursively collect all symbols from modules.
-        # To avoid tracking the status of all loaded modules, we keep Symbol DB
-        # installed, even if DI is disabled.
-        if SymbolDatabaseUploader.is_installed() and SymbolDatabaseUploader.shallow:
-            SymbolDatabaseUploader.uninstall()
-            SymbolDatabaseUploader.install(shallow=False)
 
 
 def restart() -> None:
