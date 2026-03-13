@@ -11,7 +11,8 @@ from flask import request
 
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 from ddtrace import config
-import ddtrace.constants
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
@@ -48,7 +49,7 @@ def multi_view(param_int=0, param_str=""):
     if priority in ("keep", "drop"):
         span = tracer.current_span()
         if span is not None:
-            span.set_tag(ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY)
+            span._override_sampling_decision(USER_KEEP if priority == "keep" else USER_REJECT)
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")
