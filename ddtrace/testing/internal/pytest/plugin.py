@@ -79,17 +79,6 @@ _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:fla
 log = logging.getLogger(__name__)
 
 
-# The tuple pytest expects as the `longrepr` field of reports for failed or skipped tests.
-_Longrepr = tuple[
-    # 1st field: pathname of the test file
-    str,
-    # 2nd field: line number.
-    int,
-    # 3rd field: skip reason.
-    str,
-]
-
-
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
 _ReportTestStatus = tuple[
     # 1st field: the status category in which the test will be counted in the final stats (X passed, Y failed, etc).
