@@ -288,6 +288,24 @@ download_dependency_wheels:
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
 
+# Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
+# Runs automatically on releases/RCs, available as manual trigger for other pipelines.
+"upload debug symbols to backend":
+  stage: release
+  extends: .testrunner
+  needs:
+    - job: "build linux"
+      artifacts: true
+  rules:
+    # Automatically run on releases/RCs
+    - if: !reference [.is_release]
+      when: on_success
+    # Manual trigger for any other pipeline
+    - when: manual
+      allow_failure: true
+  script:
+    - .gitlab/scripts/upload-debug-symbols-to-backend.sh
+
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
