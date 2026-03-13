@@ -1,5 +1,4 @@
 import os
-import traceback
 
 import aiohttp  # noqa: F401
 from azure.cosmos import CosmosClient
