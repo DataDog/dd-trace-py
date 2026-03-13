@@ -212,7 +212,7 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
-    if not isinstance(current_greenlet, _Greenlet):
+    if type(current_greenlet) is greenlet:
         current_greenlet = gevent.hub.get_hub()
     current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
@@ -229,7 +229,7 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
 
         if greenlets := [_ for _ in objects if isinstance(_, (greenlet, gevent.Greenlet))]:
             current_greenlet = gevent.getcurrent()
-            if not isinstance(current_greenlet, _Greenlet):
+            if type(current_greenlet) is greenlet:
                 current_greenlet = gevent.hub.get_hub()
             current_greenlet_id: int = thread.get_ident(current_greenlet)
             for g in greenlets:
