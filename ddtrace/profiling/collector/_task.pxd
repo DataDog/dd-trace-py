@@ -1,3 +1,3 @@
-cpdef void initialize_gevent_support()
+cpdef initialize_gevent_support()
 cdef object _asyncio_task_get_frame(object task)
-cpdef tuple get_task()
+cpdef get_task()
