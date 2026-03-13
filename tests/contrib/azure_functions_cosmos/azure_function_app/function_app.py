@@ -25,7 +25,6 @@ async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
         try:
             async with CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
                 database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
-                print(database)
                 container = await database.create_container_if_not_exists(
                     id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
                 )
