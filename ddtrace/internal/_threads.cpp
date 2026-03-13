@@ -611,6 +611,11 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_atexit = true;
 
+    if (self->_thread == nullptr) {
+        fprintf(stderr, "PeriodicThread__atexit: thread is nullptr\n");
+        Py_RETURN_NONE; // Nothing to stop
+    }
+
     if (PeriodicThread_stop(self, NULL) == NULL)
         return NULL;
 
@@ -630,13 +635,17 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_atexit = false;
     self->_skip_shutdown = false;
 
-    // During prefork, stop() sets _request to wake the thread promptly so it
-    // can exit before fork. That wakeup should not trigger a synthetic
-    // periodic() run right after restart.
-    self->_request->clear(REQUEST_REASON_FORK_STOP);
-    self->_started->clear();
-    self->_stopped->clear();
-    self->_served->clear();
+    // After fork, the internal std::mutex and std::condition_variable of Event
+    // objects may be in an undefined state (POSIX says mutexes held by threads
+    // that don't exist in the child are in an undefined state). Recreate all
+    // synchronization primitives from scratch rather than calling .clear(),
+    // which would attempt to lock potentially corrupted mutexes.
+    self->_started = std::make_unique<Event>();
+    self->_stopped = std::make_unique<Event>();
+    self->_request = std::make_unique<Event>();
+    self->_served = std::make_unique<Event>();
+
+    self->_awake_mutex = std::make_unique<std::mutex>();
 
     PeriodicThread_start(self, NULL);
 
