@@ -217,6 +217,11 @@ variables:
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+  cache:
+    # Cache downloaded artifacts to avoid network failures in CI
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
 
 "download windows wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
