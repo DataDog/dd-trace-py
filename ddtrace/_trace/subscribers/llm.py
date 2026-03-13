@@ -60,20 +60,16 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         ctx: core.ExecutionContext["LlmRequestEvent"],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
+        # AIDEV-NOTE: This fires for both streaming and non-streaming paths.
+        # For non-streaming, the context exits normally after setting response.
+        # For streaming, the stream handler manually closes the context after
+        # exhausting the stream and setting the response.
         event: LlmRequestEvent = ctx.event
-        is_stream = ctx.get_item("is_stream", False)
-        has_error = exc_info[1] is not None
-
-        # For non-streaming or streaming with errors, call llmobs_set_tags and
-        # re-enable span finishing. LlmRequestEvent defaults to _end_span=False
-        # so we explicitly opt back in here to let the base subscriber finish the span.
-        if not is_stream or has_error:
-            response = ctx.get_item("response")
-            event.integration.llmobs_set_tags(
-                ctx.span,
-                args=[],
-                kwargs=event.request_kwargs,
-                response=response,
-                operation=ctx.get_item("operation", ""),
-            )
-            event._end_span = True
+        response = ctx.get_item("response")
+        event.integration.llmobs_set_tags(
+            ctx.span,
+            args=[],
+            kwargs=event.request_kwargs,
+            response=response,
+            operation=ctx.get_item("operation", ""),
+        )

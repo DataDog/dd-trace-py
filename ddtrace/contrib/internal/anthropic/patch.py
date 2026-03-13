@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 from typing import Callable
 
@@ -59,34 +60,44 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
-    with core.context_with_event(event) as ctx:
-        chat_completions = None
-        try:
-            chat_completions = func(*args, **kwargs)
-            if is_streaming_operation(chat_completions):
-                ctx.set_item("is_stream", True)
-                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
-        finally:
-            if not ctx.get_item("is_stream", False):
-                ctx.set_item("response", chat_completions)
-    return chat_completions
+    # AIDEV-NOTE: Manually enter/exit the context so that streaming can keep it
+    # open until the stream is exhausted. The stream handler closes the context
+    # in finalize_stream(), which fires on_ended and finishes the span.
+    ctx = core.context_with_event(event)
+    ctx.__enter__()
+    try:
+        resp = func(*args, **kwargs)
+    except Exception:
+        ctx.__exit__(*sys.exc_info())
+        raise
+
+    if is_streaming_operation(resp):
+        return handle_streamed_response(integration, resp, args, kwargs, ctx)
+
+    ctx.set_item("response", resp)
+    ctx.__exit__(None, None, None)
+    return resp
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
-    with core.context_with_event(event) as ctx:
-        chat_completions = None
-        try:
-            chat_completions = await func(*args, **kwargs)
-            if is_streaming_operation(chat_completions):
-                ctx.set_item("is_stream", True)
-                return handle_streamed_response(integration, chat_completions, args, kwargs, ctx.span)
-        finally:
-            if not ctx.get_item("is_stream", False):
-                ctx.set_item("response", chat_completions)
-    return chat_completions
+    # AIDEV-NOTE: Same manual context pattern as sync version.
+    ctx = core.context_with_event(event)
+    ctx.__enter__()
+    try:
+        resp = await func(*args, **kwargs)
+    except Exception:
+        ctx.__exit__(*sys.exc_info())
+        raise
+
+    if is_streaming_operation(resp):
+        return handle_streamed_response(integration, resp, args, kwargs, ctx)
+
+    ctx.set_item("response", resp)
+    ctx.__exit__(None, None, None)
+    return resp
 
 
 def patch() -> None:
