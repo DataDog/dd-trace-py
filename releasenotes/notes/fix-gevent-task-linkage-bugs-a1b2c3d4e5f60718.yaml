@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes two bugs in gevent task attribution. ``gevent.wait`` called
+    with the ``objects`` keyword argument (e.g. ``gevent.wait(objects=[g1, g2])``)
+    now correctly links the greenlets to their parent task. Additionally, greenlets
+    joined via ``gevent.joinall`` or ``gevent.wait`` from a user-level greenlet are
+    now attributed to that greenlet instead of always being attributed to the Hub.
