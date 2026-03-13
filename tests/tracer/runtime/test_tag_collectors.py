@@ -128,7 +128,7 @@ def test_process_tags_enabled():
 
         ptc = tag_collectors.ProcessTagCollector()
         tags: list[str] = ptc.collect()
-        assert len(tags) == 4, f"Expected 4 process tags, got {len(tags)}: {tags}"
+        assert len(tags) == 5, f"Expected 5 process tags, got {len(tags)}: {tags}"
 
         tags_dict = {k: v for k, v in (s.split(":") for s in tags)}
         assert ENTRYPOINT_NAME_TAG in tags_dict
@@ -147,4 +147,4 @@ def test_process_tag_class():
     from ddtrace.internal.runtime.runtime_metrics import ProcessTags
 
     process_tags: list[str] = list(ProcessTags())
-    assert len(process_tags) >= 4
+    assert len(process_tags) == 5

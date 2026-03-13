@@ -286,6 +286,7 @@ import opentelemetry
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
         {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_MODEL_LAB_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -1192,3 +1193,19 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     assert sorted_configs[5]["value"] == "baboon"
     assert sorted_configs[5]["origin"] == "fleet_stable_config"
     assert sorted_configs[5]["seq_id"] == 6
+
+
+@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"})
+def test_telemetry_debug_enabled_by_telemetry_env_var():
+    """Telemetry debug mode is enabled only by DD_INTERNAL_TELEMETRY_DEBUG_ENABLED, not DD_TRACE_DEBUG."""
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._debug is True
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_DEBUG": "true"}, err=None)
+def test_telemetry_debug_not_enabled_by_tracer_debug():
+    """Setting DD_TRACE_DEBUG must not enable telemetry debug mode."""
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._debug is False

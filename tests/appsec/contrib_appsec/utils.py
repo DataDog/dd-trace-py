@@ -200,7 +200,6 @@ class Contrib_TestClass_For_Threats:
             assert len(args_list) == 1
             assert ("waf_timeout", "true") in args_list[0][4]
 
-    @pytest.mark.xfail_interface("tornado")
     def test_api_endpoint_discovery(self, interface: Interface, find_resource):
         """Check that API endpoint discovery works in the framework.
 
@@ -216,6 +215,13 @@ class Contrib_TestClass_For_Threats:
                 path = path[1:-1]
             path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
             path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
+            # Tornado regex patterns (from regex.pattern, ending with $)
+            if path.endswith("$"):
+                path = path[:-1]
+            path = re.sub(r"\(\?P<[a-z_]+>\\d\+\)", "123", path)
+            path = re.sub(r"\(\?P<[a-z_]+>\[[^\]]+\]\+?\)", "abczx", path)
+            path = re.sub(r"\(\\d\+\)", "123", path)
+            path = re.sub(r"\(\[[^\]]+\]\+?\)", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
             return path if path.startswith("/") else ("/" + path)
@@ -1637,8 +1643,7 @@ class Contrib_TestClass_For_Threats:
                 response = interface.client.get("/new_service/awesome_test")
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
-            # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
+            assert _asm_request_context.API_SEC_CALLBACK is not None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])

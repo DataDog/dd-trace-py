@@ -14,7 +14,7 @@ class TelemetryConfig(DDConfig):
     SERVICE = DDConfig.v(str, "service", default=detect_service(sys.argv) or "unnamed-python-service")
     VERSION = DDConfig.v(str, "version", default="")
     AGENTLESS_MODE = DDConfig.v(bool, "civisibility.agentless.enabled", default=False)
-    DEBUG = DDConfig.v(bool, "trace.debug", default=False)
+    DEBUG = DDConfig.v(bool, "internal.telemetry.debug.enabled", default=False)
     HEARTBEAT_INTERVAL = DDConfig.v(float, "telemetry.heartbeat_interval", default=60.0)
     TELEMETRY_ENABLED = DDConfig.v(bool, "instrumentation_telemetry.enabled", default=True)
     DEPENDENCY_COLLECTION = DDConfig.v(bool, "telemetry.dependency_collection.enabled", default=True)
@@ -23,6 +23,10 @@ class TelemetryConfig(DDConfig):
     INSTALL_TIME = DDConfig.v(t.Optional[str], "instrumentation.install_time", default=None)
     FORCE_START = DDConfig.v(bool, "instrumentation_telemetry.tests.force_app_started", default=False, private=True)
     LOG_COLLECTION_ENABLED = DDConfig.v(bool, "telemetry.log_collection.enabled", default=True)
+    # Interval should be fixed to 24 hours. The value should only be overridden in tests.
+    EXTENDED_HEARTBEAT_INTERVAL = DDConfig.v(
+        float, "telemetry.extended_heartbeat_interval", default=3600 * 24.0, private=True
+    )
 
 
 config = TelemetryConfig()
