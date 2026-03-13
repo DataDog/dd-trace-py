@@ -20,7 +20,6 @@ components:
     - tests/test_module/*
     - .gitlab-ci.yml
     - .gitlab/*
-    - tests/suitespec.yml
   $setup:
     - setup.py
     - setup.cfg
