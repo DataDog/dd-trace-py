@@ -106,7 +106,6 @@ class TestProcessTags(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="foobar"))
     def test_process_tags_user_defined_service(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("parent"):

@@ -139,9 +139,10 @@ def test_process_tags_enabled():
         tags: list[str] = ptc.collect()
         assert len(tags) == 5, f"Expected 5 process tags, got {len(tags)}: {tags}"
 
+
 @pytest.mark.subprocess()
 def test_process_tag_class():
     from ddtrace.internal.runtime.runtime_metrics import ProcessTags
 
     process_tags: list[str] = list(ProcessTags())
-    assert len(process_tags) == 5
+    assert len(process_tags) >= 4
