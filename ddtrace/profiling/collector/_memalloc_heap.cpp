@@ -197,12 +197,15 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        transform it by the inverse of the cumulative distribution function for
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
-    /* Get a value between [0, 1[ */
+    /* Get a value between (0, 1) — strictly positive to avoid log2(0) = -inf,
+       which would produce +inf and undefined behavior when cast to uint32_t.
+       Using rand()+1 in floating-point avoids int overflow while shifting the
+       range from [0, 1) to (0, 1). */
     /* TODO: change to use a fork safe alternative instead of rand(), as rand()
        internally uses a lock and may cause deadlock after fork in child
        processes. Deferring this to a follow up, as we're not making the
        situation worse. */
-    double q = (double)rand() / ((double)RAND_MAX + 1);
+    double q = ((double)rand() + 1.0) / ((double)RAND_MAX + 2.0);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
     /* NOTE: technically log2 is not async signal safe per Linux man page,
        but it doesn't seem to use locks internally. So we assume it's safe to
