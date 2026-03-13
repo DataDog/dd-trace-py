@@ -10,7 +10,7 @@
     "meta": {
       "_dd.base_service": "x64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b42c4700000000",
+      "_dd.p.tid": "69b4390d00000000",
       "aas.function.name": "ReadItem",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -20,17 +20,17 @@
       "http.url": "http://0.0.0.0:7071/api/read_item",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "5fb05f262db14bf5bcbb38d4082962ca",
+      "runtime-id": "b01f8a78ad6147f4892e1c1fe36695fb",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 32406.0
+      "process_id": 57542.0
     },
-    "duration": 48941084,
-    "start": 1773415495181404680
+    "duration": 48580959,
+    "start": 1773418765333644292
   },
      {
        "name": "aiohttp.request",
@@ -51,8 +51,8 @@
          "out.host": "localhost",
          "span.kind": "client"
        },
-       "duration": 11890500,
-       "start": 1773415495204306097
+       "duration": 12491916,
+       "start": 1773418765356308251
      },
         {
           "name": "TCPConnector.connect",
@@ -63,11 +63,11 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c4700000000",
+            "_dd.p.tid": "69b4390d00000000",
             "component": "aiohttp"
           },
-          "duration": 3144333,
-          "start": 1773415495208929889
+          "duration": 3322167,
+          "start": 1773418765361486334
         },
      {
        "name": "cosmosdb.query",
@@ -79,7 +79,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c4700000000",
+         "_dd.p.tid": "69b4390d00000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "db.name": "db.azure_functions_cosmos_async",
@@ -91,8 +91,8 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 5257834,
-       "start": 1773415495217677305
+       "duration": 5030833,
+       "start": 1773418765370283084
      },
         {
           "name": "aiohttp.request",
@@ -104,7 +104,7 @@
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c4700000000",
+            "_dd.p.tid": "69b4390d00000000",
             "component": "aiohttp_client",
             "http.method": "GET",
             "http.status_code": "200",
@@ -114,8 +114,8 @@
             "out.host": "127.0.0.1",
             "span.kind": "client"
           },
-          "duration": 4584792,
-          "start": 1773415495218075680
+          "duration": 4407792,
+          "start": 1773418765370675292
         },
            {
              "name": "TCPConnector.connect",
@@ -126,11 +126,11 @@
              "parent_id": 8,
              "meta": {
                "_dd.base_service": "x64",
-               "_dd.p.tid": "69b42c4700000000",
+               "_dd.p.tid": "69b4390d00000000",
                "component": "aiohttp"
              },
-             "duration": 1268708,
-             "start": 1773415495220104097
+             "duration": 832750,
+             "start": 1773418765372992542
            },
      {
        "name": "aiohttp.request",
@@ -142,7 +142,7 @@
        "type": "http",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c4700000000",
+         "_dd.p.tid": "69b4390d00000000",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
@@ -152,8 +152,8 @@
          "out.host": "127.0.0.1",
          "span.kind": "client"
        },
-       "duration": 3422958,
-       "start": 1773415495218795389
+       "duration": 3232500,
+       "start": 1773418765371332209
      },
         {
           "name": "TCPConnector.connect",
@@ -164,11 +164,11 @@
           "parent_id": 4,
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c4700000000",
+            "_dd.p.tid": "69b4390d00000000",
             "component": "aiohttp"
           },
-          "duration": 702792,
-          "start": 1773415495220932430
+          "duration": 668375,
+          "start": 1773418765373422001
         },
      {
        "name": "cosmosdb.query",
@@ -180,7 +180,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c4700000000",
+         "_dd.p.tid": "69b4390d00000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "container.azure_functions_cosmos_async",
@@ -193,8 +193,8 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 3143125,
-       "start": 1773415495223172264
+       "duration": 2905459,
+       "start": 1773418765375621167
      },
         {
           "name": "aiohttp.request",
@@ -206,7 +206,7 @@
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c4700000000",
+            "_dd.p.tid": "69b4390d00000000",
             "component": "aiohttp_client",
             "http.method": "GET",
             "http.status_code": "200",
@@ -216,8 +216,8 @@
             "out.host": "127.0.0.1",
             "span.kind": "client"
           },
-          "duration": 2571125,
-          "start": 1773415495223481639
+          "duration": 2269625,
+          "start": 1773418765375985209
         },
            {
              "name": "TCPConnector.connect",
@@ -228,11 +228,11 @@
              "parent_id": 10,
              "meta": {
                "_dd.base_service": "x64",
-               "_dd.p.tid": "69b42c4700000000",
+               "_dd.p.tid": "69b4390d00000000",
                "component": "aiohttp"
              },
-             "duration": 52542,
-             "start": 1773415495224907180
+             "duration": 43500,
+             "start": 1773418765377084751
            },
      {
        "name": "cosmosdb.query",
@@ -244,7 +244,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c4700000000",
+         "_dd.p.tid": "69b4390d00000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "container.azure_functions_cosmos_async",
@@ -257,8 +257,8 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 2760833,
-       "start": 1773415495226626347
+       "duration": 2495250,
+       "start": 1773418765378865167
      },
         {
           "name": "aiohttp.request",
@@ -270,7 +270,7 @@
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c4700000000",
+            "_dd.p.tid": "69b4390d00000000",
             "component": "aiohttp_client",
             "http.method": "GET",
             "http.status_code": "200",
@@ -280,8 +280,8 @@
             "out.host": "127.0.0.1",
             "span.kind": "client"
           },
-          "duration": 2230417,
-          "start": 1773415495226977055
+          "duration": 2004417,
+          "start": 1773418765379177792
         },
            {
              "name": "TCPConnector.connect",
@@ -292,9 +292,9 @@
              "parent_id": 11,
              "meta": {
                "_dd.base_service": "x64",
-               "_dd.p.tid": "69b42c4700000000",
+               "_dd.p.tid": "69b4390d00000000",
                "component": "aiohttp"
              },
-             "duration": 31958,
-             "start": 1773415495228217722
+             "duration": 31208,
+             "start": 1773418765380156626
            }]]

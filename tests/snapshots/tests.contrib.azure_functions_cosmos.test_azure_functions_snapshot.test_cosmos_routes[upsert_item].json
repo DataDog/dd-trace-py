@@ -2,7 +2,7 @@
   {
     "name": "azure.functions.invoke",
     "service": "azure_functions",
-    "resource": "POST /api/delete_item",
+    "resource": "POST /api/upsert_item",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,27 +10,27 @@
     "meta": {
       "_dd.base_service": "x64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b42c6100000000",
-      "aas.function.name": "DeleteItem",
+      "_dd.p.tid": "69b4391600000000",
+      "aas.function.name": "UpsertItem",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
       "http.method": "POST",
-      "http.route": "/api/delete_item",
+      "http.route": "/api/upsert_item",
       "http.status_code": "200",
-      "http.url": "http://0.0.0.0:7071/api/delete_item",
+      "http.url": "http://0.0.0.0:7071/api/upsert_item",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "070429c652b14cb981fd4eaf1c40f518",
+      "runtime-id": "6640271f6756422aa8e11e3d61219603",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 33837.0
+      "process_id": 58024.0
     },
-    "duration": 77023333,
-    "start": 1773415521570520554
+    "duration": 70584875,
+    "start": 1773418774265070880
   },
      {
        "name": "requests.request",
@@ -54,8 +54,8 @@
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0
        },
-       "duration": 4038958,
-       "start": 1773415521622956762
+       "duration": 3713792,
+       "start": 1773418774313855630
      },
      {
        "name": "cosmosdb.query",
@@ -67,7 +67,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c6100000000",
+         "_dd.p.tid": "69b4391600000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "db.name": "db.azure_functions_cosmos_sync",
@@ -79,20 +79,20 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 7184875,
-       "start": 1773415521628942970
+       "duration": 7089583,
+       "start": 1773418774319479422
      },
         {
           "name": "requests.request",
           "service": "requests",
           "resource": "GET /dbs/db.azure_functions_cosmos_sync/",
           "trace_id": 0,
-          "span_id": 7,
+          "span_id": 6,
           "parent_id": 3,
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c6100000000",
+            "_dd.p.tid": "69b4391600000000",
             "component": "requests",
             "http.method": "GET",
             "http.status_code": "200",
@@ -105,8 +105,8 @@
             "_dd.measured": 1.0,
             "_dd.top_level": 1.0
           },
-          "duration": 6011625,
-          "start": 1773415521629830720
+          "duration": 5898750,
+          "start": 1773418774320359005
         },
      {
        "name": "cosmosdb.query",
@@ -118,7 +118,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c6100000000",
+         "_dd.p.tid": "69b4391600000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "container.azure_functions_cosmos_sync",
@@ -131,20 +131,20 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 3488416,
-       "start": 1773415521636363304
+       "duration": 3380208,
+       "start": 1773418774326819630
      },
         {
           "name": "requests.request",
           "service": "requests",
           "resource": "GET /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/",
           "trace_id": 0,
-          "span_id": 8,
+          "span_id": 7,
           "parent_id": 4,
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c6100000000",
+            "_dd.p.tid": "69b4391600000000",
             "component": "requests",
             "http.method": "GET",
             "http.status_code": "200",
@@ -157,20 +157,20 @@
             "_dd.measured": 1.0,
             "_dd.top_level": 1.0
           },
-          "duration": 2218667,
-          "start": 1773415521637182262
+          "duration": 2226875,
+          "start": 1773418774327623755
         },
      {
        "name": "cosmosdb.query",
        "service": "azure_cosmos",
-       "resource": "SqlQuery /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/",
+       "resource": "Upsert /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/",
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c6100000000",
+         "_dd.p.tid": "69b4391600000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "container.azure_functions_cosmos_sync",
@@ -183,20 +183,20 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 3956500,
-       "start": 1773415521640196929
+       "duration": 5082083,
+       "start": 1773418774330491005
      },
         {
           "name": "requests.request",
           "service": "requests",
           "resource": "POST /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/",
           "trace_id": 0,
-          "span_id": 9,
+          "span_id": 8,
           "parent_id": 5,
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c6100000000",
+            "_dd.p.tid": "69b4391600000000",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",
@@ -209,60 +209,8 @@
             "_dd.measured": 1.0,
             "_dd.top_level": 1.0
           },
-          "duration": 2836625,
-          "start": 1773415521641131804
-        },
-     {
-       "name": "cosmosdb.query",
-       "service": "azure_cosmos",
-       "resource": "Delete /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/item1/",
-       "trace_id": 0,
-       "span_id": 6,
-       "parent_id": 1,
-       "type": "cosmosdb",
-       "meta": {
-         "_dd.base_service": "x64",
-         "_dd.p.tid": "69b42c6100000000",
-         "component": "azure_cosmos",
-         "cosmosdb.connection.mode": "gateway",
-         "cosmosdb.container": "container.azure_functions_cosmos_sync",
-         "db.name": "db.azure_functions_cosmos_sync",
-         "db.system": "cosmosdb",
-         "http.useragent": "azsdk-python-cosmos/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
-         "out.host": "http://localhost:8081/",
-         "span.kind": "client"
-       },
-       "metrics": {
-         "_dd.top_level": 1.0
-       },
-       "duration": 2906792,
-       "start": 1773415521644515470
-     },
-        {
-          "name": "requests.request",
-          "service": "requests",
-          "resource": "DELETE /dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/item1/",
-          "trace_id": 0,
-          "span_id": 10,
-          "parent_id": 6,
-          "type": "http",
-          "meta": {
-            "_dd.base_service": "x64",
-            "_dd.p.tid": "69b42c6100000000",
-            "component": "requests",
-            "http.method": "DELETE",
-            "http.status_code": "204",
-            "http.url": "http://127.0.0.1:8081/dbs/db.azure_functions_cosmos_sync/colls/container.azure_functions_cosmos_sync/docs/item1/",
-            "http.useragent": "azsdk-python-cosmos/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
-            "out.host": "127.0.0.1",
-            "span.kind": "client"
-          },
-          "metrics": {
-            "_dd.measured": 1.0,
-            "_dd.top_level": 1.0
-          },
-          "duration": 1896000,
-          "start": 1773415521645343762
+          "duration": 3944041,
+          "start": 1773418774331435422
         }],
 [
   {
@@ -276,7 +224,7 @@
     "meta": {
       "_dd.base_service": "x64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b42c6100000000",
+      "_dd.p.tid": "69b4391600000000",
       "component": "requests",
       "http.method": "GET",
       "http.status_code": "200",
@@ -284,7 +232,7 @@
       "http.useragent": "azsdk-python-cosmos/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "070429c652b14cb981fd4eaf1c40f518",
+      "runtime-id": "6640271f6756422aa8e11e3d61219603",
       "span.kind": "client"
     },
     "metrics": {
@@ -292,8 +240,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 33837.0
+      "process_id": 58024.0
     },
-    "duration": 1328166,
-    "start": 1773415521631417179
+    "duration": 1152833,
+    "start": 1773418774321817297
   }]]

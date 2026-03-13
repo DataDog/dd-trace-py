@@ -9,21 +9,10 @@ import pytest
 from tests.webclient import Client
 
 
-SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
+SNAPSHOT_IGNORES = ["meta.http.useragent"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
 METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
-
-"""param_ids = []
-param_values = []
-for m, a in itertools.product(METHODS, ASYNC_OPTIONS):
-    param_ids.append(f"{m}{'_async' if a else ''}")
-    param_values.append(
-        (
-            {"METHOD": m, "IS_ASYNC": str(a)},
-            m,  # route name for URL (app has only create_item, read_item, etc.; no _async routes)
-        )
-    )"""
 
 params = [
     (
@@ -92,6 +81,5 @@ def azure_functions_client(request):
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_cosmos_trigger(azure_functions_client: Client, method) -> None:
-    response = azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS)
-    assert response.status_code == 200, f"expected 200, got {response.status_code}; body: {response.text!r}"
+def test_cosmos_routes(azure_functions_client: Client, method) -> None:
+    assert azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS).status_code == 200
