@@ -1,14 +1,13 @@
 import importlib
 import sys
 import types
-from typing import Type
 
 import pytest
 
 from ddtrace.profiling import collector
 
 
-def _test_repr(collector_class: Type[collector.Collector], s: str) -> None:
+def _test_repr(collector_class: type[collector.Collector], s: str) -> None:
     assert repr(collector_class()) == s
 
 
