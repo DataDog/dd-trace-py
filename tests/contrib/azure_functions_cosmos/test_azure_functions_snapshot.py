@@ -14,7 +14,7 @@ DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
 METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
 
-'''param_ids = []
+"""param_ids = []
 param_values = []
 for m, a in itertools.product(METHODS, ASYNC_OPTIONS):
     param_ids.append(f"{m}{'_async' if a else ''}")
@@ -23,7 +23,7 @@ for m, a in itertools.product(METHODS, ASYNC_OPTIONS):
             {"METHOD": m, "IS_ASYNC": str(a)},
             m,  # route name for URL (app has only create_item, read_item, etc.; no _async routes)
         )
-    )'''
+    )"""
 
 params = [
     (
@@ -33,7 +33,7 @@ params = [
                 "METHOD": m,
                 "IS_ASYNC": str(a),
             },
-            m
+            m,
         ),
     )
     for m, a in itertools.product(METHODS, ASYNC_OPTIONS)
@@ -94,6 +94,4 @@ def azure_functions_client(request):
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cosmos_trigger(azure_functions_client: Client, method) -> None:
     response = azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS)
-    assert response.status_code == 200, (
-        f"expected 200, got {response.status_code}; body: {response.text!r}"
-    )
+    assert response.status_code == 200, f"expected 200, got {response.status_code}; body: {response.text!r}"

@@ -1,6 +1,7 @@
 import os
 import traceback
-import aiohttp
+
+import aiohttp  # noqa: F401
 from azure.cosmos import CosmosClient
 from azure.cosmos import PartitionKey
 from azure.cosmos.aio import CosmosClient as CosmosClientAio
@@ -22,9 +23,7 @@ app = func.FunctionApp()
 async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         try:
-            async with CosmosClientAio.from_connection_string(
-                CONNECTION_STRING, connection_verify=False
-            ) as client:
+            async with CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
                 database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
                 print(database)
                 container = await database.create_container_if_not_exists(
@@ -67,9 +66,7 @@ async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
 async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         try:
-            async with CosmosClientAio.from_connection_string(
-                CONNECTION_STRING, connection_verify=False
-            ) as client:
+            async with CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
                 database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
                 container = await database.create_container_if_not_exists(
                     id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
@@ -105,9 +102,7 @@ async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
 async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         try:
-            async with CosmosClientAio.from_connection_string(
-                CONNECTION_STRING, connection_verify=False
-            ) as client:
+            async with CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
                 database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
                 container = await database.create_container_if_not_exists(
                     id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
@@ -149,9 +144,7 @@ async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
 async def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         try:
-            async with CosmosClientAio.from_connection_string(
-                CONNECTION_STRING, connection_verify=False
-            ) as client:
+            async with CosmosClientAio.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
                 database = await client.create_database_if_not_exists(ASYNC_DB_NAME)
                 container = await database.create_container_if_not_exists(
                     id=ASYNC_CONTAINER_NAME, partition_key=PartitionKey(path="/productName")

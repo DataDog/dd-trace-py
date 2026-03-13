@@ -1,0 +1,300 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "azure_functions",
+    "resource": "POST /api/upsert_item",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.base_service": "x64",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b4270300000000",
+      "aas.function.name": "UpsertItem",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/upsert_item",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/upsert_item",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "7b546ce4868d48f0af320d77c4cc5c62",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 19570.0
+    },
+    "duration": 50708000,
+    "start": 1773414147090660917
+  },
+     {
+       "name": "aiohttp.request",
+       "service": "azure_functions",
+       "resource": "aiohttp.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.base_service": "x64",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.status_msg": "OK",
+         "http.url": "http://localhost:8081/",
+         "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "localhost",
+         "span.kind": "client"
+       },
+       "duration": 12514042,
+       "start": 1773414147113277500
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "azure_functions",
+          "resource": "TCPConnector.connect",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "meta": {
+            "_dd.base_service": "x64",
+            "_dd.p.tid": "69b4270300000000",
+            "component": "aiohttp"
+          },
+          "duration": 3210709,
+          "start": 1773414147117970750
+        },
+     {
+       "name": "cosmosdb.query",
+       "service": "azure_cosmos",
+       "resource": "Read /dbs/db.azure_functions_cosmos_async/",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "cosmosdb",
+       "meta": {
+         "_dd.base_service": "x64",
+         "_dd.p.tid": "69b4270300000000",
+         "component": "azure_cosmos",
+         "cosmosdb.connection.mode": "gateway",
+         "db.name": "db.azure_functions_cosmos_async",
+         "db.system": "cosmosdb",
+         "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "http://localhost:8081/",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 6053917,
+       "start": 1773414147127231625
+     },
+        {
+          "name": "aiohttp.request",
+          "service": "azure_cosmos",
+          "resource": "aiohttp.request",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 3,
+          "type": "http",
+          "meta": {
+            "_dd.base_service": "x64",
+            "_dd.p.tid": "69b4270300000000",
+            "component": "aiohttp_client",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.status_msg": "OK",
+            "http.url": "http://127.0.0.1:8081/dbs/db.azure_functions_cosmos_async/",
+            "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+            "out.host": "127.0.0.1",
+            "span.kind": "client"
+          },
+          "duration": 5440917,
+          "start": 1773414147127596750
+        },
+           {
+             "name": "TCPConnector.connect",
+             "service": "azure_cosmos",
+             "resource": "TCPConnector.connect",
+             "trace_id": 0,
+             "span_id": 12,
+             "parent_id": 8,
+             "meta": {
+               "_dd.base_service": "x64",
+               "_dd.p.tid": "69b4270300000000",
+               "component": "aiohttp"
+             },
+             "duration": 1059166,
+             "start": 1773414147130689459
+           },
+     {
+       "name": "aiohttp.request",
+       "service": "azure_functions",
+       "resource": "aiohttp.request",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.base_service": "x64",
+         "_dd.p.tid": "69b4270300000000",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.status_msg": "OK",
+         "http.url": "http://127.0.0.1:8081/",
+         "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "duration": 2881125,
+       "start": 1773414147128318709
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "azure_functions",
+          "resource": "TCPConnector.connect",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 4,
+          "meta": {
+            "_dd.base_service": "x64",
+            "_dd.p.tid": "69b4270300000000",
+            "component": "aiohttp"
+          },
+          "duration": 542792,
+          "start": 1773414147129906125
+        },
+     {
+       "name": "cosmosdb.query",
+       "service": "azure_cosmos",
+       "resource": "Read /dbs/db.azure_functions_cosmos_async/colls/container.azure_functions_cosmos_async/",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "cosmosdb",
+       "meta": {
+         "_dd.base_service": "x64",
+         "_dd.p.tid": "69b4270300000000",
+         "component": "azure_cosmos",
+         "cosmosdb.connection.mode": "gateway",
+         "cosmosdb.container": "container.azure_functions_cosmos_async",
+         "db.name": "db.azure_functions_cosmos_async",
+         "db.system": "cosmosdb",
+         "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "http://localhost:8081/",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 2651333,
+       "start": 1773414147133525459
+     },
+        {
+          "name": "aiohttp.request",
+          "service": "azure_cosmos",
+          "resource": "aiohttp.request",
+          "trace_id": 0,
+          "span_id": 10,
+          "parent_id": 5,
+          "type": "http",
+          "meta": {
+            "_dd.base_service": "x64",
+            "_dd.p.tid": "69b4270300000000",
+            "component": "aiohttp_client",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.status_msg": "OK",
+            "http.url": "http://127.0.0.1:8081/dbs/db.azure_functions_cosmos_async/colls/container.azure_functions_cosmos_async/",
+            "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+            "out.host": "127.0.0.1",
+            "span.kind": "client"
+          },
+          "duration": 2084750,
+          "start": 1773414147133829334
+        },
+           {
+             "name": "TCPConnector.connect",
+             "service": "azure_cosmos",
+             "resource": "TCPConnector.connect",
+             "trace_id": 0,
+             "span_id": 13,
+             "parent_id": 10,
+             "meta": {
+               "_dd.base_service": "x64",
+               "_dd.p.tid": "69b4270300000000",
+               "component": "aiohttp"
+             },
+             "duration": 51083,
+             "start": 1773414147134849792
+           },
+     {
+       "name": "cosmosdb.query",
+       "service": "azure_cosmos",
+       "resource": "Upsert /dbs/db.azure_functions_cosmos_async/colls/container.azure_functions_cosmos_async/docs/",
+       "trace_id": 0,
+       "span_id": 6,
+       "parent_id": 1,
+       "type": "cosmosdb",
+       "meta": {
+         "_dd.base_service": "x64",
+         "_dd.p.tid": "69b4270300000000",
+         "component": "azure_cosmos",
+         "cosmosdb.connection.mode": "gateway",
+         "cosmosdb.container": "container.azure_functions_cosmos_async",
+         "db.name": "db.azure_functions_cosmos_async",
+         "db.system": "cosmosdb",
+         "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "http://localhost:8081/",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 4066542,
+       "start": 1773414147136432792
+     },
+        {
+          "name": "aiohttp.request",
+          "service": "azure_cosmos",
+          "resource": "aiohttp.request",
+          "trace_id": 0,
+          "span_id": 11,
+          "parent_id": 6,
+          "type": "http",
+          "meta": {
+            "_dd.base_service": "x64",
+            "_dd.p.tid": "69b4270300000000",
+            "component": "aiohttp_client",
+            "http.method": "POST",
+            "http.status_code": "200",
+            "http.status_msg": "OK",
+            "http.url": "http://127.0.0.1:8081/dbs/db.azure_functions_cosmos_async/colls/container.azure_functions_cosmos_async/docs/",
+            "http.useragent": "azsdk-python-cosmos-async/4.15.0 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+            "out.host": "127.0.0.1",
+            "span.kind": "client"
+          },
+          "duration": 3556000,
+          "start": 1773414147136755167
+        },
+           {
+             "name": "TCPConnector.connect",
+             "service": "azure_cosmos",
+             "resource": "TCPConnector.connect",
+             "trace_id": 0,
+             "span_id": 14,
+             "parent_id": 11,
+             "meta": {
+               "_dd.base_service": "x64",
+               "_dd.p.tid": "69b4270300000000",
+               "component": "aiohttp"
+             },
+             "duration": 33667,
+             "start": 1773414147137823125
+           }]]
