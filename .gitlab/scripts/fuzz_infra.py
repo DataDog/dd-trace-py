@@ -23,7 +23,7 @@ import tempfile
 import time
 
 
-SLACK_CHANNEL = "fuzzing-ops"
+SLACK_CHANNEL = "profiling-python-ops"
 TEAM_NAME = "profiling-python"
 REPOSITORY_URL = "https://github.com/DataDog/dd-trace-py"
 PROJECT_NAME = "dd-trace-py"
@@ -42,6 +42,7 @@ class Config:
     @classmethod
     def from_env(cls) -> Config:
         git_sha = run_command(["git", "rev-parse", "HEAD"]).stdout.strip()
+        git_sha = git_sha.decode("utf-8") if isinstance(git_sha, bytes) else git_sha
         return cls(
             fuzz_image=os.environ["FUZZ_IMAGE"],
             python_version=os.environ["PYTHON_VERSION"],
@@ -101,6 +102,8 @@ def get_fuzzydog_token() -> str:
     token = result.stdout.strip()
     if not token:
         raise RuntimeError("vault returned an empty FUZZYDOG_AUTH_TOKEN")
+
+    token = token.decode("utf-8") if isinstance(token, bytes) else token
     return token
 
 
