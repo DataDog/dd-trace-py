@@ -32,6 +32,7 @@ from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.inspection import unwind_from_frame
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
@@ -131,21 +132,10 @@ def serialize(
 
 
 def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
-    frame: Optional[FrameType] = top_frame
-    stack = []
-    h = 0
-    while frame and h < max_height:
-        code = frame.f_code
-        stack.append(
-            {
-                "fileName": code.co_filename,
-                "function": code.co_name,
-                "lineNumber": frame.f_lineno,
-            }
-        )
-        frame = frame.f_back
-        h += 1
-    return stack
+    return [
+        {"fileName": frame.file, "function": frame.name, "lineNumber": frame.line}
+        for frame in unwind_from_frame(top_frame, max_height)
+    ]
 
 
 def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict]:

@@ -184,7 +184,8 @@ def test_debugger_function_probe_on_instance_method(stuff):
     (snapshot,) = snapshots
     snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
-    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+    # Python 3.11+ uses qualified names (Stuff.instancestuff), earlier versions use simple names (instancestuff)
+    assert snapshot_data["stack"][0]["function"].endswith("instancestuff")
 
     assert snapshot_data["captures"]["entry"] == _EMPTY_CAPTURED_CONTEXT
 
@@ -210,7 +211,8 @@ def test_debugger_function_probe_on_function_with_exception():
     (snapshot,) = snapshots
     snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
-    assert snapshot_data["stack"][0]["function"] == "throwexcstuff"
+    # Python 3.11+ uses qualified names, earlier versions use simple names
+    assert snapshot_data["stack"][0]["function"].endswith("throwexcstuff")
     assert snapshot_data["stack"][0]["lineNumber"] == 110
 
     entry_capture = snapshot_data["captures"]["entry"]
@@ -273,7 +275,8 @@ def test_debugger_conditional_line_probe_on_instance_method(stuff):
     (snapshot,) = snapshots
     snapshot_data = snapshot["debugger"]["snapshot"]
     assert snapshot_data["stack"][0]["fileName"].endswith("stuff.py")
-    assert snapshot_data["stack"][0]["function"] == "instancestuff"
+    # Python 3.11+ uses qualified names (Stuff.instancestuff), earlier versions use simple names (instancestuff)
+    assert snapshot_data["stack"][0]["function"].endswith("instancestuff")
 
     captures = snapshot_data["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
