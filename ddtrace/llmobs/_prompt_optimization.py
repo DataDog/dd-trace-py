@@ -3,6 +3,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 import inspect
+import os
 import random
 from typing import TYPE_CHECKING
 from typing import Any
@@ -148,6 +149,66 @@ TIPS = {
 _DATASET_SPLIT_SEED = 42  # Fixed seed for reproducible dataset shuffling
 
 
+def load_optimization_system_prompt(config: ConfigType) -> str:
+    """Load and prepare the optimization system prompt.
+
+    Loads the template from _prompt_optimization.md and replaces placeholders.
+    Adds evaluation model information and random tip at the end.
+
+    :param config: Configuration dictionary with optional keys:
+        - ``evaluation_output_format``: Output format to inject into the template.
+        - ``model_name``: Model name to add as context for the optimizer.
+    :return: System prompt string with output format injected.
+    """
+
+    # Get the directory of this file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(current_dir, "_prompt_optimization.md")
+
+    # Load template
+    with open(template_path, "r", encoding="utf-8") as f:
+        template = f.read()
+
+    output_format = config.get("evaluation_output_format")
+    structure_placeholder = ""
+    if output_format:
+        structure_placeholder = "\n".join(
+            [
+                "## Prompt Output Format Requirements",
+                "The optimized prompt must guide the LLM to produce JSON output with this structure:",
+                "\n",
+                str(output_format),
+                "\n",
+                "**If this output format is not clearly specified in the initial prompt**",
+                "**add it as your first improvement step**",
+            ]
+        )
+
+    system_prompt = template.replace("{{STRUCTURE_PLACEHOLDER}}", structure_placeholder)
+
+    # Add evaluation model information at the end
+    additional_parts = []
+    if "model_name" in config:
+        eval_model = config["model_name"]
+        additional_parts.append(
+            f"\n\nIMPORTANT: The improved prompt will be applied to this evaluation model: {eval_model}"
+        )
+        additional_parts.append(
+            "Consider the capabilities, limitations, and characteristics of this specific model "
+            "when optimizing the prompt."
+        )
+
+    # Add random tip at the end
+    tip_key = random.choice(list(TIPS.keys()))  # nosec B311
+    tip_text = TIPS[tip_key]
+    additional_parts.append(f"\n\n**TIP: {tip_text}**")
+
+    if additional_parts:
+        system_prompt += "\n".join(additional_parts)
+
+    return system_prompt
+
+
 class IterationData(TypedDict, total=False):
     """Data for a single optimization iteration."""
 
@@ -248,60 +309,11 @@ class OptimizationIteration:
     def _load_system_prompt(self) -> str:
         """Load and prepare the optimization system prompt.
 
-        Loads the template from _prompt_optimization.md and replaces placeholders.
-        Adds evaluation model information and random tip at the end.
+        Delegates to the module-level :func:`load_optimization_system_prompt`.
 
         :return: System prompt string with output format injected.
         """
-        import os
-        import random
-
-        # Get the directory of this file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(current_dir, "_prompt_optimization.md")
-
-        # Load template
-        with open(template_path, "r", encoding="utf-8") as f:
-            template = f.read()
-
-        output_format = self._config.get("evaluation_output_format")
-        structure_placeholder = ""
-        if output_format:
-            structure_placeholder = "\n".join(
-                [
-                    "## Prompt Output Format Requirements",
-                    "The optimized prompt must guide the LLM to produce JSON output with this structure:",
-                    "\n",
-                    str(output_format),
-                    "\n",
-                    "**If this output format is not clearly specified in the initial prompt**",
-                    "**add it as your first improvement step**",
-                ]
-            )
-
-        system_prompt = template.replace("{{STRUCTURE_PLACEHOLDER}}", structure_placeholder)
-
-        # Add evaluation model information at the end
-        additional_parts = []
-        if "model_name" in self._config:
-            eval_model = self._config["model_name"]
-            additional_parts.append(
-                f"\n\nIMPORTANT: The improved prompt will be applied to this evaluation model: {eval_model}"
-            )
-            additional_parts.append(
-                "Consider the capabilities, limitations, and characteristics of this specific model "
-                "when optimizing the prompt."
-            )
-
-        # Add random tip at the end
-        tip_key = random.choice(list(TIPS.keys()))  # nosec B311
-        tip_text = TIPS[tip_key]
-        additional_parts.append(f"\n\n**TIP: {tip_text}**")
-
-        if additional_parts:
-            system_prompt += "\n".join(additional_parts)
-
-        return system_prompt
+        return load_optimization_system_prompt(self._config)
 
     def _add_examples(self, individual_results: list[ExperimentRowResult]) -> str:
         """Add examples of each label type using the labelization function.
@@ -592,6 +604,7 @@ class PromptOptimization:
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
         dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[Dataset] = None,
+        method: str = "metaprompting",
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -638,7 +651,11 @@ class PromptOptimization:
         :param test_dataset: Optional separate test dataset. When provided, the main dataset is split
                             into train/valid (80/20) and this dataset is used for the final test.
                             Implicitly enables dataset splitting.
-        :raises ValueError: If required config parameters or compute_score are missing.
+        :param method: Optimization method to use. ``"metaprompting"`` (default) uses the built-in
+                      iterative optimization loop. ``"gepa"`` uses the GEPA evolutionary optimizer
+                      (requires ``pip install ddtrace[gepa]``).
+        :raises ValueError: If required config parameters or compute_score are missing, or if
+                           method is not recognized.
         """
         self.name = name
         self._task = task
@@ -661,7 +678,7 @@ class PromptOptimization:
         if not isinstance(config, dict) or "prompt" not in config:
             raise ValueError("config must contain a 'prompt' key")
 
-        self._initial_prompt = config["prompt"]
+        self._initial_prompt: str = str(config["prompt"])
         self._model_name = config.get("model_name")
         self._config = config
 
@@ -678,6 +695,12 @@ class PromptOptimization:
             self._split_ratios = (0.6, 0.2, 0.2)  # Default 3-way
         else:
             self._split_ratios = None  # No split
+
+        # Optimization method
+        _VALID_METHODS = ("metaprompting", "gepa")
+        if method not in _VALID_METHODS:
+            raise ValueError(f"Unknown optimization method {method!r}. Must be one of {_VALID_METHODS}.")
+        self._method = method
 
     def _make_sub_dataset(self, split_name: str, records: list[DatasetRecord]) -> Dataset:
         """Create a sub-dataset from a list of records.
@@ -774,7 +797,12 @@ class PromptOptimization:
                 "and create the optimization via `LLMObs.prompt_optimization(...)` before running."
             )
 
-        log.info("Starting prompt optimization: %s", self.name)
+        log.info("Starting prompt optimization: %s (method=%s)", self.name, self._method)
+
+        if self._method == "gepa":
+            if self._dataset_split_enabled:
+                return self._run_gepa_with_split(jobs)
+            return self._run_gepa_without_split(jobs)
 
         if self._dataset_split_enabled:
             return self._run_with_split(jobs)
@@ -986,6 +1014,187 @@ class PromptOptimization:
             best_iteration=best_iteration,
             test_phase=TestPhaseResult(results=test_results, score=test_score, experiment_url=test_url),
         )
+
+    def _run_gepa_without_split(self, jobs: int) -> OptimizationResult:
+        """Run GEPA optimization without dataset splitting.
+
+        1. Run baseline experiment (full dataset) to measure initial performance.
+        2. Run GEPA evolutionary optimization on the full dataset.
+        3. Run final experiment with the optimized prompt.
+        4. Return the best of baseline vs optimized.
+
+        :param jobs: Number of parallel jobs for experiment execution.
+        :return: OptimizationResult containing baseline and final iteration results.
+        """
+        all_iterations: list[IterationData] = []
+
+        # Baseline experiment
+        current_prompt = str(self._initial_prompt)
+        baseline_results, baseline_url = self._run_experiment(0, current_prompt, jobs)
+        baseline_evals = baseline_results.get("summary_evaluations", {})
+        baseline_score = self._compute_score(baseline_evals)
+
+        all_iterations.append(
+            IterationData(
+                iteration=0,
+                prompt=current_prompt,
+                results=baseline_results,
+                score=baseline_score,
+                experiment_url=baseline_url,
+                summary_evaluations=baseline_evals,
+            )
+        )
+        log.info("GEPA baseline score: %.3f", baseline_score)
+
+        # Run GEPA
+        optimized_prompt = self._run_gepa_core(self._dataset, self._dataset)
+
+        # Final experiment with optimized prompt
+        final_results, final_url = self._run_experiment(1, optimized_prompt, jobs)
+        final_evals = final_results.get("summary_evaluations", {})
+        final_score = self._compute_score(final_evals)
+
+        all_iterations.append(
+            IterationData(
+                iteration=1,
+                prompt=optimized_prompt,
+                results=final_results,
+                score=final_score,
+                experiment_url=final_url,
+                summary_evaluations=final_evals,
+            )
+        )
+        log.info("GEPA final score: %.3f", final_score)
+
+        best_iteration = 1 if final_score > baseline_score else 0
+
+        return OptimizationResult(
+            name=self.name,
+            initial_prompt=str(self._initial_prompt),
+            iterations=all_iterations,
+            best_iteration=best_iteration,
+        )
+
+    def _run_gepa_with_split(self, jobs: int) -> OptimizationResult:
+        """Run GEPA optimization with train/valid/test dataset splitting.
+
+        1. Split dataset into train/valid/test.
+        2. Run baseline on valid set to measure initial performance.
+        3. Run GEPA with train set for optimization, valid set for scoring.
+        4. Run final experiment on valid set with optimized prompt.
+        5. Pick best of baseline vs optimized.
+        6. Run test experiment on test set with the best prompt.
+
+        :param jobs: Number of parallel jobs for experiment execution.
+        :return: OptimizationResult with test phase results.
+        """
+        train_ds, valid_ds, test_ds = self._create_split_datasets()
+
+        all_iterations: list[IterationData] = []
+
+        # Baseline on valid set
+        current_prompt = str(self._initial_prompt)
+        baseline_results, baseline_url = self._run_experiment(0, current_prompt, jobs, dataset=valid_ds, suffix="valid")
+        baseline_evals = baseline_results.get("summary_evaluations", {})
+        baseline_score = self._compute_score(baseline_evals)
+
+        all_iterations.append(
+            IterationData(
+                iteration=0,
+                prompt=current_prompt,
+                results=baseline_results,
+                score=baseline_score,
+                experiment_url=baseline_url,
+                summary_evaluations=baseline_evals,
+            )
+        )
+        log.info("GEPA baseline score (valid): %.3f", baseline_score)
+
+        # Run GEPA with train/valid split
+        optimized_prompt = self._run_gepa_core(train_ds, valid_ds)
+
+        # Final experiment on valid set
+        final_results, final_url = self._run_experiment(1, optimized_prompt, jobs, dataset=valid_ds, suffix="valid")
+        final_evals = final_results.get("summary_evaluations", {})
+        final_score = self._compute_score(final_evals)
+
+        all_iterations.append(
+            IterationData(
+                iteration=1,
+                prompt=optimized_prompt,
+                results=final_results,
+                score=final_score,
+                experiment_url=final_url,
+                summary_evaluations=final_evals,
+            )
+        )
+        log.info("GEPA final score (valid): %.3f", final_score)
+
+        best_iteration = 1 if final_score > baseline_score else 0
+        best_prompt = all_iterations[best_iteration]["prompt"]
+
+        # Test phase with best prompt
+        log.info("Running GEPA test experiment with best prompt (iteration %s)", best_iteration)
+        test_results, test_url = self._run_experiment(best_iteration, best_prompt, jobs, dataset=test_ds, suffix="test")
+        test_summary_evals = test_results.get("summary_evaluations", {})
+        test_score = self._compute_score(test_summary_evals)
+        log.info("GEPA test score: %.3f", test_score)
+
+        return OptimizationResult(
+            name=self.name,
+            initial_prompt=str(self._initial_prompt),
+            iterations=all_iterations,
+            best_iteration=best_iteration,
+            test_phase=TestPhaseResult(results=test_results, score=test_score, experiment_url=test_url),
+        )
+
+    def _run_gepa_core(self, train_ds: Dataset, valid_ds: Dataset) -> str:
+        """Run GEPA evolutionary optimization and return the best prompt.
+
+        :param train_ds: Dataset used for GEPA's training evaluations.
+        :param valid_ds: Dataset used for GEPA's validation scoring.
+        :returns: The best prompt found by GEPA, or the initial prompt on failure.
+        """
+        try:
+            import gepa as gepa_pkg
+        except ImportError:
+            raise ImportError("gepa package is required for method='gepa'. Install with: pip install ddtrace[gepa]")
+
+        from ddtrace.llmobs._optimizers.gepa_strategy import LLMObsGEPAAdapter
+
+        adapter = LLMObsGEPAAdapter(
+            task=self._task,
+            evaluators=self._evaluators,
+            optimization_task=self._optimization_task,
+            config=self._config,
+            labelization_function=self._labelization_function,
+        )
+        train_data = LLMObsGEPAAdapter._dataset_to_gepa_format(train_ds)
+        val_data = LLMObsGEPAAdapter._dataset_to_gepa_format(valid_ds)
+
+        gepa_kwargs: dict[str, Any] = {
+            "seed_candidate": {"system_prompt": self._initial_prompt},
+            "trainset": train_data,
+            "valset": val_data,
+            "adapter": adapter,
+            "display_progress_bar": True,
+            "max_metric_calls": self._config.get("max_metric_calls", 150),
+        }
+
+        # Optional GEPA params from config
+        for config_key, gepa_key in [
+            ("gepa_seed", "seed"),
+            ("candidate_selection_strategy", "candidate_selection_strategy"),
+        ]:
+            if config_key in self._config:
+                gepa_kwargs[gepa_key] = self._config[config_key]
+
+        try:
+            result = gepa_pkg.optimize(**gepa_kwargs)
+            return result.best_candidate["system_prompt"]
+        except Exception as e:
+            log.error("GEPA optimization failed: %s", e)
+            return self._initial_prompt  # fallback
 
     def _run_experiment(
         self,
