@@ -7,8 +7,12 @@ from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import PROXY_REQUEST
+
+
+# AIDEV-NOTE: Duplicated from ddtrace.llmobs._constants to avoid importing
+# ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
+_INTEGRATION = "_ml_obs.integration"
+_PROXY_REQUEST = "llmobs.proxy_request"
 
 
 log = get_logger(__name__)
@@ -48,11 +52,11 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # Proxy detection
         base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.integration._is_instrumented_proxy_url(base_url):
-            span._set_ctx_item(PROXY_REQUEST, True)
+            span._set_ctx_item(_PROXY_REQUEST, True)
 
         # LLMObs integration marker
         if event.integration.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, event.component)
+            span._set_ctx_item(_INTEGRATION, event.component)
 
     @classmethod
     def on_ended(
