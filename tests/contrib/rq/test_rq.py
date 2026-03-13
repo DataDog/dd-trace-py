@@ -129,6 +129,12 @@ def test_worker_class_job(queue):
     worker.work(burst=True)
 
 
+@snapshot(ignores=[i for i in snapshot_ignores if i != "meta.job.id"])
+def test_custom_job_id_in_span_tags(sync_queue):
+    """Verify a user-supplied job ID is propagated correctly to all span tags."""
+    sync_queue.enqueue(job_add1, 1, job_id="my-custom-job-id")
+
+
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
 @pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):

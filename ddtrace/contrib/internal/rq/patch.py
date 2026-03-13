@@ -74,7 +74,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
                 COMPONENT: config.rq.integration_name,
                 SPAN_KIND: SpanKind.PRODUCER,
                 QUEUE_NAME: instance.name,
-                JOB_ID: job.get_id(),
+                JOB_ID: job.id,
                 JOB_FUNC_NAME: job.func_name,
             },
         ) as ctx,
@@ -122,7 +122,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 integration_config=config.rq_worker,
                 distributed_headers=job.meta,
                 activate_distributed_headers=True,
-                tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
+                tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.id},
             ) as ctx,
             ctx.span,
         ):
@@ -154,7 +154,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
             span_name="rq.job.perform",
             resource=job.func_name,
             pin=pin,
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
+            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
         ) as ctx,
         ctx.span,
     ):
