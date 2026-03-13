@@ -600,9 +600,7 @@ class TestOptPlugin:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
             self._mark_test_report_as_retry(reports, retry_handler, TestPhase.SETUP)
 
-    def _mark_attempt_to_fix_report_as_skipped(
-        self, item: pytest.Item, report: t.Optional[pytest.TestReport]
-    ) -> None:
+    def _mark_attempt_to_fix_report_as_skipped(self, item: pytest.Item, report: t.Optional[pytest.TestReport]) -> None:
         """
         Modify a test report for an attempt-to-fix test to make it look like it was skipped.
 
