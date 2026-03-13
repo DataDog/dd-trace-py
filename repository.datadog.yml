@@ -7,8 +7,9 @@ workflow_type: speculative
 merge_method: squash
 gitlab_check_enable: true
 gitlab_jobs_retry_enable: false
-# Wait for the full pipeline to complete before checking the status (we have some jobs which auto-retry)
-gitlab_fail_fast: false
+# Fail the MQ request as soon as any job fails
+# Note: the MQ will honor any `retry: #` and `allow_failures: true` set on a job
+gitlab_fail_fast: true
 # Do not add merge queue status labels on the PR, they will trigger required status checks and block the PR from the MQ
 skip_labels: true
 # Validate up to 2 PRs from the queue at once
