@@ -168,3 +168,47 @@ class TestPluginClassSelection:
         TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
 
         item.add_marker.assert_called_once()
+
+    def test_attempt_to_fix_uses_user_property_not_xfail(self):
+        """ATF tests use user property instead of xfail, so _get_test_outcome captures real FAIL status."""
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = True
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = False
+        test.is_disabled.return_value = True
+        test.is_attempt_to_fix.return_value = True
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
+
+        # ATF should NOT use xfail (no marker added), but set a user property instead
+        item.add_marker.assert_not_called()
+        assert ("dd_disabled_attempt_to_fix", True) in item.user_properties
+
+    def test_quarantined_uses_xfail(self):
+        """Quarantined tests use xfail marker for compatibility with external rerun plugins."""
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = True
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = True
+        test.is_disabled.return_value = False
+        test.is_attempt_to_fix.return_value = False
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
+
+        # Quarantined should use xfail marker
+        xfail_calls = [
+            call
+            for call in item.add_marker.call_args_list
+            if len(call[0]) > 0 and hasattr(call[0][0], "mark") and call[0][0].mark.name == "xfail"
+        ]
+        assert len(xfail_calls) == 1
+        assert xfail_calls[0][0][0].mark.kwargs["reason"] == "dd_quarantined"
+        assert item.user_properties == []  # No user property for quarantine

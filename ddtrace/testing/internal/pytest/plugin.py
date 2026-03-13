@@ -101,6 +101,9 @@ _ReportTestStatus = tuple[
 # not logged at all. On the other hand, if the hook returns `None`, the next hook will be tried (so you can return
 # `None` if you want the default pytest log output).
 
+# The tuple used as `longrepr` for skipped reports (file, line_number, reason).
+_Longrepr = tuple[str, int, str]
+
 # The tuple stored in the `location` attribute of a `pytest.Item`
 _Location = tuple[
     str,  # 1st field: file name
@@ -371,10 +374,17 @@ class TestOptPlugin:
             return
         if test.is_disabled() and not test.is_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e.,
-            # it is effectively quarantined). We may want to present it in a different way in the output though.
+        elif test.is_quarantined():
+            # Quarantined tests use xfail so failures don't break the pipeline. This works regardless of who drives
+            # execution (our plugin or an external rerun plugin like pytest-rerunfailures/flaky).
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
+        elif test.is_disabled() and test.is_attempt_to_fix():
+            # Attempt-to-fix tests use a user property instead of xfail, so that _get_test_outcome captures the real
+            # FAIL status (needed by AttemptToFixHandler.get_final_status). The report is mangled to "skipped" after
+            # the real status is captured, so the failure doesn't break the pipeline.
+            # AIDEV-NOTE: ATF cannot use xfail because xfail turns failures into SKIP, which breaks the retry handler's
+            # ability to count failures and determine HAS_FAILED_ALL_RETRIES / ATTEMPT_TO_FIX_PASSED tags.
+            item.user_properties += [("dd_disabled_attempt_to_fix", True)]
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
@@ -472,6 +482,8 @@ class TestOptPlugin:
         if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
+            if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+                self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
@@ -542,11 +554,16 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
+        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+            self._mark_attempt_to_fix_report_as_skipped(item, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = reports.get(TestPhase.TEARDOWN)
+        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+            self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -586,6 +603,34 @@ class TestOptPlugin:
 
         return False
 
+    def _mark_attempt_to_fix_report_as_skipped(self, item: pytest.Item, report: t.Optional[pytest.TestReport]) -> None:
+        """Mangle an attempt-to-fix test report to look like it was skipped.
+
+        This is called *after* ``_get_test_outcome`` has already captured the real status (FAIL/PASS), so the
+        backend sees the true result while the terminal/junitxml shows the test as skipped (quarantined).
+        """
+        if report is None:
+            return
+
+        if report.when == TestPhase.TEARDOWN:
+            report.outcome = "passed"
+        else:
+            line_number = item.location[1] or 0
+            longrepr: _Longrepr = (str(item.path), line_number, "Quarantined (Attempt to Fix)")
+            report.longrepr = longrepr
+            report.outcome = "skipped"
+
+    def _mark_attempt_to_fix_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
+        """Mangle all reports for an attempt-to-fix test to look like it was skipped."""
+        if call_report := reports.get(TestPhase.CALL):
+            self._mark_attempt_to_fix_report_as_skipped(item, call_report)
+            reports[TestPhase.SETUP].outcome = "passed"
+            reports[TestPhase.TEARDOWN].outcome = "passed"
+        else:
+            setup_report = reports.get(TestPhase.SETUP)
+            self._mark_attempt_to_fix_report_as_skipped(item, setup_report)
+            reports[TestPhase.TEARDOWN].outcome = "passed"
+
     def _log_test_reports(self, item: pytest.Item, reports: _ReportGroup) -> None:
         for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             if report := reports.get(when):
@@ -615,6 +660,12 @@ class TestOptPlugin:
 
         if getattr(report, "wasxfail", None) == "dd_quarantined":
             return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+
+        if _get_user_property(report, "dd_disabled_attempt_to_fix"):
+            if report.when == TestPhase.TEARDOWN:
+                return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+            else:
+                return ("", "", "")
 
         if _get_user_property(report, "dd_flaky"):
             return ("flaky", "K", ("FLAKY", {"yellow": True}))

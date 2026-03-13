@@ -421,6 +421,32 @@ class TestReportGeneration:
 
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
+    def test_pytest_report_teststatus_attempt_to_fix_teardown(self) -> None:
+        """Test report status for attempt-to-fix tests: QUARANTINED shown only on teardown."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_report = test_report()
+        mock_report.when = "teardown"
+        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
+
+        result = plugin.pytest_report_teststatus(mock_report)
+
+        assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+
+    def test_pytest_report_teststatus_attempt_to_fix_call(self) -> None:
+        """Test report status for attempt-to-fix tests: suppressed on call phase."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_report = test_report()
+        mock_report.when = "call"
+        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
+
+        result = plugin.pytest_report_teststatus(mock_report)
+
+        assert result == ("", "", "")
+
     def test_pytest_report_teststatus_normal(self) -> None:
         """Test report status for normal tests."""
         mock_manager = session_manager_mock().build_mock()
