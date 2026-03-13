@@ -1,4 +1,7 @@
 # cython: annotation_typing=False
+# ^^^ Prevents Cython from interpreting Python type annotations (e.g., `x: int`, `-> str`)
+# as C type declarations. Without this, annotations like `Optional[str]` or `Callable[..., Any]`
+# would cause Cython compilation errors since they aren't valid C types.
 
 import _thread
 import os.path
@@ -36,7 +39,7 @@ cdef int _CALLER_FRAME_INDEX = 0
 
 
 cdef tuple _current_thread():
-    cdef int thread_id = _thread.get_ident()
+    thread_id: int = _thread.get_ident()
     return thread_id, get_thread_name(thread_id)
 
 
