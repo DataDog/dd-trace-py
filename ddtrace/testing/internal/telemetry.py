@@ -10,13 +10,13 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import TestRun
 
 
 if t.TYPE_CHECKING:
     from ddtrace.testing.internal.http import BackendConnectorSetup
+    from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
