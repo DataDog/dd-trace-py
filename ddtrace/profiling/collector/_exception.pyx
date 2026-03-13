@@ -100,6 +100,27 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     # was just reset to 0 so re-entrant invocations will increment and return.
     _collect_exception(state, type(exception), exception, exception.__traceback__)
 
+def _on_exception_bytecode(arg: object) -> None:
+    # This is the callback that is injected into the bytecode of each except block in
+    # Python 3.10/3.11
+    # Called at the start of each except block. Exception is in sys.exc_info().
+    # arg is the (line, path, dependency_info) tuple from bytecode injection.
+    global _sample_counter, _next_sample
+
+    _sample_counter += 1
+
+    if _sample_counter < _next_sample:
+        return
+
+    _next_sample = _sampler.sample(_sampling_interval) or 1
+    _sample_counter = 0
+
+    exc_type, exc_val, exc_tb = sys.exc_info()
+    if exc_type is None:
+        return
+
+    _collect_exception(exc_type, exc_val, exc_tb)
+
 
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
@@ -134,8 +155,17 @@ class ExceptionCollector(collector.Collector):
             )
             self._monitoring_registered = True
             LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
+        elif sys.version_info >= (3, 10):
+            # Python 3.10/3.11: Use bytecode injection
+            try:
+                from ddtrace.profiling.collector._exception_bytecode import install_bytecode_exception_profiling
+                install_bytecode_exception_profiling(_on_exception_bytecode)
+                LOG.debug("Using bytecode injection for exception profiling")
+            except Exception:
+                LOG.exception("Failed to set up bytecode exception profiling")
+                return
         else:
-            LOG.debug("Exception profiling only supports Python 3.12+, skipping")
+            LOG.debug("Exception profiling only supports Python 3.10+, skipping")
             return
 
         LOG.debug("ExceptionCollector started: interval=%d", _state.sampling_interval)
