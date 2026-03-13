@@ -320,17 +320,17 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return llmobs_span_data or {}
 
 
-def get_ml_app(span: Span) -> Optional[str]:
+def get_llmobs_ml_app(span: Span) -> Optional[str]:
     """Return the ML app name for a span, falling back to global config."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
 
 
-def get_session_id(span: Span) -> Optional[str]:
+def get_llmobs_session_id(span: Span) -> Optional[str]:
     """Return the session ID stored directly on this span."""
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
 
 
-def get_span_kind(span: Span) -> Optional[str]:
+def get_llmobs_span_kind(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
     kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
@@ -361,16 +361,6 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
 
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
-
-
-def get_llmobs_session_id(span: Span) -> Optional[str]:
-    """Return the session_id stored directly on this span (no ancestor propagation)."""
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
-
-
-def get_llmobs_ml_app(span: Span) -> Optional[str]:
-    """Return the ml_app stored directly on this span (no ancestor/config propagation)."""
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
 
 
 def get_llmobs_span_links(span: Span) -> Optional[list]:

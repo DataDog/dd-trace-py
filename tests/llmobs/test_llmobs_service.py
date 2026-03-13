@@ -33,10 +33,10 @@ from ddtrace.llmobs._utils import get_llmobs_output_documents
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_session_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.llmobs._utils import get_span_kind
 from ddtrace.llmobs._utils import mark_as_evaluation_span
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
@@ -340,7 +340,7 @@ def test_llm_span(llmobs, llmobs_events):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "llm"
+        assert get_llmobs_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "test_provider"
     assert len(llmobs_events) == 1
@@ -363,7 +363,7 @@ def test_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "llm"
+        assert get_llmobs_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "custom"
 
@@ -373,7 +373,7 @@ def test_tool_span(llmobs, llmobs_events):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "tool"
+        assert get_llmobs_span_kind(span) == "tool"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
 
@@ -383,7 +383,7 @@ def test_task_span(llmobs, llmobs_events):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "task"
+        assert get_llmobs_span_kind(span) == "task"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
 
@@ -393,7 +393,7 @@ def test_workflow_span(llmobs, llmobs_events):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "workflow"
+        assert get_llmobs_span_kind(span) == "workflow"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
@@ -403,7 +403,7 @@ def test_agent_span(llmobs, llmobs_events):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "agent"
+        assert get_llmobs_span_kind(span) == "agent"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
@@ -422,7 +422,7 @@ def test_embedding_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "embedding"
+        assert get_llmobs_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "custom"
 
@@ -432,7 +432,7 @@ def test_embedding_span(llmobs, llmobs_events):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert get_span_kind(span) == "embedding"
+        assert get_llmobs_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
         assert get_llmobs_model_provider(span) == "test_provider"
     assert len(llmobs_events) == 1
