@@ -14,6 +14,13 @@ extern "C"
 
 namespace Datadog {
 
+// Intern a string into libdatadog, returning a string ID
+// (or nullopt if interning failed).
+// Passing the same string twice will deduplicate the string and return
+// the same string ID.
+// Note: although this function is a wrapper around libdatadog utilities,
+// it maintains a local cache of string -> string ID mappings to avoid
+// redundant FFI boundary-crossing calls.
 std::optional<ddog_prof_StringId2>
 intern_string(std::string_view s);
 

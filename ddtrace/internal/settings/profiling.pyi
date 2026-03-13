@@ -27,6 +27,7 @@ class ProfilingConfig(DDConfig):
 class ProfilingConfigStack(DDConfig):
     enabled: bool
     v2_adaptive_sampling: bool
+    native_frames: bool
 
 class ProfilingConfigLock(DDConfig):
     enabled: bool
