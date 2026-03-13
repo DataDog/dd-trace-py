@@ -175,6 +175,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     content_type = "application/json"
     _PREFIX = b'{"traces":['
     _SUFFIX = b"]}"
+    _SEPARATOR = b","
 
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
@@ -216,7 +217,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                 raise BufferFull(len(self._buffer) + added + len(self._SUFFIX))
 
             if self._count > 0:
-                self._buffer += b","
+                self._buffer += self._SEPARATOR
             self._buffer += encoded_trace
             self._count += 1
 
