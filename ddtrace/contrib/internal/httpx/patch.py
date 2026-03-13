@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientSingleRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
@@ -61,33 +62,45 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
 def _wrapped_sync_send_single_request(
     wrapped: BoundFunctionWrapper, instance: httpx.Client, args: tuple[httpx.Request], kwargs: dict[str, Any]
 ) -> httpx.Response:
-    req = get_argument_value(args, kwargs, 0, "request")
-    with core.context_with_data(
-        "httpx.client._send_single_request",
-        request=req,
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_event(
+        event=HttpClientSingleRequestEvent(
+            url=httpx_url_to_str(req.url),
+            request_method=req.method,
+            request_headers=req.headers,
+            request_body=lambda: req.content,
+        )
     ) as ctx:
         resp = None
         try:
-            resp = wrapped(*args, **kwargs)
+            resp: httpx.Response = wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                ctx.event.response_status_code = resp.status_code
+                ctx.event.response_headers = resp.headers
 
 
 async def _wrapped_async_send_single_request(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
 ):
-    req = get_argument_value(args, kwargs, 0, "request")
-    with core.context_with_data(
-        "httpx.client._send_single_request",
-        request=req,
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_event(
+        event=HttpClientSingleRequestEvent(
+            url=httpx_url_to_str(req.url),
+            request_method=req.method,
+            request_headers=req.headers,
+            request_body=lambda: req.content,
+        )
     ) as ctx:
         resp = None
         try:
-            resp = await wrapped(*args, **kwargs)
+            resp: httpx.Response = await wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                ctx.event.response_status_code = resp.status_code
+                ctx.event.response_headers = resp.headers
 
 
 async def _wrapped_async_send(
@@ -111,12 +124,13 @@ async def _wrapped_async_send(
     ) as ctx:
         resp = None
         try:
-            resp = await wrapped(*args, **kwargs)
+            resp: httpx.Response = await wrapped(*args, **kwargs)
             return resp
         finally:
             if resp is not None:
-                event: HttpClientRequestEvent = ctx.event
-                event.set_response(resp)
+                ctx.event.response_status_code = resp.status_code
+                ctx.event.response_headers = resp.headers
+                ctx.event.response_body_json = lambda: resp.json()
 
 
 def _wrapped_sync_send(
@@ -140,12 +154,13 @@ def _wrapped_sync_send(
     ) as ctx:
         resp = None
         try:
-            resp = wrapped(*args, **kwargs)
+            resp: httpx.Response = wrapped(*args, **kwargs)
             return resp
         finally:
             if resp is not None:
-                event: HttpClientRequestEvent = ctx.event
-                event.set_response(resp)
+                ctx.event.response_status_code = resp.status_code
+                ctx.event.response_headers = resp.headers
+                ctx.event.response_body_json = lambda: resp.json()
 
 
 def patch() -> None:
