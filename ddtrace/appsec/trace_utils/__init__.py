@@ -31,7 +31,7 @@ def _telemetry_report_factory(event_name: str) -> Callable[[F], F]:
     def decorator(func: F) -> F:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            _metrics._report_ato_sdk_usage(event_name, False)
+            _metrics.report_ato_sdk_usage(event_name, False)
             return func(*args, **kwargs)
 
         return cast(F, wrapper)

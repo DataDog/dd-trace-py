@@ -49,9 +49,9 @@ def create_checkout_span():
         service=trace_utils.ext_service(None, config.pymongo),
         span_type=SpanTypes.MONGODB,
     )
-    span._set_tag_str(COMPONENT, config.pymongo.integration_name)
-    span._set_tag_str(db.SYSTEM, mongox.SERVICE)
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(COMPONENT, config.pymongo.integration_name)
+    span._set_attribute(db.SYSTEM, mongox.SERVICE)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     return span
 
 
@@ -115,8 +115,8 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     """Set address tags on span. Shared between sync and async."""
     if address:
-        span._set_tag_str(netx.TARGET_HOST, address[0])
-        span._set_tag_str(netx.SERVER_ADDRESS, address[0])
+        span._set_attribute(netx.TARGET_HOST, address[0])
+        span._set_attribute(netx.SERVER_ADDRESS, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 

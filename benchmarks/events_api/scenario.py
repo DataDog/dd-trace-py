@@ -51,8 +51,8 @@ class EventsAPIScenario(bm.Scenario):
             def _context_started_handler(ctx: core.ExecutionContext) -> None:
                 _start_span(ctx, call_trace=True)
                 span = ctx.span
-                span._set_tag_str("http.url", ctx.get_item("url"))
-                span._set_tag_str("http.method", ctx.get_item("method"))
+                span._set_attribute("http.url", ctx.get_item("url"))
+                span._set_attribute("http.method", ctx.get_item("method"))
                 span._set_attribute("http.status_code", ctx.get_item("status_code"))
 
             def _context_ended_handler(ctx: core.ExecutionContext, exc_info) -> None:
@@ -84,8 +84,8 @@ class EventsAPIScenario(bm.Scenario):
                 def on_started(cls, ctx: core.ExecutionContext) -> None:
                     span = ctx.span
                     event: BenchmarkTracingEvent = ctx.event
-                    span._set_tag_str("http.url", event.url)
-                    span._set_tag_str("http.method", event.method)
+                    span._set_attribute("http.url", event.url)
+                    span._set_attribute("http.method", event.method)
                     span._set_attribute("http.status_code", event.status_code)
 
             for _ in range(loops):
@@ -130,10 +130,10 @@ class EventsAPIScenario(bm.Scenario):
                     resource="test",
                     span_type="base",
                 )
-                span._set_tag_str(COMPONENT, "test")
-                span._set_tag_str(SPAN_KIND, "client")
-                span._set_tag_str("http.url", "myurl.com")
-                span._set_tag_str("http.method", "GET")
+                span._set_attribute(COMPONENT, "test")
+                span._set_attribute(SPAN_KIND, "client")
+                span._set_attribute("http.url", "myurl.com")
+                span._set_attribute("http.method", "GET")
                 span._set_attribute("http.status_code", 200)
                 span.finish()
 

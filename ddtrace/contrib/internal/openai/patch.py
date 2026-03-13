@@ -388,7 +388,7 @@ def traced_convert(func, instance, args, kwargs):
         return func(*args, **kwargs)
     if headers.get("openai-organization"):
         org_name = headers.get("openai-organization")
-        span._set_tag_str("openai.organization.name", org_name)
+        span._set_attribute("openai.organization.name", org_name)
 
     # Gauge total rate limit
     if headers.get("x-ratelimit-limit-requests"):

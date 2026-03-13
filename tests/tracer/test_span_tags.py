@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.trace import Span
@@ -183,6 +184,13 @@ def test_set_tag_env():
     assert s.get_tag(ENV_KEY) == "prod"
 
 
+def test_set_tag_service_key():
+    s = Span(name="test.span")
+    s.set_tag(SERVICE_KEY, "my-service")  # ast-grep-ignore: span-set-tag-service-key
+    assert s.service == "my-service"
+    assert s.get_tag(SERVICE_KEY) == "my-service"
+
+
 # ---------------------------------------------------------------------------
 # Tests moved from standalone functions in test_span.py
 # ---------------------------------------------------------------------------
@@ -238,8 +246,8 @@ def test_span_unicode_set_tag():
     span = Span(None)
     span.set_tag("key", "😌")
     span.set_tag("😐", "😌")
-    span._set_tag_str("key", "😌")
-    span._set_tag_str("😐", "😌")
+    span._set_attribute("key", "😌")
+    span._set_attribute("😐", "😌")
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
@@ -247,7 +255,7 @@ def test_span_unicode_set_tag():
 def test_span_binary_unicode_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", "🤔")
-    span._set_tag_str("key_str", "🤔")
+    span._set_attribute("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
@@ -259,37 +267,10 @@ def test_span_binary_unicode_set_tag(span_log):
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
-    span._set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
+    span._set_attribute("key_str", b"\xf0\x9f\xa4\x94")
     assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
     assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_encoding_set_str_tag(span_log):
-    span = Span(None)
-    span._set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
-    span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
-
-
-def test_span_nonstring_set_str_tag_exc():
-    span = Span(None)
-    with pytest.raises(TypeError):
-        span._set_tag_str("foo", dict(a=1))
-    assert "foo" not in span.get_tags()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_nonstring_set_str_tag_warning(span_log):
-    with override_global_config(dict(_raise=False)):
-        span = Span(None)
-        span._set_tag_str("foo", dict(a=1))
-        span_log.warning.assert_called_once_with(
-            "Failed to set text tag '%s'",
-            "foo",
-            exc_info=True,
-        )
 
 
 def test_span_repr_metastruct():

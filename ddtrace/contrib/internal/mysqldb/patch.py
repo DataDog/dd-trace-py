@@ -101,10 +101,10 @@ def _connect(func, instance, args, kwargs):
         with tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
-            span._set_tag_str(COMPONENT, config.mysqldb.integration_name)
+            span._set_attribute(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
             span._set_attribute(_SPAN_MEASURED_KEY, 1)
