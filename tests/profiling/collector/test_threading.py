@@ -7,6 +7,7 @@ import pickle
 import sys
 import threading
 import time
+from types import CodeType
 from typing import Callable
 from typing import Optional
 from typing import Union
@@ -1507,6 +1508,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "_cached_thread_id",
                 "_cached_thread_name",
                 "_cached_thread_native_id",
+                "_frame_cache",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
 
@@ -2105,3 +2107,148 @@ class TestThreadInfoCache:
             assert lock._cached_thread_id == cached_tid
             assert lock._cached_thread_name == cached_name
             assert lock._cached_thread_native_id == cached_native_id
+
+
+class TestFrameCache:
+    """Tests for per-lock stack frame caching in _ProfiledLock._flush_sample()."""
+
+    def test_frame_cache_starts_empty(self) -> None:
+        """A fresh _ProfiledLock should have no cached frame data."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            assert lock._frame_cache is None
+
+    def test_frame_cache_populated_after_first_sample(self) -> None:
+        """After the first sampled acquire, the frame cache should be populated."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            lock.acquire()
+            lock.release()
+
+            assert lock._frame_cache is not None
+            assert isinstance(lock._frame_cache, dict)
+            # acquire and release are on different lines, so 2 cache entries
+            assert len(lock._frame_cache) == 2
+
+            for key, frame_data in lock._frame_cache.items():
+                code_obj, lineno = key
+                assert isinstance(code_obj, CodeType)
+                assert isinstance(lineno, int)
+                assert isinstance(frame_data, tuple)
+                assert len(frame_data) > 0
+                for entry in frame_data:
+                    assert len(entry) == 4
+                    name, filename, address, entry_lineno = entry
+                    assert isinstance(name, str)
+                    assert isinstance(filename, str)
+                    assert isinstance(address, int)
+                    assert isinstance(entry_lineno, int)
+
+    def test_frame_cache_hit_same_call_site(self) -> None:
+        """Acquiring the same lock from the same call site should reuse cached frame data."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            def use_lock() -> None:
+                lock.acquire()
+                lock.release()
+
+            use_lock()
+            assert lock._frame_cache is not None
+            # Snapshot the cached data objects by identity
+            first_cache_entries: dict = dict(lock._frame_cache)
+
+            use_lock()
+            # Both acquire and release call sites are stable across invocations,
+            # so the cached tuple objects should be reused (same identity)
+            for key, data in first_cache_entries.items():
+                assert lock._frame_cache[key] is data
+
+    def test_frame_cache_multiple_call_sites(self) -> None:
+        """Acquiring a lock from different call sites should create separate cache entries."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            def site_a() -> None:
+                lock.acquire()
+                lock.release()
+
+            def site_b() -> None:
+                lock.acquire()
+                lock.release()
+
+            site_a()
+            assert lock._frame_cache is not None
+            entries_after_a: int = len(lock._frame_cache)
+            assert entries_after_a == 2  # acquire + release
+
+            site_b()
+            # site_b has different code objects, so new entries are added
+            assert len(lock._frame_cache) == 4  # 2 from site_a + 2 from site_b
+
+    def test_frame_cache_bounded_size(self) -> None:
+        """The frame cache should not grow beyond the maximum number of entries."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            # Create 3 call sites (6 entries: acquire+release each), exceeding the 4-entry limit
+            def site_1() -> None:
+                lock.acquire()
+                lock.release()
+
+            def site_2() -> None:
+                lock.acquire()
+                lock.release()
+
+            def site_3() -> None:
+                lock.acquire()
+                lock.release()
+
+            site_1()
+            site_2()
+            assert len(lock._frame_cache) == 4  # 2 + 2 = 4 (at limit)
+
+            site_3()
+            # Cache should not exceed 4 entries
+            assert len(lock._frame_cache) <= 4
+
+    def test_frame_cache_contains_correct_leaf_frame(self) -> None:
+        """The cached frame data should start with the leaf frame (the caller's function)."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock: LockTypeInst = threading.Lock()
+            assert isinstance(lock, _ProfiledLock)
+
+            def my_unique_function_name() -> None:
+                lock.acquire()
+                lock.release()
+
+            my_unique_function_name()
+
+            assert lock._frame_cache is not None
+            # Check that at least one cached entry has our function name as the leaf
+            found: bool = False
+            for frame_data in lock._frame_cache.values():
+                leaf_name: str = frame_data[0][0]
+                if "my_unique_function_name" in leaf_name:
+                    found = True
+                    break
+            assert found

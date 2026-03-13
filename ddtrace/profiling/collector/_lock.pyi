@@ -21,6 +21,7 @@ class _ProfiledLock:
     _cached_thread_id: typing.Optional[int]
     _cached_thread_name: typing.Optional[str]
     _cached_thread_native_id: typing.Optional[int]
+    _frame_cache: typing.Optional[dict[tuple[types.CodeType, int], tuple[tuple[str, str, int, int], ...]]]
 
     def __init__(
         self,
