@@ -19,11 +19,11 @@ from typing import Union
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
+from ddtrace.profiling.collector import _task
 from ddtrace.trace import Tracer
 
-from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
-from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
+from ddtrace.profiling._threading cimport get_thread_info
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -36,11 +36,6 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
 # (_acquire -> _flush_sample, __call__ -> _profiled_allocate_lock -> __init__)
 # are invisible, so the caller's frame is at index 0, not 3.
 cdef int _CALLER_FRAME_INDEX = 0
-
-
-cdef tuple _current_thread():
-    thread_id: int = _thread.get_ident()
-    return thread_id, get_thread_name(thread_id)
 
 
 def _get_original_lock_class(module_name: str, class_name: str) -> Callable[..., Any]:
@@ -84,6 +79,9 @@ class _ProfiledLock:
         "acquired_time",
         "name",
         "is_internal",
+        "_cached_thread_id",
+        "_cached_thread_name",
+        "_cached_thread_native_id",
     )
 
     def __init__(
@@ -112,6 +110,9 @@ class _ProfiledLock:
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
+        self._cached_thread_id: Optional[int] = None
+        self._cached_thread_name: Optional[str] = None
+        self._cached_thread_native_id: Optional[int] = None
 
     # DUNDER methods
 
@@ -242,6 +243,8 @@ class _ProfiledLock:
             return
 
         cdef long long duration_ns = end - start
+        thread_id: int = _thread.get_ident()
+        thread_native_id: int = _thread.get_native_id()
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
@@ -255,19 +258,23 @@ class _ProfiledLock:
             else:
                 handle.push_release(duration_ns, 1)
 
-            thread_id: int
-            thread_name: str
-            thread_id, thread_name = _current_thread()
+            thread_name: Optional[str]
+            if thread_id == self._cached_thread_id and thread_native_id == self._cached_thread_native_id:
+                thread_name = self._cached_thread_name
+            else:
+                thread_name, thread_native_id = get_thread_info(thread_id)
+                self._cached_thread_id = thread_id
+                self._cached_thread_name = thread_name
+                self._cached_thread_native_id = thread_native_id
 
             task_id: Optional[int]
             task_name: Optional[str]
             task_frame: Optional[FrameType]
-            task_id, task_name, task_frame = _c_get_task()
+            task_id, task_name, task_frame = _task.get_task()
 
             handle.push_task_id(task_id)
             handle.push_task_name(task_name)
 
-            thread_native_id: int = get_thread_native_id(thread_id)
             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
 
             if self.tracer is not None:
@@ -450,7 +457,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
-        _c_initialize_gevent_support()
+        _task.initialize_gevent_support()
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
