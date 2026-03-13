@@ -1747,7 +1747,7 @@ class Experiment:
 
     async def _evaluate_record(
         self,
-        idx_record: tuple[int, DatasetRecord],
+        record: DatasetRecord,
         task_result: TaskResult,
         semaphore: Optional[asyncio.Semaphore] = None,
         raise_errors: bool = False,
@@ -1757,7 +1757,7 @@ class Experiment:
         if semaphore is not None:
             await semaphore.acquire()
         try:
-            idx, record = idx_record
+            idx = task_result["idx"]
             input_data = record["input_data"]
             output_data = task_result["output"]
             expected_output = record["expected_output"]
@@ -1874,7 +1874,7 @@ class Experiment:
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(
-                (idx, self._dataset[idx]), task_result, semaphore, raise_errors, max_retries, retry_delay
+                self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay
             )
             for idx, task_result in enumerate(task_results)
         ]
@@ -1922,7 +1922,7 @@ class Experiment:
                 if task_result is None:
                     return None, None
                 evaluation = await self._evaluate_record(
-                    idx_record,
+                    idx_record[1],
                     task_result,
                     raise_errors=raise_errors,
                     max_retries=max_retries,
