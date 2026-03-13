@@ -426,8 +426,8 @@ def test_assertion_error_raised_with_enable_asserts():
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
 
-        # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
+        # Patch _resolve_name to raise AssertionError
+        lock._resolve_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
 
         with pytest.raises(AssertionError):
             # AssertionError should be propagated when enable_asserts=True
@@ -539,18 +539,19 @@ def test_flush_sample_handles_shallow_stack() -> None:
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
-def test_update_name_handles_shallow_stack() -> None:
-    """Test that _update_name doesn't crash when call stack is too shallow.
+def test_resolve_name_handles_shallow_stack() -> None:
+    """Test that _resolve_name doesn't crash when called with a shallow-stack frame.
 
-    This can happen when _update_name is called from contexts with fewer than 4 frames.
+    This can happen when _resolve_name is called from contexts with fewer than 4 frames.
     """
+    import sys
     import threading
 
     from ddtrace.profiling import collector
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from tests.profiling.collector.test_utils import init_ddup
 
-    init_ddup("test_update_name_shallow")
+    init_ddup("test_resolve_name_shallow")
 
     # Create lock with direct instantiation (shallow stack)
     real_lock = threading.Lock()
@@ -563,11 +564,11 @@ def test_update_name_handles_shallow_stack() -> None:
 
     assert profiled_lock.name is None
 
-    # Direct call to _update_name creates shallow stack or wrong call pattern
-    # Normal path: caller -> acquire -> _acquire -> _update_name (4+ frames with specific function names)
-    # This path: test function -> _update_name (wrong pattern)
-    # The assertion checks or sys._getframe(3) will fail, but should be caught
-    profiled_lock._update_name()
+    # Direct call to _resolve_name with the current frame (shallow stack).
+    # In normal operation, _resolve_name is called from _flush_sample with
+    # the caller's frame. Here we pass a test frame to verify it doesn't crash.
+    frame = sys._getframe(0)
+    profiled_lock._resolve_name(frame)
 
     # Should not crash, name may or may not be set depending on stack depth
     # but we shouldn't assert a specific value
@@ -591,18 +592,18 @@ def test_all_exceptions_suppressed_by_default() -> None:
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
 
-        # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        # Patch _resolve_name to raise AssertionError
+        lock._resolve_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
-        # Patch _update_name to raise RuntimeError
-        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        # Patch _resolve_name to raise RuntimeError
+        lock._resolve_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
-        # Patch _update_name to raise Exception
-        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        # Patch _resolve_name to raise Exception
+        lock._resolve_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
