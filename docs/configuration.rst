@@ -380,7 +380,7 @@ Traces
      version_added:
         v3.11.0:
 
-   DD_EVP_PROXY_PAYLOAD_SIZE_BYTES:
+   DD_LLMOBS_PAYLOAD_SIZE_BYTES:
      type: Int
      default: 5242880
 
@@ -392,7 +392,7 @@ Traces
          enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
          the EVP proxy max payload size configured in the Datadog Agent.
 
-   DD_EVP_PROXY_EVENT_SIZE_BYTES:
+   DD_LLMOBS_EVENT_SIZE_BYTES:
      type: Int
      default: 5000000
 
