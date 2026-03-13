@@ -135,11 +135,13 @@ def test_process_tags_enabled():
     finally:
         process_tag_reload()
 
+        ptc = tag_collectors.ProcessTagCollector()
+        tags: list[str] = ptc.collect()
+        assert len(tags) == 5, f"Expected 5 process tags, got {len(tags)}: {tags}"
 
 @pytest.mark.subprocess()
 def test_process_tag_class():
     from ddtrace.internal.runtime.runtime_metrics import ProcessTags
 
     process_tags: list[str] = list(ProcessTags())
-    # one process tags value can be /bin in value, which will remove the process_tags
-    assert len(process_tags) >= 3
+    assert len(process_tags) == 5
