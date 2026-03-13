@@ -10,24 +10,11 @@ import typing as t
 
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.telemetry import EventType
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
-
-
-def _record_itr_telemetry(method_name: str) -> None:
-    try:
-        from ddtrace.testing.internal.telemetry import EventType
-        from ddtrace.testing.internal.telemetry import TelemetryAPI
-    except Exception:
-        return
-
-    try:
-        telemetry_api = TelemetryAPI.get()
-    except RuntimeError:
-        return
-
-    getattr(telemetry_api, method_name)(EventType.TEST)
 
 
 @dataclass(frozen=True)
@@ -297,14 +284,20 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def mark_unskippable(self) -> None:
         self.tags[TestTag.ITR_UNSKIPPABLE] = TAG_TRUE
-        _record_itr_telemetry("record_itr_unskippable")
+        try:
+            TelemetryAPI.get().record_itr_unskippable(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_unskippable(self) -> bool:
         return self.tags.get(TestTag.ITR_UNSKIPPABLE) == TAG_TRUE
 
     def mark_forced_run(self) -> None:
         self.tags[TestTag.ITR_FORCED_RUN] = TAG_TRUE
-        _record_itr_telemetry("record_itr_forced_run")
+        try:
+            TelemetryAPI.get().record_itr_forced_run(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_forced_run(self) -> bool:
         return self.tags.get(TestTag.ITR_FORCED_RUN) == TAG_TRUE
@@ -312,7 +305,10 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def mark_skipped_by_itr(self) -> None:
         self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
         self.session.tests_skipped_by_itr += 1
-        _record_itr_telemetry("record_itr_skipped")
+        try:
+            TelemetryAPI.get().record_itr_skipped(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
