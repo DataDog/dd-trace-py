@@ -461,6 +461,16 @@ def test_ddtrace_re_module():
     )
 
 
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_reprlib_get_ident_picklable():
+    import _thread
+    import pickle
+    import reprlib
+
+    assert reprlib.get_ident is _thread.get_ident
+    assert pickle.dumps(reprlib.get_ident)
+
+
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_ddtrace_run_sitecustomize():
     """When using ddtrace-run we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
