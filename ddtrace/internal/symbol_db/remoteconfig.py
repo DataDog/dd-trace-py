@@ -4,15 +4,12 @@ import typing as t
 from ddtrace.internal.forksafe import has_forked
 from ddtrace.internal.ipc import SharedStringFile
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.products import manager as product_manager
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-
-DI_PRODUCT_KEY = "dynamic-instrumentation"
 
 log = get_logger(__name__)
 
@@ -71,7 +68,7 @@ class SymbolDatabaseCallback(RCCallback):
                 log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
                 if not SymbolDatabaseUploader.is_installed():
                     try:
-                        SymbolDatabaseUploader.install(shallow=not product_manager.is_enabled(DI_PRODUCT_KEY))
+                        SymbolDatabaseUploader.install()
                         log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                     except Exception:
                         log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
