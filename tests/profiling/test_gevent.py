@@ -40,9 +40,7 @@ def test_joinall_links_to_calling_greenlet_not_hub() -> None:
 
         def caller() -> None:
             caller_id = thread.get_ident(gevent.getcurrent())
-            with patch.object(
-                _gevent_module, "link_greenlets", side_effect=_capture_link
-            ):
+            with patch.object(_gevent_module, "link_greenlets", side_effect=_capture_link):
                 _gevent_module.joinall([child_greenlet])
             result.append((caller_id, thread.get_ident(child_greenlet)))
 
@@ -89,9 +87,7 @@ def test_wait_wrapper_links_via_keyword_objects_arg() -> None:
             wrapped = _gevent_module.wait_wrapper(lambda *a, **kw: None)
             wrapped(objects=[child_greenlet])
 
-        assert (
-            links
-        ), "link_greenlets was never called when 'objects' passed as keyword argument"
+        assert links, "link_greenlets was never called when 'objects' passed as keyword argument"
         linked_child, _ = links[0]
         assert linked_child == thread.get_ident(child_greenlet)
     finally:
@@ -120,9 +116,7 @@ def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
 
         def caller() -> None:
             caller_id = thread.get_ident(gevent.getcurrent())
-            with patch.object(
-                _gevent_module, "link_greenlets", side_effect=_capture_link
-            ):
+            with patch.object(_gevent_module, "link_greenlets", side_effect=_capture_link):
                 wrapped = _gevent_module.wait_wrapper(lambda *a, **kw: None)
                 wrapped([child_greenlet])
             result.append((caller_id, thread.get_ident(child_greenlet)))
