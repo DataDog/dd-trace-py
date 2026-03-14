@@ -187,7 +187,7 @@ ExporterManager::create_exporter()
                              to_slice(profiler_version),
                              to_slice(g_language_name),
                              &tags,
-                             ddog_prof_Endpoint_agent(to_slice(url), max_timeout_ms));
+                             ddog_prof_Endpoint_agent(to_slice(url), max_timeout_ms, false));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
