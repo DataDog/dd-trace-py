@@ -544,15 +544,12 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
-        self._original_lock = self._get_patch_target()
-        if isinstance(self._original_lock, _LockAllocatorWrapper):
-            LOG.debug(
-                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
-                type(self).__name__,
-                self.MODULE.__name__,
-                self.PATCHED_LOCK_NAME,
-            )
+        current: Callable[..., Any] = getattr(self.MODULE, self.PATCHED_LOCK_NAME)
+        if isinstance(current, _LockAllocatorWrapper):
+            # Already patched, skip to avoid double-wrapping.
             return
+
+        self._original_lock = current
         original_lock: Callable[..., Any] = self._original_lock
 
         # Determine which module file to check for internal lock detection

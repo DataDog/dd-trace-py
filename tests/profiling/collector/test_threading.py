@@ -503,6 +503,90 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="1",
+        DD_PROFILING_LOCK_ENABLED="1",
+        DD_PROFILING_CAPTURE_PCT="100",
+    ),
+    err=None,
+)
+def test_lock_profiler_works_under_ddtrace_run_with_gevent():
+    """End-to-end test: lock profiler must capture events after ddtrace-run + gevent cloning.
+
+    When ddtrace-run bootstraps with gevent installed, cleanup_loaded_modules()
+    removes 'threading' from sys.modules AFTER the lock profiler has patched it.
+    Without the fix, user code gets an unpatched threading module and lock
+    profiling silently produces zero events.
+
+    We do NOT call monkey.patch_all() here. The bug is triggered just by having
+    gevent installed (cleanup_loaded_modules checks for that). Calling
+    monkey.patch_all() would overwrite our lock profiler patches on the new
+    threading module, which is a separate concern.
+    """
+    import glob
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from tests.profiling.collector import pprof_utils
+
+    # After ddtrace-run bootstrap + cleanup_loaded_modules() + user import,
+    # threading.Lock must be patched (the fix re-applies patches on re-import)
+    assert isinstance(threading.Lock, _LockAllocatorWrapper), (
+        f"threading.Lock should be _LockAllocatorWrapper but is {type(threading.Lock).__name__}. "
+        "This means the lock profiler patches were lost after module cloning."
+    )
+
+    lock_instance = threading.Lock()
+    assert isinstance(lock_instance, _ProfiledLock), (
+        f"threading.Lock() should return _ProfiledLock but returned {type(lock_instance).__name__}"
+    )
+
+    # Reconfigure ddup to write to a file so we can verify lock samples
+    test_name = "test_lock_profiler_works_under_ddtrace_run_with_gevent"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+    ddup.upload()  # Flush any samples accumulated during bootstrap
+
+    # Do lock operations that should be captured
+    lock = threading.Lock()
+    for _ in range(10):
+        lock.acquire()
+        time.sleep(0.001)
+        lock.release()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+    assert len(acquire_samples) > 0, (
+        "Expected lock-acquire samples but found none. "
+        "Lock profiling is not capturing events after ddtrace-run + gevent cloning."
+    )
+    assert len(release_samples) > 0, "Expected lock-release samples but found none."
+
+    for f in glob.glob(pprof_prefix + ".*"):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
