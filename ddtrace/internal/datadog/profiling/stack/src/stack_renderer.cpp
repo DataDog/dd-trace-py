@@ -12,6 +12,9 @@
 
 using namespace Datadog;
 
+static bool render_thread_begin_failed = false; // cppcheck-suppress threadsafety-threadsafety
+static bool render_task_begin_failed = false;   // cppcheck-suppress threadsafety-threadsafety
+
 void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    std::string_view name,
@@ -20,14 +23,13 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    unsigned long native_id)
 {
     (void)tstate;
-    static bool failed = false;
-    if (failed) {
+    if (render_thread_begin_failed) {
         return;
     }
     sample = SampleManager::start_sample();
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
-        failed = true;
+        render_thread_begin_failed = true;
         return;
     }
 
@@ -68,8 +70,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 void
 StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
-    static bool failed = false;
-    if (failed) {
+    if (render_task_begin_failed) {
         return;
     }
 
@@ -80,7 +81,7 @@ StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
         sample = SampleManager::start_sample();
         if (sample == nullptr) {
             std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
-            failed = true;
+            render_task_begin_failed = true;
             return;
         }
 
@@ -250,4 +251,8 @@ Datadog::StackRenderer::postfork_child()
     // from the parent process's dictionary
     string_id_cache.clear();
     function_id_cache.clear();
+
+    // Reset static failure flags so the child process can attempt sampling
+    render_thread_begin_failed = false;
+    render_task_begin_failed = false;
 }

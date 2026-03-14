@@ -329,6 +329,7 @@ Datadog::Sample::clear_buffers()
     locations.clear();
     dropped_frames = 0;
     has_dropped_frames_indicator = false;
+    endtime_ns = 0;
     string_storage.reset();
 }
 

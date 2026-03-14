@@ -43,7 +43,9 @@ Datadog::Uploader::~Uploader()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    ddog_prof_Exporter_drop(&ddog_exporter);
+    if (ddog_exporter.inner != nullptr) {
+        ddog_prof_Exporter_drop(&ddog_exporter);
+    }
     ddog_prof_EncodedProfile_drop(&encoded_profile);
 }
 
@@ -157,6 +159,7 @@ Datadog::Uploader::upload_unlocked()
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
     ddog_prof_Exporter_drop(&ddog_exporter);
+    ddog_exporter = { .inner = nullptr };
 
     return ret;
 }
