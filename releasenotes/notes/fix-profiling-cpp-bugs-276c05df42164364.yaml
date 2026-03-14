@@ -1,10 +1,6 @@
 ---
 fixes:
   - |
-    profiling: Fix double-free of the libdatadog exporter in the upload path,
-    where ``ddog_prof_Exporter_drop`` was called both in ``upload_unlocked()``
-    and the ``Uploader`` destructor.
-  - |
     profiling: Fix null pointer dereference in ``VmReader::get_instance()`` when
     ``VmReader::create()`` fails and the error-logging path dereferences the null
     pointer.
