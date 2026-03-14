@@ -56,6 +56,7 @@ add_library(
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
+    src/exporter_manager.cpp
     src/libdatadog_helpers.cpp
     src/profile.cpp
     src/profile_borrow.cpp
@@ -63,9 +64,7 @@ add_library(
     src/profiler_stats.cpp
     src/sample.cpp
     src/sample_manager.cpp
-    src/static_sample_pool.cpp
-    src/uploader.cpp
-    src/uploader_builder.cpp)
+    src/static_sample_pool.cpp)
 
 # Add common configuration flags
 add_ddup_config(dd_wrapper)

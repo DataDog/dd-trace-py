@@ -1,5 +1,6 @@
 #include "profiler_state.hpp"
 
+#include "exporter_manager.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>
@@ -146,6 +147,8 @@ ProfilerState::cleanup()
 void
 ProfilerState::prefork()
 {
+    ExporterManager::prefork();
+
     // Cancel inflight uploads to prevent state leaking to children
     auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
     if (current_cancel.inner != nullptr) {
@@ -169,6 +172,7 @@ void
 ProfilerState::postfork_parent()
 {
     upload_lock.unlock();
+    ExporterManager::postfork_parent();
 }
 
 void
@@ -201,6 +205,8 @@ ProfilerState::postfork_child()
 
     // Reset the profile state
     profile_state.postfork_child();
+
+    ExporterManager::postfork_child();
 }
 
 } // namespace Datadog
