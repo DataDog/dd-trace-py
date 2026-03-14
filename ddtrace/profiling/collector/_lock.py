@@ -473,9 +473,6 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Any = None
         self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
 
-    def _get_patch_target(self) -> Callable[..., Any]:
-        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
-
     def _set_patch_target(self, value: Any) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
@@ -527,8 +524,8 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
-        self._original_lock = self._get_patch_target()
-        if isinstance(self._original_lock, _LockAllocatorWrapper):
+        current: Callable[..., Any] = getattr(self.MODULE, self.PATCHED_LOCK_NAME)
+        if isinstance(current, _LockAllocatorWrapper):
             LOG.debug(
                 "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
                 type(self).__name__,
@@ -536,7 +533,8 @@ class LockCollector(collector.CaptureSamplerCollector):
                 self.PATCHED_LOCK_NAME,
             )
             return
-        original_lock: Any = self._original_lock  # Capture non-None value
+        self._original_lock = current
+        original_lock: Any = self._original_lock
 
         # Determine which module file to check for internal lock detection
         internal_module_file: Optional[str] = self.INTERNAL_MODULE_FILE
