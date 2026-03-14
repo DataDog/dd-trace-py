@@ -1,6 +1,6 @@
 #include <cassert>
 #include <cmath>
-#include <cstdlib>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -128,7 +128,7 @@ class heap_tracker_t
     void postfork_child();
 
   private:
-    static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
+    uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* This function is called from heap_tracker_t::postfork_child() as part of
        the fork handler to reset the sampling state. */
@@ -136,6 +136,12 @@ class heap_tracker_t
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
+
+    /* Per-instance PRNG state used by next_sample_size_no_cpython.
+     * Declared before current_sample_size so it is initialised first in the
+     * constructor member-initialiser list, allowing next_sample_size_no_cpython
+     * to be called safely during current_sample_size initialisation. */
+    uint32_t rng_seed;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
@@ -187,7 +193,6 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
 }
 
-// Static helper function
 uint32_t
 heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 {
@@ -197,15 +202,23 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        transform it by the inverse of the cumulative distribution function for
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
+
+    /* Note: We use a xorshift32 PRNG instead of rand because rand
+       uses a global mutex internally (in glibc), which can cause deadlock
+       after fork if another thread held that lock at the time of the fork.
+       xorshift32 is fork-safe (pure arithmetic, no locks), O(1), and stores
+       its state in the per-instance rng_seed field rather than in a global.
+       The seed must be non-zero for xorshift32 to produce a non-trivial
+       sequence; the constructor ensures this invariant. */
+    rng_seed ^= rng_seed << 13;
+    rng_seed ^= rng_seed >> 17;
+    rng_seed ^= rng_seed << 5;
+
     /* Get a value between (0, 1) — strictly positive to avoid log2(0) = -inf,
        which would produce +inf and undefined behavior when cast to uint32_t.
-       Using rand()+1 in floating-point avoids int overflow while shifting the
-       range from [0, 1) to (0, 1). */
-    /* TODO: change to use a fork safe alternative instead of rand(), as rand()
-       internally uses a lock and may cause deadlock after fork in child
-       processes. Deferring this to a follow up, as we're not making the
-       situation worse. */
-    double q = ((double)rand() + 1.0) / ((double)RAND_MAX + 2.0);
+       rng_seed is in [1, UINT32_MAX] after the xorshift step, so adding 1.0
+       shifts to (1, UINT32_MAX+1] and dividing by UINT32_MAX+2.0 gives (0, 1). */
+    double q = ((double)rng_seed + 1.0) / ((double)UINT32_MAX + 2.0);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
     /* NOTE: technically log2 is not async signal safe per Linux man page,
        but it doesn't seem to use locks internally. So we assume it's safe to
@@ -217,6 +230,7 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
+  , rng_seed(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // non-zero seed
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
