@@ -1,0 +1,15 @@
+---
+fixes:
+  - |
+    profiling: Fix null pointer dereference in ``VmReader::get_instance()`` when
+    ``VmReader::create()`` fails and the error-logging path dereferences the null
+    pointer.
+  - |
+    profiling: Fix stale ``endtime_ns`` timestamp carried over to reused samples
+    from the static sample pool by resetting it in ``clear_buffers()``.
+  - |
+    profiling: Fix undefined behavior from unchecked ``Result`` dereferences in
+    asyncio/uvloop boundary frame detection (``tasks.cc``, ``threads.cc``).
+  - |
+    profiling: Reset ``StackRenderer`` failure flags on ``postfork_child()`` so
+    the child process can resume profiling after fork.
