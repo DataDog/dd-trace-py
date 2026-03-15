@@ -158,7 +158,11 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
         return false;
     }
     const auto& filename = maybe_filename->get();
-    auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+    // Guard against unsigned underflow: when filename.size() < uvloop_init_py.size(), the
+    // subtraction wraps to SIZE_MAX, which equals rfind's npos return value for a
+    // failed search — producing a false-positive match on any short filename.
+    auto is_uvloop = filename.size() >= uvloop_init_py.size() &&
+                     filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
     return is_uvloop && (frame_name == wrapper);
 #endif
 }

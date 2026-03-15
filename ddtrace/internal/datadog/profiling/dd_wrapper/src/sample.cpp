@@ -278,10 +278,11 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 
     // Get the interned string for the key
     const auto maybe_key_id = internal::to_interned_string(key);
-    // If the key is not found, we don't add the label, but we don't return error
-    // TODO is this what we want?
+    // Key lookup fails when the profiles dictionary is not yet initialized.
+    // This is a genuine failure — the label was not added — so report it as such
+    // so callers can emit their diagnostic warnings.
     if (!maybe_key_id) {
-        return true;
+        return false;
     }
 
     std::string_view val_str = string_storage.insert(val);
@@ -304,11 +305,10 @@ bool
 Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 {
     // Get the interned string for the key.  If there is no key, then there
-    // is no label.  Right now this is OK.
-    // TODO make this not OK
+    // is no label.  This is a genuine failure — report it to the caller.
     const auto maybe_key_id = internal::to_interned_string(key);
     if (!maybe_key_id) {
-        return true;
+        return false;
     }
 
     auto empty_string = to_slice("");
@@ -404,7 +404,13 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Exception)) {
-        push_label(ExportLabelKey::exception_type, exception_type);
+        if (!push_label(ExportLabelKey::exception_type, exception_type)) {
+            if (!already_warned) {
+                already_warned = true;
+                std::cerr << "bad push except label" << std::endl;
+            }
+            return false;
+        }
         values[ProfilerState::get().profile_state.val().exception_count] += count;
         return true;
     }
@@ -573,8 +579,7 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 bool
 Datadog::Sample::push_lock_name(std::string_view lock_name)
 {
-    push_label(ExportLabelKey::lock_name, lock_name);
-    return true;
+    return push_label(ExportLabelKey::lock_name, lock_name);
 }
 
 bool

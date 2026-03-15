@@ -71,7 +71,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     continue;
                 }
                 const auto& filename = maybe_filename->get();
-                auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+                // Guard against unsigned underflow: rfind returns npos (SIZE_MAX)
+                // when the suffix is longer than the string, and the unguarded subtraction
+                // would also produce SIZE_MAX, causing a false-positive match.
+                auto is_uvloop = filename.size() >= uvloop_init_py.size() &&
+                                 filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
                 is_boundary_frame = is_uvloop && (frame_name == run);
 #endif
             } else {
@@ -91,8 +95,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     continue;
                 }
                 const auto& filename = maybe_filename->get();
-                auto is_asyncio = filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
-                is_boundary_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+                // Guard against unsigned underflow (see uvloop case above for explanation).
+                auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
+                                  filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+                is_boundary_frame = is_asyncio && (frame_name.size() >= _run.size() &&
+                                                   frame_name.rfind(_run) == frame_name.size() - _run.size());
 #endif
             }
 
@@ -264,9 +271,16 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
                 //       may be to look at every Task Stack and match it against the Thread Stack. This would be
                 //       somewhat costly though, and so far I have not seen a single instance of this race condition.
-                size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
-                                          ? python_stack.size() - upper_python_stack_size - task_stack_size
-                                          : 0;
+                // Compute frames_to_push using only subtraction to avoid the
+                // unsigned overflow that would result from adding two size_t values
+                // before comparing: (upper + task) could wrap to a small number,
+                // making the guard fire incorrectly and producing an out-of-bounds
+                // vector access on the subsequent loop.
+                size_t frames_to_push = 0;
+                if (python_stack.size() > upper_python_stack_size) {
+                    const size_t remaining = python_stack.size() - upper_python_stack_size;
+                    frames_to_push = (remaining > task_stack_size) ? remaining - task_stack_size : 0;
+                }
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
 

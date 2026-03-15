@@ -157,6 +157,8 @@ Datadog::Uploader::upload_unlocked()
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
     ddog_prof_Exporter_drop(&ddog_exporter);
+    // Null the inner pointer so the destructor does not perform a second drop.
+    ddog_exporter = { .inner = nullptr };
 
     return ret;
 }
