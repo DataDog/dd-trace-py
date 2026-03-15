@@ -607,6 +607,59 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock.release()
 
 
+@pytest.mark.subprocess(parametrize={"MOCK_PLATFORM": ["linux", "darwin"]})
+def test_flush_sample_timestamp_method_per_platform() -> None:
+    """Verify _flush_sample uses the correct timestamp method per platform.
+
+    On Linux: push_monotonic_ns (monotonic clock matches C++ clock_gettime).
+    On macOS: push_absolute_ns (wall-clock avoids mach_continuous_time mismatch).
+    """
+    import os
+    import threading
+    import time
+
+    import mock
+
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    platform = os.environ["MOCK_PLATFORM"]
+    init_ddup(f"test_flush_sample_{platform}")
+
+    mock_handle = mock.MagicMock()
+    before = time.time_ns()
+
+    with (
+        mock.patch("ddtrace.profiling.collector._lock.sys") as mock_sys,
+        mock.patch("ddtrace.profiling.collector._lock.ddup") as mock_ddup,
+        ThreadingLockCollector(capture_pct=100),
+    ):
+        mock_sys.platform = platform
+        mock_sys._getframe = __import__("sys")._getframe
+        mock_ddup.SampleHandle.return_value = mock_handle
+
+        lock = threading.Lock()
+        lock.acquire()
+        lock.release()
+
+    after = time.time_ns()
+
+    if platform == "darwin":
+        assert not mock_handle.push_monotonic_ns.called, "push_monotonic_ns should not be called on macOS"
+        assert mock_handle.push_absolute_ns.called, "push_absolute_ns should be called on macOS"
+        for call in mock_handle.push_absolute_ns.call_args_list:
+            ts = call[0][0]
+            assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
+            assert before <= ts <= after, f"Expected wall-clock timestamp between {before} and {after}, got {ts}"
+    else:
+        assert not mock_handle.push_absolute_ns.called, "push_absolute_ns should not be called on Linux"
+        assert mock_handle.push_monotonic_ns.called, "push_monotonic_ns should be called on Linux"
+        for call in mock_handle.push_monotonic_ns.call_args_list:
+            ts = call[0][0]
+            assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
+            assert ts > 0, f"Expected positive timestamp, got {ts}"
+
+
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
 
