@@ -34,12 +34,13 @@ namespace internal {
 struct StringArena
 {
   private:
-    // Default size, in bytes, of each Chunk. The value is a power of 2 (nice to
-    // allocate) that is bigger than any actual sample string size seen over a
-    // random selection of a few hundred Python profiles at Datadog. So ideally
-    // we only need one chunk, which we can reuse between samples
-    static constexpr size_t KB = 1024;
-    static constexpr size_t DEFAULT_SIZE = 16 * KB;
+    // Default size, in bytes, of each Chunk. Frame strings (function names,
+    // filenames) are interned directly into libdatadog's ProfilesDictionary,
+    // so only label values (thread name, task name, trace type, lock name,
+    // etc.) are stored here. Typical total per sample is 20-150 bytes.
+    // 256 bytes covers the vast majority of samples; insert() allocates a
+    // new chunk for the rare overflow case, so correctness is preserved.
+    static constexpr size_t DEFAULT_SIZE = 256;
 
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
