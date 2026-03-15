@@ -224,7 +224,11 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        but it doesn't seem to use locks internally. So we assume it's safe to
        call it from heap_tracker_t::postfork_child() */
     double log_val = log2(q);
-    return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
+    /* Use a 64-bit intermediate to avoid uint32_t overflow when sample_size == UINT32_MAX.
+       If sample_size == UINT32_MAX, then (uint32_t)(sample_size + 1) would wrap to 0,
+       making the result 0, which causes should_sample_no_cpython() to fire on every
+       single allocation — a performance and correctness disaster. */
+    return (uint32_t)(log_val * (-log(2) * ((uint64_t)sample_size + 1)));
 }
 
 // Method implementations
@@ -265,7 +269,13 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
          * limit our reported numbers will be inaccurate.
+         *
+         * Reset the sampling counter so that allocated_memory does not grow
+         * unboundedly while the cap is held.  Without this reset, allocated_memory
+         * would accumulate until it wraps around uint64_t (2^64 bytes allocated),
+         * creating a prolonged sampling blackout after the cap is released.
          */
+        reset_sampling_state_no_cpython();
         return false;
     }
 

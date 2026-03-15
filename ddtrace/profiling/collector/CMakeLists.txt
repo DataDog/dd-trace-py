@@ -147,13 +147,13 @@ if(MEMALLOC_ASSERT_ON_REENTRY)
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_ASSERT_ON_REENTRY)
 endif()
 
-# Add NDEBUG flag for release builds
+# Add NDEBUG flag for release builds.
+# In debug builds we simply do not define NDEBUG; the code uses #ifndef NDEBUG
+# guards so no additional macro is needed.
 if(CMAKE_BUILD_TYPE STREQUAL "Release"
    OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"
    OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE NDEBUG)
-else()
-    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE UNDEBUG)
 endif()
 
 # Install the extension
