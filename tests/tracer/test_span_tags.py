@@ -10,7 +10,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -199,13 +198,13 @@ def test_set_tag_service_key():
 def test_set_tag_manual_keep():
     s = Span(name="test.span")
     s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
-    assert s.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert s.context.sampling_priority == USER_KEEP
 
 
 def test_set_tag_manual_drop():
     s = Span(name="test.span")
     s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
-    assert s.get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert s.context.sampling_priority == USER_REJECT
 
 
 # ---------------------------------------------------------------------------
