@@ -251,7 +251,13 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
          * limit our reported numbers will be inaccurate.
+         *
+         * Note: we reset the sampling counter so that allocated_memory does not grow
+         * unboundedly while the cap is held.  Without this reset, allocated_memory
+         * would accumulate until it wraps around uint64_t (2^64 bytes allocated),
+         * creating a prolonged sampling blackout after the cap is released.
          */
+        reset_sampling_state_no_cpython();
         return false;
     }
 
