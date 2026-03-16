@@ -666,7 +666,29 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_stopped->clear();
     self->_served->clear();
 
-    PeriodicThread_start(self, NULL);
+    // Check the __autorestart__ class attribute. Subclasses can set it to
+    // False to opt out of automatic restart after fork. We still perform the
+    // cleanup above regardless so state is consistent.
+    bool should_restart = true;
+    PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
+    if (autorestart != NULL) {
+        should_restart = (PyObject_IsTrue(autorestart) == 1);
+        Py_DECREF(autorestart);
+    } else {
+        PyErr_Clear();
+    }
+
+    if (should_restart) {
+        PeriodicThread_start(self, NULL);
+    } else {
+        // Remove the stale parent-process ident from periodic_threads so this
+        // thread is not picked up by subsequent fork cycles.
+        if (self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL)
+            PyDict_DelItem(self->_state->periodic_threads, self->ident);
+        Py_DECREF(self->ident);
+        Py_INCREF(Py_None);
+        self->ident = Py_None;
+    }
 
     Py_RETURN_NONE;
 }
@@ -723,13 +745,14 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->ident);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
-    // If join() was never called, the std::thread is still joinable. The
-    // GILGuard destructor has already released the GIL (that release is what
-    // allowed this thread to acquire it and reach dealloc), so join() will not
-    // block on GIL contention — it just waits for the OS thread to finish its
-    // final stack unwind.
+    // The native thread holds a PyRef to this object, so dealloc can only be
+    // reached once that reference is dropped — i.e., the thread is already in
+    // its final teardown. Joining here would block on an OS thread that is
+    // finishing its own stack unwind, which can race with signal delivery
+    // (observed as SIGSEGV/si_tkill). Detaching instead lets the OS reclaim
+    // the thread resources without blocking and without risking that race.
     if (self->_thread != nullptr && self->_thread->joinable())
-        self->_thread->join();
+        self->_thread->detach();
     self->_thread = nullptr;
 
     self->_started = nullptr;
