@@ -1752,18 +1752,18 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> EvaluationResult:
-        if semaphore is not None:
-            await semaphore.acquire()
-        try:
-            idx = task_result["idx"]
-            input_data = record["input_data"]
-            output_data = task_result["output"]
-            expected_output = record["expected_output"]
-            metadata = record.get("metadata", {})
+        idx = task_result["idx"]
+        input_data = record["input_data"]
+        output_data = task_result["output"]
+        expected_output = record["expected_output"]
+        metadata = record.get("metadata", {})
 
-            row_results: dict[str, dict[str, JSONType]] = {}
-
-            for evaluator in self._evaluators:
+        async def _run_single_evaluator(
+            evaluator: Union[EvaluatorType, AsyncEvaluatorType],
+        ) -> tuple[str, dict[str, JSONType]]:
+            if semaphore is not None:
+                await semaphore.acquire()
+            try:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
                 extra_return_values: dict[str, JSONType] = {}
@@ -1850,16 +1850,28 @@ class Experiment:
                         if raise_errors:
                             raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
-                row_results[evaluator_name] = {
+                return evaluator_name, {
                     "value": eval_result_value,
                     "error": eval_err,
                     **extra_return_values,
                 }
+            finally:
+                if semaphore is not None:
+                    semaphore.release()
 
-            return {"idx": idx, "evaluations": row_results}
-        finally:
-            if semaphore is not None:
-                semaphore.release()
+        results = await asyncio.gather(
+            *[_run_single_evaluator(ev) for ev in self._evaluators],
+            return_exceptions=True,
+        )
+        row_results: dict[str, dict[str, JSONType]] = {}
+        for r in results:
+            if isinstance(r, BaseException):
+                if raise_errors:
+                    raise r
+                continue
+            name, result = r
+            row_results[name] = result
+        return {"idx": idx, "evaluations": row_results}
 
     async def _run_evaluators(
         self,
@@ -1896,19 +1908,19 @@ class Experiment:
         async def _process_and_evaluate(
             idx_record: tuple[int, DatasetRecord],
         ) -> tuple[Optional[TaskResult], Optional[EvaluationResult]]:
-            async with semaphore:
-                task_result = await self._process_record(
-                    idx_record, run, max_retries=max_retries, retry_delay=retry_delay
-                )
-                if task_result is None:
-                    return None, None
-                evaluation = await self._evaluate_record(
-                    idx_record[1],
-                    task_result,
-                    raise_errors=raise_errors,
-                    max_retries=max_retries,
-                    retry_delay=retry_delay,
-                )
+            task_result = await self._process_record(
+                idx_record, run, semaphore, max_retries=max_retries, retry_delay=retry_delay
+            )
+            if task_result is None:
+                return None, None
+            evaluation = await self._evaluate_record(
+                idx_record[1],
+                task_result,
+                semaphore,
+                raise_errors=raise_errors,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+            )
             if evaluation:
                 metrics = self._generate_metrics_for_record(task_result, evaluation)
                 async with eval_lock:
