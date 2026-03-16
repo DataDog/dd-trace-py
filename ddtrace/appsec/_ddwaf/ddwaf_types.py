@@ -566,7 +566,7 @@ ddwaf_object_from_json = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.
 )
 
 
-ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
+ddwaf_get_version: Callable[[], bytes] = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     ("ddwaf_get_version", ddwaf),
     (),
 )

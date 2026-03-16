@@ -63,13 +63,14 @@ if __name__ == "__main__":
 
     # ASM WAF smoke test
     if platform.system() != "Linux" or sys.maxsize > 2**32:
-        import ddtrace.appsec._ddwaf
         import ddtrace.bootstrap.sitecustomize as module
 
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
-        ddtrace.appsec._ddwaf.waf_module()
-        assert ddtrace.appsec._ddwaf._DDWAF_LOADED
+        try:
+            import ddtrace.appsec._ddwaf  # noqa: F401 this loads libddwaf as a side effect
+        except Exception as e:
+            assert False, f"appsec._ddwaf module could not be loaded: {e}"
         assert module.loaded
         print("WAF module load test completed successfully")
     else:

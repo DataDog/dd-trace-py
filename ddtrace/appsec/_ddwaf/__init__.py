@@ -1,28 +1,7 @@
-from typing import Optional
-
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
+from ddtrace.appsec._ddwaf.waf import VERSION
+from ddtrace.appsec._ddwaf.waf import DDWaf
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-from ddtrace.appsec._utils import DDWaf_info
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.internal.logger import get_logger
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 
 
-__all__ = ["WAF", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
-
-LOGGER = get_logger(__name__)
-
-_DDWAF_LOADED: bool = False
-version: str = "unloaded"
-
-
-def waf_module() -> Optional[type[WAF]]:
-    try:
-        import ddtrace.appsec._ddwaf.waf as waf_module
-
-        global _DDWAF_LOADED, version
-        _DDWAF_LOADED = True
-        version = waf_module.version()
-        return waf_module.DDWaf
-    except Exception:
-        LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
-        return None
+__all__ = ["DDWafRulesType", "DDWaf", "VERSION", "ddwaf_context_capsule"]
