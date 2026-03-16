@@ -13,11 +13,22 @@ LOG = get_logger(__name__)
 
 
 def start_profiler():
+    LOG.debug("[dd.profiling] start_profiler: initializing Profiler")
     if hasattr(bootstrap, "profiler"):
+        LOG.debug("[dd.profiling] start_profiler: stopping existing profiler before restart")
         bootstrap.profiler.stop()
     # Export the profiler so we can introspect it if needed
-    bootstrap.profiler = profiler.Profiler()
-    bootstrap.profiler.start()
+    try:
+        bootstrap.profiler = profiler.Profiler()
+        LOG.debug("[dd.profiling] start_profiler: Profiler() constructed successfully")
+    except Exception:
+        LOG.error("[dd.profiling] start_profiler: Profiler() construction failed", exc_info=True)
+        return
+    try:
+        bootstrap.profiler.start()
+        LOG.debug("[dd.profiling] start_profiler: profiler.start() completed successfully")
+    except Exception:
+        LOG.error("[dd.profiling] start_profiler: profiler.start() failed", exc_info=True)
 
 
 if platform.system() == "Linux" and not (sys.maxsize > (1 << 32)):
@@ -35,4 +46,5 @@ elif platform.system() == "Windows":
         "https://github.com/DataDog/dd-trace-py/issues"
     )
 else:
+    LOG.debug("[dd.profiling] sitecustomize: platform=%r, starting profiler", platform.system())
     start_profiler()
