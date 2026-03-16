@@ -134,9 +134,9 @@ def _traced_parse(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.graphql.integration_name)
+        span._set_attribute(COMPONENT, config.graphql.integration_name)
 
-        span._set_tag_str(_GRAPHQL_SOURCE, source_str)
+        span._set_attribute(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
 
 
@@ -154,9 +154,9 @@ def _traced_validate(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.graphql.integration_name)
+        span._set_attribute(COMPONENT, config.graphql.integration_name)
 
-        span._set_tag_str(_GRAPHQL_SOURCE, source_str)
+        span._set_attribute(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
         _set_span_errors(errors, span)
         return errors
@@ -184,13 +184,13 @@ def _traced_execute(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.graphql.integration_name)
+        span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         _set_span_operation_tags(span, document)
-        span._set_tag_str(_GRAPHQL_SOURCE, source_str)
+        span._set_attribute(_GRAPHQL_SOURCE, source_str)
 
         result = func(*args, **kwargs)
         if isinstance(result, ExecutionResult):
@@ -214,7 +214,7 @@ def _traced_query(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.graphql.integration_name)
+        span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
         # PERF: avoid setting via Span.set_tag
@@ -243,7 +243,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
         resource=info.field_name,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.graphql.integration_name)
+        span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         return next_middleware(root, info, **args)
 
@@ -321,9 +321,9 @@ def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
     span.error = 1
 
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
-    span._set_tag_str(ERROR_TYPE, exc_type_str)
+    span._set_attribute(ERROR_TYPE, exc_type_str)
     error_msgs = "\n".join([str(error) for error in errors])
-    span._set_tag_str(ERROR_MSG, error_msgs)
+    span._set_attribute(ERROR_MSG, error_msgs)
     for error in errors:
         attributes = {
             "message": error.message,
@@ -340,7 +340,7 @@ def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
             tb = buff.getvalue()
 
             attributes["stacktrace"] = tb
-            span._set_tag_str(ERROR_STACK, tb)
+            span._set_attribute(ERROR_STACK, tb)
 
             core.dispatch("span.exception", (span, exc_type, exc_val, exc_tb))
 
@@ -367,10 +367,10 @@ def _set_span_operation_tags(span, document):
 
     # operation_def.operation should never be None
     if _graphql_version < (3, 0):
-        span._set_tag_str(_GRAPHQL_OPERATION_TYPE, operation_def.operation)
+        span._set_attribute(_GRAPHQL_OPERATION_TYPE, operation_def.operation)
     else:
         # OperationDefinition.operation is an Enum in graphql-core>=3
-        span._set_tag_str(_GRAPHQL_OPERATION_TYPE, operation_def.operation.value)
+        span._set_attribute(_GRAPHQL_OPERATION_TYPE, operation_def.operation.value)
 
     if operation_def.name:
-        span._set_tag_str(_GRAPHQL_OPERATION_NAME, operation_def.name.value)
+        span._set_attribute(_GRAPHQL_OPERATION_NAME, operation_def.name.value)
