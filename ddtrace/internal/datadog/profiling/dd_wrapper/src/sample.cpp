@@ -308,9 +308,6 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
             }
         }
 
-        std::string_view name_sv = "<unknown>";
-        std::string_view filename_sv = "<unknown>";
-
         PyCodeObject* code = (node->tb_frame != nullptr) ? PyFrame_GetCode(node->tb_frame) : nullptr;
         if (code != nullptr) {
 #if defined(PY311_AND_LATER)
@@ -318,12 +315,9 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
 #else
             PyObject* name_obj = code->co_name;
 #endif
-            name_sv = unicode_to_string_view(name_obj);
-            filename_sv = unicode_to_string_view(code->co_filename);
+            push_frame(unicode_to_string_view(name_obj), unicode_to_string_view(code->co_filename), 0, lineno);
+            Py_DECREF(code);
         }
-
-        push_frame(name_sv, filename_sv, 0, lineno);
-        Py_XDECREF(code);
     }
 }
 

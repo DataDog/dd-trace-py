@@ -380,6 +380,11 @@ def _validate_non_negative_int(value: int) -> None:
         raise ValueError("value must be non negative")
 
 
+def _validate_positive_int(value: int) -> None:
+    if value < 1:
+        raise ValueError("value must be >= 1")
+
+
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
@@ -417,10 +422,11 @@ class ProfilingConfigException(DDConfig):
         "sampling_interval",
         default=100,
         help_type="Integer",
+        validator=_validate_positive_int,
         help=(
             "Average number of exceptions between samples (uses Poisson distribution). "
             "Lower values sample more frequently but add more overhead."
-            "This value must be >= 1. If set to less than 1, it will default to 100."
+            "This value must be >= 1."
         ),
     )
 

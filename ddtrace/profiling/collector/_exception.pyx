@@ -110,7 +110,7 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     try:
         _collect_exception(state, type(exception), exception, exception.__traceback__)
     except Exception:
-        LOG.exception("Failed to collect exception")
+        LOG.debug("Failed to collect exception")
     finally:
         _collecting = False
 
@@ -119,9 +119,10 @@ class ExceptionCollector(collector.Collector):
 
     def __init__(self, sampling_interval: int = None, collect_message: bool = None):
         super().__init__()
-
         raw_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
-        self._sampling_interval = raw_interval if raw_interval >= 1 else 100
+        assert raw_interval >= 1, "sampling_interval must be >= 1"
+        self._sampling_interval = raw_interval
+
         self._collect_message = collect_message if collect_message is not None else config.exception.collect_message
         self._monitoring_registered = False
 
