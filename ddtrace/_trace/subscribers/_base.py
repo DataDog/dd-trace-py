@@ -27,7 +27,8 @@ def _finish_span(
     Finish the span in the context.
     If no span is present, do nothing.
 
-    Reimplementing finish span here prevents circular import
+    Reimplementing finish span here prevents circular import. Once every integration
+    adopted events API, trace_handlers _finish_span should be completely removed.
     """
     span = ctx.span
     if not span:
