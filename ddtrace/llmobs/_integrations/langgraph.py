@@ -105,12 +105,11 @@ class LangGraphIntegration(BaseLLMIntegration):
             kind="agent" if operation == "graph" else "task",
             input_value=format_langchain_io(inputs),
             output_value=maybe_format_langchain_io(response)
-                         or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
+            or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
             name=invoked_node.get("name") or kwargs.get("name", span.name),
             span_links=current_span_links + span_links,
             agent_manifest=agent_manifest,
         )
-
 
     def _get_agent_manifest(self, agent, args, config: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Gets the agent manifest for a given agent at the end of its execution."""
