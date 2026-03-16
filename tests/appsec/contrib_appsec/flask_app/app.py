@@ -17,6 +17,7 @@ from tests.webclient import PingFilter
 
 
 tracer.configure(trace_processors=[PingFilter()])
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -206,7 +207,7 @@ def redirect(route: str, port: int):
             )
         else:
             request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
-        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+        with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
             payload = {"payload": f.read().decode(errors="ignore")}
     except Exception as e:
         import traceback
@@ -257,7 +258,12 @@ def redirect_httpx(route: str, port: int):
     try:
         with httpx.Client() as client:
             response = client.request(
-                method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                method,
+                full_url,
+                content=body,
+                headers=headers,
+                timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                follow_redirects=True,
             )
             payload = {"payload": response.text}
     except Exception as e:
@@ -288,7 +294,12 @@ def redirect_httpx_async(route: str, port: int):
         async def _request():
             async with httpx.AsyncClient() as client:
                 return await client.request(
-                    method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                    method,
+                    full_url,
+                    content=body,
+                    headers=headers,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    follow_redirects=True,
                 )
 
         response = asyncio.run(_request())
