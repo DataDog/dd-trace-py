@@ -356,8 +356,10 @@ class TestOptPlugin:
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
 
-            # Mark test as unskippable if needed
-            if _is_test_unskippable(item):
+            # Mark test as unskippable if needed (only when ITR skipping is enabled, to match v2 and avoid inflating
+            # telemetry). _discover_test runs at run time (from pytest_runtest_protocol_wrapper), so skippable_items
+            # is already populated when the SessionManager was created in pytest_load_initial_conftest.
+            if self.manager.is_skippable_test(test_ref) and _is_test_unskippable(item):
                 test.mark_unskippable()
 
             # Add custom tags if available

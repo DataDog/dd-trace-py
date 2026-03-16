@@ -141,6 +141,81 @@ class TestITR:
         assert session["content"]["meta"].get("test.itr.tests_skipping.type") is None
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") is None
 
+    def test_itr_unskippable_not_emitted_when_skipping_disabled(self, pytester: Pytester) -> None:
+        """Regression: unskippable tag and telemetry must not be emitted when ITR skipping is disabled."""
+        pytester.makepyfile(
+            test_foo="""
+            import pytest
+
+            @pytest.mark.skipif(False, reason='datadog_itr_unskippable')
+            def test_has_unskippable_marker():
+                '''Has datadog_itr_unskippable marker but skipping is disabled.'''
+                assert True
+        """
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_has_unskippable_marker"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=False, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        result.assertoutcome(passed=1)
+
+        test_event = event_capture.event_by_test_name("test_has_unskippable_marker")
+        assert test_event["content"]["meta"]["test.status"] == "pass"
+        # Must NOT have unskippable tag when skipping is disabled (avoids inflating itr_unskippable telemetry).
+        assert test_event["content"]["meta"].get("test.itr.unskippable") is None
+        assert test_event["content"]["meta"].get("test.itr.forced_run") is None
+
+    def test_itr_unskippable_not_emitted_when_test_not_in_skippable_list(self, pytester: Pytester) -> None:
+        """Regression: unskippable tag and telemetry must not be emitted when the test is not in skippable_items.
+
+        Even with skipping_enabled=True, we only mark unskippable when is_skippable_test(test_ref) is True (test or
+        suite in skippable_items). If the test is not in the list, we must not emit itr_unskippable.
+        """
+        pytester.makepyfile(
+            test_foo="""
+            import pytest
+
+            @pytest.mark.skipif(False, reason='datadog_itr_unskippable')
+            def test_has_unskippable_marker_but_not_skippable():
+                '''Has unskippable marker but not in skippable_items (e.g. new test).'''
+                assert True
+        """
+        )
+
+        # Skipping is enabled but this test is NOT in skippable_items (e.g. new test not in ITR response).
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        result.assertoutcome(passed=1)
+
+        test_event = event_capture.event_by_test_name("test_has_unskippable_marker_but_not_skippable")
+        assert test_event["content"]["meta"]["test.status"] == "pass"
+        # Must NOT have unskippable when test is not in skippable_items (is_skippable_test returns False).
+        assert test_event["content"]["meta"].get("test.itr.unskippable") is None
+        assert test_event["content"]["meta"].get("test.itr.forced_run") is None
+
     def test_itr_one_unskippable_test(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
         # Create a test file with multiple tests
