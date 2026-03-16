@@ -47,7 +47,7 @@ def _create_llm_event(
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=kwargs.get("model", ""),
-        integration=integration,
+        llmobs_integration=integration,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
         interface_type="chat_model",

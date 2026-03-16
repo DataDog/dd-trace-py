@@ -41,7 +41,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._meta.pop(SPAN_KIND, None)
 
         # Set base span tags (provider-specific)
-        event.integration._set_base_span_tags(
+        event.llmobs_integration._set_base_span_tags(
             span,
             model=event.model,
             provider=event.provider,
@@ -50,12 +50,12 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         )
 
         # Proxy detection
-        base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
-        if event.integration._is_instrumented_proxy_url(base_url):
+        base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
+        if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
 
         # LLMObs integration marker
-        if event.integration.llmobs_enabled:
+        if event.llmobs_integration.llmobs_enabled:
             span._set_ctx_item(_INTEGRATION, event.component)
 
     @classmethod
@@ -70,7 +70,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # exhausting the stream and setting the response.
         event: LlmRequestEvent = ctx.event
         response = ctx.get_item("response")
-        event.integration.llmobs_set_tags(
+        event.llmobs_integration.llmobs_set_tags(
             ctx.span,
             args=[],
             kwargs=event.request_kwargs,
