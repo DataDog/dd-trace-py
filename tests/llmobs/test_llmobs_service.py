@@ -13,6 +13,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
@@ -259,9 +260,9 @@ def test_ml_app_uses_global_as_default(llmobs):
         assert get_llmobs_ml_app(span) == "unnamed-ml-app"
 
 
-def test_start_span_writes_ml_app_to_context_meta(llmobs):
+def test_start_span_writes_ml_app_to_ctx_item(llmobs):
     with llmobs.workflow(ml_app="my-app") as span:
-        assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+        assert span._get_ctx_item(ML_APP) == "my-app"
 
 
 def test_start_span_writes_session_id_to_context_meta(llmobs):
@@ -269,11 +270,11 @@ def test_start_span_writes_session_id_to_context_meta(llmobs):
         assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session"
 
 
-def test_child_span_inherits_ml_app_from_context_meta(llmobs):
+def test_child_span_inherits_ml_app_from_parent_ctx_item(llmobs):
     with llmobs.workflow(ml_app="my-app"):
         with llmobs.task() as child:
             assert get_llmobs_ml_app(child) == "my-app"
-            assert child.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+            assert child._get_ctx_item(ML_APP) == "my-app"
 
 
 def test_child_span_inherits_session_id_from_context_meta(llmobs):

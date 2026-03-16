@@ -67,6 +67,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
@@ -1804,8 +1805,17 @@ class LLMObs(Service):
         return None
 
     def _propagate_trace_details(self, span: Span) -> None:
-        """Inherit ml_app and session_id from context._meta onto the new span, falling back to global config."""
-        ml_app = span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+        """Inherit ml_app and session_id onto the new span.
+        ml_app precedence: parent span's ml_app > distributed context > global config > service
+        """
+        parent = span._parent
+        ml_app = (
+            (parent._get_ctx_item(ML_APP) if parent else None)
+            or span.context._meta.get(PROPAGATED_ML_APP_KEY)
+            or config._llmobs_ml_app
+            or config.service
+        )
+        span._set_ctx_item(ML_APP, ml_app)
         session_id = span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
         _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id or None)
 
@@ -1845,9 +1855,11 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        # override values to context._meta so child spans inherit them via _propagate_trace_details
+        # Store explicit ml_app on span ctx item so child spans inherit it via _propagate_trace_details.
+        # We intentionally do NOT write to span.context._meta here because context._meta is shared
+        # across all spans in the trace, which would cause sibling spans to incorrectly inherit this value.
         if ml_app is not None:
-            span.context._meta[PROPAGATED_ML_APP_KEY] = ml_app
+            span._set_ctx_item(ML_APP, ml_app)
         if session_id is not None:
             span.context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         _annotate_llmobs_span_data(
