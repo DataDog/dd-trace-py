@@ -3,6 +3,7 @@ import json
 from typing import Any
 from typing import Optional
 from typing import Union
+from typing import cast
 from weakref import WeakKeyDictionary
 
 from ddtrace.internal import core
@@ -437,13 +438,13 @@ class LangChainIntegration(BaseLLMIntegration):
             kind="workflow" if is_workflow else "llm",
             model_name=span.get_tag(MODEL) or "",
             model_provider=span.get_tag(PROVIDER) or "",
-            **{input_key: input_messages},
+            **cast(dict[str, Any], {input_key: input_messages}),
         )
 
         self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
-            _annotate_llmobs_span_data(span, **{output_key: [Message(content="")]})
+            _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
         if stream:
@@ -461,7 +462,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     TOTAL_TOKENS_METRIC_KEY: total_tokens,
                 }
 
-        _annotate_llmobs_span_data(span, metrics=metrics, **{output_key: message_content})
+        _annotate_llmobs_span_data(span, metrics=metrics, **cast(dict[str, Any], {output_key: message_content}))
 
     def _llmobs_set_tags_from_chat_model(
         self,
@@ -508,18 +509,18 @@ class LangChainIntegration(BaseLLMIntegration):
             kind="workflow" if is_workflow else "llm",
             model_name=span.get_tag(MODEL) or "",
             model_provider=span.get_tag(PROVIDER) or "",
-            **{input_key: input_messages},
+            **cast(dict[str, Any], {input_key: input_messages}),
         )
 
         if span.error:
-            _annotate_llmobs_span_data(span, **{output_key: [Message(content="")]})
+            _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
             _annotate_llmobs_span_data(
-                span, **{output_key: [Message(content=content, role=ROLE_MAPPING.get(role, ""))]}
+                span, **cast(dict[str, Any], {output_key: [Message(content=content, role=ROLE_MAPPING.get(role, ""))]})
             )
             return
 
@@ -581,7 +582,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: total_tokens,
             }
 
-        _annotate_llmobs_span_data(span, metrics=metrics, **{output_key: output_messages})
+        _annotate_llmobs_span_data(span, metrics=metrics, **cast(dict[str, Any], {output_key: output_messages}))
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> list[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
