@@ -108,7 +108,7 @@ class Sample
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
-    void clear_buffers();
+    void clear();
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
