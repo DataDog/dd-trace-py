@@ -28,6 +28,8 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 Result<void>
 ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
+    static const std::string INVALID_STRING;
+
     // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
@@ -48,8 +50,14 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
-            const auto& frame_name = echion.string_table().lookup(frame.name)->get();
+            auto maybe_frame_name = echion.string_table().lookup(frame.name);
+#ifdef PROFILING_ASSERTIONS
+            if (!maybe_frame_name) {
+                std::cerr << "String Table lookup for uvloop frame name failed" << std::endl;
+            }
+#endif
 
+            const auto& frame_name = maybe_frame_name ? maybe_frame_name->get() : INVALID_STRING;
             bool is_boundary_frame = false;
 
             if (using_uvloop) {
@@ -62,7 +70,13 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 #else
                 constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
                 constexpr std::string_view run = "run";
-                auto filename = echion.string_table().lookup(frame.filename)->get();
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+#ifdef PROFILING_ASSERTIONS
+                if (!maybe_filename) {
+                    std::cerr << "String Table lookup for uvloop file name failed" << std::endl;
+                }
+#endif
+                const auto& filename = maybe_filename ? maybe_filename->get() : INVALID_STRING;
                 auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
                 is_boundary_frame = is_uvloop && (frame_name == run);
 #endif
@@ -78,7 +92,14 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 // can use the filename to identify the "_run" Frame.
                 constexpr std::string_view asyncio_events_py = "asyncio/events.py";
                 constexpr std::string_view _run = "_run";
-                auto filename = echion.string_table().lookup(frame.filename)->get();
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+#ifdef PROFILING_ASSERTIONS
+                static const std::string INVALID_FILE_NAME;
+                if (!maybe_filename) {
+                    std::cerr << "String Table lookup for uvloop file name failed" << std::endl;
+                }
+#endif
+                const auto& filename = maybe_filename ? maybe_filename->get() : INVALID_FILE_NAME;
                 auto is_asyncio = filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
                 is_boundary_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
 #endif
