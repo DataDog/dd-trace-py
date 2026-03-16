@@ -126,7 +126,7 @@ def set_query_metadata(span, cmd):
         nq = normalize_filter(cmd.query)
         q = json.dumps(nq)
         tag_query = q
-        if not config.pymongo.get("mongodb_obfuscation", True):
+        if config.pymongo.mongodb_obfuscation:
             try:
                 tag_query = json.dumps(cmd.query)
             except Exception:
