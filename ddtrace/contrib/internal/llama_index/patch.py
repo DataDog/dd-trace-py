@@ -110,8 +110,7 @@ def _create_llm_event(
     return LlmRequestEvent(
         component="llama_index",
         service=int_service(None, integration.integration_config),
-        resource="%s.%s" % (instance.__class__.__name__, func.__name__),
-        integration_name="llama_index",
+        resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="llama_index",
         model=model,
         integration=integration,

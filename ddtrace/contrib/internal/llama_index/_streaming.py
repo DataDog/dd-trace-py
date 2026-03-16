@@ -11,18 +11,26 @@ log = get_logger(__name__)
 
 
 class _BaseLlamaIndexStreamHandler:
-    """Shared finalization logic for sync and async LlamaIndex stream handlers."""
+    """Shared finalization logic for sync and async LlamaIndex stream handlers.
+
+    This is a mixin that expects to be combined with StreamHandler or
+    AsyncStreamHandler, which provide integration, primary_span, request_args,
+    request_kwargs, and chunks attributes via BaseStreamHandler.__init__.
+    """
+
+    _is_chat: bool = True
 
     def finalize_stream(self, exception: Optional[Exception] = None) -> None:
+        """Process accumulated chunks and finish the span."""
         _process_finished_stream(
-            self.integration,
-            self.primary_span,
-            self.request_args,
-            self.request_kwargs,
-            self.chunks,
-            is_chat=getattr(self, "_is_chat", True),
+            self.integration,  # type: ignore[attr-defined]
+            self.primary_span,  # type: ignore[attr-defined]
+            self.request_args,  # type: ignore[attr-defined]
+            self.request_kwargs,  # type: ignore[attr-defined]
+            self.chunks,  # type: ignore[attr-defined]
+            is_chat=self._is_chat,
         )
-        self.primary_span.finish()
+        self.primary_span.finish()  # type: ignore[attr-defined]
 
 
 class LlamaIndexStreamHandler(_BaseLlamaIndexStreamHandler, StreamHandler):
@@ -36,18 +44,21 @@ class LlamaIndexAsyncStreamHandler(_BaseLlamaIndexStreamHandler, AsyncStreamHand
 
 
 def handle_streamed_response(integration, resp, args, kwargs, span, is_chat=True):
+    """Wrap a sync LlamaIndex stream for tracing."""
     handler = LlamaIndexStreamHandler(integration, span, args, kwargs)
-    handler._is_chat = is_chat
+    handler._is_chat = bool(is_chat)
     return make_traced_stream(resp, handler)
 
 
 def handle_async_streamed_response(integration, resp, args, kwargs, span, is_chat=True):
+    """Wrap an async LlamaIndex stream for tracing."""
     handler = LlamaIndexAsyncStreamHandler(integration, span, args, kwargs)
-    handler._is_chat = is_chat
+    handler._is_chat = bool(is_chat)
     return make_traced_stream(resp, handler)
 
 
 def _process_finished_stream(integration, span, args, kwargs, streamed_chunks, is_chat=True):
+    """Process chunks from a finished stream and set LLMObs tags on the span."""
     try:
         resp = _construct_response(streamed_chunks, is_chat)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
