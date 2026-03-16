@@ -36,7 +36,7 @@ class PromptManager:
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
-        ff_prompt_serving: bool = False,
+        ff_prompt_serving: bool = True,
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout

@@ -430,7 +430,7 @@ def _build_span_meta(
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _ff_prompt_serving = False
+    _ff_prompt_serving = True
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
@@ -961,7 +961,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
-        prompt_serving: Optional[str] = None,
+        prompt_serving: Optional[str] = "local",
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:

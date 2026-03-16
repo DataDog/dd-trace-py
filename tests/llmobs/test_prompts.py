@@ -63,6 +63,7 @@ def _reset_prompt_state():
     LLMObs.clear_prompt_cache(hot=True, warm=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
+    LLMObs._ff_prompt_serving = False
     from ddtrace.internal.settings.openfeature import config as ffe_config
 
     ffe_config.experimental_flagging_provider_enabled = False
