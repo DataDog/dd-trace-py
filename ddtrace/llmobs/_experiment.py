@@ -1915,7 +1915,7 @@ class Experiment:
                     pending_evals.extend(metrics)
                     if len(pending_evals) >= flush_threshold:
                         try:
-                            self._llmobs_instance._dne_client.experiment_eval_post(
+                            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
                                 cast(str, self._id),
                                 list(pending_evals),
                                 convert_tags_dict_to_list(self._tags),
@@ -1924,7 +1924,7 @@ class Experiment:
                             logger.debug("Failed to flush pending eval metrics", exc_info=True)
                         else:
                             pending_evals.clear()
-                            self._llmobs_instance.flush()
+                            self._llmobs_instance.flush()  # type: ignore[union-attr]
             return task_result, evaluation
 
         coros = [_process_and_evaluate(idx_record) for idx_record in enumerate(subset_dataset)]
@@ -2068,7 +2068,7 @@ class Experiment:
                     )
                 )
             if metrics:
-                self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                self._llmobs_instance._dne_client.experiment_eval_post(
                     cast(str, self._id),
                     metrics,
                     convert_tags_dict_to_list(self._tags),
