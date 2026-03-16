@@ -72,8 +72,8 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
@@ -1816,8 +1816,10 @@ class LLMObs(Service):
             or config.service
         )
         span._set_ctx_item(ML_APP, ml_app)
-        session_id = span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
-        _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id or None)
+        session_id = parent._get_ctx_item(SESSION_ID) if parent else None
+        if session_id is not None:
+            span._set_ctx_item(SESSION_ID, session_id)
+        _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id)
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
@@ -1861,7 +1863,7 @@ class LLMObs(Service):
         if ml_app is not None:
             span._set_ctx_item(ML_APP, ml_app)
         if session_id is not None:
-            span.context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
+            span._set_ctx_item(SESSION_ID, session_id)
         _annotate_llmobs_span_data(
             span,
             kind=operation_kind,
