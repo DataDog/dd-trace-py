@@ -1,7 +1,7 @@
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <memory>
+#include <random>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -137,11 +137,13 @@ class heap_tracker_t
     /* Heap profiler sampling interval */
     uint64_t sample_size;
 
-    /* Per-instance PRNG state used by next_sample_size_no_cpython.
+    /* Per-instance PRNG engine used by next_sample_size_no_cpython.
      * Declared before current_sample_size so it is initialised first in the
      * constructor member-initialiser list, allowing next_sample_size_no_cpython
-     * to be called safely during current_sample_size initialisation. */
-    uint32_t rng_seed;
+     * to be called safely during current_sample_size initialisation.
+     * std::minstd_rand stores all state in the object (no global locks), so it
+     * is fork-safe unlike rand(). */
+    std::minstd_rand rng;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
@@ -196,41 +198,26 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 uint32_t
 heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 {
-    /* We want to draw a sampling target from an exponential distribution with
-       average sample_size. We use the standard technique of inverse transform
-       sampling, where we take uniform randomness, which is easy to get, and
-       transform it by the inverse of the cumulative distribution function for
-       the distribution we want to sample.
-       See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
+    /* Draw a sampling target from an exponential distribution with mean
+       sample_size. std::exponential_distribution handles the inverse-transform
+       sampling internally.
 
-    /* Note: We use a xorshift32 PRNG instead of rand because rand
-       uses a global mutex internally (in glibc), which can cause deadlock
-       after fork if another thread held that lock at the time of the fork.
-       xorshift32 is fork-safe (pure arithmetic, no locks), O(1), and stores
-       its state in the per-instance rng_seed field rather than in a global.
-       The seed must be non-zero for xorshift32 to produce a non-trivial
-       sequence; the constructor ensures this invariant. */
-    rng_seed ^= rng_seed << 13;
-    rng_seed ^= rng_seed >> 17;
-    rng_seed ^= rng_seed << 5;
+       Note: We use std::minstd_rand instead of rand() because rand() uses a
+       global mutex in glibc, which can deadlock after fork if another thread
+       held that lock at fork time. std::minstd_rand stores all state in the
+       object (no global locks), so it is fork-safe.
 
-    /* Get a value between (0, 1) — strictly positive to avoid log2(0) = -inf,
-       which would produce +inf and undefined behavior when cast to uint32_t.
-       rng_seed is in [1, UINT32_MAX] after the xorshift step, so adding 1.0
-       shifts to (1, UINT32_MAX+1] and dividing by UINT32_MAX+2.0 gives (0, 1). */
-    double q = ((double)rng_seed + 1.0) / ((double)UINT32_MAX + 2.0);
-    /* Get a value between ]-inf, 0[, more likely close to 0 */
-    /* NOTE: technically log2 is not async signal safe per Linux man page,
-       but it doesn't seem to use locks internally. So we assume it's safe to
-       call it from heap_tracker_t::postfork_child() */
-    double log_val = log2(q);
-    return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
+       NOTE: std::exponential_distribution calls log() internally. log() is not
+       listed as async-signal-safe by POSIX, but does not use locks in practice.
+       We assume it is safe to call from heap_tracker_t::postfork_child(). */
+    std::exponential_distribution<double> dist(1.0 / (sample_size + 1));
+    return (uint32_t)dist(rng);
 }
 
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , rng_seed(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // non-zero seed
+  , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
