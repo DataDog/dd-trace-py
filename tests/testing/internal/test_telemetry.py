@@ -10,6 +10,7 @@ from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
 from ddtrace.testing.internal.telemetry import ErrorType
+from ddtrace.testing.internal.telemetry import EventType
 from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
@@ -173,6 +174,27 @@ class TestTelemetry:
         # count metric, not distribution metric, for inexplicable reasons
         assert telemetry_api.writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_skippable_tests.response_suites", 42, ())
+        ]
+
+    def test_record_itr_skipped(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_itr_skipped(EventType.TEST)
+
+        assert telemetry_api.writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "itr_skipped", 1, (("event_type", "test"),))
+        ]
+
+    def test_record_itr_unskippable(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_itr_unskippable(EventType.TEST)
+
+        assert telemetry_api.writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "itr_unskippable", 1, (("event_type", "test"),))
+        ]
+
+    def test_record_itr_forced_run(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_itr_forced_run(EventType.TEST)
+
+        assert telemetry_api.writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "itr_forced_run", 1, (("event_type", "test"),))
         ]
 
     def test_record_settings_all_enabled(self, telemetry_api: TelemetryAPI) -> None:
