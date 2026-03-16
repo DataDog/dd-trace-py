@@ -1,6 +1,5 @@
 from datetime import datetime
 import typing as t
-from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.flare.flare import Flare
@@ -23,67 +22,72 @@ class TracerFlareState:
         self.current_request_start: Optional[datetime] = None
 
 
+def _content_as_list(content: t.Any) -> list:
+    """Normalize payload content to a list (handles both list and dict from tests)."""
+    return content if isinstance(content, list) else [content]
+
+
 def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequence[Payload]) -> None:
     for payload in payloads:
         if payload.metadata is None:
-            log.debug("No metadata for tracer flare payload")
+            log.debug("Flare: flare payload missing metadata, path=%r", payload.path)
+        elif isinstance(payload.metadata.id, str) and payload.metadata.id.lower() == "configuration_order":
             continue
 
         product_type = payload.metadata.product_name
-        items = payload.content if isinstance(payload.content, list) else [payload.content]
+        items = _content_as_list(payload.content)
         for item in items:
             if not isinstance(item, dict):
-                log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(item)))
                 continue
 
             flare_action = flare.handle_remote_config_data(item, product_type)
             if flare_action.is_set():
                 if state.current_request_start is not None:
-                    log.warning(
-                        "There is already a tracer flare job started at %s. Skipping new request.",
-                        str(state.current_request_start),
+                    log.debug(
+                        "Flare: collection already in progress (started %s), ignoring request path=%r",
+                        state.current_request_start,
+                        payload.path,
                     )
                     continue
-                log.info("Preparing tracer flare")
-                log_level = flare_action.level
-                if log_level is None:
-                    log.warning("Received set flare action without log level")
+                if flare_action.level is None or not isinstance(flare_action.level, str):
+                    log.warning(
+                        "Flare: received set flare action without log level. Level: %s, Case ID: %s. Skipping...",
+                        flare_action.level,
+                        flare_action.case_id,
+                    )
                     continue
-                if flare.prepare(log_level):
+                if flare.prepare(flare_action.level):
                     state.current_request_start = datetime.now()
 
             elif flare_action.is_send():
                 if state.current_request_start is None:
-                    log.info("Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG")
                     if flare.prepare("DEBUG"):
                         state.current_request_start = datetime.now()
                     else:
-                        log.warning("Failed to prepare tracer flare. Skipping new request.")
                         continue
-
-                log.info("Generating and sending tracer flare")
                 flare.revert_configs()
                 flare.send(flare_action)
                 state.current_request_start = None
             elif flare_action.is_unset():
-                log.info("Reverting tracer flare configurations and cleaning up any generated files")
                 flare.revert_configs()
                 flare.clean_up_files()
                 state.current_request_start = None
             else:
-                log.warning("Received unexpected product type for tracer flare: %s", product_type)
+                log.warning(
+                    "Flare: received unexpected product type for tracer flare: %s. Case ID: %r. Skipping...",
+                    product_type,
+                    flare_action.case_id,
+                )
 
 
 class TracerFlareCallback(RCCallback):
     """Remote config callback for tracer flare requests.
 
-    The periodic() method performs stale flare checks at every polling operation.
-    The __call__() method processes tracer flare payloads when present.
+    periodic() runs stale flare checks each poll; __call__() processes AGENT_CONFIG / AGENT_TASK payloads.
     """
 
     def __init__(
         self,
-        callback: Callable[[Flare, dict, bool], None],
         flare: Flare,
         state: TracerFlareState,
         stale_duration_mins: int = DEFAULT_STALE_FLARE_DURATION_MINS,
@@ -91,44 +95,38 @@ class TracerFlareCallback(RCCallback):
         """Initialize the tracer flare callback.
 
         Args:
-            callback: Handler function for flare operations
             flare: Flare instance for generating flares
             state: Shared state for tracking flare requests
             stale_duration_mins: Minutes before a flare request is considered stale
         """
-        self._callback = callback
         self._flare = flare
         self._state = state
         self._stale_duration_secs = stale_duration_mins * 60
 
     def _has_stale_flare(self) -> bool:
         """Check if the current flare request is stale."""
-        if self._state.current_request_start:
-            curr = datetime.now()
-            flare_age = (curr - self._state.current_request_start).total_seconds()
-            return flare_age >= self._stale_duration_secs
-        return False
+        if not self._state.current_request_start:
+            return False
+        age_secs = (datetime.now() - self._state.current_request_start).total_seconds()
+        return age_secs >= self._stale_duration_secs
 
     def periodic(self) -> None:
         """Periodic method called at every polling operation.
 
         Checks for stale flare requests and cleans them up if necessary.
         """
-        if self._has_stale_flare():
-            log.info(
-                "Tracer flare request started at %s is stale, reverting "
-                "logger configurations and cleaning up resources now",
-                self._state.current_request_start,
-            )
-            self._state.current_request_start = None
-            self._callback(self._flare, {}, True)
+        if not self._has_stale_flare():
+            return
+        log.debug(
+            "Flare: flare collection timed out (started %s), stopping collection and cleaning up",
+            self._state.current_request_start,
+        )
+        self._state.current_request_start = None
+        self._flare.revert_configs()
+        self._flare.clean_up_files()
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
-        """Process tracer flare configuration payloads.
-
-        Args:
-            payloads: Sequence of configuration payloads to process
-        """
+        """Process AGENT_CONFIG (start) and AGENT_TASK (generate/send) payloads."""
         if not payloads:
             return
 
@@ -156,25 +154,3 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             stale_age = self.stale_tracer_flare_num_mins * 60
             return flare_age >= stale_age
         return False
-
-    def _get_data_from_connector_and_exec(self, _=None):
-        if self.has_stale_flare():
-            log.info(
-                "Tracer flare request started at %s is stale, reverting "
-                "logger configurations and cleaning up resources now",
-                self.current_request_start,
-            )
-            self.current_request_start = None
-            self.flare.revert_configs()
-            self.flare.clean_up_files()
-            return
-
-        data = self._data_connector.read()
-        if not data:
-            log.debug("No data received from data connector")
-            return
-
-        state = TracerFlareState()
-        state.current_request_start = self.current_request_start
-        _process_payloads(self.flare, state, data)
-        self.current_request_start = state.current_request_start
