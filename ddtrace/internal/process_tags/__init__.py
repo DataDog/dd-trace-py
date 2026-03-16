@@ -92,7 +92,7 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
 def _initialize_process_tags() -> None:
     global process_tags
     global process_tags_list
-    process_tags, process_tags_list = generate_process_tags()
+    process_tags, process_tags_list = generate_process_tags()  # type: ignore
 
 
 def _recompute_base_hash() -> None:
