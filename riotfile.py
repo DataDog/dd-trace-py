@@ -3037,7 +3037,7 @@ venv = Venv(
         Venv(
             name="llama_index",
             command="pytest {cmdargs} tests/contrib/llama_index",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.10", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
