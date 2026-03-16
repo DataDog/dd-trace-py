@@ -63,6 +63,31 @@ class PromptManager:
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry."""
+        if self._ff_prompt_serving:
+            return self._get_prompt_ff(prompt_id, label, fallback)
+        return self._get_prompt_http(prompt_id, label, fallback)
+
+    def _get_prompt_ff(
+        self,
+        prompt_id: str,
+        label: Optional[str] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """Retrieve a prompt template via feature flag evaluation."""
+        ff_prompt = self._fetch_from_ff(prompt_id, label)
+        if ff_prompt is not None:
+            telemetry.record_prompt_source("ff")
+            return ff_prompt
+
+        return self._get_prompt_http(prompt_id, label, fallback)
+
+    def _get_prompt_http(
+        self,
+        prompt_id: str,
+        label: Optional[str] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """Retrieve a prompt template from cache or registry."""
         key = cache_key(prompt_id, label)
 
         if self._cache_enabled:
@@ -75,14 +100,6 @@ class PromptManager:
             prompt = self._try_cache(self._warm_cache, key, prompt_id, label, "warm_cache", populate_hot=True)
             if prompt is not None:
                 return prompt
-
-        # Try FF evaluation (local OpenFeature)
-        if self._ff_prompt_serving:
-            ff_prompt = self._fetch_from_ff(prompt_id, label)
-            if ff_prompt is not None:
-                self._update_caches(key, ff_prompt)
-                telemetry.record_prompt_source("ff")
-                return ff_prompt
 
         # Try sync fetch from registry
         fetched_prompt, reason = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
@@ -124,6 +141,8 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
+        if self._ff_prompt_serving:
+            return self._fetch_from_ff(prompt_id, label)
         key = cache_key(prompt_id, label)
         prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
         return prompt
@@ -232,11 +251,6 @@ class PromptManager:
 
     def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Refresh a prompt in the background."""
-        if self._ff_prompt_serving:
-            ff_prompt = self._fetch_from_ff(prompt_id, label)
-            if ff_prompt is not None:
-                self._update_caches(key, ff_prompt)
-                return
         self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
 
     def _wait_for_refreshes(self) -> None:
