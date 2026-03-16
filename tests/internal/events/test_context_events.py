@@ -1,7 +1,9 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
 import sys
+import types
 from typing import Any
+from typing import Optional
 
 import pytest
 
@@ -30,7 +32,10 @@ def test_basic_context_event():
     def on_context_started(ctx: core.ExecutionContext):
         called.append(f"{TestContextEvent.event_name}.started")
 
-    def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
+    def on_context_ended(
+        ctx: core.ExecutionContext,
+        err_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]],
+    ):
         called.append(f"{TestContextEvent.event_name}.ended")
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
@@ -107,4 +112,68 @@ def test_context_event_event_field():
 
     assert called == [0, "toto", "test"], (
         "event field values should include InitVar payload and context attrs; got %r" % (called,)
+    )
+
+
+def test_context_with_event_auto_enter_and_finish():
+    called = []
+
+    @dataclass
+    class TestContextEvent(Event):
+        event_name = "test.event"
+
+    def on_context_started(ctx: core.ExecutionContext):
+        called.append(f"{TestContextEvent.event_name}.started")
+
+    def on_context_ended(
+        ctx: core.ExecutionContext,
+        err_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]],
+    ):
+        called.append(f"{TestContextEvent.event_name}.ended")
+
+    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
+    core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
+
+    ctx = core.context_with_event(TestContextEvent(), enter=True)
+    assert ctx.identifier == TestContextEvent.event_name
+    ctx.finish()
+
+    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"], (
+        "auto-entered context should emit started then ended handlers in order; got %r" % (called,)
+    )
+
+
+def test_context_with_event_auto_enter_and_finish_with_error():
+    called = []
+
+    @dataclass
+    class TestContextEvent(Event):
+        event_name = "test.event"
+
+    def on_context_started(ctx: core.ExecutionContext):
+        called.append(f"{TestContextEvent.event_name}.started")
+
+    def on_context_ended(
+        ctx: core.ExecutionContext,
+        err_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]],
+    ):
+        called.append(f"{TestContextEvent.event_name}.ended")
+        assert err_info[0] is ValueError
+        assert isinstance(err_info[1], ValueError)
+        assert str(err_info[1]) == "boom"
+        assert err_info[2] is not None
+
+    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
+    core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
+
+    ctx = core.context_with_event(TestContextEvent(), enter=True)
+    assert ctx.identifier == TestContextEvent.event_name
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        ctx.finish(sys.exc_info())
+
+    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"], (
+        "auto-entered context should emit started then ended handlers in order when finished with error; got %r"
+        % (called,)
     )

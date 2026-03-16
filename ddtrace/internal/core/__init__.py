@@ -195,6 +195,12 @@ class ExecutionContext(Generic[EventType]):
             else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
         )
 
+    def finish(
+        self,
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]] = (None, None, None),
+    ) -> bool:
+        return self.__exit__(*exc_info)
+
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
@@ -309,10 +315,16 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(
-    event: "EventType", parent=None, context_name_override: Optional[str] = None
+    event: "EventType",
+    parent=None,
+    context_name_override: Optional[str] = None,
+    enter: bool = False,
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
-    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
+    context = _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
+    if enter:
+        context.__enter__()
+    return context
 
 
 def add_suppress_exception(exc_type: type) -> None:
