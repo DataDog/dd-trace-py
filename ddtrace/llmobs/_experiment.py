@@ -937,7 +937,7 @@ class Dataset:
                 "input_data, expected_output, metadata, or tags to update"
             )
         # If tags are provided, delegate to replace_tags for that record
-        tags = record.pop("tags", None) if "tags" in record else None
+        tags = record.get("tags", None) if "tags" in record else None
         if tags is not None:
             self.replace_tags(index, tags)
 
