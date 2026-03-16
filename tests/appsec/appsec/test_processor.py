@@ -10,7 +10,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import waf_module
+from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -34,7 +34,6 @@ except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
 
-DDWaf = waf_module()
 
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
@@ -784,7 +783,7 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
-    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
@@ -814,7 +813,7 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
 
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_waf_action_null_ephemeral_addresses(mock_run):
-    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 

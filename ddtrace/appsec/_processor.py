@@ -19,8 +19,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
+from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
@@ -107,12 +107,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
     @property
     def enabled(self) -> bool:
-        return isinstance(self._ddwaf, WAF)
+        return isinstance(self._ddwaf, DDWaf)
 
     def __post_init__(self) -> None:
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-        self._ddwaf: Union[WAF, _DDWafNotInitialized, None] = _DDWAF_NOT_INITIALIZED
+        self._ddwaf: Union[DDWaf, _DDWafNotInitialized, None] = _DDWAF_NOT_INITIALIZED
         self._rules: Optional[bytes] = None
         try:
             with open(self.rule_filename, "br") as f:
@@ -140,13 +140,10 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
-                from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
-
-                DDWaf = waf_module()
-                if DDWaf is None:
-                    log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
-                    self._ddwaf = None
-                    return
+                # if DDWaf is None:
+                #     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
+                #     self._ddwaf = None
+                #     return
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
@@ -159,7 +156,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._update_required()
 
     def _update_required(self) -> None:
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
         self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
@@ -174,7 +171,7 @@ class AppSecSpanProcessor(SpanProcessor):
     ) -> bool:
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return False
         result = False
         if asm_config._asm_static_rule_file is not None:
@@ -209,7 +206,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
 
         if span.span_type not in asm_config._asm_processed_span_types:
@@ -281,7 +278,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return None
 
         if _asm_request_context.get_blocked():
@@ -411,7 +408,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
         if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()

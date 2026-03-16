@@ -1,28 +1,11 @@
-from typing import Optional
+"""ctypes bindings for AppSec's security library: libddwaf
 
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
+Importing this module will load `libddwaf.so` as a side-effect.
+"""
+
+from ddtrace.appsec._ddwaf.waf import DDWaf
+from ddtrace.appsec._ddwaf.waf import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-from ddtrace.appsec._utils import DDWaf_info
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.internal.logger import get_logger
 
 
-__all__ = ["WAF", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
-
-LOGGER = get_logger(__name__)
-
-_DDWAF_LOADED: bool = False
-version: str = "unloaded"
-
-
-def waf_module() -> Optional[type[WAF]]:
-    try:
-        import ddtrace.appsec._ddwaf.waf as waf_module
-
-        global _DDWAF_LOADED, version
-        _DDWAF_LOADED = True
-        version = waf_module.version()
-        return waf_module.DDWaf
-    except Exception:
-        LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
-        return None
+__all__ = ["DDWaf", "ddwaf_context_capsule", "DDWafRulesType"]
