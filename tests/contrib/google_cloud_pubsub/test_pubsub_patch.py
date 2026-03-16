@@ -1,3 +1,5 @@
+from google.cloud.pubsub_v1.publisher.client import Client
+
 from ddtrace.contrib.internal.google_cloud_pubsub.patch import get_version
 from ddtrace.contrib.internal.google_cloud_pubsub.patch import patch
 from ddtrace.contrib.internal.google_cloud_pubsub.patch import unpatch
@@ -12,16 +14,10 @@ class TestGoogleCloudPubSubPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, pubsub_v1):
-        from google.cloud.pubsub_v1.publisher.client import Client
-
         self.assert_wrapped(Client.publish)
 
     def assert_not_module_patched(self, pubsub_v1):
-        from google.cloud.pubsub_v1.publisher.client import Client
-
         self.assert_not_wrapped(Client.publish)
 
     def assert_not_module_double_patched(self, pubsub_v1):
-        from google.cloud.pubsub_v1.publisher.client import Client
-
         self.assert_not_double_wrapped(Client.publish)

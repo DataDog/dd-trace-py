@@ -1332,27 +1332,21 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
-def _on_pubsub_send_start(
-    ctx: core.ExecutionContext,
-    project_id: str,
-    topic_id: str,
-    kwargs: dict,
-) -> None:
+def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
     span = ctx.span
 
-    span._set_tag_str(COMPONENT, config.google_cloud_pubsub.integration_name)
-    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-    span._set_tag_str("gcloud.project_id", project_id)
-    span._set_tag_str(MESSAGING_SYSTEM, "pubsub")
-    span._set_tag_str(MESSAGING_DESTINATION_NAME, topic_id)
-    span._set_tag_str(MESSAGING_OPERATION, "send")
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
+    span._set_attribute(MESSAGING_OPERATION, "send")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.google_cloud_pubsub.distributed_tracing_enabled:
-        headers: dict[str, str] = {}
-        HTTPPropagator.inject(span.context, headers)
         # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
-        kwargs.update({k: str(v) for k, v in headers.items()})
+        HTTPPropagator.inject(span.context, ctx.get_item("publish_kwargs"))
 
 
 def _on_pubsub_send_complete(
@@ -1361,7 +1355,7 @@ def _on_pubsub_send_complete(
     message_id: Optional[str],
 ) -> None:
     if message_id is not None:
-        ctx.span._set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+        ctx.span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
     _finish_span(ctx, exc_info)
 
 
@@ -1431,7 +1425,7 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
-    core.on("google_cloud_pubsub.send.start", _on_pubsub_send_start)
+    core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
 
     # web frameworks general handlers
@@ -1513,7 +1507,6 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
-        "google_cloud_pubsub.send",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 

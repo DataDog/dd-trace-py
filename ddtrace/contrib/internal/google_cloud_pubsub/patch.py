@@ -75,8 +75,10 @@ def _traced_publish(func, instance, args, kwargs):
         resource=topic_id,
         call_trace=False,
         child_of=tracer.context_provider.active(),
+        project_id=project_id,
+        topic_id=topic_id,
+        publish_kwargs=kwargs,
     ) as ctx:
-        core.dispatch("google_cloud_pubsub.send.start", (ctx, project_id, topic_id, kwargs))
 
         try:
             result = func(*args, **kwargs)
