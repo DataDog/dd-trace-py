@@ -105,6 +105,7 @@ if _nightly_build:
 _appsec_threats_no_iast_env = {
     "DD_IAST_ENABLED": "false",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    "DD_APPSEC_ENABLED": "true",
 }
 
 _appsec_threats_iast_env = {
@@ -113,6 +114,7 @@ _appsec_threats_iast_env = {
     "DD_IAST_DEDUPLICATION_ENABLED": "false",
     "DD_IAST_WEAK_HASH_ALGORITHMS": "NOTexist",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    "DD_APPSEC_ENABLED": "true",
 }
 
 venv = Venv(
