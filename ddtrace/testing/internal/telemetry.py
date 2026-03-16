@@ -10,13 +10,13 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import TestRun
 
 
 if t.TYPE_CHECKING:
     from ddtrace.testing.internal.http import BackendConnectorSetup
+    from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
@@ -143,6 +143,15 @@ class TelemetryAPI:
             else "itr_skippable_tests.response_tests"
         )
         self.add_count_metric(skippable_count_metric, count)
+
+    def record_itr_skipped(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_skipped", 1, {"event_type": event_type.value})
+
+    def record_itr_unskippable(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_unskippable", 1, {"event_type": event_type.value})
+
+    def record_itr_forced_run(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_forced_run", 1, {"event_type": event_type.value})
 
     def record_settings(self, settings: Settings) -> None:
         tags = {
