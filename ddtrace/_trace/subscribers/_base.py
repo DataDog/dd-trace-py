@@ -25,6 +25,7 @@ def _finish_span(
 ) -> None:
     """Finish the span in the context.
 
+    If no span is present, do nothing.
     Reimplementing finish span here prevents circular import with trace_handlers.
     Once every integration adopts the events API, trace_handlers._finish_span
     should be completely removed.
