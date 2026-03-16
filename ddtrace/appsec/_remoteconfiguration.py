@@ -8,6 +8,8 @@ from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import PRODUCTS
+from ddtrace.appsec._listeners import load_appsec
+from ddtrace.appsec._listeners import stop_appsec
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
@@ -176,27 +178,11 @@ def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str
 
 def disable_asm() -> None:
     if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        AppSecSpanProcessor.disable()
-
-        asm_config._asm_enabled = False
-        if asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.disable()
-
-        tracer.configure(appsec_enabled=False)
+        stop_appsec()
+        tracer.configure(appsec_enabled=False, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
 
 
 def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
-        from ddtrace.appsec._listeners import load_appsec
-
-        asm_config._asm_enabled = True
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.enable()
         load_appsec()
         tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
