@@ -262,7 +262,12 @@ class ExecutionContext(Generic[EventType]):
     @property
     def span(self) -> "Span":
         if self._inner_span is None:
-            log.warning("No span found in ExecutionContext %s", self.identifier)
+            log.warning(
+                "No span found in %s. "
+                "This may indicate the context.started event handler did not set a span. "
+                "Creating fallback 'default' span.",
+                self,
+            )
             self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
@@ -303,8 +308,11 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def context_with_event(event: "EventType", parent=None) -> ExecutionContext[EventType]:
-    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
+def context_with_event(
+    event: "EventType", parent=None, context_name_override: Optional[str] = None
+) -> ExecutionContext[EventType]:
+    identifier = context_name_override or event.event_name
+    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
 
 def add_suppress_exception(exc_type: type) -> None:

@@ -612,7 +612,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
         self._trace_compute_stats = _get_config(
             ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
@@ -667,6 +667,8 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
+        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
@@ -680,9 +682,6 @@ class Config(object):
         )
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
-        )
-        self._process_tags_enabled = _get_config(
-            "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", default=False, modifier=asbool
         )
 
         # Long-running span interval configurations

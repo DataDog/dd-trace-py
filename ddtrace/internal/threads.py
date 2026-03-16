@@ -1,4 +1,3 @@
-import atexit
 from time import monotonic_ns
 import typing as t
 
@@ -72,18 +71,6 @@ class PeriodicThread(_PeriodicThread):
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
 
 
-@atexit.register
-def _():
-    # If the interpreter is shutting down we need to make sure that the threads
-    # are stopped before the runtime is marked as finalising. This is because
-    # any attempt to acquire the GIL while the runtime is finalising will cause
-    # the acquiring thread to be terminated with pthread_exit (on Linux). This
-    # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
-    # getting to that stage.
-    for thread in list(periodic_threads.values()):
-        thread._atexit()
-
-
 # A typical scenario is that of forking worker threads in a loop. For the
 # parent process, this would mean having to stop and restart the threads in
 # between forks, which is not ideal. Instead, we can use a timer to restart
@@ -109,7 +96,7 @@ class ThreadRestartTimer(PeriodicThread):
             # threads. This way we avoid stopping and restarting the threads
             # in between forks.
             if monotonic_ns() >= self._timestamp:  # 100ms
-                for thread in _threads_to_restart_after_fork:
+                for thread in _threads_to_restart_after_fork.copy():
                     if thread is self:
                         # This has already been restarted by the after-fork hook.
                         continue
@@ -157,14 +144,14 @@ def _after_fork_child():
 
     # Restart the threads immediately. It is unlikely that there will be another
     # call to fork here.
-    for thread in _threads_to_restart_after_fork:
+    for thread in _threads_to_restart_after_fork.copy():
         if isinstance(thread, PeriodicThread) and not thread.__autorestart__:
             continue
         log.debug("Restarting thread %s after fork in child", thread.name)
         thread._after_fork()
     _threads_to_restart_after_fork.clear()
 
-    for thread_start in _threads_to_start_after_fork:
+    for thread_start in _threads_to_start_after_fork.copy():
         log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
         thread_start()
     _threads_to_start_after_fork.clear()

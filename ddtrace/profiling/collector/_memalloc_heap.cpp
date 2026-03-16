@@ -29,7 +29,7 @@ using HeapMapType = absl::flat_hash_map<K, V>;
 #include <unordered_map>
 template<typename K, typename V>
 using HeapMapType = std::unordered_map<K, V>;
-#endif
+#endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 
 /*
    How heap profiler sampling works:
@@ -162,7 +162,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
-        tb->init_sample_invokes_cpython(size, weighted_size);
+        tb->init_sample(size, weighted_size, max_nframe);
         return tb;
     }
 
@@ -178,7 +178,7 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     }
 
     /* Clear buffers before returning to pool to prevent memory leaks */
-    tb->sample.clear_buffers();
+    tb->sample.clear();
 
     /* Try to return the traceback to the pool */
     if (pool.size() < POOL_CAPACITY) {
@@ -197,12 +197,15 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        transform it by the inverse of the cumulative distribution function for
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
-    /* Get a value between [0, 1[ */
+    /* Get a value between (0, 1) — strictly positive to avoid log2(0) = -inf,
+       which would produce +inf and undefined behavior when cast to uint32_t.
+       Using rand()+1 in floating-point avoids int overflow while shifting the
+       range from [0, 1) to (0, 1). */
     /* TODO: change to use a fork safe alternative instead of rand(), as rand()
        internally uses a lock and may cause deadlock after fork in child
        processes. Deferring this to a follow up, as we're not making the
        situation worse. */
-    double q = (double)rand() / ((double)RAND_MAX + 1);
+    double q = ((double)rand() + 1.0) / ((double)RAND_MAX + 2.0);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
     /* NOTE: technically log2 is not async signal safe per Linux man page,
        but it doesn't seem to use locks internally. So we assume it's safe to
@@ -360,7 +363,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Avoid loops */
+    /* Skip tracking if we're already inside the malloc hook on this thread.
+     * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
     if (!guard) {
         return;
@@ -388,7 +392,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        RAII guard automatically re-enables GC when it goes out of scope. */
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     pygc_temp_disable_guard_t gc_guard;
-#endif
+#endif // defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
 
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which

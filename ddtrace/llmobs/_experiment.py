@@ -4,6 +4,7 @@ import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
+import inspect
 import re
 import sys
 import time
@@ -41,6 +42,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
@@ -64,9 +66,10 @@ JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONT
 NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
 ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
+ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
-TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
-AsyncTaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]]
+TaskType = Callable[..., JSONType]
+AsyncTaskType = Callable[..., Awaitable[JSONType]]
 
 
 class EvaluatorResult:
@@ -111,6 +114,20 @@ class EvaluatorResult:
         self.tags = tags
 
 
+class RemoteEvaluatorResult(EvaluatorResult):
+    """Internal result type for remote evaluators that includes backend status."""
+
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> None:
+        super().__init__(value=value, reasoning=reasoning, assessment=assessment)
+        self.status = status
+
+
 def _validate_evaluator_name(name: str) -> None:
     """Validate that evaluator name is valid.
 
@@ -122,10 +139,30 @@ def _validate_evaluator_name(name: str) -> None:
         raise TypeError("Evaluator name must be a string")
     if not name:
         raise ValueError("Evaluator name cannot be empty")
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
         raise ValueError(
-            f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
+            f"Evaluator name '{name}' is invalid."
+            " Name must contain only alphanumeric characters, underscores, and hyphens."
         )
+
+
+class RemoteEvaluatorError(Exception):
+    """Error raised when a remote evaluator fails.
+
+    Preserves backend error details (type, message, recommended_resolution)
+    for proper error handling in the experiment framework.
+    """
+
+    def __init__(self, message: str, status: str, backend_error: Optional[dict[str, Any]] = None) -> None:
+        """Initialize a RemoteEvaluatorError.
+
+        :param message: The error message
+        :param status: The backend evaluation status (e.g. "ERROR", "WARN")
+        :param backend_error: The backend error details dict with type, message, recommended_resolution
+        """
+        super().__init__(message)
+        self.status = status
+        self.backend_error = backend_error or {}
 
 
 @dataclass(frozen=True)
@@ -250,6 +287,14 @@ class BaseEvaluator(ABC):
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
+    def _build_publish_payload(
+        self,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError("This evaluator does not support publishing.")
+
 
 class BaseSummaryEvaluator(ABC):
     """Base class for summary evaluators that operate on aggregated experiment results.
@@ -299,6 +344,111 @@ class BaseSummaryEvaluator(ABC):
         :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
+
+
+def _default_context_transform(context: "EvaluatorContext") -> dict[str, Any]:
+    """Default transform: maps EvaluatorContext to remote evaluator format.
+
+    Transforms the context into the format expected by remote LLM-as-Judge evaluators.
+    Uses span_input/span_output at top level, with meta.expected_output and meta.metadata.
+
+    :param context: The evaluation context to transform
+    :return: Dictionary with span_input, span_output, optional meta.expected_output,
+             optional meta.metadata, and optional trace identifiers (span_id, trace_id)
+    """
+    result: dict[str, Any] = {
+        "span_input": context.input_data,
+        "span_output": context.output_data,
+    }
+
+    meta: dict[str, Any] = {}
+    if context.expected_output is not None:
+        meta["expected_output"] = context.expected_output
+    if context.metadata:
+        meta["metadata"] = context.metadata
+    if meta:
+        result["meta"] = meta
+
+    if context.span_id:
+        result["span_id"] = context.span_id
+    if context.trace_id:
+        result["trace_id"] = context.trace_id
+
+    return result
+
+
+class RemoteEvaluator(BaseEvaluator):
+    """Evaluator that references a production BYOP evaluation by name.
+
+    This class allows users to run LLM-as-Judge evaluations configured in the Datadog
+    UI by referencing the evaluation name.
+
+    Example (simple usage)::
+
+        evaluator = RemoteEvaluator(eval_name="my-byop-evaluator")
+
+    Example (with custom transform function)::
+
+        def custom_transform(ctx: EvaluatorContext) -> dict[str, Any]:
+            return {"span_input": ctx.input_data, "span_output": ctx.output_data}
+
+        evaluator = RemoteEvaluator(
+            eval_name="my-byop-evaluator",
+            transform_fn=custom_transform,
+        )
+    """
+
+    _is_remote_evaluator: bool = True
+
+    def __init__(
+        self,
+        eval_name: str,
+        transform_fn: Optional[ContextTransformFn] = None,
+    ) -> None:
+        """Initialize a RemoteEvaluator.
+
+        :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog.
+        :param transform_fn: Optional function to transform EvaluatorContext into
+                             the format expected by the backend template. If not provided,
+                             uses default mapping to span_input, span_output,
+                             meta.expected_output, and meta.metadata.
+        """
+        if not isinstance(eval_name, str) or not eval_name.strip():
+            raise ValueError("eval_name must be a non-empty string")
+        if transform_fn is not None and not callable(transform_fn):
+            raise TypeError("transform_fn must be callable")
+
+        self.name = eval_name.strip()
+        self._eval_name = eval_name.strip()
+        self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
+
+        from ddtrace.llmobs import LLMObs
+
+        self._llmobs_service = LLMObs
+
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+        """Evaluate using the remote LLM-as-Judge evaluator.
+
+        :param context: The evaluation context containing input, output, and metadata
+        :return: RemoteEvaluatorResult or raw value if no reasoning or assessment is provided
+        """
+        dne_client = getattr(getattr(self._llmobs_service, "_instance", None), "_dne_client", None)
+        if dne_client is None:
+            raise ValueError("LLMObs experiments client is not initialized.")
+
+        result = dne_client.evaluator_infer(
+            eval_name=self._eval_name,
+            context=self._transform_fn(context),
+        )
+
+        value = result.get("value")
+        reasoning = result.get("reasoning")
+        assessment = result.get("assessment")
+        status = result.get("status")
+
+        if reasoning or assessment:
+            return RemoteEvaluatorResult(value=value, reasoning=reasoning, assessment=assessment, status=status)
+        return value
 
 
 class BaseAsyncEvaluator(ABC):
@@ -688,7 +838,7 @@ class Dataset:
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
-            Wether to deduplicate the records or not. Does not deduplicate against existing
+            Whether to deduplicate the records or not. Does not deduplicate against existing
             data if bulk_upload is False.
         :param create_new_version:
             Whether to create a new version of the dataset when changes are detected, or update the
@@ -1086,6 +1236,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
@@ -1166,11 +1317,13 @@ class Experiment:
         span_id: str,
         trace_id: str,
         timestamp_ns: int,
+        status: Optional[str] = None,
         source: str = "custom",
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, str]] = None,
+        eval_source_type: Optional[str] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
         if eval_value is None:
             metric_type = "categorical"
@@ -1190,17 +1343,21 @@ class Experiment:
             "timestamp_ms": int(timestamp_ns / 1e6),
             "metric_type": metric_type,
             "label": eval_name,
-            f"{metric_type}_value": eval_value,  # type: ignore
+            f"{metric_type}_value": eval_value,  # type: ignore[misc]
             "error": err,
             "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
+        if status:
+            eval_metric["status"] = status
         if reasoning:
             eval_metric["reasoning"] = reasoning
         if assessment:
             eval_metric["assessment"] = assessment
         if metadata:
             eval_metric["metadata"] = metadata
+        if eval_source_type:
+            eval_metric["eval_source_type"] = eval_source_type
         return eval_metric
 
     def _generate_metrics_from_exp_results(
@@ -1208,6 +1365,12 @@ class Experiment:
     ) -> list["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
+        remote_evaluator_names = {
+            evaluator.name  # type: ignore[union-attr]
+            for evaluator in self._evaluators
+            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator
+        }
+
         for exp_result in experiment_result.rows:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
@@ -1237,6 +1400,8 @@ class Experiment:
                     tags=cast(dict[str, str], eval_data.get("tags"))
                     if isinstance(eval_data.get("tags"), dict)
                     else None,
+                    eval_source_type="managed" if eval_name in remote_evaluator_names else None,
+                    status=str(eval_data.get("status")) if isinstance(eval_data.get("status"), str) else "OK",
                 )
                 eval_metrics.append(eval_metric)
 
@@ -1272,7 +1437,27 @@ class Experiment:
             )
         return self._dataset
 
+    def _extract_evaluator_result(
+        self, eval_result: Union[JSONType, EvaluatorResult]
+    ) -> tuple[JSONType, dict[str, JSONType]]:
+        extra_return_values: dict[str, JSONType] = {}
+        if isinstance(eval_result, EvaluatorResult):
+            if eval_result.reasoning:
+                extra_return_values["reasoning"] = eval_result.reasoning
+            if eval_result.assessment:
+                extra_return_values["assessment"] = eval_result.assessment
+            if eval_result.metadata:
+                extra_return_values["metadata"] = eval_result.metadata
+            if eval_result.tags:
+                extra_return_values["tags"] = eval_result.tags
+            if isinstance(eval_result, RemoteEvaluatorResult) and eval_result.status:
+                extra_return_values["status"] = eval_result.status
+            return eval_result.value, extra_return_values
+        return eval_result, extra_return_values
+
     def _build_evaluator_error(self, exc: Exception) -> dict[str, Any]:
+        if isinstance(exc, RemoteEvaluatorError) and exc.backend_error:
+            return exc.backend_error
         exc_type, exc_value, exc_tb = sys.exc_info()
         exc_type_name = type(exc).__name__ if exc_type is not None else "Unknown Exception"
         exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -1281,6 +1466,11 @@ class Experiment:
             "type": exc_type_name,
             "stack": exc_stack,
         }
+
+    def _build_evaluator_status(self, exc: Exception) -> str:
+        if isinstance(exc, RemoteEvaluatorError):
+            return exc.status
+        return "ERROR"
 
     def _prepare_summary_evaluator_data(
         self, task_results: list[TaskResult], eval_results: list[EvaluationResult]
@@ -1312,6 +1502,14 @@ class Experiment:
                 eval_results_by_name[name].append(eval_value.get("value"))
 
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
+
+    def _update_status(self, status: str, error: Optional[str] = None) -> None:
+        if not self._llmobs_instance or not self._id:
+            return
+        try:
+            self._llmobs_instance._dne_client.experiment_update(cast(str, self._id), status=status, error=error)
+        except Exception:
+            logger.debug("Failed to update experiment status to %s", status, exc_info=True)
 
     def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -1379,6 +1577,8 @@ class Experiment:
         self._run_results = []
         self._retries.clear()
         self._interrupted = False
+        self._has_errors = False
+        self._update_status("running")
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1401,10 +1601,15 @@ class Experiment:
                 self._run_results.append(run_result)
         except BaseException:
             self._interrupted = True
+            self._update_status("interrupted")
             raise
         finally:
             result = self._build_result(self._run_results)
             self._log_experiment_summary(result)
+        if self._has_errors:
+            self._update_status("failed", error=self._build_error_summary(result))
+        else:
+            self._update_status("completed")
         return result
 
     @staticmethod
@@ -1456,6 +1661,24 @@ class Experiment:
             parts.append("Retries ({}):\n  {}".format(len(self._retries), "\n  ".join(self._retries)))
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _build_error_summary(result: ExperimentResult) -> str:
+        errors = []
+        for run in result.get("runs", []):
+            for row in run.rows:
+                err = row.get("error")
+                if isinstance(err, dict) and err.get("message"):
+                    errors.append("{}: {}".format(err.get("type", "Error"), err["message"]))
+                for name, data in (row.get("evaluations") or {}).items():
+                    if not isinstance(data, dict):
+                        continue
+                    eval_err = data.get("error")
+                    if isinstance(eval_err, dict) and eval_err.get("message"):
+                        errors.append("{} ({}): {}".format(name, eval_err.get("type", "Error"), eval_err["message"]))
+        if not errors:
+            return "unknown error"
+        return "; ".join(set(errors))
 
     def _log_experiment_summary(self, result: ExperimentResult) -> None:
         msg = self._format_experiment_summary(result)
@@ -1514,12 +1737,16 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
+                record_metadata = record.get("metadata", {})
+                task_args: list = [input_data, self._config]
+                if self._task_accepts_metadata:
+                    task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(input_data, self._config)
+                            output_data = await self._task(*task_args)
                         else:
-                            output_data = await asyncio.to_thread(self._task, input_data, self._config)
+                            output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
                         break
                     except Exception as e:
@@ -1536,6 +1763,7 @@ class Experiment:
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
+                    self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
@@ -1629,6 +1857,7 @@ class Experiment:
                 for evaluator in self._evaluators:
                     eval_result_value: JSONType = None
                     eval_err: JSONType = None
+                    extra_return_values: dict[str, JSONType] = {}
                     evaluator_name = ""
 
                     for attempt in range(1 + max_retries):
@@ -1687,19 +1916,7 @@ class Experiment:
                                 evaluator_name = str(evaluator)
                                 eval_result = None
 
-                            extra_return_values: dict[str, JSONType] = {}
-                            if isinstance(eval_result, EvaluatorResult):
-                                if eval_result.reasoning:
-                                    extra_return_values["reasoning"] = eval_result.reasoning
-                                if eval_result.assessment:
-                                    extra_return_values["assessment"] = eval_result.assessment
-                                if eval_result.metadata:
-                                    extra_return_values["metadata"] = eval_result.metadata
-                                if eval_result.tags:
-                                    extra_return_values["tags"] = eval_result.tags
-                                eval_result_value = eval_result.value
-                            else:
-                                eval_result_value = eval_result
+                            eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
                             break
 
                         except Exception as e:
@@ -1717,6 +1934,8 @@ class Experiment:
                                 finally:
                                     await semaphore.acquire()
                                 continue
+                            extra_return_values = {"status": self._build_evaluator_status(e)}
+                            self._has_errors = True
                             if raise_errors:
                                 raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1797,6 +2016,7 @@ class Experiment:
                         )
                     eval_result_value = eval_result
                 except Exception as e:
+                    self._has_errors = True
                     eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
@@ -1899,11 +2119,11 @@ class Experiment:
             span.get("span_id", "") if span else "",
             span.get("trace_id", "") if span else "",
             timestamp_ns,
-            "summary" if is_summary_eval else "custom",
-            reasoning,
-            assessment,
-            metadata,
-            tags,
+            source="summary" if is_summary_eval else "custom",
+            reasoning=reasoning,
+            assessment=assessment,
+            metadata=metadata,
+            tags=tags,
         )
 
         self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
@@ -1991,5 +2211,7 @@ def _get_base_url() -> str:
     subdomain = ""
     if config._dd_site in DD_SITES_NEEDING_APP_SUBDOMAIN:
         subdomain = "app."
+    elif config._dd_site == DD_SITE_STAGING:
+        subdomain = "dd."
 
     return f"https://{subdomain}{config._dd_site}"

@@ -172,6 +172,7 @@ def override_global_config(values):
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
+        "_model_lab_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -1221,7 +1222,9 @@ def snapshot_context(
         variant_id = applicable_variant_ids[0]
         token = "{}_{}".format(token, variant_id) if variant_id else token
 
-    ignores = ignores or []
+    ignores = list(ignores or [])
+    if not token.startswith("tests.internal.test_process_tags."):
+        ignores.append("meta._dd.tags.process")
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)

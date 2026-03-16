@@ -122,6 +122,28 @@ def test_stats_report_hostname(get_hostname):
         assert p._hostname == ""
 
 
+def test_periodic_payload_includes_process_tags():
+    from unittest import mock
+
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.processor import stats
+    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+
+    assert process_tags.process_tags
+
+    with mock.patch.object(SpanStatsProcessorV06, "start"):
+        p = SpanStatsProcessorV06("http://localhost:8126")
+
+    p._serialize_buckets = mock.Mock(return_value=[{"Start": 1, "Duration": 1, "Stats": [{}]}])
+    p._flush_stats_with_backoff = mock.Mock()
+
+    with mock.patch.object(stats, "packb", side_effect=lambda payload: payload) as packb:
+        p.periodic()
+
+    raw_payload = packb.call_args[0][0]
+    assert raw_payload["ProcessTags"] == process_tags.process_tags
+
+
 # Can't use a value between 0 and 1 since sampling is not deterministic.
 @pytest.mark.parametrize("sample_rate", [1.0, 0.0])
 @pytest.mark.snapshot()
