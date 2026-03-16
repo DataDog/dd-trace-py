@@ -1,25 +1,58 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 _APPSEC_TO_BE_LOADED = True
+log = get_logger(__name__)
+
+
+def _disable_appsec_due_to_ddwaf_error() -> None:
+    from ddtrace.appsec import _ddwaf
+    from ddtrace.trace import tracer
+
+    log.warning("Disabling AppSec: libddwaf failed to load (%s)", _ddwaf.failure_msg or "unknown error")
+
+    asm_config._asm_enabled = False
+    asm_config._asm_can_be_enabled = False
+    asm_config._asm_rc_enabled = False
+    asm_config._load_modules = False
+
+    from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
+
+    disable_appsec_rc()
+
+    tracer.configure(appsec_enabled=False)
+
+
+def _ddwaf_available_or_disable() -> bool:
+    from ddtrace.appsec import _ddwaf
+
+    if not _ddwaf.is_available:
+        _disable_appsec_due_to_ddwaf_error()
+        return False
+
+    return True
 
 
 def _asm_switch_state() -> None:
     if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        AppSecSpanProcessor.enable()
+        load_appsec()
     elif "ddtrace.appsec._processor" in sys.modules:
         from ddtrace.appsec._processor import AppSecSpanProcessor
 
         AppSecSpanProcessor.disable()
 
 
-def load_appsec() -> None:
+def load_appsec() -> bool:
     """Lazily load the appsec module listeners."""
+    if not asm_config._asm_enabled:
+        return False
+    if not _ddwaf_available_or_disable():
+        return False
+
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
@@ -48,19 +81,27 @@ def load_appsec() -> None:
 
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
 
-        AppSecSpanProcessor.enable()
-        if asm_config._api_security_enabled and not asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+    if not asm_config._asm_enabled:
+        return False
 
-            APIManager.enable()
+    from ddtrace.appsec._processor import AppSecSpanProcessor
+
+    AppSecSpanProcessor.enable()
+    if asm_config._api_security_enabled and not asm_config._api_security_active:
+        from ddtrace.appsec._api_security.api_manager import APIManager
+
+        APIManager.enable()
+
+    return True
 
 
 def load_common_appsec_modules() -> None:
     """Lazily load the common module patches."""
     from ddtrace.internal.settings.asm import config as asm_config
+
+    if (asm_config._asm_enabled or asm_config._asm_can_be_enabled) and not _ddwaf_available_or_disable():
+        return
 
     if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import patch_common_modules

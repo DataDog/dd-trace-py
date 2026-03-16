@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _ddwaf
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -19,6 +20,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -385,6 +387,26 @@ def test_ddwaf_not_raises_exception():
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
         )
+
+
+def test_load_appsec_disables_appsec_when_ddwaf_unavailable():
+    with (
+        mock.patch.object(_ddwaf, "is_available", False),
+        mock.patch.object(_ddwaf, "failure_msg", "mock import failure"),
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _asm_can_be_enabled=True,
+                _asm_rc_enabled=True,
+                _api_security_active=True,
+                _load_modules=True,
+            )
+        ),
+    ):
+        assert asm_config._asm_enabled is False
+        assert asm_config._asm_can_be_enabled is False
+        assert asm_config._asm_rc_enabled is False
+        assert asm_config._load_modules is False
 
 
 def test_obfuscation_parameter_key_empty():

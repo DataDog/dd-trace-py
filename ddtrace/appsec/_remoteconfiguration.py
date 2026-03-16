@@ -66,7 +66,6 @@ def enable_appsec_rc() -> None:
 
 
 def disable_appsec_rc() -> None:
-    # only used to avoid data leaks between tests
     for product_name in APPSEC_PRODUCTS:
         remoteconfig_poller.unregister_callback(product_name)
         remoteconfig_poller.disable_product(product_name)
@@ -194,9 +193,5 @@ def enable_asm() -> None:
         from ddtrace.appsec._listeners import load_appsec
 
         asm_config._asm_enabled = True
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.enable()
-        load_appsec()
-        tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
+        if load_appsec():
+            tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
