@@ -339,6 +339,15 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
     def build(self) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.

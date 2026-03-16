@@ -161,6 +161,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_endpoint(url);
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder.
     ///
     /// The builder shouldn't be reused

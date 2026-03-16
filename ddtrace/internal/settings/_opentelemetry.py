@@ -59,6 +59,26 @@ def _derive_metrics_metric_reader_export_timeout(config: "ExporterConfig"):
     return get_config("OTEL_METRIC_EXPORT_TIMEOUT", config.DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT, int)
 
 
+def _derive_traces_protocol(config: "ExporterConfig"):
+    return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
+
+
+def _derive_traces_endpoint(config: "ExporterConfig"):
+    # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json for OTLP traces.
+    default_endpoint = f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
+    return get_config("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", default_endpoint)
+
+
+def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
+    import os
+
+    traces_exporter = os.environ.get("OTEL_TRACES_EXPORTER", "").lower()
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "") or os.environ.get(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", ""
+    )
+    return traces_exporter == "otlp" or bool(otlp_endpoint)
+
+
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
@@ -70,6 +90,7 @@ class ExporterConfig(DDConfig):
     DEFAULT_TIMEOUT: int = 10000
     LOGS_PATH: str = "/v1/logs"
     METRICS_PATH: str = "/v1/metrics"
+    TRACES_PATH: str = "/v1/traces"
     DEFAULT_GRPC_ENDPOINT: str = f"http://{get_agent_hostname()}:4317"
     DEFAULT_HTTP_ENDPOINT: str = f"http://{get_agent_hostname()}:4318"
     DEFAULT_METRICS_TEMPORALITY_PREFERENCE: str = "delta"
@@ -93,6 +114,9 @@ class ExporterConfig(DDConfig):
     METRICS_TEMPORALITY_PREFERENCE = DDConfig.d(str, _derive_metrics_temporality_preference)
     METRICS_METRIC_READER_EXPORT_INTERVAL = DDConfig.d(int, _derive_metrics_metric_reader_export_interval)
     METRICS_METRIC_READER_EXPORT_TIMEOUT = DDConfig.d(int, _derive_metrics_metric_reader_export_timeout)
+
+    TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
+    TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
 
     @staticmethod
     def _get_default_endpoint(protocol: str, endpoint: str = ""):
