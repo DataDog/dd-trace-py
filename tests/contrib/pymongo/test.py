@@ -715,6 +715,40 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert delete_span.resource == 'delete songs {"artist": "?"}'
         assert delete_span.get_tag("mongodb.query") == '{"artist": "DefinitelyNotArtistA"}'
 
+    def _get_bson_find_span(self):
+        """A helper to return a span with a BSON ObjectId query."""
+        from bson import ObjectId
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        db = client["testdb"]
+        db.drop_collection("items")
+        result = db.items.insert_one({"name": "test"})
+        oid = result.inserted_id
+        assert isinstance(oid, ObjectId)
+
+        list(db.items.find({"_id": oid}))
+
+        spans = self.get_user_spans()
+        find_spans = [s for s in spans if s.name == "pymongo.cmd" and "find" in s.resource and s.get_tag("mongodb.query")]
+        assert len(find_spans) == 1
+        return find_spans[0], oid
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
+    def test_mongodb_obfuscation_enabled_bson_types_in_query(self):
+        """Resource name and mongodb.query tag are both normalized when obfuscation enabled."""
+        span, _ = self._get_bson_find_span()
+        assert span.resource == 'find items {"_id": "?"}'
+        assert span.get_tag("mongodb.query") == '{"_id": "?"}'
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    def test_mongodb_obfuscation_disabled_bson_types_in_query(self):
+        """Resource stays normalized while mongodb.query tag shows raw query with BSON types in Extended JSON."""
+        span, oid = self._get_bson_find_span()
+        assert span.resource == 'find items {"_id": "?"}'
+        tag = span.get_tag("mongodb.query")
+        assert '{"$oid": "' in tag
+        assert str(oid) in tag
+
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
         tracer.enabled = False
