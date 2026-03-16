@@ -322,7 +322,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 }
 
 void
-Datadog::Sample::clear_buffers()
+Datadog::Sample::clear()
 {
     std::fill(values.begin(), values.end(), 0);
     labels.clear();
@@ -340,7 +340,7 @@ Datadog::Sample::flush_sample()
     auto ret = export_sample();
 
     // Clear buffers after exporting
-    clear_buffers();
+    clear();
     return ret;
 }
 
