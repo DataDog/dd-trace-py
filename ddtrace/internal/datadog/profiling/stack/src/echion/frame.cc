@@ -25,7 +25,7 @@ read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 
     int val = table[++*i] & 63;
     int shift = 0;
-    while (table[*i] & 64 && *i < guard) {
+    while (*i < guard && table[*i] & 64) {
         shift += 6;
         val |= (table[++*i] & 63) << shift;
     }

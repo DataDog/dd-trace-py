@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility (pytest): Fixed missing ITR tags in the new pytest plugin that caused
+    time saved by Test Impact Analysis to not appear in dashboards.
