@@ -1559,6 +1559,39 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
         )
 
+    def test_failed_acquire_produces_no_sample(self) -> None:
+        """Test that a failed non-blocking acquire produces no acquire/release samples.
+
+        When acquire(blocking=False) returns False (lock unavailable), acquired_time
+        must NOT be set. Setting it would produce a spurious acquire sample and corrupt
+        the hold-time of the thread that actually holds the lock.
+        """
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            profiled = cast(_ProfiledLock, lock)
+            acquired_time_after_success = profiled.acquired_time
+            assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
+
+            result = lock.acquire(blocking=False)
+            assert result is False, "Non-blocking acquire on held lock must return False"
+            assert profiled.acquired_time == acquired_time_after_success, (
+                "acquired_time must not change after a failed acquire"
+            )
+
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        assert len(acquire_samples) == 1, (
+            f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
+        )
+        assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.

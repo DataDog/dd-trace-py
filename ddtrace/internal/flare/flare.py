@@ -54,7 +54,7 @@ class Flare:
         try:
             return self._native_manager.handle_remote_config_data(json_config_data, product_type)
         except Exception as e:
-            log.error("Error handling remote config data for product %s: %s", product_type, e)
+            log.warning("Flare: error handling remote config data for product %s: %s. Skipping...", product_type, e)
             # Return a none action on error to avoid disrupting tracer functionality
             return native_flare.FlareAction.none_action()
 
@@ -66,16 +66,12 @@ class Flare:
         try:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
-            log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
-            return False
-
-        if not isinstance(log_level, str):
-            log.error("Flare prepare: Invalid log level provided: %s (must be a string)", log_level)
+            log.warning("Flare: failed to create collection directory path=%s: %s. Skipping...", self.flare_dir, e)
             return False
 
         flare_log_level_int = getattr(logging, log_level.upper(), None)
         if flare_log_level_int is None or not isinstance(flare_log_level_int, int):
-            log.error("Flare prepare: Invalid log level provided: %s", log_level)
+            log.warning("Flare: invalid log level %r for collection. Skipping...", flare_log_level_int)
             return False
 
         self._native_manager.set_current_log_level(log_level)
@@ -96,9 +92,18 @@ class Flare:
                 return
             self.revert_configs()
 
-            self._send_flare_request(flare_action)
+            # Create lock file atomically, will fail if it already exists
+            pathlib.Path(str(self.flare_dir / TRACER_FLARE_LOCK)).open("x").close()
+
+            # If the lock is the only file in the flare directory, don't send the flare
+            if len(os.listdir(self.flare_dir)) == 1:
+                raise ValueError("Flare: directory is empty: %s, not sending flare", self.flare_dir)
+
+            # Use native zip_and_send
+            self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
+            log.info("Flare: successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
         except Exception as e:
-            log.error("Error sending tracer flare: %s", e)
+            log.error("Flare: error sending tracer flare: %s", e)
         finally:
             self.clean_up_files()
 
@@ -106,20 +111,17 @@ class Flare:
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
-            log.debug("ddtrace logs will not be routed to the %s file handler anymore", TRACER_FLARE_FILE_HANDLER_NAME)
-        else:
-            log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.original_log_level)
 
         # Restore native logger configuration from env vars
         if config._trace_writer_native:
             try:
                 native_logger.disable("file")
-            except ValueError:
-                log.debug("Native file logger is not enabled")
+            except ValueError as e:
+                log.debug("Flare: failed to disable native logger: %s", e)
             _configure_ddtrace_native_logger()
 
-    def _generate_config_file(self, pid: int):
+    def _generate_config_file(self, pid: int) -> bool:
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
@@ -137,10 +139,12 @@ class Flare:
                     default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
                     indent=4,
                 )
+            return True
         except Exception as e:
-            log.warning("Failed to generate %s: %s", config_file, e)
+            log.warning("Flare: failed to write config file path=%s: %s. Skipping...", config_file, e)
             if os.path.exists(config_file):
                 os.remove(config_file)
+        return False
 
     def _setup_flare_logging(self, flare_log_level_int: int) -> int:
         """
@@ -183,40 +187,15 @@ class Flare:
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
-    def _send_flare_request(self, flare_action: native_flare.FlareAction):
-        """
-        Send the flare request to the agent.
-        """
-        # We only want the flare to be sent once, even if there are
-        # multiple tracer instances
-        try:
-            # Create lock file atomically, will fail if it already exists
-            pathlib.Path(str(self.flare_dir / TRACER_FLARE_LOCK)).open("x").close()
-        except FileExistsError:
-            return
-
-        # If the lock is the only file in the flare directory, don't send the flare
-        if len(os.listdir(self.flare_dir)) == 1:
-            log.info("Flare directory is empty, not sending flare")
-            return
-
-        log.debug("Sending tracer flare")
-        try:
-            # Use native zip_and_send
-            self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
-        except Exception:
-            raise
-        finally:
-            os.remove(self.flare_dir / TRACER_FLARE_LOCK)
-        log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
-
     def clean_up_files(self):
         """Clean up the flare directory using Python's shutil."""
-        # If lock file exists, it means the flare is still being sent, so we should not clean up yet
-        if (self.flare_dir / TRACER_FLARE_LOCK).exists():
-            log.debug("Flare lock file exists, skipping cleanup")
-            return
+        flare_lock = self.flare_dir / TRACER_FLARE_LOCK
+        if flare_lock.exists():
+            try:
+                flare_lock.unlink()
+            except OSError as e:
+                log.debug("Flare: could not remove lock file %s: %s", flare_lock, e)
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
-            log.warning("Failed to clean up tracer flare files: %s", e)
+            log.warning("Flare: failed to clean up files path=%s: %s", self.flare_dir, e)

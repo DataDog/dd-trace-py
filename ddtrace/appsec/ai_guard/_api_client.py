@@ -66,6 +66,13 @@ class Evaluation(TypedDict):
 
 
 class Options(TypedDict, total=False):
+    """Optional evaluation behavior.
+
+    Attributes:
+        block: Controls whether non-ALLOW decisions raise ``AIGuardAbortError``. Defaults to
+            following the AI Guard response ``is_blocking_enabled`` setting when omitted.
+    """
+
     block: bool
 
 
@@ -203,16 +210,20 @@ class AIGuardClient:
 
     @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
-        if not remote_enabled or not options:
+        if not remote_enabled:
             return False
-        return options.get("block", False)
+        if not options:
+            return True
+        return options.get("block", True)
 
     def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
             messages: list of messages to evaluate
-            options: Optional configuration with 'block' parameter (defaults to False)
+            options: Optional configuration with 'block' parameter. By default, block follows
+                the AI Guard response is_blocking_enabled setting; set block=False to force
+                non-blocking behavior.
 
         Returns:
             EvaluationResult containing action and reason

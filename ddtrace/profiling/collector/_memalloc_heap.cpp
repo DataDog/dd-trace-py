@@ -178,7 +178,7 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     }
 
     /* Clear buffers before returning to pool to prevent memory leaks */
-    tb->sample.clear_buffers();
+    tb->sample.clear();
 
     /* Try to return the traceback to the pool */
     if (pool.size() < POOL_CAPACITY) {
