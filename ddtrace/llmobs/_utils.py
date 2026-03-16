@@ -292,7 +292,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links: list[_SpanLink] = get_span_links(span)
+    current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
     current_span_links.append(
         _SpanLink(
             span_id=span_id,
@@ -347,12 +347,6 @@ def get_llmobs_trace_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
-
-
-def get_span_links(span: Span) -> list[_SpanLink]:
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    current_span_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
-    return current_span_links
 
 
 def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
