@@ -20,7 +20,7 @@ from ddtrace.trace import tracer
 
 def create_server_interceptor(pin):
     def interceptor_function(continuation, handler_call_details):
-        if not pin.enabled:
+        if not pin.enabled():
             return continuation(handler_call_details)
 
         rpc_method_handler = continuation(handler_call_details)
