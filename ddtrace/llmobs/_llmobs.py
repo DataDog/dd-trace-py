@@ -475,7 +475,6 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
-            self._propagate_trace_details(span)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -1804,25 +1803,11 @@ class LLMObs(Service):
             return context
         return None
 
-    def _propagate_trace_details(self, span: Span) -> None:
-        """Inherit ml_app and session_id onto the new span.
-        ml_app precedence: parent span's ml_app > distributed context > global config > service
-        """
-        parent = span._parent
-        ml_app = (
-            (parent._get_ctx_item(ML_APP) if parent else None)
-            or span.context._meta.get(PROPAGATED_ML_APP_KEY)
-            or config._llmobs_ml_app
-            or config.service
-        )
-        span._set_ctx_item(ML_APP, ml_app)
-        session_id = parent._get_ctx_item(SESSION_ID) if parent else None
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
-        _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id)
-
     def _activate_llmobs_span(self, span: Span) -> None:
-        """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
+        """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
+        ml_app precedence: parent span._store > distributed context > global config > service.
+        session_id is optional and only propagated from span._store
+        """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             parent_id = llmobs_parent.span_id
@@ -1834,10 +1819,19 @@ class LLMObs(Service):
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
+            if isinstance(llmobs_parent, Span):
+                ml_app = llmobs_parent._get_ctx_item(ML_APP)
+                session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+            else:
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                session_id = None
         else:
-            parent_id = None
             llmobs_trace_id = generate_128bit_trace_id()
-        _annotate_llmobs_span_data(span, parent_id=parent_id, trace_id=llmobs_trace_id)
+            parent_id, ml_app, session_id = None, None, None
+        ml_app = ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+        _annotate_llmobs_span_data(
+            span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
+        )
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1857,13 +1851,6 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        # Store explicit ml_app on span ctx item so child spans inherit it via _propagate_trace_details.
-        # We intentionally do NOT write to span.context._meta here because context._meta is shared
-        # across all spans in the trace, which would cause sibling spans to incorrectly inherit this value.
-        if ml_app is not None:
-            span._set_ctx_item(ML_APP, ml_app)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
         _annotate_llmobs_span_data(
             span,
             kind=operation_kind,

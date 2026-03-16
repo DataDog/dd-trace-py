@@ -27,7 +27,9 @@ from ddtrace.llmobs._constants import IS_EVALUATION_TRACE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -445,6 +447,8 @@ def _annotate_llmobs_span_data(
 
     metadata, metrics, and tags are updated on any existing metadata/metrics/tags
     instead of being overwritten.
+    ml_app, session_id, and input_prompt involve being propagated to children spans
+    so are additionally stored on span._store to ensure they are available at span finish time.
     """
     llmobs_span_data = _get_llmobs_data_metastruct(span)
     try:
@@ -461,6 +465,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+            span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
         if trace_id is not None:
@@ -481,6 +486,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+            span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
         if config is not None:
@@ -493,6 +499,7 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
         if prompt is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = prompt
+            span._set_ctx_item(INPUT_PROMPT, prompt)
         if output_messages is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
         if output_value is not None:
