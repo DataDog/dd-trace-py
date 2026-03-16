@@ -295,7 +295,7 @@ def _on_inferred_proxy_finish(ctx):
 
 def _on_traced_request_context_started_flask(ctx):
     current_span = tracer.current_span()
-    if not ctx.get_item("pin").enabled or not current_span:
+    if not current_span:
         return
 
     ctx.span = current_span
