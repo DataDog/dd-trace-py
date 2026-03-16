@@ -54,10 +54,9 @@ def test_otel_span_events(oteltracer):
         )
 
     with oteltracer.start_span("web.response") as span2:
-        # mock time_ns to ensure the event timestamp is consistent in snapshot files
-        with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=1714537311986000):
-            span2.add_event("Web page loaded")
-            span2.add_event("Button changed color", {"colors": [112, 215, 70], "response.time": 134.3, "success": True})
+        # Pass explicit timestamp (µs) to ensure consistent snapshot values; OTel converts µs → ns (*1000)
+        span2.add_event("Web page loaded", timestamp=1714537311986)
+        span2.add_event("Button changed color", {"colors": [112, 215, 70], "response.time": 134.3, "success": True}, timestamp=1714537311986)
 
     span1.add_event("Event on finished span, event will be ignored")
     span2.add_event("Event on finished span, event won't be added")

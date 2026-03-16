@@ -36,12 +36,12 @@ impl SpanEvent {
             None => PyDict::new(py).unbind(),
             Some(obj) if obj.is_none() => PyDict::new(py).unbind(),
             Some(obj) => {
-                if let Ok(d) = obj.downcast::<PyDict>() {
+                if let Ok(d) = obj.cast_exact::<PyDict>() {
                     d.clone().unbind()
                 } else {
                     // Accept any mapping by copying into a new dict
                     let dict = PyDict::new(py);
-                    let mapping = obj.downcast::<PyMapping>()?;
+                    let mapping = obj.cast::<PyMapping>()?;
                     dict.update(mapping)?;
                     dict.unbind()
                 }
