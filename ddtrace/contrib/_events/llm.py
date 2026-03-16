@@ -36,6 +36,7 @@ class LlmRequestEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         self.span_name = f"{self.component}.request"
+        # TODO: Move span_type logic to a processor or subscriber instead of the event.
         # span_type is only LLM when LLMObs is enabled and submit_to_llmobs is True
         if not (self.submit_to_llmobs and self.integration.llmobs_enabled):
             self.__dict__["span_type"] = None
