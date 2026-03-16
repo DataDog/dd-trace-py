@@ -2138,3 +2138,89 @@ class TestThreadInfoCache:
             assert lock._cached_thread_id == cached_tid
             assert lock._cached_thread_name == cached_name
             assert lock._cached_thread_native_id == cached_native_id
+
+
+# -- Per-module lock filtering (DD_PROFILING_LOCK_EXCLUDE_MODULES) -----------
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__"))
+def test_exclude_modules_skips_wrapping() -> None:
+    """Locks created from an excluded module are native (not _ProfiledLock)."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native, got _ProfiledLock"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="some.nonexistent.module"))
+def test_exclude_modules_wraps_non_excluded() -> None:
+    """Locks from non-excluded modules are still profiled."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules_wraps")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), f"Lock should be profiled, got {type(lock)}"
+
+
+@pytest.mark.subprocess()
+def test_exclude_modules_empty_is_backward_compatible() -> None:
+    """Empty exclude list wraps all locks (backward compatible)."""
+    import os
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    assert not os.environ.get("DD_PROFILING_LOCK_EXCLUDE_MODULES")
+
+    init_ddup("test_exclude_modules_empty")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main"))
+def test_exclude_modules_prefix_requires_dot_boundary() -> None:
+    """'__main' must NOT match '__main__' — prefix matching requires a dot boundary."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_prefix")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), "Prefix without dot boundary should not exclude"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__,some.other.module"))
+def test_exclude_modules_multiple() -> None:
+    """Multiple comma-separated modules are all excluded."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_multiple")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
