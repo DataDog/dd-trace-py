@@ -1902,7 +1902,6 @@ class Experiment:
         subset_dataset = self._get_subset_dataset(sample_size)
         semaphore = asyncio.Semaphore(jobs)
         pending_evals: list["LLMObsExperimentEvalMetricEvent"] = []
-        eval_lock = asyncio.Lock()
         flush_threshold = jobs
 
         async def _process_and_evaluate(
@@ -1923,20 +1922,19 @@ class Experiment:
             )
             if evaluation:
                 metrics = self._generate_metrics_for_record(task_result, evaluation)
-                async with eval_lock:
-                    pending_evals.extend(metrics)
-                    if len(pending_evals) >= flush_threshold:
-                        try:
-                            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
-                                cast(str, self._id),
-                                list(pending_evals),
-                                convert_tags_dict_to_list(self._tags),
-                            )
-                        except Exception:
-                            logger.debug("Failed to flush pending eval metrics", exc_info=True)
-                        else:
-                            pending_evals.clear()
-                            self._llmobs_instance.flush()  # type: ignore[union-attr]
+                pending_evals.extend(metrics)
+                if len(pending_evals) >= flush_threshold:
+                    try:
+                        self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                            cast(str, self._id),
+                            list(pending_evals),
+                            convert_tags_dict_to_list(self._tags),
+                        )
+                    except Exception:
+                        logger.debug("Failed to flush pending eval metrics", exc_info=True)
+                    else:
+                        pending_evals.clear()
+                        self._llmobs_instance.flush()  # type: ignore[union-attr]
             return task_result, evaluation
 
         coros = [_process_and_evaluate(idx_record) for idx_record in enumerate(subset_dataset)]
