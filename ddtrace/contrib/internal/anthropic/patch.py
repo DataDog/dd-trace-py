@@ -59,22 +59,21 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
-    # AIDEV-NOTE: Manually enter/exit the context so that streaming can keep it
+    # AIDEV-NOTE: Manually enter/finish the context so that streaming can keep it
     # open until the stream is exhausted. The stream handler closes the context
     # in finalize_stream(), which fires on_ended and finishes the span.
-    ctx = core.context_with_event(event)
-    ctx.__enter__()
+    ctx = core.context_with_event(event, enter=True)
     try:
         resp = func(*args, **kwargs)
     except Exception:
-        ctx.__exit__(*sys.exc_info())
+        ctx.finish(sys.exc_info())
         raise
 
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
     ctx.set_item("response", resp)
-    ctx.__exit__(None, None, None)
+    ctx.finish()
     return resp
 
 
@@ -83,19 +82,18 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     event = _create_llm_event(integration, instance, func, kwargs)
 
     # AIDEV-NOTE: Same manual context pattern as sync version.
-    ctx = core.context_with_event(event)
-    ctx.__enter__()
+    ctx = core.context_with_event(event, enter=True)
     try:
         resp = await func(*args, **kwargs)
     except Exception:
-        ctx.__exit__(*sys.exc_info())
+        ctx.finish(sys.exc_info())
         raise
 
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
     ctx.set_item("response", resp)
-    ctx.__exit__(None, None, None)
+    ctx.finish()
     return resp
 
 

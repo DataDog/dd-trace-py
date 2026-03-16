@@ -73,7 +73,7 @@ class BaseAnthropicStreamHandler:
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
         exc_info = (type(exception), exception, exception.__traceback__) if exception else (None, None, None)
-        ctx.__exit__(*exc_info)
+        ctx.finish(exc_info)
 
 
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
