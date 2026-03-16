@@ -206,7 +206,7 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        listed as async-signal-safe by POSIX, but does not use locks in practice.
        We assume it is safe to call from heap_tracker_t::postfork_child. */
     std::exponential_distribution<double> dist(1.0 / (sample_size + 1));
-    return (uint32_t)dist(rng);
+    return static_cast<uint32_t>(dist(rng));
 }
 
 // Method implementations
