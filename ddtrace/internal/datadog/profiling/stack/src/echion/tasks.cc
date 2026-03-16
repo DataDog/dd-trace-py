@@ -135,11 +135,19 @@ TaskInfo::create_impl(EchionSampler& echion, TaskObj* task_addr, size_t recursio
 bool
 is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& frame)
 {
+    static const std::string INVALID_STRING;
+
     if (!using_uvloop) {
         return false;
     }
 
-    const auto& frame_name = echion.string_table().lookup(frame.name)->get();
+    auto maybe_frame_name = echion.string_table().lookup(frame.name);
+#ifdef PROFILING_ASSERTIONS
+    if (!maybe_frame_name) {
+        std::cerr << "String Table lookup for uvloop frame name failed" << std::endl;
+    }
+#endif
+    const auto& frame_name = maybe_frame_name ? maybe_frame_name->get() : INVALID_STRING;
 
 #if PY_VERSION_HEX >= 0x030b0000
     // Python 3.11+: qualified name includes the enclosing function
@@ -149,7 +157,14 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
     // Python < 3.11: just check for "wrapper" in uvloop/__init__.py
     constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
     constexpr std::string_view wrapper = "wrapper";
-    auto filename = echion.string_table().lookup(frame.filename)->get();
+    auto maybe_filename = echion.string_table().lookup(frame.filename);
+#ifdef PROFILING_ASSERTIONS
+    if (!maybe_filename) {
+        std::cerr << "String Table lookup for uvloop file name failed" << std::endl;
+    }
+#endif
+    const auto& filename = maybe_filename ? maybe_filename->get() : INVALID_STRING;
+
     auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
     return is_uvloop && (frame_name == wrapper);
 #endif
