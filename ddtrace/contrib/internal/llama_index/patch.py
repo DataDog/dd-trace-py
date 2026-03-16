@@ -3,6 +3,7 @@ import inspect
 import sys
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
@@ -79,7 +80,7 @@ def _create_event(
     request_kwargs: dict[str, Any],
     interface_type: str,
     model: str = "",
-    is_chat: bool | None = None,
+    is_chat: Optional[bool] = None,
     operation: str = "",
 ) -> LlmRequestEvent:
     return LlmRequestEvent(
