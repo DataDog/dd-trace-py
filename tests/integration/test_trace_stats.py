@@ -122,11 +122,6 @@ def test_stats_report_hostname(get_hostname):
         assert p._hostname == ""
 
 
-@pytest.mark.subprocess(
-    env={
-        "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true",
-    }
-)
 def test_periodic_payload_includes_process_tags():
     from unittest import mock
 
