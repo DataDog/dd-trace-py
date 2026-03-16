@@ -11,7 +11,6 @@ from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -33,12 +32,12 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-def create_aio_client_interceptors(pin: Pin, host: str, port: int) -> tuple[aio.ClientInterceptor, ...]:
+def create_aio_client_interceptors(host: str, port: int) -> tuple[aio.ClientInterceptor, ...]:
     return (
-        _UnaryUnaryClientInterceptor(pin, host, port),
-        _UnaryStreamClientInterceptor(pin, host, port),
-        _StreamUnaryClientInterceptor(pin, host, port),
-        _StreamStreamClientInterceptor(pin, host, port),
+        _UnaryUnaryClientInterceptor(host, port),
+        _UnaryStreamClientInterceptor(host, port),
+        _StreamUnaryClientInterceptor(host, port),
+        _StreamStreamClientInterceptor(host, port),
     )
 
 
@@ -124,8 +123,7 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
 
 
 class _ClientInterceptor:
-    def __init__(self, pin: Pin, host: str, port: int) -> None:
-        self._pin = pin
+    def __init__(self, host: str, port: int) -> None:
         self._host = host
         self._port = port
 
@@ -136,7 +134,7 @@ class _ClientInterceptor:
         span = tracer.trace(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
+            service=trace_utils.ext_service(None, config.grpc_aio_client),
             resource=method_as_str,
         )
 
@@ -151,10 +149,6 @@ class _ClientInterceptor:
         utils.set_grpc_method_meta(span, method_as_str, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
         span._set_attribute(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-
-        # inject tags from pin
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
 
         # propagate distributed tracing headers if available
         headers = {}
