@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    flask: Fixes a bug in the ``patched_render`` function where ``pin.enabled``
+    was referenced without being called (missing ``()``), causing the tracing
+    guard to always evaluate as truthy and never bypass tracing even when the
+    pin was disabled. Also adds the missing ``None`` check for the pin, consistent
+    with the rest of the Flask integration.

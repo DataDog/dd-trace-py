@@ -516,7 +516,7 @@ def _build_render_template_wrapper(name):
 def patched_render(wrapped, instance, args, kwargs):
     pin = Pin._find(wrapped, instance, get_current_app())
 
-    if not pin.enabled:
+    if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
