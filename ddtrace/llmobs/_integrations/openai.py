@@ -112,7 +112,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_tool(span, kwargs, response)
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
-        _annotate_llmobs_span_data(span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics)
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
+        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:

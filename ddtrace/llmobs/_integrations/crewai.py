@@ -284,7 +284,9 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_flow(self, span, args, kwargs, response):
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or {}
-        _annotate_llmobs_span_data(span, name=span.name or "CrewAI Flow", input_value=inputs, output_value=str(response))
+        _annotate_llmobs_span_data(
+            span, name=span.name or "CrewAI Flow", input_value=inputs, output_value=str(response)
+        )
         return
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):

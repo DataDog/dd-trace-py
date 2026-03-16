@@ -532,9 +532,13 @@ class LangChainIntegration(BaseLLMIntegration):
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
             if is_workflow:
-                _annotate_llmobs_span_data(span, output_value=[Message(content=content, role=ROLE_MAPPING.get(role, ""))])
+                _annotate_llmobs_span_data(
+                    span, output_value=[Message(content=content, role=ROLE_MAPPING.get(role, ""))]
+                )
             else:
-                _annotate_llmobs_span_data(span, output_messages=[Message(content=content, role=ROLE_MAPPING.get(role, ""))])
+                _annotate_llmobs_span_data(
+                    span, output_messages=[Message(content=content, role=ROLE_MAPPING.get(role, ""))]
+                )
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0

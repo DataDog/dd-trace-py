@@ -44,7 +44,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         tool_output = kwargs.get("tool_output", "")
         tool_id = kwargs.get("tool_id", "")
 
-        _annotate_llmobs_span_data(span, kind="tool", input_value=tool_input, output_value=tool_output, metadata={"tool_id": tool_id})
+        _annotate_llmobs_span_data(
+            span, kind="tool", input_value=tool_input, output_value=tool_output, metadata={"tool_id": tool_id}
+        )
 
     def _llmobs_set_agent_tags(
         self,
@@ -68,7 +70,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
-        _annotate_llmobs_span_data(span, kind="agent", model_name=model or "", input_value=input_messages, metadata=metadata, output_value=output_messages, metrics=metrics, agent_manifest=agent_manifest)
+        _annotate_llmobs_span_data(
+            span,
+            kind="agent",
+            model_name=model or "",
+            input_value=input_messages,
+            metadata=metadata,
+            output_value=output_messages,
+            metrics=metrics,
+            agent_manifest=agent_manifest,
+        )
 
     def _build_agent_manifest(
         self, model: str, metadata: dict[str, Any], init_system_message: dict[str, Any]
