@@ -79,7 +79,6 @@ def _traced_publish(func, instance, args, kwargs):
         topic_id=topic_id,
         publish_kwargs=kwargs,
     ) as ctx:
-
         try:
             result = func(*args, **kwargs)
         except BaseException as e:
