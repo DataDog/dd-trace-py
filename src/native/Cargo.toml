@@ -33,9 +33,9 @@ libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v2
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
-pyo3 = { version = "0.27", features = ["extension-module", "anyhow", "generate-import-lib"] }
+pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
-pyo3-ffi = { version = "0.27", optional = true, features = ["generate-import-lib"] }
+pyo3-ffi = { version = "0.27", optional = true }
 
 [build-dependencies]
 pyo3-build-config = "0.27"
