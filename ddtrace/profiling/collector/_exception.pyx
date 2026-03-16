@@ -17,6 +17,16 @@ _current_thread = threading.current_thread
 
 MAX_EXCEPTION_MESSAGE_LEN = 128
 
+# sys.monitoring tool ID for the exception profiler.
+# CPython provides IDs 0-5:
+#   0 = DEBUGGER_ID
+#   1 = COVERAGE_ID (used by dd-trace-py coverage)
+#   2 = PROFILER_ID (used by the native stack profiler)
+#   3 = used by error tracking (handled exceptions)
+#   4 = **used here**
+#   5 = OPTIMIZER_ID
+_MONITORING_TOOL_ID = 4
+
 
 cdef class _SamplerState:
     """
@@ -136,10 +146,10 @@ class ExceptionCollector(collector.Collector):
         if HAS_MONITORING:
             try:
                 _state = _SamplerState(self._sampling_interval, self._collect_message)
-                sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+                sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
+                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.EXCEPTION_HANDLED)
                 sys.monitoring.register_callback(
-                    sys.monitoring.PROFILER_ID,
+                    _MONITORING_TOOL_ID,
                     sys.monitoring.events.EXCEPTION_HANDLED,
                     _on_exception_handled,
                 )
@@ -163,12 +173,12 @@ class ExceptionCollector(collector.Collector):
 
         try:
             sys.monitoring.register_callback(
-                sys.monitoring.PROFILER_ID,
+                _MONITORING_TOOL_ID,
                 sys.monitoring.events.EXCEPTION_HANDLED,
                 None,
             )
-            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)
-            sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+            sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
+            sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
         except Exception:
             LOG.debug("Failed to clean up exception monitoring", exc_info=True)
         finally:
