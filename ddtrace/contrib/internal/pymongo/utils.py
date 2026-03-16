@@ -125,7 +125,7 @@ def set_query_metadata(span, cmd):
     """Set span `mongodb.query` tag and resource given command query. Shared between sync and async."""
     if cmd.query:
         resource_str = json.dumps(normalize_filter(cmd.query))
-        if config.pymongo.mongodb_obfuscation:
+        if config.pymongo._mongodb_obfuscation:
             tag_query = resource_str
         else:
             tag_query = json_util.dumps(cmd.query)

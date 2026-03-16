@@ -88,7 +88,7 @@ class TestAsyncPymongo(AsyncioTestCase):
     async def test_async_mongodb_obfuscation_disabled_find_operation(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
-            with self.override_config("pymongo", dict(mongodb_obfuscation=False)):
+            with self.override_config("pymongo", dict(_mongodb_obfuscation=False)):
                 db = client["testdb"]
                 await db.drop_collection("teams")
                 await db.teams.insert_one({"name": "Team1"})

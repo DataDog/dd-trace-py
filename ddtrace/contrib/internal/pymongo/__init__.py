@@ -37,10 +37,10 @@ Configuration
 
    Default: ``"pymongo"``
 
-.. py:data:: ddtrace.config.pymongo["mongodb_obfuscation"]
+.. envvar:: DD_TRACE_MONGODB_OBFUSCATION
+
    Whether to obfuscate values in the ``mongodb.query`` span tag.
 
-   The option can also be set with the ``DD_TRACE_MONGODB_OBFUSCATION`` environment variable.
    This only affects the ``mongodb.query`` tag. Resource names remain normalized.
    To preserve raw ``mongodb.query`` values end-to-end, this needs to be paired with
    ``DD_APM_OBFUSCATION_MONGODB_ENABLED=false`` on the Datadog Agent.

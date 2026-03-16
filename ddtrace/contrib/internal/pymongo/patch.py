@@ -21,7 +21,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("pymongo"),
         _dbm_propagator=_DBM_Propagator(2, "spec", dbm_comment_injector, _generate_comment_from_metadata),
-        mongodb_obfuscation=_get_config("DD_TRACE_MONGODB_OBFUSCATION", default=True, modifier=asbool),
+        _mongodb_obfuscation=_get_config("DD_TRACE_MONGODB_OBFUSCATION", default=True, modifier=asbool),
     ),
 )
 
