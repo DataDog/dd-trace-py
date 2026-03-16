@@ -36,7 +36,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         **kwargs: dict[str, Any],
     ) -> None:
         if model is not None:
-            span._set_tag_str(MODEL, model)
+            span._set_attribute(MODEL, model)
 
     def _llmobs_set_tags(
         self,
@@ -251,7 +251,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         return [Message(content=str(content), role=str(role))]
 
     def _extract_completion_output_messages(self, response: Any) -> list[Message]:
-        text = _get_attr(response, "text", "")
+        # predict() returns a plain string; CompletionResponse has .text
+        text = _get_attr(response, "text", None)
+        if text is None:
+            text = str(response) if response else ""
         return [Message(content=str(text), role="assistant")]
 
     def _extract_usage(self, response: Any) -> dict[str, Any]:

@@ -185,6 +185,7 @@ libFuzzer
 lifecycle
 linters
 litellm
+LlamaIndex
 LLM
 lockfiles
 logbook
