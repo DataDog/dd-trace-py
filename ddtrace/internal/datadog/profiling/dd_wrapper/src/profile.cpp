@@ -177,6 +177,12 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     // Threads need to serialize at this point
     const std::lock_guard<std::mutex> lock(profile_mtx);
 
+    // Re-check after acquiring the lock: another thread may have
+    // finished initialization while we blocked.
+    if (!first_time.load()) {
+        return;
+    }
+
     // nframes
     max_nframes = _max_nframes;
 
@@ -184,11 +190,14 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     const unsigned int mask_as_int = type & SampleType::All;
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-        // TODO fix this
         if (!already_warned) {
             already_warned = true;
             std::cerr << "No valid sample types were enabled" << std::endl;
         }
+        // Mark initialization as done even in the error case so that a
+        // subsequent call cannot re-enter and attempt to double-register
+        // fork handlers or re-run setup_samplers().
+        first_time.store(false);
         return;
     }
     type_mask = static_cast<SampleType>(mask_as_int);
