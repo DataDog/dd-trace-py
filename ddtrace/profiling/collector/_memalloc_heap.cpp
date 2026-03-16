@@ -142,7 +142,7 @@ class heap_tracker_t
      * constructor member-initialiser list, allowing next_sample_size_no_cpython
      * to be called safely during current_sample_size initialisation.
      * std::minstd_rand stores all state in the object (no global locks), so it
-     * is fork-safe unlike rand(). */
+     * is fork-safe (unlike rand). */
     std::minstd_rand rng;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
@@ -202,14 +202,9 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        sample_size. std::exponential_distribution handles the inverse-transform
        sampling internally.
 
-       Note: We use std::minstd_rand instead of rand() because rand() uses a
-       global mutex in glibc, which can deadlock after fork if another thread
-       held that lock at fork time. std::minstd_rand stores all state in the
-       object (no global locks), so it is fork-safe.
-
-       NOTE: std::exponential_distribution calls log() internally. log() is not
+       NOTE: std::exponential_distribution calls log internally. log is not
        listed as async-signal-safe by POSIX, but does not use locks in practice.
-       We assume it is safe to call from heap_tracker_t::postfork_child(). */
+       We assume it is safe to call from heap_tracker_t::postfork_child. */
     std::exponential_distribution<double> dist(1.0 / (sample_size + 1));
     return (uint32_t)dist(rng);
 }
