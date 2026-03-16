@@ -135,11 +135,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            _annotate_llmobs_span_data(
-                span, output_value="[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
-            )
-            return
-        _annotate_llmobs_span_data(span, output_value="[{} embedding(s) returned]".format(len(resp.data)))
+            output_value = "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+        else:
+            output_value = "[{} embedding(s) returned]".format(len(resp.data))
+        _annotate_llmobs_span_data(span, output_value=output_value)
 
     @staticmethod
     def _llmobs_set_tags_from_tool(span: Span, kwargs: dict[str, Any], response: Any) -> None:

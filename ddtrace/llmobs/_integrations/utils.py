@@ -28,9 +28,7 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_input_messages
-from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_output_messages
-from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -343,20 +341,23 @@ def openai_set_meta_tags_from_chat(
             processed_message["content"] = ""  # reset content to empty string if tool results present
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
-    _annotate_llmobs_span_data(span, input_messages=input_messages, metadata=parameters)
-
+    tool_definitions = None
     if kwargs.get("tools") or kwargs.get("functions"):
         tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
         tools.extend(_openai_get_tool_definitions(kwargs.get("functions") or []))
         if tools:
-            _annotate_llmobs_span_data(span, tool_definitions=tools)
+            tool_definitions = tools
+    _annotate_llmobs_span_data(
+        span, input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
+    )
 
     if span.error or not messages:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
+
+    output_messages: list[Message] = []
     if isinstance(messages, list):  # streamed response
         role = ""
-        output_messages: list[Message] = []
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
@@ -371,27 +372,25 @@ def openai_set_meta_tags_from_chat(
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
             output_messages.append(message)
-        _annotate_llmobs_span_data(span, output_messages=output_messages)
-        return
-    choices = _get_attr(messages, "choices", [])
-    output_messages = []
-    for idx, choice in enumerate(choices):
-        choice_message = _get_attr(choice, "message", {})
-        role = _get_attr(choice_message, "role", "")
-        content = _get_attr(choice_message, "content", "") or ""
+    else:
+        choices = _get_attr(messages, "choices", [])
+        for idx, choice in enumerate(choices):
+            choice_message = _get_attr(choice, "message", {})
+            role = _get_attr(choice_message, "role", "")
+            content = _get_attr(choice_message, "content", "") or ""
 
-        extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
-            choice_message, llm_span=span, dispatch_llm_choice=True
-        )
-        capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
+            extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
+                choice_message, llm_span=span, dispatch_llm_choice=True
+            )
+            capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
-        message = Message(content=str(content), role=str(role))
-        if extracted_tool_calls:
-            message["tool_calls"] = extracted_tool_calls
-        if extracted_tool_results:
-            message["tool_results"] = extracted_tool_results
-            message["content"] = ""  # set content empty to avoid duplication
-        output_messages.append(message)
+            message = Message(content=str(content), role=str(role))
+            if extracted_tool_calls:
+                message["tool_calls"] = extracted_tool_calls
+            if extracted_tool_results:
+                message["tool_results"] = extracted_tool_results
+                message["content"] = ""  # set content empty to avoid duplication
+            output_messages.append(message)
     _annotate_llmobs_span_data(span, output_messages=output_messages)
 
 
@@ -919,12 +918,7 @@ def openai_set_meta_tags_from_response(
     if "instructions" in kwargs:
         input_messages.insert(0, Message(content=str(kwargs["instructions"]), role="system"))
 
-    _annotate_llmobs_span_data(
-        span,
-        input_messages=input_messages,
-        metadata=openai_get_metadata_from_response(response, kwargs),
-    )
-
+    validated_prompt = None
     prompt_data = kwargs.get("prompt")
     if prompt_data:
         try:
@@ -943,23 +937,25 @@ def openai_set_meta_tags_from_response(
                         prompt_data["variables"] = normalized_variables
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-            _annotate_llmobs_span_data(span, prompt=validated_prompt)
-
             set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
+
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=input_messages,
+        metadata=openai_get_metadata_from_response(response, kwargs),
+        prompt=validated_prompt,
+    )
 
     if span.error or not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
-    # The response potentially contains enriched metadata (ex. tool calls) not in the original request
-    _annotate_llmobs_span_data(span, metadata=openai_get_metadata_from_response(response))
     output_messages, mcp_tool_definitions = openai_get_output_messages_from_response(response, integration)
-    _annotate_llmobs_span_data(span, output_messages=output_messages)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
-    if mcp_tool_definitions or tools:
-        _annotate_llmobs_span_data(span, tool_definitions=tools + mcp_tool_definitions)
+    tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
+    _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1090,10 +1086,7 @@ def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
         return
     input_messages = get_llmobs_input_messages(span)
     output_messages = get_llmobs_output_messages(span)
-    if input_messages:
-        _annotate_llmobs_span_data(span, input_value=input_messages)
-    if output_messages:
-        _annotate_llmobs_span_data(span, output_value=output_messages)
+    _annotate_llmobs_span_data(span, input_value=input_messages, output_value=output_messages)
 
 
 class OaiSpanAdapter:

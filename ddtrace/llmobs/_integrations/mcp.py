@@ -65,10 +65,6 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
     return None
 
 
-def _set_or_update_tags(span: Span, tags: dict[str, str]) -> None:
-    _annotate_llmobs_span_data(span, tags=tags)
-
-
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
@@ -140,19 +136,13 @@ class MCPIntegration(BaseLLMIntegration):
         tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
         span_name = "MCP Client Tool Call: {}".format(tool_name)
 
-        _annotate_llmobs_span_data(span, kind="tool", name=span_name, input_value=tool_arguments)
-
+        tags: dict[str, str] = {"mcp_tool_kind": "client"}
         client_session_root = _find_client_session_root(span)
         if client_session_root:
             client_session_root_tags = get_llmobs_tags(client_session_root) or {}
-            _set_or_update_tags(
-                span,
-                {
-                    "mcp_server_name": client_session_root_tags.get("mcp_server_name", ""),
-                },
-            )
+            tags["mcp_server_name"] = client_session_root_tags.get("mcp_server_name", "")
 
-        _set_or_update_tags(span, {"mcp_tool_kind": "client"})
+        _annotate_llmobs_span_data(span, kind="tool", name=span_name, input_value=tool_arguments, tags=tags)
 
         if response is None:
             return
@@ -165,8 +155,7 @@ class MCPIntegration(BaseLLMIntegration):
             processed_content = [
                 self._parse_mcp_text_content(item) for item in content if _get_attr(item, "type", None) == "text"
             ]
-        output_value = {"content": processed_content, "isError": is_error}
-        _annotate_llmobs_span_data(span, output_value=output_value)
+        _annotate_llmobs_span_data(span, output_value={"content": processed_content, "isError": is_error})
 
     def _llmobs_set_tags_initialize(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
         _annotate_llmobs_span_data(span, name="MCP Client Initialize", kind="task", output_value=safe_json(response))
@@ -177,9 +166,9 @@ class MCPIntegration(BaseLLMIntegration):
 
         client_session_root = _find_client_session_root(span)
         if client_session_root:
-            _set_or_update_tags(
+            _annotate_llmobs_span_data(
                 client_session_root,
-                {
+                tags={
                     "mcp_server_name": getattr(server_info, "name", ""),
                     "mcp_server_version": getattr(server_info, "version", ""),
                     "mcp_server_title": getattr(server_info, "title", ""),
@@ -193,9 +182,9 @@ class MCPIntegration(BaseLLMIntegration):
         client_name = _get_attr(client_info, "name", None)
         client_version = _get_attr(client_info, "version", None)
         if client_name and client_version:
-            _set_or_update_tags(
+            _annotate_llmobs_span_data(
                 span,
-                {
+                tags={
                     "client_name": str(client_name),
                     "client_version": f"{client_name}_{client_version}",
                 },
@@ -219,8 +208,7 @@ class MCPIntegration(BaseLLMIntegration):
             span.error = 1
             span.set_tag(ERROR_TYPE, "ToolError")
             span.set_tag(ERROR_MSG, "tool resulted in an error")
-        _set_or_update_tags(span, override_tags)
-        _annotate_llmobs_span_data(span, name=tool_name, kind="tool")
+        _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
         """Process and remove telemetry argument from requests

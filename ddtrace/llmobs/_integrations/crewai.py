@@ -117,6 +117,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_instance = kwargs.pop("_dd.instance", None)
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
+        span_links = None
         if task_span_ids:
             last_task_span_id = task_span_ids[-1]
             span_link = _SpanLink(
@@ -125,7 +126,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 attributes={"from": "output", "to": "output"},
             )
             curr_span_links = get_llmobs_span_links(span) or []
-            _annotate_llmobs_span_data(span, span_links=curr_span_links + [span_link])
+            span_links = curr_span_links + [span_link]
         metadata = {
             "process": getattr(crew_instance, "process", ""),
             "planning": getattr(crew_instance, "planning", ""),
@@ -134,7 +135,9 @@ class CrewAIIntegration(BaseLLMIntegration):
             "memory": getattr(crew_instance, "memory", ""),
         }
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or ""
-        _annotate_llmobs_span_data(span, input_value=inputs, name="CrewAI Crew", metadata=metadata)
+        _annotate_llmobs_span_data(
+            span, input_value=inputs, name="CrewAI Crew", metadata=metadata, span_links=span_links
+        )
         if span.error:
             return
         _annotate_llmobs_span_data(span, output_value=getattr(response, "raw", ""))
@@ -152,6 +155,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             "human_input": getattr(task_instance, "human_input", False),
             "output_file": getattr(task_instance, "output_file", ""),
         }
+        computed_span_links = None
         if task_id:
             span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
             if self._is_planning_task(span):
@@ -163,9 +167,13 @@ class CrewAIIntegration(BaseLLMIntegration):
                 )
                 span_links.append(span_link)
             curr_span_links = get_llmobs_span_links(span) or []
-            _annotate_llmobs_span_data(span, span_links=curr_span_links + span_links)
+            computed_span_links = curr_span_links + span_links
         _annotate_llmobs_span_data(
-            span, name=task_name if task_name else "CrewAI Task", metadata=metadata, input_value=task_description
+            span,
+            name=task_name if task_name else "CrewAI Task",
+            metadata=metadata,
+            input_value=task_description,
+            span_links=computed_span_links,
         )
         if span.error:
             return

@@ -103,27 +103,21 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
-            _annotate_llmobs_span_data(span, metadata=metadata)
-            return
-        if base_url or "router" not in operation:
-            _annotate_llmobs_span_data(span, metadata=metadata)
-            return
-
-        llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
-        if not llm_router:
-            _annotate_llmobs_span_data(span, metadata=metadata)
-            return
-
-        metadata["router_settings"] = {
-            "router_general_settings": getattr(llm_router, "router_general_settings", None),
-            "routing_strategy": getattr(llm_router, "routing_strategy", None),
-            "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
-            "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
-            "retry_policy": getattr(llm_router, "retry_policy", None),
-            "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
-        }
-        if hasattr(llm_router, "get_model_list"):
-            metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(llm_router.get_model_list())
+        elif not base_url and "router" in operation:
+            llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
+            if llm_router:
+                metadata["router_settings"] = {
+                    "router_general_settings": getattr(llm_router, "router_general_settings", None),
+                    "routing_strategy": getattr(llm_router, "routing_strategy", None),
+                    "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
+                    "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
+                    "retry_policy": getattr(llm_router, "retry_policy", None),
+                    "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
+                }
+                if hasattr(llm_router, "get_model_list"):
+                    metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(
+                        llm_router.get_model_list()
+                    )
 
         _annotate_llmobs_span_data(span, metadata=metadata)
 

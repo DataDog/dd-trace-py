@@ -124,9 +124,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self._llmobs_set_agent_attributes(span, oai_span)
             core.dispatch(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, ())
         elif span_type == "custom":
-            custom_data = oai_span.formatted_custom_data
-            if custom_data:
-                _annotate_llmobs_span_data(span, metadata=custom_data)
+            _annotate_llmobs_span_data(span, metadata=oai_span.formatted_custom_data or None)
 
     def _llmobs_update_trace_info_input(self, oai_span: OaiSpanAdapter, llmobs_span: Span) -> None:
         """
@@ -172,51 +170,43 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not trace_info:
             return
 
-        group_id = oai_trace.group_id
-        if group_id:
-            _annotate_llmobs_span_data(span, session_id=group_id)
-
-        _annotate_llmobs_span_data(span, kind="workflow")
-
+        input_value = None
         if trace_info.input_oai_span:
-            input_value = trace_info.input_oai_span.llmobs_trace_input()
-            if input_value:
-                _annotate_llmobs_span_data(span, input_value=input_value)
+            input_value = trace_info.input_oai_span.llmobs_trace_input() or None
 
+        output_value = None
         if trace_info.output_oai_span:
-            output_value = trace_info.output_oai_span.response_output_text
-            if output_value:
-                _annotate_llmobs_span_data(span, output_value=output_value)
+            output_value = trace_info.output_oai_span.response_output_text or None
 
-        metadata = oai_trace.metadata
-        if metadata:
-            _annotate_llmobs_span_data(span, metadata=metadata)
+        _annotate_llmobs_span_data(
+            span,
+            kind="workflow",
+            session_id=oai_trace.group_id or None,
+            input_value=input_value,
+            output_value=output_value,
+            metadata=oai_trace.metadata or None,
+        )
 
     def _llmobs_set_response_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         """Sets attributes for response type spans."""
         if not oai_span.response:
             return
 
+        name = None
         parent = _get_nearest_llmobs_ancestor(span)
         trace_info = self._llmobs_get_trace_info(oai_span)
         if parent and trace_info and str(get_llmobs_parent_id(span)) == trace_info.current_top_level_agent_span_id:
-            _annotate_llmobs_span_data(span, name=_get_span_name(parent) + " (LLM)")
+            name = _get_span_name(parent) + " (LLM)"
 
-        if oai_span.llmobs_model_name:
-            _annotate_llmobs_span_data(span, model_name=oai_span.llmobs_model_name)
-            _annotate_llmobs_span_data(span, model_provider="openai")
-
+        input_messages = None
         if oai_span.input:
-            messages, tool_call_ids = oai_span.llmobs_input_messages()
-
+            input_messages, tool_call_ids = oai_span.llmobs_input_messages()
             for tool_call_id in tool_call_ids:
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
-            _annotate_llmobs_span_data(span, input_messages=messages)
-
+        output_messages = None
         if oai_span.response and oai_span.response.output:
-            messages, tool_call_outputs, _ = oai_span.llmobs_output_messages()
-
+            output_messages, tool_call_outputs, _ = oai_span.llmobs_output_messages()
             for tool_call_output in tool_call_outputs:
                 core.dispatch(
                     DISPATCH_ON_LLM_TOOL_CHOICE,
@@ -231,19 +221,19 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                     ),
                 )
 
-            _annotate_llmobs_span_data(span, output_messages=messages)
-
-        metadata = oai_span.llmobs_metadata
-        if metadata:
-            _annotate_llmobs_span_data(span, metadata=metadata)
-
-        metrics = oai_span.llmobs_metrics
-        if metrics:
-            _annotate_llmobs_span_data(span, metrics=metrics)
+        _annotate_llmobs_span_data(
+            span,
+            name=name,
+            model_name=oai_span.llmobs_model_name or None,
+            model_provider="openai" if oai_span.llmobs_model_name else None,
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metadata=oai_span.llmobs_metadata or None,
+            metrics=oai_span.llmobs_metrics or None,
+        )
 
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
-        _annotate_llmobs_span_data(span, input_value=oai_span.input or "")
-        _annotate_llmobs_span_data(span, output_value=oai_span.output or "")
+        _annotate_llmobs_span_data(span, input_value=oai_span.input or "", output_value=oai_span.output or "")
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (oai_span.name, oai_span.input, "function", span),
@@ -252,8 +242,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
         span.name = handoff_tool_name
-        _annotate_llmobs_span_data(span, input_value=oai_span.from_agent or "")
-        _annotate_llmobs_span_data(span, output_value=oai_span.to_agent or "")
+        _annotate_llmobs_span_data(span, input_value=oai_span.from_agent or "", output_value=oai_span.to_agent or "")
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span),

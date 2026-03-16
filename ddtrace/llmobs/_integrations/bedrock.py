@@ -8,7 +8,9 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INTEGRATION_TAG_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import SESSION_ID_TAG_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
@@ -58,7 +60,6 @@ class BedrockIntegration(BaseLLMIntegration):
             "llmobs.proxy_request": Optional[bool],
         }
         """
-        _annotate_llmobs_span_data(span, tags={"integration": "bedrock"})
         if operation == "agent":
             return self._llmobs_set_tags_agent(span, args, kwargs, response)
 
@@ -90,8 +91,6 @@ class BedrockIntegration(BaseLLMIntegration):
         prompt = request_params.get("prompt", "")
         tool_config = request_params.get("tool_config", {})
         tool_definitions = self._extract_tool_definitions(tool_config)
-        if tool_definitions:
-            _annotate_llmobs_span_data(span, tool_definitions=tool_definitions)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
@@ -129,6 +128,8 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata=metadata,
             metrics=usage_metrics if span_kind != "workflow" else {},
             output_messages=output_messages,
+            tags={INTEGRATION_TAG_KEY: "bedrock"},
+            tool_definitions=tool_definitions if tool_definitions else None,
         )
 
         update_proxy_workflow_input_output_value(span, span_kind)
@@ -136,7 +137,6 @@ class BedrockIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
             return
-        _annotate_llmobs_span_data(span, tags={"integration": "bedrock"})
         input_args = get_argument_value(args, kwargs, 1, "inputArgs", optional=True) or {}
         input_value = input_args.get("inputText", "")
         agent_id = input_args.get("agentId", "")
@@ -146,7 +146,7 @@ class BedrockIntegration(BaseLLMIntegration):
             span,
             kind="agent",
             input_value=str(input_value),
-            tags={"session_id": session_id},
+            tags={SESSION_ID_TAG_KEY: session_id, INTEGRATION_TAG_KEY: "bedrock_agents"},
             metadata={"agent_id": agent_id, "agent_alias_id": agent_alias_id},
         )
         if not response:

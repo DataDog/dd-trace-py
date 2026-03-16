@@ -115,16 +115,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
+
+        output_val = None
+        if not span.error:
+            # depending on the version, the output may be a ToolReturnPart or the raw response
+            output_val = getattr(response, "content", "") or response
+
         _annotate_llmobs_span_data(
             span,
             name=tool_name,
             metadata={"description": tool_description},
             input_value=tool_input,
+            output_value=output_val,
         )
-        if not span.error:
-            # depending on the version, the output may be a ToolReturnPart or the raw response
-            output_content = getattr(response, "content", "") or response
-            _annotate_llmobs_span_data(span, output_value=output_content)
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,

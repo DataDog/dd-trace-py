@@ -55,10 +55,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(response)
             metrics = self._extract_metrics_from_response(response)
 
-        tool_definitions = self._extract_tools(instance, kwargs.get("tools", []))
-        if tool_definitions:
-            _annotate_llmobs_span_data(span, tool_definitions=tool_definitions)
-
+        tool_definitions = self._extract_tools(instance, kwargs.get("tools", [])) or None
         _annotate_llmobs_span_data(
             span,
             kind="llm",
@@ -68,6 +65,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             input_messages=input_messages,
             output_messages=output_messages,
             metrics=metrics,
+            tool_definitions=tool_definitions,
         )
 
     def _extract_metrics_from_response(self, response):
