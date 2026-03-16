@@ -276,3 +276,11 @@ suites:
       - '@vendor'
       - tests/vendor/*
     runner: riot
+
+  deadlock:
+    parallelism: 1
+    paths:
+      - tests/deadlock/*
+      - tests/conftest.py
+    pattern: ^deadlock$
+    runner: riot

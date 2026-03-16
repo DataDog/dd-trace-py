@@ -52,6 +52,19 @@ try:
 except ImportError:
     StashKey = None
 
+try:
+    from tests.deadlock import DEADLOCK_AVAILABLE as _DEADLOCK_AVAILABLE
+    from tests.deadlock import arm as _deadlock_arm
+    from tests.deadlock import disarm as _deadlock_disarm
+except ImportError:
+    _DEADLOCK_AVAILABLE = False
+
+    def _deadlock_arm(*args, **kwargs):
+        pass
+
+    def _deadlock_disarm():
+        pass
+
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
@@ -213,6 +226,33 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+_DEADLOCK_TIMEOUT: int = int(os.environ.get("DD_TEST_DEADLOCK_TIMEOUT", "300"))
+
+
+@pytest.fixture(autouse=True)
+def deadlock_watchdog(request):
+    """GIL-free deadlock detector: abort + dump Python stacks if the test hangs.
+
+    Implemented by the ``_deadlock`` C extension (tests/deadlock/).  When the
+    extension is not available (e.g. non-native CI environments) this fixture
+    is a silent no-op.
+
+    Timeout defaults to 300 s (5 min); override via ``DD_TEST_DEADLOCK_TIMEOUT``
+    (seconds).  Set ``DD_TEST_DEADLOCK_TIMEOUT=0`` to disable entirely.
+    """
+    if not _DEADLOCK_AVAILABLE or _DEADLOCK_TIMEOUT <= 0:
+        yield
+        return
+    _deadlock_arm(
+        timeout=_DEADLOCK_TIMEOUT,
+        test_name=request.node.nodeid,
+    )
+    try:
+        yield
+    finally:
+        _deadlock_disarm()
 
 
 @pytest.fixture(autouse=True)

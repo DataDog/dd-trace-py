@@ -105,6 +105,7 @@ LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
+DEADLOCK_DIR = HERE / "tests" / "deadlock"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
@@ -1225,6 +1226,18 @@ if not IS_PYSTON:
                 optional=False,
             ),
         )
+
+        # Deadlock detector for CI tests.
+        # Excluded from wheel builds (cibuildwheel sets CIBUILDWHEEL=1).
+        # optional=True so a missing C++ toolchain does not break the install.
+        if not os.environ.get("CIBUILDWHEEL"):
+            ext_modules.append(
+                CMakeExtension(
+                    "tests.deadlock._deadlock",
+                    source_dir=DEADLOCK_DIR,
+                    optional=True,
+                )
+            )
 
 
 else:

@@ -4174,5 +4174,10 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="deadlock",
+            command="pytest -v {cmdargs} tests/deadlock/",
+            pys=select_pys(),
+        ),
     ],
 )
