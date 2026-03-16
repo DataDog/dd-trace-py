@@ -1,6 +1,0 @@
----
-features:
-  - |
-    google_cloud_pubsub: Add tracing support for the ``google-cloud-pubsub`` library.
-    Instruments ``PublisherClient.publish()`` to generate spans for message publishing,
-    with optional distributed trace context propagation via message attributes.
