@@ -112,6 +112,8 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
+SLIM_BUILD = os.getenv("DD_SLIM_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "slim" if SLIM_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -274,10 +276,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = []
+rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-    rust_features.append("crashtracker")
     rust_features.append("profiling")
+    if not SLIM_BUILD:
+        rust_features.append("crashtracker")
+if not SLIM_BUILD:
+    rust_features.append("ffe")
 
 
 class PatchedDistribution(Distribution):
@@ -1274,6 +1279,11 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
         compiler_directives={"language_level": "3"},
         cache=True,
     )
+
+PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
+if PACKAGE_NAME != "ddtrace":
+    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
+print(f"INFO: building package '{PACKAGE_NAME}'")
 
 interpose_sccache()
 setup(
