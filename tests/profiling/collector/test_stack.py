@@ -35,6 +35,11 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
 )
 
 
+def _main_thread_has_native_id() -> bool:
+    """True if main thread has native_id (False for _DummyThread which lacks _native_id)."""
+    return getattr(threading.main_thread(), "native_id", None) is not None
+
+
 def func1() -> None:
     return func2()
 
@@ -118,9 +123,11 @@ def test_stack_locations(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     expected_sample = pprof_utils.StackEvent(
         thread_id=_thread.get_ident(),
-        thread_name="MainThread",
+        thread_name=expected_thread_name,
         locations=[
             pprof_utils.StackLocation(
                 function_name="baz",
@@ -577,6 +584,7 @@ def test_collect_gevent_thread_task() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
@@ -614,11 +622,13 @@ def test_collect_gevent_thread_task() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=expected_thread_name,
             task_name=r"Greenlet-\d+$",
             locations=[
                 # Since we're using recursive function _fib(), we expect to have
@@ -665,6 +675,8 @@ def test_collect_gevent_task_started_before_profiler() -> None:
 
     import gevent
 
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
     should_stop = threading.Event()
 
     def pre_started_greenlet_task() -> None:
@@ -700,11 +712,13 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=expected_thread_name,
             task_name=pre_started_greenlet_name,
             locations=[
                 pprof_utils.StackLocation(
@@ -1066,6 +1080,57 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
         f"tracked greenlets (low={t_low:.4f}s, high={t_high:.4f}s). "
         f"This indicates greenlet_info_map_lock contention during sampling."
     )
+
+
+def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> None:
+    """Verify that tracking/untracking greenlets across 25+ uploads (which triggers
+    ephemeral string table clearing) does not crash or lose greenlet names.
+    """
+    test_name = "test_greenlet_string_table_cleanup_after_ephemeral_clear"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    from ddtrace.internal.datadog.profiling import stack as native_stack
+
+    with stack.StackCollector():
+        # Track a long-lived greenlet that should survive the ephemeral clear
+        long_lived_id = 0xDEAD0001
+        native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
+
+        # Track and untrack short-lived greenlets to exercise erase()
+        for i in range(50):
+            short_id = 0xBEEF0000 + i
+            native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Do 30 uploads to trigger the ephemeral clear (threshold is 25)
+        for _ in range(30):
+            ddup.upload()
+
+        # Track more short-lived greenlets after the clear to make sure the
+        # string table is still functional
+        for i in range(50):
+            short_id = 0xCAFE0000 + i
+            native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Give the sampler a moment to collect a sample with the long-lived greenlet
+        time.sleep(0.1)
+
+        native_stack.untrack_greenlet(long_lived_id)
+
+    # Final upload — if the string table is corrupted this would crash
+    ddup.upload()
+
+    # Verify we got a valid profile (no crash, no corruption)
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
 
 
 def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:

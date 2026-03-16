@@ -11,6 +11,7 @@ import pytest
 import ddtrace
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
+import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
@@ -1643,8 +1644,7 @@ class Contrib_TestClass_For_Threats:
                 response = interface.client.get("/new_service/awesome_test")
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
-            # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
+            assert _asm_request_context.API_SEC_CALLBACK is not None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
@@ -1798,20 +1798,18 @@ class Contrib_TestClass_For_Threats:
                     else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
-                # import delayed to get the correct version
-                from ddtrace.appsec._metrics import ddwaf_version
 
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", ddwaf_version),
+                        ("waf_version", appsec_metrics.ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", ddwaf_version),
+                        ("waf_version", appsec_metrics.ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)

@@ -46,6 +46,16 @@ fmt = [
     "ruff check --fix --no-cache {args:.}",
     "style",
 ]
+ruff-fix = [
+    "ruff check --fix --show-fixes --no-cache {args:.}",
+]
+# Pre-commit: format + lint in one pass (no redundant checks). Replaces separate fmt + ruff hooks.
+# cython-lint catches E711 and other rules ruff may not; runs on .py files too.
+pre-commit-python = [
+    "ruff format --no-cache {args:.}",
+    "ruff check --fix --show-fixes --no-cache {args:.}",
+    "cython-lint {args:.}",
+]
 # checks should encapsulate all rules used in pre-check
 checks = [
     "style",

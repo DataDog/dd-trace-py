@@ -63,8 +63,8 @@ class VLLMIntegration(BaseLLMIntegration):
         """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
-            span._set_tag_str(TAG_MODEL, model_name)
-            span._set_tag_str(TAG_PROVIDER, PROVIDER_NAME)
+            span._set_attribute(TAG_MODEL, model_name)
+            span._set_attribute(TAG_PROVIDER, PROVIDER_NAME)
 
     def _build_metadata(self, data: RequestData) -> dict[str, Any]:
         """Extract metadata from request data."""

@@ -73,6 +73,9 @@ except AttributeError:
 
 TEST_FRAMEWORK = "pytest"
 
+# Mapping of external rerun plugin names to the -p flag that disables them.
+_EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
+
 log = logging.getLogger(__name__)
 
 
@@ -202,7 +205,10 @@ class TestPhase:
     __test__ = False
 
 
-_ReportGroup = dict[str, pytest.TestReport]
+if t.TYPE_CHECKING:
+    _ReportGroup = dict[str, pytest.TestReport]
+else:
+    _ReportGroup = dict
 
 
 class TestOptPlugin:
@@ -338,6 +344,13 @@ class TestOptPlugin:
             # Get test location information (path and line numbers)
             relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
+            # Set test original name if available
+            if test_original_name := _get_test_original_name(item):
+                test.tags[TestTag.TEST_ORIGINAL_NAME] = test_original_name
+
+            # Store current test name as parameterized_name (same as test.name)
+            test.tags[TestTag.TEST_PARAMETERIZED_NAME] = test.name
+
             # Set test location (use "unknown" path if none found, 0 is default for missing line info)
             test.set_location(path=relative_path or "unknown", start_line=start_line)
 
@@ -364,6 +377,23 @@ class TestOptPlugin:
             on_new_test=_on_new_test,
         )
 
+    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+        if not self.manager.settings.test_management.enabled:
+            return
+        if test.is_disabled() and not test.is_attempt_to_fix():
+            item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+        elif test.is_quarantined():
+            # Quarantined tests use xfail so failures don't break the pipeline. This works regardless of who drives
+            # execution (our plugin or an external rerun plugin like pytest-rerunfailures/flaky).
+            item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
+        elif test.is_disabled() and test.is_attempt_to_fix():
+            # Attempt-to-fix tests use a user property instead of xfail, so that _get_test_outcome captures the real
+            # FAIL status (needed by AttemptToFixHandler.get_final_status). The report is mangled to "skipped" after
+            # the real status is captured, so the failure doesn't break the pipeline.
+            # AIDEV-NOTE: ATF cannot use xfail because xfail turns failures into SKIP, which breaks the retry handler's
+            # ability to count failures and determine HAS_FAILED_ALL_RETRIES / ATTEMPT_TO_FIX_PASSED tags.
+            item.user_properties += [("dd_disabled_attempt_to_fix", True)]
+
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
@@ -386,13 +416,7 @@ class TestOptPlugin:
         self.tests_by_nodeid[item.nodeid] = test
 
         self._handle_itr(item, test_ref, test)
-
-        if test.is_disabled() and not test.is_attempt_to_fix():
-            item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e., it
-            # is effectively quarantined). We may want to present it in a different way in the output though.
-            item.user_properties += [("dd_quarantined", True)]
+        self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
@@ -435,13 +459,6 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    @catch_and_log_exceptions()
-    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
-        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-        self._do_test_runs(item, nextitem)
-        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-        return True  # Do not run other pytest_runtest_protocol hooks after this one.
-
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
@@ -473,8 +490,8 @@ class TestOptPlugin:
         if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
-            if test.is_quarantined() or test.is_disabled():
-                self._mark_quarantined_test_report_group_as_skipped(item, reports)
+            if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+                self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
@@ -545,16 +562,16 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
-        if test.is_quarantined() or test.is_disabled():
-            self._mark_quarantined_test_report_as_skipped(item, final_report)
+        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+            self._mark_attempt_to_fix_report_as_skipped(item, final_report)
 
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = reports.get(TestPhase.TEARDOWN)
-        if test.is_quarantined() or test.is_disabled():
-            self._mark_quarantined_test_report_as_skipped(item, teardown_report)
+        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
+            self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -583,38 +600,35 @@ class TestOptPlugin:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
             self._mark_test_report_as_retry(reports, retry_handler, TestPhase.SETUP)
 
-    def _mark_quarantined_test_report_as_skipped(
-        self, item: pytest.Item, report: t.Optional[pytest.TestReport]
-    ) -> None:
+    def _mark_attempt_to_fix_report_as_skipped(self, item: pytest.Item, report: t.Optional[pytest.TestReport]) -> None:
         """
-        Modify a test report for a quarantined test to make it look like it was skipped.
+        Modify a test report for an attempt-to-fix test to make it look like it was skipped.
+
+        This is called *after* ``_get_test_outcome`` has already captured the real status (FAIL/PASS), so the
+        backend sees the true result while the terminal/junitxml shows the test as skipped (quarantined).
         """
-        # For junitxml, probably the least confusing way to report a quarantined test is as skipped.
-        # In `pytest_runtest_logreport`, we can still identify the test as quarantined via the `dd_quarantined`
-        # user property.
         if report is None:
             return
 
         if report.when == TestPhase.TEARDOWN:
             report.outcome = "passed"
         else:
-            # TODO: distinguish quarantine vs disabled
             line_number = item.location[1] or 0
-            longrepr: _Longrepr = (str(item.path), line_number, "Quarantined")
+            longrepr: _Longrepr = (str(item.path), line_number, "Quarantined (Attempt to Fix)")
             report.longrepr = longrepr
             report.outcome = "skipped"
 
-    def _mark_quarantined_test_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
+    def _mark_attempt_to_fix_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
         """
-        Modify the test reports for a quarantined test to make it look like it was skipped.
+        Modify the test reports for an attempt-to-fix test to make it look like it was skipped.
         """
         if call_report := reports.get(TestPhase.CALL):
-            self._mark_quarantined_test_report_as_skipped(item, call_report)
+            self._mark_attempt_to_fix_report_as_skipped(item, call_report)
             reports[TestPhase.SETUP].outcome = "passed"
             reports[TestPhase.TEARDOWN].outcome = "passed"
         else:
             setup_report = reports.get(TestPhase.SETUP)
-            self._mark_quarantined_test_report_as_skipped(item, setup_report)
+            self._mark_attempt_to_fix_report_as_skipped(item, setup_report)
             reports[TestPhase.TEARDOWN].outcome = "passed"
 
     def _mark_test_report_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler, when: str) -> bool:
@@ -655,7 +669,10 @@ class TestOptPlugin:
             retry_reason = _get_user_property(report, "dd_retry_reason")
             return ("rerun", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
 
-        if _get_user_property(report, "dd_quarantined"):
+        if getattr(report, "wasxfail", None) == "dd_quarantined":
+            return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+
+        if _get_user_property(report, "dd_disabled_attempt_to_fix"):
             if report.when == TestPhase.TEARDOWN:
                 return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
             else:
@@ -683,7 +700,7 @@ class TestOptPlugin:
             if not report:
                 continue
 
-            if wasxfail := getattr(report, "wasxfail", None):
+            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
                 tags[TestTag.XFAIL_REASON] = str(wasxfail)
                 tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
 
@@ -751,6 +768,22 @@ class TestOptPlugin:
             del terminalreporter.stats["failed"]
 
         print_test_report_links(terminalreporter, self.manager)
+
+
+class TestOptPluginWithProtocol(TestOptPlugin):
+    """
+    TestOptPlugin subclass that registers pytest_runtest_protocol, taking ownership of test execution and retries.
+    Used when no external rerun plugin (e.g. pytest-rerunfailures, flaky) is present. When such a plugin IS present,
+    the base class is registered instead, so the external plugin drives retries while the wrapper hook still handles
+    span bookkeeping.
+    """
+
+    @catch_and_log_exceptions()
+    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+        self._do_test_runs(item, nextitem)
+        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+        return True  # Do not run other pytest_runtest_protocol hooks after this one.
 
 
 class RetryReports:
@@ -997,8 +1030,39 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
+    detected_rerun_plugins = [name for name in _EXTERNAL_RERUN_PLUGINS if config.pluginmanager.hasplugin(name)]
+    dd_retries_enabled = (
+        session_manager.settings.auto_test_retries.enabled or session_manager.settings.early_flake_detection.enabled
+    )
+    plugin_class: type[TestOptPlugin]
+    if detected_rerun_plugins and dd_retries_enabled:
+        for plugin_name in detected_rerun_plugins:
+            log.warning(
+                "%s is installed alongside Datadog Test Optimization. "
+                "Datadog retries (ATR, EFD) take precedence over %s, "
+                "which will be overridden for this test session.",
+                plugin_name,
+                plugin_name,
+            )
+        plugin_class = TestOptPluginWithProtocol
+    elif detected_rerun_plugins:
+        if session_manager.settings.test_management.enabled:
+            for plugin_name in detected_rerun_plugins:
+                log.warning(
+                    "%s is installed and Datadog Auto Test Retries and Early Flake Detection are disabled. "
+                    "Attempt to Fix retries will not work while %s drives test execution. "
+                    "To use Attempt to Fix, disable %s with: -p %s",
+                    plugin_name,
+                    plugin_name,
+                    plugin_name,
+                    _EXTERNAL_RERUN_PLUGINS[plugin_name],
+                )
+        plugin_class = TestOptPlugin
+    else:
+        plugin_class = TestOptPluginWithProtocol
+
     try:
-        plugin = TestOptPlugin(session_manager=session_manager)
+        plugin = plugin_class(session_manager=session_manager)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
@@ -1085,6 +1149,10 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     except TypeError:
         log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
         return None
+
+
+def _get_test_original_name(item: pytest.Item) -> t.Optional[str]:
+    return getattr(item, "originalname", None)
 
 
 def _encode_test_parameter(parameter: t.Any) -> str:
