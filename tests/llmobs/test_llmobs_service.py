@@ -11,9 +11,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
-from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
