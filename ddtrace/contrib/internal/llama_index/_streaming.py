@@ -17,23 +17,27 @@ class _BaseLlamaIndexStreamHandler:
     """Shared finalization logic for sync and async LlamaIndex stream handlers.
 
     This is a mixin combined with StreamHandler or AsyncStreamHandler,
-    which provide integration, primary_span, request_args, request_kwargs,
-    and chunks attributes via BaseStreamHandler.__init__.
+    which provide the attributes below via BaseStreamHandler.__init__.
     """
 
+    integration: LlamaIndexIntegration
+    primary_span: Span
+    request_args: tuple
+    request_kwargs: dict[str, Any]
+    chunks: list[Any]
     _is_chat: bool = True
 
     def finalize_stream(self, exception: Optional[Exception] = None) -> None:
         """Process accumulated chunks and finish the span."""
         _process_finished_stream(
-            self.integration,  # type: ignore[attr-defined]
-            self.primary_span,  # type: ignore[attr-defined]
-            self.request_args,  # type: ignore[attr-defined]
-            self.request_kwargs,  # type: ignore[attr-defined]
-            self.chunks,  # type: ignore[attr-defined]
+            self.integration,
+            self.primary_span,
+            self.request_args,
+            self.request_kwargs,
+            self.chunks,
             is_chat=self._is_chat,
         )
-        self.primary_span.finish()  # type: ignore[attr-defined]
+        self.primary_span.finish()
 
 
 class LlamaIndexStreamHandler(_BaseLlamaIndexStreamHandler, StreamHandler):

@@ -25,6 +25,7 @@ def get_model_name(instance: Any) -> str:
         model_name = getattr(metadata, "model_name", None)
         if model_name:
             return str(model_name)
+    log.debug("Could not extract model name from %s", type(instance).__name__)
     return ""
 
 
@@ -64,18 +65,21 @@ def _add_model_info(trace_kwargs: dict[str, Any], instance: Any) -> None:
 
 
 def build_chat_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for chat() / achat()."""
     kw = _build_kwargs(instance, args, kwargs, {"messages": (0, "messages", None)})
     _add_model_info(kw, instance)
     return kw
 
 
 def build_complete_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for complete() / acomplete()."""
     kw = _build_kwargs(instance, args, kwargs, {"prompt": (0, "prompt", None)})
     _add_model_info(kw, instance)
     return kw
 
 
 def build_predict_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for predict() / apredict()."""
     kw = _build_kwargs(
         instance, args, kwargs, {"prompt": (0, "prompt", lambda v: str(getattr(v, "template", None) or v))}
     )
@@ -84,32 +88,38 @@ def build_predict_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> 
 
 
 def build_query_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for query() / aquery()."""
     return _build_kwargs(
         instance, args, kwargs, {"query_str": (0, "str_or_query_bundle", lambda v: getattr(v, "query_str", str(v)))}
     )
 
 
 def build_retrieve_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for retrieve() / aretrieve()."""
     return _build_kwargs(
         instance, args, kwargs, {"query_str": (0, "str_or_query_bundle", lambda v: getattr(v, "query_str", str(v)))}
     )
 
 
 def build_embedding_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for get_query_embedding() / aget_query_embedding()."""
     return _build_kwargs(instance, args, kwargs, {"query": (0, "query", str)})
 
 
 def build_embedding_batch_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for get_text_embedding_batch() / aget_text_embedding_batch()."""
     return _build_kwargs(instance, args, kwargs, {"query": (0, "texts", lambda v: "[%d texts]" % len(v) if v else "")})
 
 
 def build_agent_run_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for agent run()."""
     return _build_kwargs(
         instance, args, kwargs, {"input": (0, "user_msg", lambda v: str(getattr(v, "content", None) or v))}
     )
 
 
 def build_agent_tool_kwargs(instance: Any, args: tuple, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Build trace kwargs for agent call_tool()."""
     kw = _build_kwargs(
         instance, args, kwargs, {"tool_name": (1, "ev", lambda v: str(getattr(v, "tool_name", "")) or None)}
     )
