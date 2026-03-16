@@ -1,7 +1,6 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
 
-import mock
 from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import set_span_in_context
@@ -56,7 +55,11 @@ def test_otel_span_events(oteltracer):
     with oteltracer.start_span("web.response") as span2:
         # Pass explicit timestamp (µs) to ensure consistent snapshot values; OTel converts µs → ns (*1000)
         span2.add_event("Web page loaded", timestamp=1714537311986)
-        span2.add_event("Button changed color", {"colors": [112, 215, 70], "response.time": 134.3, "success": True}, timestamp=1714537311986)
+        span2.add_event(
+            "Button changed color",
+            {"colors": [112, 215, 70], "response.time": 134.3, "success": True},
+            timestamp=1714537311986,
+        )
 
     span1.add_event("Event on finished span, event will be ignored")
     span2.add_event("Event on finished span, event won't be added")
