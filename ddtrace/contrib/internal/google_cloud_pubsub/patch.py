@@ -133,7 +133,7 @@ def _traced_subscribe(func, instance, args, kwargs):
                 direction=SpanDirection.INBOUND,
             ),
             span_type=SpanTypes.WORKER,
-            service=trace_utils.ext_service(None, config.google_cloud_pubsub),
+            service=ext_service(None, config.google_cloud_pubsub),
             resource=subscription_id,
             call_trace=False,
             activate=True,
