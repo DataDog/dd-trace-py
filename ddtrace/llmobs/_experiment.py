@@ -1590,16 +1590,14 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: Optional[asyncio.Semaphore] = None,
+        semaphore: asyncio.Semaphore,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
-        if semaphore is not None:
-            await semaphore.acquire()
-        try:
+        async with semaphore:
             idx, record = idx_record
             with self._llmobs_instance._experiment(
                 name=self._task.__name__,
@@ -1656,13 +1654,11 @@ class Experiment:
                             self._retries.append(
                                 "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
                             )
-                            if semaphore is not None:
-                                semaphore.release()
+                            semaphore.release()
                             try:
                                 await asyncio.sleep(retry_delay(attempt))
                             finally:
-                                if semaphore is not None:
-                                    await semaphore.acquire()
+                                await semaphore.acquire()
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
@@ -1693,9 +1689,6 @@ class Experiment:
                         "type": span.get_tag(ERROR_TYPE),
                     },
                 }
-        finally:
-            if semaphore is not None:
-                semaphore.release()
 
     def _check_task_result_error(self, task_result: TaskResult, raise_errors: bool) -> None:
         err_dict = task_result.get("error") or {}
@@ -1747,7 +1740,7 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: Optional[asyncio.Semaphore] = None,
+        semaphore: asyncio.Semaphore,
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
@@ -1761,9 +1754,7 @@ class Experiment:
         async def _run_single_evaluator(
             evaluator: Union[EvaluatorType, AsyncEvaluatorType],
         ) -> tuple[str, dict[str, JSONType]]:
-            if semaphore is not None:
-                await semaphore.acquire()
-            try:
+            async with semaphore:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
                 extra_return_values: dict[str, JSONType] = {}
@@ -1837,13 +1828,11 @@ class Experiment:
                                     evaluator_name, idx, attempt + 1, max_retries + 1, e
                                 )
                             )
-                            if semaphore is not None:
-                                semaphore.release()
+                            semaphore.release()
                             try:
                                 await asyncio.sleep(retry_delay(attempt))
                             finally:
-                                if semaphore is not None:
-                                    await semaphore.acquire()
+                                await semaphore.acquire()
                             continue
                         extra_return_values = {"status": self._build_evaluator_status(e)}
                         self._has_errors = True
@@ -1855,9 +1844,6 @@ class Experiment:
                     "error": eval_err,
                     **extra_return_values,
                 }
-            finally:
-                if semaphore is not None:
-                    semaphore.release()
 
         results = await asyncio.gather(
             *[_run_single_evaluator(ev) for ev in self._evaluators],
