@@ -203,7 +203,8 @@ async def test_llama_index_query_engine_async(llama_index, test_spans):
 def test_llama_index_retriever(llama_index, test_spans):
     """Test that BaseRetriever.retrieve() is traced with correct resource name."""
     from llama_index.core.base.base_retriever import BaseRetriever
-    from llama_index.core.schema import NodeWithScore, TextNode
+    from llama_index.core.schema import NodeWithScore
+    from llama_index.core.schema import TextNode
 
     mock_nodes = [NodeWithScore(node=TextNode(text="Document text"), score=0.95)]
 
@@ -228,7 +229,8 @@ def test_llama_index_retriever(llama_index, test_spans):
 async def test_llama_index_retriever_async(llama_index, test_spans):
     """Test that BaseRetriever.aretrieve() is traced with correct resource name."""
     from llama_index.core.base.base_retriever import BaseRetriever
-    from llama_index.core.schema import NodeWithScore, TextNode
+    from llama_index.core.schema import NodeWithScore
+    from llama_index.core.schema import TextNode
 
     mock_nodes = [NodeWithScore(node=TextNode(text="Document text"), score=0.95)]
 
