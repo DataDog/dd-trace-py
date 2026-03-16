@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    google_cloud_pubsub: Add subscriber instrumentation for the ``google-cloud-pubsub`` integration.
+    Instruments ``SubscriberClient.subscribe()`` to generate spans for received messages,
+    with distributed trace context propagation support.
