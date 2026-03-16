@@ -21,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_durable_functions:
+    - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
@@ -39,6 +41,7 @@ components:
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
+    - tests/snapshots/tests.contrib.celery.*
   cherrypy:
     - ddtrace/contrib/cherrypy.py
     - ddtrace/contrib/internal/cherrypy/*
@@ -46,10 +49,24 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/*
-    - ddtrace/ext/*
+    # Shared package infrastructure (not covered by any specific component)
+    - ddtrace/contrib/__init__.py
+    - ddtrace/contrib/trace_utils.py
+    - ddtrace/contrib/_events/*
+    - ddtrace/contrib/internal/__init__.py
+    - ddtrace/contrib/internal/trace_utils.py
+    - ddtrace/contrib/internal/trace_utils_async.py
+    - ddtrace/contrib/internal/trace_utils_base.py
+    # Shared ext files used broadly across many integrations
+    - ddtrace/ext/__init__.py
+    - ddtrace/ext/http.py
+    - ddtrace/ext/net.py
+    - ddtrace/ext/user.py
+    - ddtrace/ext/websocket.py
+    # Propagation and settings shared across all integrations
     - ddtrace/propagation/*
     - ddtrace/internal/settings/_database_monitoring.py
+    # Shared test utilities
     - tests/contrib/patch.py
     - tests/contrib/config.py
     - tests/contrib/__init__.py
@@ -60,6 +77,7 @@ components:
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
+    - ddtrace/ext/sql.py
   ddtrace_api:
     - ddtrace/contrib/internal/ddtrace_api/*
     - tests/snapshots/tests.contrib.ddtrace_api.*
@@ -116,6 +134,8 @@ components:
     - ddtrace/contrib/internal/mako/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
+  mlflow:
+    - ddtrace/contrib/internal/mlflow/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:
@@ -375,6 +395,20 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+  azure_durable_functions:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_durable_functions'
+      - tests/contrib/azure_durable_functions/*
+      - tests/snapshots/tests.contrib.azure_durable_functions.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
   azure_functions:
     parallelism: 4
     paths:
@@ -449,7 +483,6 @@ suites:
       - '@tracing'
       - '@llmobs'
       - '@botocore'
-      - '@llmobs'
       - '@datastreams'
       - tests/contrib/botocore/*
       - tests/contrib/boto/*
@@ -551,7 +584,6 @@ suites:
       - '@wsgi'
       - '@django'
       - '@dbapi'
-      - '@asgi'
       - '@pg'
       - tests/appsec/*
       - tests/contrib/django/*
@@ -715,6 +747,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@graphql'
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
     runner: riot
@@ -884,6 +917,17 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+  mlflow:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+    runner: riot
+    snapshot: true
   molten:
     parallelism: 1
     paths:
@@ -1042,7 +1086,7 @@ suites:
     runner: riot
     snapshot: true
   ray:
-    parallelism: 1
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'

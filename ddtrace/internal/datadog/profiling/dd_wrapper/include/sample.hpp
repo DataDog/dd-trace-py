@@ -108,7 +108,7 @@ class Sample
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
-    void clear_buffers();
+    void clear();
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
@@ -149,6 +149,11 @@ class Sample
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
     );
+
+    // Explicitly mark that one or more frames were dropped without attempting to push them.
+    // This is useful for callers that perform their own frame-limit checks and want to
+    // record dropped frames without going through push_frame().
+    void incr_dropped_frames(size_t count = 1);
 
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.
