@@ -69,7 +69,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
         # We only patch the profile call from the `torch.profiler` module.
         self._original = self._get_patch_target()
 
-        def profiler_init(wrapped, instance, args, kwargs):
+        def profiler_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
             profiler = wrapped(*args, **kwargs)
             return self.PROFILED_TORCH_CLASS(
                 profiler,

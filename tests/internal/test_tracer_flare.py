@@ -15,7 +15,9 @@ from uuid import uuid4
 
 import pytest
 
+from ddtrace.internal.flare._subscribers import TracerFlareState
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
+from ddtrace.internal.flare._subscribers import _process_payloads
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
@@ -504,7 +506,7 @@ class TracerFlareTests(unittest.TestCase):
 
         with mock.patch("ddtrace.internal.flare.flare.log") as mock_log:
             self.flare.send(valid_request)
-            mock_log.error.assert_called_with("Error sending tracer flare: %s", mock.ANY)
+            mock_log.error.assert_called_with("Flare: error sending tracer flare: %s", mock.ANY)
 
         assert not self.flare.flare_dir.exists()
 
@@ -706,13 +708,29 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             ),
         )
 
+    def get_data_from_connector_and_exec(self):
+        if self.tracer_flare_sub.has_stale_flare():
+            self.tracer_flare_sub.current_request_start = None
+            self.tracer_flare_sub.flare.revert_configs()
+            self.tracer_flare_sub.flare.clean_up_files()
+            return
+
+        data = self.tracer_flare_sub._data_connector.read()
+        if not data:
+            return
+
+        state = TracerFlareState()
+        state.current_request_start = self.tracer_flare_sub.current_request_start
+        _process_payloads(self.tracer_flare_sub.flare, state, data)
+        self.tracer_flare_sub.current_request_start = state.current_request_start
+
     def generate_agent_config(self):
         self.connector.write([build_payload("AGENT_CONFIG", self.agent_config, "config")])
-        self.tracer_flare_sub._get_data_from_connector_and_exec()
+        self.get_data_from_connector_and_exec()
 
     def generate_agent_task(self):
         self.connector.write([build_payload("AGENT_TASK", self.agent_task, "task")])
-        self.tracer_flare_sub._get_data_from_connector_and_exec()
+        self.get_data_from_connector_and_exec()
 
     def _flare_upload_count(self) -> int:
         status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
@@ -756,7 +774,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         assert self.tracer_flare_sub.has_stale_flare()
 
         # Trigger cleanup of stale request by receiving another AGENT_CONFIG
-        self.tracer_flare_sub._get_data_from_connector_and_exec()
+        self.get_data_from_connector_and_exec()
 
         # After handling stale request, state should be reset
         assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
@@ -784,6 +802,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         )
 
 
+@pytest.mark.xfail(reason="Native logger is causing deadlocks when forking and has been disabled")
 def test_native_logs(tmp_path):
     """
     Validate that the flare collects native logs if native writer is enabled.
