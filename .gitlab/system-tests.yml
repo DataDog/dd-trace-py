@@ -64,7 +64,7 @@ system-tests parametric:
     - ./run.sh PARAMETRIC
     - echo -e "\e[0Ksection_end:`date +%s`:run_parametric\r\e[0K"
   variables:
-    PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "8"
   artifacts:
     when: always
     paths:
