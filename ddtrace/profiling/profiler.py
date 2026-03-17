@@ -273,12 +273,17 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
-            self._collectors_on_import = [
+            torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
                 ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]
 
-            for module, hook in self._collectors_on_import:
+            for module, hook in torch_hooks:
                 ModuleWatchdog.register_module_hook(module, hook)
+
+            if self._collectors_on_import is None:
+                self._collectors_on_import = torch_hooks
+            else:
+                self._collectors_on_import = self._collectors_on_import + torch_hooks
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
@@ -336,7 +341,7 @@ class _ProfilerInstance(service.Service):
         """
         LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
-        if self._lock_collector_enabled and self._collectors_on_import:
+        if self._collectors_on_import:
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)

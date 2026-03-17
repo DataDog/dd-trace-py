@@ -154,6 +154,77 @@ def test_default_collectors():
     p.stop(flush=False)
 
 
+def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch):
+    registered_hooks = []
+    unregistered_hooks = []
+
+    class WatchdogMock(object):
+        @staticmethod
+        def register_module_hook(module, hook):
+            registered_hooks.append((module, hook))
+
+        @staticmethod
+        def unregister_module_hook(module, hook):
+            unregistered_hooks.append((module, hook))
+
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args, **kargs):
+            return None
+
+    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+
+    p = TestProfiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=True,
+    )
+    p._scheduler = mock.Mock()
+
+    p.start()
+    p.stop(flush=False)
+
+    assert [module for module, _ in registered_hooks] == ["torch"]
+    assert unregistered_hooks == registered_hooks
+
+
+def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch):
+    registered_hooks = []
+    unregistered_hooks = []
+
+    class WatchdogMock(object):
+        @staticmethod
+        def register_module_hook(module, hook):
+            registered_hooks.append((module, hook))
+
+        @staticmethod
+        def unregister_module_hook(module, hook):
+            unregistered_hooks.append((module, hook))
+
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args, **kargs):
+            return None
+
+    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+
+    p = TestProfiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=True,
+        _pytorch_collector_enabled=True,
+    )
+    p._scheduler = mock.Mock()
+
+    p.start()
+    p.stop(flush=False)
+
+    assert len(registered_hooks) == 10
+    assert [module for module, _ in registered_hooks].count("threading") == 5
+    assert [module for module, _ in registered_hooks].count("asyncio") == 4
+    assert [module for module, _ in registered_hooks].count("torch") == 1
+    assert unregistered_hooks == registered_hooks
+
+
 def test_profiler_serverless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
