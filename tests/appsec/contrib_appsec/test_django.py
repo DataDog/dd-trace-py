@@ -10,7 +10,9 @@ from tests.appsec.contrib_appsec import utils
 from tests.utils import scoped_tracer
 
 
-class Test_Django(utils.Contrib_TestClass_For_Threats):
+class _Test_Django_Base:
+    """Django-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
@@ -80,3 +82,11 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return response["location"]
+
+
+class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
+    pass
+
+
+class Test_Django_RC(_Test_Django_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

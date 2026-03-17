@@ -1332,6 +1332,33 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
+    span._set_attribute(MESSAGING_OPERATION, "send")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+    if config.google_cloud_pubsub.distributed_tracing_enabled:
+        # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
+        HTTPPropagator.inject(span.context, ctx.get_item("publish_kwargs"))
+
+
+def _on_pubsub_send_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    message_id: Optional[str],
+) -> None:
+    if message_id is not None:
+        ctx.span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1398,6 +1425,8 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
+    core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
