@@ -165,6 +165,8 @@ def _on_content_block_delta_chunk(chunk, message):
         elif delta_type == "input_json_delta":
             chunk_content_json = _get_attr(delta_block, "partial_json", "")
             if chunk_content_json:
+                if "input" not in message["content"][-1]:
+                    message["content"][-1]["input"] = ""
                 message["content"][-1]["input"] += chunk_content_json
         else:
             chunk_content_text = _get_attr(delta_block, "text", "")
