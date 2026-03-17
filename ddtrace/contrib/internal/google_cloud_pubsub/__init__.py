@@ -18,15 +18,6 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.google_cloud_pubsub["service"]
-
-   The service name reported by default for your Pub/Sub spans.
-
-   This option can also be set with the ``DD_GOOGLE_CLOUD_PUBSUB_SERVICE`` environment
-   variable.
-
-   Default: ``"google_cloud_pubsub"``
-
 .. py:data:: ddtrace.config.google_cloud_pubsub["distributed_tracing_enabled"]
 
    Whether to enable distributed tracing between Pub/Sub messages.

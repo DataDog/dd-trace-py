@@ -6,12 +6,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_cloud_messaging_operation
-from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -19,7 +15,6 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 config._add(
     "google_cloud_pubsub",
     dict(
-        _default_service=schematize_service_name("google_cloud_pubsub"),
         distributed_tracing_enabled=asbool(os.getenv("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
     ),
 )
@@ -64,14 +59,9 @@ def _traced_publish(func, instance, args, kwargs):
 
     with core.context_with_data(
         "google_cloud_pubsub.send",
-        span_name=schematize_cloud_messaging_operation(
-            "gcp.pubsub.send",
-            cloud_provider="gcp",
-            cloud_service="pubsub",
-            direction=SpanDirection.OUTBOUND,
-        ),
+        span_name="gcp.pubsub.send",
         span_type=SpanTypes.WORKER,
-        service=ext_service(None, config.google_cloud_pubsub),
+        service=None,
         resource=topic_id,
         call_trace=False,
         child_of=tracer.context_provider.active(),

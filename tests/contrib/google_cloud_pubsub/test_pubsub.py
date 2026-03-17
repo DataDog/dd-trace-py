@@ -7,10 +7,7 @@ from tests.utils import override_config
 
 
 SNAPSHOT_IGNORES = [
-    "meta.runtime-id",
-    "meta._dd.p.tid",
-    "meta._dd.p.dm",
-    "metrics.process_id",
+    "meta._dd.tags.process",
     "meta.messaging.message_id",
 ]
 
