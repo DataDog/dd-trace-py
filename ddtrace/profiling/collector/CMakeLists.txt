@@ -114,8 +114,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release"
    OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"
    OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE NDEBUG)
-else()
-    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE UNDEBUG)
 endif()
 
 # Install the extension

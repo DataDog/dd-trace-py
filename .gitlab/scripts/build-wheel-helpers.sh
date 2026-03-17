@@ -152,6 +152,7 @@ test_wheel() {
   export VIRTUAL_ENV="${VENV_PATH}"
   export PATH="${VENV_PATH}/bin:${PATH}"
   cd "${TEST_WHEEL_DIR}"
+  ls -al "${FINAL_WHEEL_FILE}"
   # Activate venv and install wheel in a subshell
   # Unset UV_PYTHON so uv respects the venv instead of the global setting
   (
