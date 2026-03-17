@@ -59,9 +59,6 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
-    # AIDEV-NOTE: Manually enter/finish the context so that streaming can keep it
-    # open until the stream is exhausted. The stream handler closes the context
-    # in finalize_stream(), which fires on_ended and finishes the span.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = func(*args, **kwargs)
@@ -81,7 +78,6 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = _create_llm_event(integration, instance, func, kwargs)
 
-    # AIDEV-NOTE: Same manual context pattern as sync version.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = await func(*args, **kwargs)
