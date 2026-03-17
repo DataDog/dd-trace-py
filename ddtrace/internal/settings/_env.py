@@ -3,8 +3,9 @@
 This module provides a wrapper around os.environ as part of the Configuration Registry
 initiative, enabling centralized validation and control of environment variable access.
 """
-import os
+
 from collections.abc import MutableMapping
+import os
 from typing import Any
 from typing import Iterator
 
@@ -17,8 +18,9 @@ class EnvConfig(MutableMapping):
     to the read methods.
     """
 
-    def __init__(self) -> None:
-        self._env = os.environ
+    @property
+    def _env(self) -> os._Environ:
+        return os.environ
 
     def __getitem__(self, key: str) -> str:
         # TODO: Check will go here to validate the variable against list of allowed variables
