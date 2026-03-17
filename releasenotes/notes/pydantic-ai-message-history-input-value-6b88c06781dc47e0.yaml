@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    pydantic_ai: Fixes an issue where the ``INPUT_VALUE`` on LLMObs agent spans was not set when
+    ``message_history`` was passed without ``user_prompt`` (e.g. via VercelAIAdapter). The integration
+    now falls back to extracting the last user message from ``message_history``.
