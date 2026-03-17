@@ -31,8 +31,8 @@ class LlmRequestEvent(TracingEvent):
     llmobs_integration: "BaseLLMIntegration" = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
-    interface_type: str = event_field(default="")
     instance: Optional[Any] = event_field(default=None)
+    response: Optional[Any] = event_field(default=None)
 
     def __post_init__(self) -> None:
         self.span_name = f"{self.component}.request"

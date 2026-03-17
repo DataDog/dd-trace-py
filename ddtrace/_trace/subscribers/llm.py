@@ -44,16 +44,13 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             span,
             model=event.model,
             provider=event.provider,
-            interface_type=event.interface_type,
             instance=event.instance,
         )
 
-        # Proxy detection
         base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
 
-        # LLMObs integration marker
         if event.llmobs_integration.llmobs_enabled:
             span._set_ctx_item(_INTEGRATION, event.component)
 
@@ -69,11 +66,10 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         the stream handler closes the context after exhausting the iterator.
         """
         event: LlmRequestEvent = ctx.event
-        response = ctx.get_item("response")
         event.llmobs_integration.llmobs_set_tags(
             ctx.span,
             args=[],
             kwargs=event.request_kwargs,
-            response=response,
+            response=event.response,
             operation=ctx.get_item("operation", ""),
         )

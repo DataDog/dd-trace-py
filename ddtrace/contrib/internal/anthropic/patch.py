@@ -45,11 +45,12 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
         llmobs_integration=integration,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
-        interface_type="chat_model",
         instance=instance,
     )
 
-    # Manually enter the context so streaming can keep it open until exhausted.
+    # AIDEV-NOTE: Manually enter/finish the context so that streaming can keep it
+    # open until the stream is exhausted. The stream handler closes the context
+    # in finalize_stream(), which fires on_ended and finishes the span.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = func(*args, **kwargs)
@@ -60,7 +61,7 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
-    ctx.set_item("response", resp)
+    event.response = resp
     ctx.finish()
     return resp
 
@@ -76,10 +77,10 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
         llmobs_integration=integration,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
-        interface_type="chat_model",
         instance=instance,
     )
 
+    # Manually handle context. Same comment as sync version above.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = await func(*args, **kwargs)
@@ -90,7 +91,7 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
-    ctx.set_item("response", resp)
+    event.response = resp
     ctx.finish()
     return resp
 

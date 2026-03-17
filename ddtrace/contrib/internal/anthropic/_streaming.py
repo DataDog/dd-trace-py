@@ -110,6 +110,7 @@ def _extract_from_chunk(chunk, message) -> tuple[dict[str, str], bool]:
 
 
 def _on_message_start_chunk(chunk, message):
+    # this is the starting chunk of the message
     chunk_message = _get_attr(chunk, "message", "")
     if chunk_message:
         chunk_role = _get_attr(chunk_message, "role", "")
@@ -130,6 +131,7 @@ def _on_message_start_chunk(chunk, message):
 
 
 def _on_content_block_start_chunk(chunk, message):
+    # this is the start to a message.content block (possibly 1 of several content blocks)
     chunk_content_block = _get_attr(chunk, "content_block", "")
     if chunk_content_block:
         chunk_content_block_type = _get_attr(chunk_content_block, "type", "")
@@ -146,6 +148,7 @@ def _on_content_block_start_chunk(chunk, message):
 
 
 def _on_content_block_delta_chunk(chunk, message):
+    # delta events contain new content for the current message.content block
     delta_block = _get_attr(chunk, "delta", "")
     if delta_block:
         delta_type = _get_attr(delta_block, "type", "")
@@ -169,6 +172,7 @@ def _on_content_block_delta_chunk(chunk, message):
 
 
 def _on_content_block_stop_chunk(chunk, message):
+    # this is the start to a message.content block (possibly 1 of several content blocks)
     # Anthropic beta streaming can emit content_block_stop without a corresponding
     # content_block_start (e.g. empty tool blocks). Guard against IndexError.
     if not message.get("content"):
@@ -182,6 +186,7 @@ def _on_content_block_stop_chunk(chunk, message):
 
 
 def _on_message_delta_chunk(chunk, message):
+    # message delta events signal the end of the message
     delta_block = _get_attr(chunk, "delta", "")
     chunk_finish_reason = _get_attr(delta_block, "stop_reason", "")
     if chunk_finish_reason:
