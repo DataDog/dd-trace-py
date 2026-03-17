@@ -621,7 +621,6 @@ def test_internal_locks_do_not_consume_sample_budget() -> None:
         internal_lock: _ProfiledLock = sem._cond._lock  # type: ignore[attr-defined]
         assert internal_lock.is_internal, "Test setup: internal lock should be marked as internal"
 
-        # Get the sampler that the internal lock actually uses
         sampler = internal_lock.capture_sampler
         counter_before: float = sampler._counter
 
@@ -1874,18 +1873,18 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             regular_lock: LockTypeInst = threading.Lock()
             assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
             # pyright: ignore[reportAttributeAccessIssue]
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
+            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"  # type: ignore[union-attr]
 
             # Create a semaphore-like lock - it should NOT be internal
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg]
             # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
+            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+            internal_lock: LockTypeInst = sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
             assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
-            assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
+            assert internal_lock.is_internal, (  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
                 "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
             )
 
@@ -1898,7 +1897,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
         with self.collector_class(capture_pct=0):
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg]
 
             # Test that blocking acquire succeeds
             result1 = sem.acquire(blocking=True)
@@ -2105,7 +2104,7 @@ class TestThreadInfoCache:
             # Use from main thread
             lock.acquire()
             lock.release()
-            main_cached_tid: int = lock._cached_thread_id
+            main_cached_tid: int | None = lock._cached_thread_id
             main_cached_name: Optional[str] = lock._cached_thread_name
             assert main_cached_tid == _thread.get_ident()
             assert main_cached_name == threading.current_thread().name
