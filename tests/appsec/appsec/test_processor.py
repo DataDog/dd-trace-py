@@ -1,15 +1,11 @@
-import ctypes
-import importlib
 import json
 import logging
 import os.path
-import sys
 
 import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import _ddwaf
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -23,7 +19,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -392,47 +387,57 @@ def test_ddwaf_not_raises_exception():
         )
 
 
-def test_load_appsec_disables_appsec_when_ddwaf_unavailable():
+@pytest.mark.subprocess(err="Disabling AppSec: libddwaf failed to load (mock libddwaf load failure)\n")
+def test_appsec_abort_on_waf_failure():
     """Simulate a libddwaf loading error
 
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
     completely if an error is found in the bindings layer.
     """
+    import ctypes
+    import importlib
+    import sys
+
+    import mock
+
+    from ddtrace.appsec import _ddwaf
+    from ddtrace.internal.settings.asm import config as asm_config
+    from tests.utils import override_global_config
+
     original_cdll = ctypes.CDLL
+
+    ERROR_MESSAGE = "mock libddwaf load failure"
 
     def _raise_on_libddwaf(path, *args, **kwargs):
         if path == asm_config._asm_libddwaf:
-            raise OSError("mock load failure")
+            raise OSError(ERROR_MESSAGE)
         return original_cdll(path, *args, **kwargs)
 
-    try:
-        with (
-            mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-            mock.patch.dict(sys.modules),
-        ):
-            sys.modules.pop("ddtrace.appsec._ddwaf.ddwaf_types", None)
-            sys.modules.pop("ddtrace.appsec._ddwaf.is_available", None)
-            sys.modules.pop("ddtrace.appsec._ddwaf.failure_msg", None)
-            sys.modules.pop("ddtrace.appsec._ddwaf.waf", None)
-            importlib.reload(_ddwaf)
-
-            with override_global_config(
-                dict(
-                    _asm_enabled=True,
-                    _asm_can_be_enabled=True,
-                    _asm_rc_enabled=True,
-                    _api_security_active=True,
-                    _load_modules=True,
-                )
-            ):
-                assert _ddwaf.is_available is False
-                assert _ddwaf.failure_msg == "mock load failure"
-                assert asm_config._asm_enabled is False
-                assert asm_config._asm_can_be_enabled is False
-                assert asm_config._asm_rc_enabled is False
-                assert asm_config._load_modules is False
-    finally:
+    with (
+        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
+        mock.patch.dict(sys.modules),
+    ):
+        sys.modules.pop("ddtrace.appsec._ddwaf.ddwaf_types", None)
+        sys.modules.pop("ddtrace.appsec._ddwaf.is_available", None)
+        sys.modules.pop("ddtrace.appsec._ddwaf.failure_msg", None)
+        sys.modules.pop("ddtrace.appsec._ddwaf.waf", None)
         importlib.reload(_ddwaf)
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _asm_can_be_enabled=True,
+                _asm_rc_enabled=True,
+                _api_security_active=True,
+                _load_modules=True,
+            )
+        ):
+            assert asm_config._asm_libddwaf_available is False
+            assert _ddwaf.failure_msg == ERROR_MESSAGE
+            assert asm_config._asm_enabled is False
+            assert asm_config._asm_can_be_enabled is False
+            assert asm_config._asm_rc_enabled is False
+            assert asm_config._load_modules is False
 
 
 def test_obfuscation_parameter_key_empty():

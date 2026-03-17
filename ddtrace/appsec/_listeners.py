@@ -9,15 +9,14 @@ _APPSEC_TO_BE_LOADED = True
 log = get_logger(__name__)
 
 
-def _abort_appsec() -> None:
+def _abort_appsec(failure_msg: str) -> None:
     """Disable AppSec and prevent it from being enabled through remote configuration
 
     This is called in case of non-recoverable AppSec load-time failure, such as a libddwaf loading error.
     """
-    from ddtrace.appsec import _ddwaf
     from ddtrace.trace import tracer
 
-    log.warning("Disabling AppSec: libddwaf failed to load (%s)", _ddwaf.failure_msg or "unknown error")
+    log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
 
     asm_config._asm_enabled = False
     asm_config._asm_can_be_enabled = False
@@ -38,8 +37,8 @@ def load_appsec() -> bool:
 
     from ddtrace.appsec import _ddwaf
 
-    if not _ddwaf.is_available:
-        _abort_appsec()
+    if not asm_config._asm_libddwaf_available:
+        _abort_appsec(_ddwaf.failure_msg)
         return False
 
     from ddtrace.appsec._asm_request_context import asm_listen
