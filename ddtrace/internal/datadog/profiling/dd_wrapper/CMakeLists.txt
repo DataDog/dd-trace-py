@@ -57,6 +57,7 @@ add_library(
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
     src/libdatadog_helpers.cpp
+    src/native_call_tracker.cpp
     src/profile.cpp
     src/profile_borrow.cpp
     src/profiler_state.cpp
