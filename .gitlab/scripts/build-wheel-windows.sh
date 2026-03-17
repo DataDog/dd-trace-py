@@ -146,12 +146,30 @@ setup_msvc() {
     vswhere=$(where.exe vswhere.exe 2>/dev/null | head -1 | tr -d '\r') || true
   fi
   if [[ -z "${vswhere:-}" || ! -f "$vswhere" ]]; then
-    echo "ERROR: vswhere.exe not found — is Visual Studio Build Tools installed?" >&2
-    echo "Searched: ${vswhere_candidates[*]}" >&2
-    echo "Also tried: where.exe vswhere.exe" >&2
-    echo "Listing C:/Program Files (x86)/Microsoft Visual Studio (if present):" >&2
-    ls "C:/Program Files (x86)/Microsoft Visual Studio/" 2>/dev/null || echo "  (not found)" >&2
-    exit 1
+    echo "VS Build Tools not found — installing now."
+    echo "  (this is slow ~10-20 min; pre-install on runner image to avoid this)"
+    if command -v choco &>/dev/null; then
+      choco install visualstudio2022buildtools \
+        --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait" \
+        -y --no-progress
+    else
+      echo "  choco not found; downloading vs_BuildTools.exe from Microsoft..."
+      local vs_installer="${WORK_DIR}/vs_buildtools.exe"
+      curl -fsSL "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "$vs_installer"
+      local install_bat install_bat_win vs_installer_win
+      install_bat="${WORK_DIR}/install_vs.bat"
+      install_bat_win=$(cygpath -w "$install_bat")
+      vs_installer_win=$(cygpath -w "$vs_installer")
+      printf '"%s" --quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended\r\n' \
+        "${vs_installer_win}" > "${install_bat}"
+      cmd.exe //c "${install_bat_win}"
+    fi
+    # Re-locate vswhere after install
+    for candidate in "${vswhere_candidates[@]}"; do
+      if [[ -f "$candidate" ]]; then vswhere="$candidate"; break; fi
+    done
+    [[ -n "${vswhere:-}" && -f "$vswhere" ]] \
+      || { echo "ERROR: vswhere.exe still not found after VS Build Tools install" >&2; exit 1; }
   fi
   echo "Found vswhere.exe: $vswhere"
 
