@@ -129,11 +129,11 @@ class _ProfiledLock:
     # _owner/_RLock__owner; without this property, non-RLock wrappers (e.g. Lock) fail
     # the check, causing AssertionError("Found unknown lock implementation").
     @property
-    def _owner(self) -> Any:
+    def _owner(self) -> int | None:
         return getattr(self.__wrapped__, "_owner", None)
 
     @_owner.setter
-    def _owner(self, value: Any) -> None:
+    def _owner(self, value: int) -> None:
         try:
             self.__wrapped__._owner = value
         except (AttributeError, TypeError):
@@ -536,8 +536,8 @@ class LockCollector(collector.CaptureSamplerCollector):
         # Register a hook to re-apply patches if the target module is
         # re-imported after cleanup_loaded_modules() discards it from sys.modules.
         # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
-        module_name = self.MODULE.__name__
-        patched_module_id = id(self.MODULE)
+        module_name: str = self.MODULE.__name__
+        patched_module_id: int = id(self.MODULE)
 
         def _on_module_reimport(new_module: ModuleType) -> None:
             nonlocal patched_module_id
