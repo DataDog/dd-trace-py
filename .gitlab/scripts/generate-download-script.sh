@@ -55,7 +55,7 @@ done
 
 # Download wheel
 echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER"
-pip download --no-index --no-deps \
+python3 -m pip download --no-index --no-deps \
   --find-links S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER \
   ddtrace==VERSION_PLACEHOLDER \
   $PIP_ARGS \
