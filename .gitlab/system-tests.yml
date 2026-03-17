@@ -7,7 +7,10 @@
   stage: system-tests
   variables:
     TEST_LIBRARY: python
-    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_CPU_LIMIT: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   needs:
     - job: "build linux"
       artifacts: true
@@ -23,38 +26,46 @@
               - "cp314-cp314"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   before_script:
-    # Install system dependencies (build-essential needed for C extensions like zstandard)
+    - echo -e "\e[0Ksection_start:`date +%s`:system_deps\r\e[0KInstalling system dependencies"
+    # build-essential needed for C extensions like zstandard
     - apt-get update && apt-get install -y git bash patchelf curl build-essential
-    # Install uv and Python 3.12
+    - echo -e "\e[0Ksection_end:`date +%s`:system_deps\r\e[0K"
+
+    - echo -e "\e[0Ksection_start:`date +%s`:install_uv_python\r\e[0KInstalling uv and Python 3.12"
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv python install 3.12
-    # Clone system-tests at pinned ref
+    - echo -e "\e[0Ksection_end:`date +%s`:install_uv_python\r\e[0K"
+
+    - echo -e "\e[0Ksection_start:`date +%s`:checkout_system_tests\r\e[0KChecking out system-tests @ ${SYSTEM_TESTS_REF}"
     - git clone https://github.com/DataDog/system-tests.git ${CI_PROJECT_DIR}/system-tests
     - cd ${CI_PROJECT_DIR}/system-tests && git checkout ${SYSTEM_TESTS_REF}
-    # Copy wheels to binaries/
+    - echo -e "\e[0Ksection_end:`date +%s`:checkout_system_tests\r\e[0K"
+
+    - echo -e "\e[0Ksection_start:`date +%s`:setup_binaries\r\e[0KCopying ddtrace wheels to binaries/"
     - mkdir -p ${CI_PROJECT_DIR}/system-tests/binaries
     - cp ${CI_PROJECT_DIR}/pywheels/*.whl ${CI_PROJECT_DIR}/system-tests/binaries/ || true
     - ls -la ${CI_PROJECT_DIR}/system-tests/binaries/
-    # Build system-tests runner venv
-    - uv venv venv --python 3.12
-    - source venv/bin/activate
+    - echo -e "\e[0Ksection_end:`date +%s`:setup_binaries\r\e[0K"
+
+    - echo -e "\e[0Ksection_start:`date +%s`:build_runner\r\e[0KBuilding system-tests runner venv"
+    - uv venv ${CI_PROJECT_DIR}/system-tests/venv --python 3.12
+    - source ${CI_PROJECT_DIR}/system-tests/venv/bin/activate
     - uv pip install --upgrade pip "setuptools==75.8.0"
-    - uv pip install -e .
+    - uv pip install -e ${CI_PROJECT_DIR}/system-tests
+    - echo -e "\e[0Ksection_end:`date +%s`:build_runner\r\e[0K"
 
 system-tests parametric:
   extends: .system-tests-base
-  timeout: 60m
-  variables:
-    KUBERNETES_CPU_REQUEST: "4"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
+    - echo -e "\e[0Ksection_start:`date +%s`:run_parametric\r\e[0KRunning PARAMETRIC scenario"
     - cd ${CI_PROJECT_DIR}/system-tests
     - source venv/bin/activate
     - ./run.sh PARAMETRIC
+    - echo -e "\e[0Ksection_end:`date +%s`:run_parametric\r\e[0K"
+  variables:
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
   artifacts:
     when: always
     paths:
-      - system-tests/logs*/**
-    expire_in: 2 days
+      - system-tests/logs*
