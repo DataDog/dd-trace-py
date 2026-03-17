@@ -845,3 +845,97 @@ class TestBedrockClient:
 
         parsed = json.loads(result)
         assert parsed["categorical_eval"] == "positive"
+
+
+class TestClientOptionsPassthrough:
+    """Tests that extra client_options are forwarded to underlying client constructors."""
+
+    def test_openai_extra_options(self):
+        mock_openai_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_openai_client(client_options={"api_key": "test-key", "base_url": "https://custom.endpoint/v1"})
+            mock_openai_mod.OpenAI.assert_called_once_with(api_key="test-key", base_url="https://custom.endpoint/v1")
+
+    def test_anthropic_extra_options(self):
+        mock_anthropic_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"anthropic": mock_anthropic_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_anthropic_client(
+                client_options={"api_key": "test-key", "base_url": "https://custom.endpoint", "max_retries": 5}
+            )
+            mock_anthropic_mod.Anthropic.assert_called_once_with(
+                api_key="test-key", base_url="https://custom.endpoint", max_retries=5
+            )
+
+    def test_azure_openai_extra_options(self):
+        mock_openai_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_azure_openai_client(
+                client_options={
+                    "api_key": "test-key",
+                    "azure_endpoint": "https://test.openai.azure.com",
+                    "api_version": "2024-10-21",
+                    "azure_deployment": "my-deploy",
+                    "timeout": 30,
+                }
+            )
+            mock_openai_mod.AzureOpenAI.assert_called_once_with(
+                api_key="test-key",
+                azure_endpoint="https://test.openai.azure.com",
+                api_version="2024-10-21",
+                timeout=30,
+            )
+
+    def test_bedrock_extra_options(self):
+        mock_boto3 = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_bedrock_client(
+                client_options={
+                    "aws_access_key_id": "key",
+                    "aws_secret_access_key": "secret",
+                    "region_name": "us-west-2",
+                    "botocore_session": "custom-session",
+                }
+            )
+            mock_boto3.Session.assert_called_once_with(
+                region_name="us-west-2",
+                aws_access_key_id="key",
+                aws_secret_access_key="secret",
+                botocore_session="custom-session",
+            )
+
+    def test_vertexai_extra_options(self):
+        mock_vertexai = mock.MagicMock()
+        mock_google_auth = mock.MagicMock()
+        mock_google_auth.default.return_value = (mock.MagicMock(), "test-project")
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "vertexai": mock_vertexai,
+                "vertexai.generative_models": mock_vertexai.generative_models,
+                "google": mock.MagicMock(),
+                "google.auth": mock_google_auth,
+            },
+        ):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_vertexai_client(
+                client_options={
+                    "project": "my-project",
+                    "location": "europe-west1",
+                    "api_transport": "rest",
+                }
+            )
+            mock_vertexai.init.assert_called_once_with(
+                project="my-project",
+                location="europe-west1",
+                credentials=None,
+                api_transport="rest",
+            )
