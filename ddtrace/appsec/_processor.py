@@ -140,10 +140,6 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
-                # if DDWaf is None:
-                #     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
-                #     self._ddwaf = None
-                #     return
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
