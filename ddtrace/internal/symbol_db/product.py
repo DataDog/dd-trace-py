@@ -25,7 +25,3 @@ def restart(join: bool = False) -> None:
 def stop(join: bool = False) -> None:
     # Controlled via RC
     pass
-
-
-def at_exit(join: bool = False) -> None:
-    stop(join=join)
