@@ -913,21 +913,19 @@ class TestClientOptionsPassthrough:
 
     def test_vertexai_extra_options(self):
         mock_vertexai = mock.MagicMock()
-        mock_google_auth = mock.MagicMock()
-        mock_google_auth.default.return_value = (mock.MagicMock(), "test-project")
+        mock_creds = mock.MagicMock()
         with mock.patch.dict(
             "sys.modules",
             {
                 "vertexai": mock_vertexai,
                 "vertexai.generative_models": mock_vertexai.generative_models,
-                "google": mock.MagicMock(),
-                "google.auth": mock_google_auth,
             },
         ):
             from ddtrace.llmobs._evaluators import llm_judge as lj
 
             lj._create_vertexai_client(
                 client_options={
+                    "credentials": mock_creds,
                     "project": "my-project",
                     "location": "europe-west1",
                     "api_transport": "rest",
@@ -936,6 +934,6 @@ class TestClientOptionsPassthrough:
             mock_vertexai.init.assert_called_once_with(
                 project="my-project",
                 location="europe-west1",
-                credentials=None,
+                credentials=mock_creds,
                 api_transport="rest",
             )
