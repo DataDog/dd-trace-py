@@ -41,6 +41,9 @@
 #include <internal/pycore_frame.h>
 #endif // _PY314_AND_LATER
 #include <internal/pycore_code.h>
+#if defined __GNUC__ && defined HAVE_STD_ATOMIC
+#undef HAVE_STD_ATOMIC
+#endif
 #include <internal/pycore_pystate.h>
 using memalloc_frame_t = _PyInterpreterFrame;
 #else
