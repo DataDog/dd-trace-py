@@ -107,15 +107,15 @@ The Profile is locked during serialization and reset after encoding completes.
 The actual HTTP upload happens without holding the profile lock.
 
 
-### Uploader
+### ExporterManager
 
-A special class for managing the upload operations.
-It holds onto some state which is attached to a Profiling upload.
-This is actually a little bit delicate because the underlying libdatadog fixture calls an HTTP library which may be more prone to tearing during `fork()` than other parts of the code.
-Accordingly, we register `atfork()` handlers in `interface.cpp` to try and protect it.
+The ExporterManager wraps libdatadog's fork-safe async upload API (`ddog_prof_ExporterManager`).
+Unlike the previous approach which rebuilt the exporter for each upload, ExporterManager is created once and reused.
+It has a background worker thread that handles uploads asynchronously.
 
+Fork safety is handled by libdatadog internally via three operations:
+- `prefork()`: stops worker thread, captures inflight requests
+- `postfork_parent()`: restarts worker, re-queues inflight requests
+- `postfork_child()`: creates fresh worker, discards parent's inflight requests
 
-### Builders
-
-Conceptually, the Uploader can be reused.
-However, there is some anxiety around exactly what degree of safety we can guarantee when an upload (not obvious: uploads happen in a thread controlled by a libdatadog dependency) is cut by a `fork()`, so we rebuild the uploader fresh every time.
+We register `atfork()` handlers in `ddup_interface.cpp` to call these at the appropriate times.
