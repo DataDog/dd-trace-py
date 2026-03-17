@@ -100,7 +100,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             s._set_attribute(COMPONENT, config.flask_cache.integration_name)
 
             # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # set span tags
             cache_type = self.config.get("CACHE_TYPE")
             if cache_type is not None:

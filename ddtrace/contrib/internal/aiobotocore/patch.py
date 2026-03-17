@@ -130,7 +130,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")

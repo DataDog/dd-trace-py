@@ -214,7 +214,7 @@ def test_set_tag_service_key():
 )
 def test_set_tag_measured(value, assertion):
     s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, value)
+    s.set_tag(_SPAN_MEASURED_KEY, value)  # ast-grep-ignore: span-set-tag-measured
     assertion(s)
 
 
@@ -226,19 +226,19 @@ def test_set_tag_measured_not_set():
 
 def test_set_tag_measured_no_value():
     s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY)
+    s.set_tag(_SPAN_MEASURED_KEY)  # ast-grep-ignore: span-set-tag-measured
     assert_is_measured(s)
 
 
 def test_set_tag_measured_change_value():
     s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, True)
+    s.set_tag(_SPAN_MEASURED_KEY, True)  # ast-grep-ignore: span-set-tag-measured
     assert_is_measured(s)
 
-    s.set_tag(_SPAN_MEASURED_KEY, False)
+    s.set_tag(_SPAN_MEASURED_KEY, False)  # ast-grep-ignore: span-set-tag-measured
     assert_is_not_measured(s)
 
-    s.set_tag(_SPAN_MEASURED_KEY)
+    s.set_tag(_SPAN_MEASURED_KEY)  # ast-grep-ignore: span-set-tag-measured
     assert_is_measured(s)
 
 

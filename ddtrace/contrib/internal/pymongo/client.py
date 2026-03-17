@@ -119,7 +119,7 @@ def datadog_trace_operation(operation, wrapped):
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(mongox.DB, cmd.db)
     span._set_attribute(mongox.COLLECTION, cmd.coll)
     span._set_attribute(db.SYSTEM, mongox.SERVICE)
@@ -238,7 +238,7 @@ def trace_cmd(cmd, socket_instance, address):
     s._set_attribute(COMPONENT, config.pymongo.integration_name)
     s._set_attribute(db.SYSTEM, mongox.SERVICE)
     s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-    s.set_metric(_SPAN_MEASURED_KEY, 1)
+    s._set_attribute(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
         s._set_attribute(mongox.DB, cmd.db)
     if cmd:

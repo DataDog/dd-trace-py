@@ -91,7 +91,7 @@ class TracedCursor(wrapt.ObjectProxy):
         ) as s:
             if measured:
                 # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)

@@ -320,7 +320,7 @@ def _trace(func, p, method_name, *args, **kwargs):
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         # try to set relevant tags, catch any exceptions so we don't mess
         # with the application

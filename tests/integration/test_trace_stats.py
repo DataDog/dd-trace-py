@@ -212,7 +212,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(_SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)  # ast-grep-ignore: span-set-tag-measured
 
 
 @pytest.mark.snapshot()

@@ -165,7 +165,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
             span.set_tag(tk, tv)
     if ctx.get_item("measured"):
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     ctx.span = span
 
@@ -200,7 +200,7 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span._set_attribute(COMPONENT, int_config.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.SERVER)
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -507,7 +507,7 @@ def _on_request_span_modifier(
     span.resource = " ".join((request.method, request.path))
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     span._set_attribute(flask_version, flask_version_str)
 
@@ -1244,7 +1244,7 @@ def _on_aiokafka_send_start(
     span._set_attribute(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
     span.set_metric(PARTITION, partition or -1)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
         # inject headers with Datadog tags:
@@ -1271,7 +1271,7 @@ def _on_aiokafka_getone_message(
 
     span.start_ns = start_ns
     span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
@@ -1298,7 +1298,7 @@ def _on_aiokafka_getmany_message(
     span = ctx.span
 
     span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if messages is not None:
         first_topic = next(iter(messages)).topic
