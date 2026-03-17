@@ -86,5 +86,6 @@ def unpatch():
     _u(tornado.web.RequestHandler, "_execute")
     _u(tornado.web.RequestHandler, "on_finish")
     _u(tornado.web.RequestHandler, "log_exception")
+    _u(tornado.web.RequestHandler, "flush")
     _u(tornado.web.Application, "__init__")
     _u(tornado.template.Template, "generate")
