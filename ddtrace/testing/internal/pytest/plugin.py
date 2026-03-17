@@ -378,21 +378,22 @@ class TestOptPlugin:
         )
 
     def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+        """Apply test management markers for the base plugin (used when an external rerun plugin drives execution).
+
+        ATF retries are not supported in this mode — the external plugin controls the protocol and we cannot intercept
+        individual test runs to capture real FAIL statuses. Disabled+ATF tests therefore get the same xfail treatment
+        as quarantined tests: failures won't break the pipeline, but ATF retry semantics are silently unavailable.
+        If ATF support is needed, disable the external rerun plugin (see the warning emitted at configure time).
+
+        Overridden in TestOptPluginWithProtocol, which drives retries itself and needs real FAIL outcomes for ATF.
+        """
         if not self.manager.settings.test_management.enabled:
             return
         if test.is_disabled() and not test.is_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_quarantined():
-            # Quarantined tests use xfail so failures don't break the pipeline. This works regardless of who drives
-            # execution (our plugin or an external rerun plugin like pytest-rerunfailures/flaky).
+        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
+            # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
-        elif test.is_disabled() and test.is_attempt_to_fix():
-            # Attempt-to-fix tests use a user property instead of xfail, so that _get_test_outcome captures the real
-            # FAIL status (needed by AttemptToFixHandler.get_final_status). The report is mangled to "skipped" after
-            # the real status is captured, so the failure doesn't break the pipeline.
-            # AIDEV-NOTE: ATF cannot use xfail because xfail turns failures into SKIP, which breaks the retry handler's
-            # ability to count failures and determine HAS_FAILED_ALL_RETRIES / ATTEMPT_TO_FIX_PASSED tags.
-            item.user_properties += [("dd_disabled_attempt_to_fix", True)]
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
@@ -777,6 +778,31 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     the base class is registered instead, so the external plugin drives retries while the wrapper hook still handles
     span bookkeeping.
     """
+
+    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+        """Apply test management markers for the plugin that drives retries itself.
+
+        ATF tests must NOT use xfail here: xfail converts failures into SKIP outcomes, which prevents
+        AttemptToFixHandler.get_final_status from seeing real FAIL counts and computing correct tags
+        (HAS_FAILED_ALL_RETRIES, ATTEMPT_TO_FIX_PASSED). Instead, ATF tests set a user property so
+        _get_test_outcome captures the true status, and reports are mangled to "skipped" afterwards so
+        failures still don't break the pipeline.
+
+        The outer condition mirrors the original logic: only quarantined tests and disabled+ATF tests
+        are treated as "run but don't fail the pipeline" — plain ATF (neither disabled nor quarantined)
+        runs normally without any report suppression.
+        """
+        if not self.manager.settings.test_management.enabled:
+            return
+        if test.is_disabled() and not test.is_attempt_to_fix():
+            item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
+            # AIDEV-NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
+            # neither disabled nor quarantined run normally and must not get report mangling or a user property.
+            if test.is_attempt_to_fix():
+                item.user_properties += [("dd_disabled_attempt_to_fix", True)]
+            else:
+                item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
