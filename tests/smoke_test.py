@@ -67,8 +67,8 @@ if __name__ == "__main__":
 
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
-        import ddtrace.appsec._ddwaf  # noqa: F401 this loads the waf and will raise an exception in case of failure
-
+        import ddtrace.appsec._ddwaf as _ddwaf
+        assert _ddwaf.is_available, f"WAF module failed to load: {_ddwaf.failure_msg}"
         assert module.loaded
         print("WAF module load test completed successfully")
     else:
