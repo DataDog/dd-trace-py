@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import cast
 
 
 if TYPE_CHECKING:
@@ -112,8 +113,8 @@ class _ProfiledLock:
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
-            return self.__wrapped__ == other.__wrapped__
-        return self.__wrapped__ == other
+            return bool(self.__wrapped__ == other.__wrapped__)
+        return bool(self.__wrapped__ == other)
 
     def __getattr__(self, name: str) -> Any:
         # Delegates acquire_lock, release_lock, locked_lock, and any future methods
@@ -141,7 +142,7 @@ class _ProfiledLock:
 
     def locked(self) -> bool:
         """Return True if lock is currently held."""
-        return self.__wrapped__.locked()
+        return bool(self.__wrapped__.locked())
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -433,7 +434,7 @@ class _LockAllocatorWrapper:
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    PROFILED_LOCK_CLASS: type[Any]
+    PROFILED_LOCK_CLASS: type[_ProfiledLock]
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
     # Module file to check for internal lock detection (e.g., threading.__file__ or asyncio.locks.__file__)
@@ -451,7 +452,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Any = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
-        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
+        return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
 
     def _set_patch_target(self, value: Any) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
