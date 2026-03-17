@@ -23,10 +23,12 @@ class ProfilingConfig(DDConfig):
     memory: ProfilingConfigMemory
     heap: ProfilingConfigHeap
     pytorch: ProfilingConfigPytorch
+    exception: ProfilingConfigException
 
 class ProfilingConfigStack(DDConfig):
     enabled: bool
     v2_adaptive_sampling: bool
+    native_frames: bool
 
 class ProfilingConfigLock(DDConfig):
     enabled: bool
@@ -44,6 +46,11 @@ class ProfilingConfigHeap(DDConfig):
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
+
+class ProfilingConfigException(DDConfig):
+    enabled: bool
+    sampling_interval: int
+    collect_message: bool
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]
