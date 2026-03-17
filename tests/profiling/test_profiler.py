@@ -480,6 +480,38 @@ def test_gevent_patched_when_profiling_auto():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+def test_gevent_wait_wrapper_tracks_greenlets_via_keyword_arg():
+    """wait_wrapper must track greenlets when 'objects' is passed as a keyword argument."""
+    from unittest import mock
+
+    import gevent
+    from gevent import thread
+
+    from ddtrace.profiling import _gevent as _ddgevent
+
+    captured = []
+
+    def fake_link_greenlets(greenlet_id: int, parent_id: int) -> None:
+        captured.append(greenlet_id)
+
+    g1 = gevent.spawn(lambda: None)
+    g2 = gevent.spawn(lambda: None)
+
+    with mock.patch.object(_ddgevent, "link_greenlets", side_effect=fake_link_greenlets):
+        _ddgevent.patch()
+        try:
+            # Pass objects as a keyword argument — this is the case the bug missed.
+            gevent.wait(objects=[g1, g2])
+        finally:
+            _ddgevent.unpatch()
+
+    g1_id = thread.get_ident(g1)
+    g2_id = thread.get_ident(g2)
+    assert g1_id in captured, f"g1 ({g1_id}) was not tracked; captured={captured}"
+    assert g2_id in captured, f"g2 ({g2_id}) was not tracked; captured={captured}"
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_ENABLED="false",

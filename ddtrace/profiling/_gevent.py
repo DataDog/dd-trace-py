@@ -225,7 +225,7 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         try:
             objects = args[0]
         except IndexError:
-            objects = kwargs.get("args", [])
+            objects = kwargs.get("objects", [])
 
         if greenlets := [_ for _ in objects if isinstance(_, (greenlet, gevent.Greenlet))]:
             current_greenlet = gevent.getcurrent()
