@@ -212,6 +212,15 @@ These environment variables modify aspects of the build process.
     version_added:
         v2.16.0:
 
+  DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
+    type: Boolean
+    default: False
+
+    description: |
+        If set to 1, it enables a memalloc-specific native build guard that aborts on reentrant allocator hook calls
+        (`malloc -> malloc` or `malloc -> free`). This is intended for memalloc testing and debugging builds, not
+        for production use.
+
   DD_CMAKE_INCREMENTAL_BUILD:
     type: Boolean
     default: True
