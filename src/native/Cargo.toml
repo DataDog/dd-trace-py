@@ -11,8 +11,10 @@ opt-level = 's'
 codegen-units = 1
 
 [features]
-crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
+crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc", "dep:libdd-common"]
 profiling = ["dep:libdd-profiling-ffi"]
+ffe = ["dep:datadog-ffe"]
+stats = ["dep:libdd-ddsketch"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }

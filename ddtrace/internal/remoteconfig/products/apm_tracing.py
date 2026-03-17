@@ -149,7 +149,3 @@ def stop(join=False):
 
         remoteconfig_poller.unregister_callback("APM_TRACING")
         remoteconfig_poller.disable_product("APM_TRACING")
-
-
-def at_exit(join=False):
-    stop(join=join)

@@ -248,23 +248,30 @@ class TestEncoders(TestCase):
         [(payload_bytes, n_traces)] = encoded_traces
         data = json.loads(payload_bytes.decode("utf-8"))
 
+        assert n_traces == 1
         assert data == {
-            "spans": [
+            "traces": [
                 {
-                    "trace_id": "1234567890abcdef",
-                    "parent_id": "0000000000000000",
-                    "span_id": "1234567890abcdef",
-                    "service": "svc",
-                    "resource": "/r",
-                    "name": "span1",
-                    "error": 1,
-                    "start": 1771941568700091000,
-                    "duration": 1000000000,
-                    "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
-                    "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
-                    "type": "web",
-                    "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
-                    "meta_struct": {"payload": {"key": "value"}},
+                    "spans": [
+                        {
+                            "trace_id": "1234567890abcdef",
+                            "parent_id": "0000000000000000",
+                            "span_id": "1234567890abcdef",
+                            "service": "svc",
+                            "resource": "/r",
+                            "name": "span1",
+                            "error": 1,
+                            "start": 1771941568700091000,
+                            "duration": 1000000000,
+                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                            "type": "web",
+                            "span_links": [
+                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
+                            ],
+                            "meta_struct": {"payload": {"key": "value"}},
+                        }
+                    ]
                 }
             ]
         }
@@ -362,7 +369,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0]._set_tag_str("some_tag", rand_string)
+    trace[0]._set_attribute("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -374,7 +381,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception

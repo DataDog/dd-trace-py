@@ -1,0 +1,29 @@
+---
+features:
+  - |
+    tracing: This adds process tags to trace payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    profiling: This adds process tags to profiler payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    runtime metrics: This adds process tags to runtime metrics tags.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    remote configuration: This adds process tags to remote configuration payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    dynamic instrumentation: This adds process tags to debugger payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    crashtracking: This adds process tags to crash tracking payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    data streams monitoring: This adds process tags to Data Streams Monitoring payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    database monitoring: This adds process tags to Database Monitoring SQL service hash propagation.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
+  - |
+    Stats computation: This adds process tags to stats computation payloads.
+    To deactivate this feature, set ``DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED=false``.
