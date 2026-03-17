@@ -38,6 +38,21 @@ def test_capture_sampler() -> None:
     assert cs.capture() is False  # 15
 
 
+def test_capture_sampler_target_percentage() -> None:
+    """Verify the sampler hits the target capture percentage over a large number of calls."""
+    for pct in (1, 5, 10, 25, 50, 75, 100):
+        cs: collector.CaptureSampler = collector.CaptureSampler(pct)
+        n: int = 10_000
+        captured: int = sum(1 for _ in range(n) if cs.capture())
+        expected: int = n * pct // 100
+        assert captured == expected, "CaptureSampler(%d): expected %d captures in %d calls, got %d" % (
+            pct,
+            expected,
+            n,
+            captured,
+        )
+
+
 def test_capture_sampler_bad_value() -> None:
     with pytest.raises(ValueError):
         collector.CaptureSampler(-1)

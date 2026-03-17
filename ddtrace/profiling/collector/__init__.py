@@ -3,7 +3,6 @@ import typing
 
 from ddtrace.internal import service
 from ddtrace.internal.settings.profiling import config
-from ddtrace.profiling.collector._sampler import CaptureSampler  # noqa: F401
 
 
 class CaptureSampler:

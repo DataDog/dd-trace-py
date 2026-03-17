@@ -159,11 +159,14 @@ class _ProfiledLock:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        # Internal locks (e.g., Lock inside Semaphore) skip profiling entirely.
+        # Checked before sampler.capture() so they never consume sample budget.
+        if self.is_internal:
+            return inner_func(*args, **kwargs)
+
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
             if config.enable_asserts:
-                # Ensure acquired_time is not set when acquire is not sampled
-                # (else a bogus release sample is produced)
                 assert self.acquired_time is None, (
                     "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
                 )  # nosec
@@ -181,19 +184,17 @@ class _ProfiledLock:
         if result is False and error_info is None:
             return result
 
-
         cdef long long end = time.monotonic_ns()
         self.acquired_time = end
-        if not self.is_internal:
-            try:
-                self._update_name()
-                self._flush_sample(start, end, True)
-            except AssertionError:
-                if config.enable_asserts:
-                    raise
-            except Exception:
-                # Instrumentation must never crash user code
-                pass  # nosec
+        try:
+            self._update_name()
+            self._flush_sample(start, end, True)
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
         if error_info is not None:
             err: BaseException
             tb: Optional[TracebackType]
@@ -212,21 +213,15 @@ class _ProfiledLock:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        if self.is_internal:
+            return inner_func(*args, **kwargs)
+
         start: Optional[int] = getattr(self, "acquired_time", None)
         self.acquired_time = None
 
-        # Note: this can raise an exception. We don't catch it because we
-        # want to be transparent about errors (for obvious reasons) and we
-        # don't need to "look" at the errors because we're not capturing them
-        # anywhere.
-        # What comes next in the function is only code for sampling the lock
-        # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
 
         if start is None:
-            return result
-
-        if self.is_internal:
             return result
 
         try:

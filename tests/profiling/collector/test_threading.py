@@ -607,6 +607,70 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock.release()
 
 
+def test_internal_locks_do_not_consume_sample_budget() -> None:
+    """Internal locks (e.g., Lock inside Semaphore) must not advance the CaptureSampler counter.
+
+    If internal lock operations called capture(), they would "steal" sample slots from
+    user-visible locks, reducing the effective capture rate below the target percentage.
+    This test verifies that the is_internal check happens BEFORE sampler.capture().
+    """
+    init_ddup("test_internal_locks_sample_budget")
+
+    with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(1)
+        internal_lock: _ProfiledLock = sem._cond._lock  # type: ignore[attr-defined]
+        assert internal_lock.is_internal, "Test setup: internal lock should be marked as internal"
+
+        # Get the sampler that the internal lock actually uses
+        sampler = internal_lock.capture_sampler
+        counter_before: float = sampler._counter
+
+        for _ in range(100):
+            internal_lock.acquire()
+            internal_lock.release()
+
+        counter_after: float = sampler._counter
+        assert counter_before == counter_after, (
+            "Internal lock operations advanced the sampler counter from %f to %f; "
+            "they should be skipped before capture() is called" % (counter_before, counter_after)
+        )
+
+
+def test_capture_rate_preserved_with_internal_locks() -> None:
+    """End-to-end: user-visible locks hit the target capture rate despite internal lock traffic.
+
+    Creates a Semaphore (which has internal locks) and a regular Lock. Exercises both
+    with capture_pct=50, then verifies the regular Lock's actual capture rate matches
+    the target — meaning internal locks didn't steal sample budget.
+    """
+    init_ddup("test_capture_rate_preserved")
+
+    with ThreadingLockCollector(capture_pct=50), ThreadingSemaphoreCollector(capture_pct=50):
+        sem = threading.Semaphore(1)
+        regular_lock = threading.Lock()
+        assert isinstance(regular_lock, _ProfiledLock)
+
+        # Exercise both heavily — internal lock operations from sem should not affect regular_lock's rate
+        n: int = 1000
+        for _ in range(n):
+            sem.acquire()
+            sem.release()
+
+        # Now exercise the regular lock and count how many times acquired_time gets set (= sampled)
+        sampled: int = 0
+        for _ in range(n):
+            regular_lock.acquire()
+            if regular_lock.acquired_time is not None:
+                sampled += 1
+            regular_lock.release()
+
+        expected: int = n * 50 // 100
+        assert sampled == expected, (
+            "Expected %d sampled acquires out of %d (50%%), got %d (%.1f%%); "
+            "internal locks may be stealing sample budget" % (expected, n, sampled, 100.0 * sampled / n)
+        )
+
+
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
 
