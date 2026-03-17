@@ -8,9 +8,6 @@
   variables:
     TEST_LIBRARY: python
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
   needs:
     - job: "build linux"
       artifacts: true
@@ -26,19 +23,14 @@
               - "cp314-cp314"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   before_script:
-    # Install system dependencies
-    - apt-get update && apt-get install -y git bash patchelf curl
+    # Install system dependencies (build-essential needed for C extensions like zstandard)
+    - apt-get update && apt-get install -y git bash patchelf curl build-essential
     # Install uv and Python 3.12
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
     - uv python install 3.12
-    # Get GitHub token for cloning system-tests
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/system-tests --policy gitlab.github-access.read)
-      fi
     # Clone system-tests at pinned ref
-    - git clone https://x-access-token:${GH_TOKEN}@github.com/DataDog/system-tests.git ${CI_PROJECT_DIR}/system-tests
+    - git clone https://github.com/DataDog/system-tests.git ${CI_PROJECT_DIR}/system-tests
     - cd ${CI_PROJECT_DIR}/system-tests && git checkout ${SYSTEM_TESTS_REF}
     # Copy wheels to binaries/
     - mkdir -p ${CI_PROJECT_DIR}/system-tests/binaries
