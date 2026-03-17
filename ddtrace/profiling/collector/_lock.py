@@ -243,7 +243,14 @@ class _ProfiledLock:
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
-            handle.push_monotonic_ns(end)
+            if sys.platform == "darwin":
+                # 'time.monotonic_ns' on macOS accumulates system sleep time, causing it
+                # to diverge from 'clock_gettime' (mach_continuous_time) in C++. This puts
+                # lock timestamps outside the profile's time window, making them invisible
+                # in the Thread Timeline. 'push_absolute_ns' avoids this clock mismatch.
+                handle.push_absolute_ns(time.time_ns())
+            else:
+                handle.push_monotonic_ns(end)
 
             lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
             handle.push_lock_name(lock_name)
