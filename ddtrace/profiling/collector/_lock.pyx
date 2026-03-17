@@ -122,6 +122,23 @@ class _ProfiledLock:
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
 
+    # gevent compatibility — gevent's _patch_existing_locks() calls
+    # type(threading.RLock()) to determine the RLock type, then scans gc.get_objects()
+    # for instances of that type. When our wrapper is on threading.RLock, the type is
+    # _ProfiledLock, so ALL profiled lock instances match. gevent then checks each for
+    # _owner/_RLock__owner; without this property, non-RLock wrappers (e.g. Lock) fail
+    # the check, causing AssertionError("Found unknown lock implementation").
+    @property
+    def _owner(self) -> Any:
+        return getattr(self.__wrapped__, "_owner", None)
+
+    @_owner.setter
+    def _owner(self, value: Any) -> None:
+        try:
+            self.__wrapped__._owner = value
+        except (AttributeError, TypeError):
+            pass
+
     # DUNDER methods
 
     def __eq__(self, other: object) -> bool:
