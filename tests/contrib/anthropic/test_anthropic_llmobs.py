@@ -75,7 +75,8 @@ class TestLLMObsAnthropic:
     ):
         """Regression test: beta API features (e.g. tool_search_tool_regex) can emit input_json_delta
         chunks without a preceding content_block_start of type tool_use. This previously caused a
-        KeyError on the 'input' key, preventing the LLMObs span from being submitted."""
+        KeyError on the 'input' key, preventing the LLMObs span from being submitted.
+        """
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_stream_no_content_block_start.yaml"):
             stream = llm.beta.messages.create(
