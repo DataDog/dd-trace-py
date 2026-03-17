@@ -142,7 +142,9 @@ class PromptManager:
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
         if self._ff_prompt_serving:
-            return self._fetch_from_ff(prompt_id, label)
+            result = self._fetch_from_ff(prompt_id, label)
+            if result is not None:
+                return result
         key = cache_key(prompt_id, label)
         prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
         return prompt
