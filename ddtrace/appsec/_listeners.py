@@ -3,6 +3,7 @@ import sys
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
 
 _APPSEC_TO_BE_LOADED = True
@@ -30,11 +31,32 @@ def _abort_appsec(failure_msg: str) -> None:
     tracer.configure(appsec_enabled=False)
 
 
-def load_appsec() -> bool:
-    """Lazily load the appsec module listeners."""
-    if not asm_config._asm_enabled:
-        return False
+def disable_appsec(reconfigure_tracer: bool = False) -> None:
+    from ddtrace.appsec import _ddwaf
 
+    if not asm_config._asm_libddwaf_available:
+        _abort_appsec(_ddwaf.failure_msg)
+        return
+
+    from ddtrace.appsec._processor import AppSecSpanProcessor
+
+    AppSecSpanProcessor.disable()
+
+    if asm_config._api_security_active:
+        from ddtrace.appsec._api_security.api_manager import APIManager
+
+        APIManager.disable()
+
+    if reconfigure_tracer:
+        tracer.configure(appsec_enabled=False)
+    else:
+        asm_config._asm_enabled = False
+
+    return
+
+
+def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
+    """Lazily load the appsec module listeners."""
     from ddtrace.appsec import _ddwaf
 
     if not asm_config._asm_libddwaf_available:
@@ -70,9 +92,6 @@ def load_appsec() -> bool:
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
 
-    if not asm_config._asm_enabled:
-        return False
-
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
     AppSecSpanProcessor.enable()
@@ -80,6 +99,11 @@ def load_appsec() -> bool:
         from ddtrace.appsec._api_security.api_manager import APIManager
 
         APIManager.enable()
+
+    if reconfigure_tracer:
+        tracer.configure(appsec_enabled=True, appsec_enabled_origin=origin)
+    else:
+        asm_config._asm_enabled = True
 
     return True
 
@@ -103,6 +127,4 @@ def _asm_switch_state() -> None:
     if asm_config._asm_enabled:
         load_appsec()
     elif "ddtrace.appsec._processor" in sys.modules:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        AppSecSpanProcessor.disable()
+        disable_appsec()

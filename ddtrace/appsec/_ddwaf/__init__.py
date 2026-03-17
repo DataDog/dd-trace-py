@@ -18,5 +18,7 @@ except Exception as e:
     config._asm_libddwaf_available = False
     failure_msg = str(e)
 
+    DDWaf = None  # type: ignore
+
 
 __all__ = ["DDWaf", "DDWafRulesType", "ddwaf_context_capsule", "failure_msg"]
