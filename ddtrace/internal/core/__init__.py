@@ -143,6 +143,7 @@ class ExecutionContext(Generic[EventType]):
         "_inner_span",
         "_token",
         "_dispatch_end_event",
+        "_end_event_dispatched",
     )
 
     def __init__(
@@ -162,6 +163,7 @@ class ExecutionContext(Generic[EventType]):
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
         self._dispatch_end_event: bool = dispatch_end_event
+        self._end_event_dispatched: bool = False
 
     def __enter__(self) -> "ExecutionContext":
         if "_CURRENT_CONTEXT" in globals():
@@ -191,6 +193,7 @@ class ExecutionContext(Generic[EventType]):
         # For async flows, callers may need to exit the context without dispatching
         # context.ended yet (for example, to defer span finishing).
         if self._dispatch_end_event:
+            # we use dispatch directly to remove a function indirection on the hot path
             dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
         try:
             if self._token is not None:
@@ -208,6 +211,17 @@ class ExecutionContext(Generic[EventType]):
             if exc_type is None
             else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
         )
+
+    def dispatch_ended_event(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[types.TracebackType] = None,
+    ) -> None:
+        if self._end_event_dispatched:
+            return
+        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        self._end_event_dispatched = True
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""
@@ -329,15 +343,6 @@ def context_with_event(
     return _CONTEXT_CLASS(
         identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event, dispatch_end_event=dispatch_end_event
     )
-
-
-def dispatch_context_ended_event(
-    ctx: ExecutionContext,
-    exc_type: Optional[type] = None,
-    exc_value: Optional[BaseException] = None,
-    traceback: Optional[types.TracebackType] = None,
-):
-    dispatch("context.ended.%s" % ctx.identifier, (ctx, (exc_type, exc_value, traceback)))
 
 
 def add_suppress_exception(exc_type: type) -> None:

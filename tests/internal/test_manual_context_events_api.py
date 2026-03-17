@@ -26,8 +26,7 @@ class TestManualContextEventsApi(unittest.TestCase):
 
         assert ended == []
 
-        core.dispatch_context_ended_event(ctx)
-
+        ctx.dispatch_ended_event()
         assert len(ended) == 1
         ended_ctx, ended_exc_info = ended[0]
         assert ended_ctx is ctx
@@ -48,7 +47,7 @@ class TestManualContextEventsApi(unittest.TestCase):
 
         async def _dispatch_later():
             await asyncio.sleep(1)
-            core.dispatch_context_ended_event(ctx)
+            ctx.dispatch_ended_event()
 
         asyncio.run(_dispatch_later())
 
@@ -76,7 +75,7 @@ class TestManualContextEventsApi(unittest.TestCase):
         assert ended == [parent_context_id]
 
         assert child_ctx is not None
-        core.dispatch_context_ended_event(child_ctx)
+        child_ctx.dispatch_ended_event()
         assert core.current.identifier == core.ROOT_CONTEXT_ID
         assert ended == [parent_context_id, child_context_id]
 
@@ -98,7 +97,7 @@ class TestManualContextEventsApi(unittest.TestCase):
         assert core.current.identifier == core.ROOT_CONTEXT_ID
         assert ended == [child_context_id]
 
-        core.dispatch_context_ended_event(parent_ctx)
+        parent_ctx.dispatch_ended_event()
         assert core.current.identifier == core.ROOT_CONTEXT_ID
         assert ended == [child_context_id, parent_context_id]
 
@@ -132,10 +131,25 @@ class TestManualContextEventsApi(unittest.TestCase):
             try:
                 raise ValueError("OH NO!")
             except ValueError as e:
-                core.dispatch_context_ended_event(ctx, type(e), e, e.__traceback__)
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
 
                 ended_ctx, ended_exc_info = ended[0]
                 assert ended_ctx is ctx
                 assert ended_exc_info[0] is ValueError
                 assert isinstance(ended_exc_info[1], ValueError)
                 assert ended_exc_info[1].args == ("OH NO!",)
+
+    def test_manually_dispatching_end_event_is_idempotent(self):
+        context_id = "context_id"
+        ended = []
+
+        def on_context_ended(ctx, exc_info):
+            ended.append((ctx, exc_info))
+
+        core.on("context.ended.%s" % context_id, on_context_ended)
+        with core.context_with_data(context_id, dispatch_end_event=False) as ctx:
+            pass
+
+        ctx.dispatch_ended_event()
+        ctx.dispatch_ended_event()
+        assert len(ended) == 1
