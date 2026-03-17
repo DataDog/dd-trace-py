@@ -2287,3 +2287,54 @@ def test_exclude_modules_multiple() -> None:
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
         assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
+
+
+# -- Bypass flag for stopped profiler -----------------------------------------
+
+
+def test_bypass_capture_returns_false() -> None:
+    """When set_bypass(True), capture() always returns False."""
+    from ddtrace.profiling import collector
+
+    sampler = collector.CaptureSampler(capture_pct=100)
+    sampler.set_bypass(True)
+    for _ in range(100):
+        assert sampler.capture() is False
+
+
+def test_locks_after_stop_use_bypass() -> None:
+    """Locks created before stop() continue to work; bypass eliminates overhead."""
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_bypass_after_stop")
+
+    collector = ThreadingLockCollector(capture_pct=100)
+    collector.start()
+    lock = threading.Lock()
+    collector.stop()
+
+    # Acquire/release after stop — bypass engaged, no profiling overhead, no crash
+    lock.acquire()
+    lock.release()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_rlock_reentrant_acquire_no_assert() -> None:
+    """RLock re-entrant acquire must not assert when one acquire is sampled and the other is not."""
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_rlock_reentrant")
+
+    # 1% capture: acquire/release pairs get independent sampling. Re-entrant acquires
+    # can have acquired_time set from outer acquire while inner acquire is not sampled.
+    with ThreadingRLockCollector(capture_pct=1):
+        lock = threading.RLock()
+        for _ in range(200):
+            lock.acquire()
+            lock.acquire()  # re-entrant
+            lock.release()
+            lock.release()

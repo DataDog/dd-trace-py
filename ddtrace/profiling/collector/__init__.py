@@ -19,11 +19,18 @@ class CaptureSampler:
             raise ValueError("Capture percentage should be between 0 and 100 included")
         self.capture_pct: float = capture_pct
         self._counter: float = 0.0
+        self._bypass: bool = False
 
     def __repr__(self) -> str:
         return f"CaptureSampler(capture_pct={self.capture_pct})"
 
+    def set_bypass(self, value: bool) -> None:
+        """Set bypass flag. When True, capture() always returns False (zero overhead)."""
+        self._bypass = value
+
     def capture(self) -> bool:
+        if self._bypass:
+            return False
         self._counter += self.capture_pct
         if self._counter >= 100:
             self._counter -= 100

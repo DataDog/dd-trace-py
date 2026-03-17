@@ -166,11 +166,8 @@ class _ProfiledLock:
 
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
-            if config.enable_asserts:
-                assert self.acquired_time is None, (
-                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
-                )  # nosec
-
+            # Note: acquired_time may be set from a prior sampled acquire (e.g. RLock
+            # re-entrant). _release clears it unconditionally and handles pairing.
             return inner_func(*args, **kwargs)
 
         cdef long long start = time.monotonic_ns()
@@ -468,6 +465,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
+        self._capture_sampler.set_bypass(False)
         original_lock: Callable[..., Any] = self._get_patch_target()
         self._original_lock = original_lock
 
@@ -532,4 +530,5 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
+        self._capture_sampler.set_bypass(True)
         self._set_patch_target(self._original_lock)
