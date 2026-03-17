@@ -19,6 +19,12 @@ from ddtrace.profiling.collector import threading
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
+@pytest.fixture(autouse=True)
+def _reset_profiler_active_instance():
+    yield
+    profiler.Profiler._active_instance = None
+
+
 def test_status():
     p = profiler.Profiler()
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
@@ -431,4 +437,109 @@ def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled():
         assert gevent.iwait.__module__ == "ddtrace.profiling._gevent"
         assert gevent.hub.spawn_raw.__module__ == "ddtrace.profiling._gevent"
     finally:
+        p.stop(flush=False)
+
+
+def test_only_one_profiler_allowed(caplog: pytest.LogCaptureFixture) -> None:
+    """Starting a second profiler while one is running should log an error and not start."""
+    p1 = profiler.Profiler()
+    p2 = profiler.Profiler()
+
+    p1.start()
+    assert profiler.Profiler._active_instance is p1
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p2.start()
+
+    assert "A profiler is already running" in caplog.text
+    assert profiler.Profiler._active_instance is p1
+
+    p1.stop(flush=False)
+
+
+def test_stop_then_start_new_profiler() -> None:
+    """After stopping the first profiler, a new one should be startable."""
+    p1 = profiler.Profiler()
+    p1.start()
+    p1.stop(flush=False)
+
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
+def test_same_profiler_restart_allowed() -> None:
+    """Restarting the same profiler instance (stop then start) should work."""
+    p = profiler.Profiler()
+    p.start()
+    p.stop(flush=False)
+    p.start()
+    assert profiler.Profiler._active_instance is p
+    p.stop(flush=False)
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    ddtrace_run=True,
+    err=None,
+)
+def test_auto_profiler_blocks_manual_start():
+    """When DD_PROFILING_ENABLED=1 auto-starts a profiler, manually starting another one should log an error."""
+    import logging
+    import logging.handlers
+
+    from ddtrace.profiling import bootstrap
+    from ddtrace.profiling import profiler
+
+    assert hasattr(bootstrap, "profiler"), "Auto profiler should have been started by ddtrace-run"
+    assert profiler.Profiler._active_instance is not None
+
+    logger = logging.getLogger("ddtrace.profiling.profiler")
+    handler = logging.handlers.MemoryHandler(capacity=100)
+    logger.addHandler(handler)
+
+    p = profiler.Profiler()
+    p.start()
+
+    error_records = [r for r in handler.buffer if r.levelno >= logging.ERROR and "already running" in r.getMessage()]
+    assert len(error_records) == 1, (
+        f"Expected exactly one 'already running' error, got: {[r.getMessage() for r in handler.buffer]}"
+    )
+
+    assert profiler.Profiler._active_instance is bootstrap.profiler  # pyright: ignore[reportAttributeAccessIssue]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
+@pytest.mark.subprocess(err=None)
+def test_profiler_singleton_after_fork():
+    """After fork, the child process should be able to start a new profiler."""
+    import os
+
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    assert profiler.Profiler._active_instance is p
+
+    pid = os.fork()
+    if pid == 0:
+        # Child process: the inherited _active_instance still points to the parent's profiler,
+        # but after fork the service threads are dead so the status should not be RUNNING.
+        # A new profiler should be startable.
+        try:
+            p.stop(flush=False)
+            p2 = profiler.Profiler()
+            p2.start()
+            assert profiler.Profiler._active_instance is p2
+            p2.stop(flush=False)
+        except Exception as e:
+            print(f"Child failed: {e}", flush=True)
+            os._exit(1)
+        os._exit(0)
+    else:
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"Child exited with status {status}"
         p.stop(flush=False)
