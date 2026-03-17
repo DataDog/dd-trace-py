@@ -14,7 +14,9 @@ redirect_key = "allow_redirects" if STARLETTE_VERSION < (0, 21, 0) else "follow_
 HTTPX_VERSION = tuple(int(v) for v in httpx.__version__.split("."))
 
 
-class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
+class _Test_FastAPI_Base:
+    """FastAPI-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         from fastapi.testclient import TestClient
@@ -82,3 +84,11 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return response.headers.get("location", "")
+
+
+class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
+    pass
+
+
+class Test_FastAPI_RC(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

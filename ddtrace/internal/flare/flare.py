@@ -6,12 +6,9 @@ import pathlib
 import shutil
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._logger import _add_file_handler
-from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native._native import logger as native_logger
 from ddtrace.internal.native._native import native_flare
 
 
@@ -113,14 +110,6 @@ class Flare:
             ddlogger.removeHandler(self.file_handler)
         ddlogger.setLevel(self.original_log_level)
 
-        # Restore native logger configuration from env vars
-        if config._trace_writer_native:
-            try:
-                native_logger.disable("file")
-            except ValueError as e:
-                log.debug("Flare: failed to disable native logger: %s", e)
-            _configure_ddtrace_native_logger()
-
     def _generate_config_file(self, pid: int) -> bool:
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
@@ -175,11 +164,6 @@ class Flare:
             TRACER_FLARE_FILE_HANDLER_NAME,
             formatter=json_formatter,
         )
-
-        if config._trace_writer_native:
-            native_flare_path = self.flare_dir / f"tracer_native_{pid}.log"
-            native_logger.configure(output="file", path=str(native_flare_path))
-            native_logger.set_log_level(logging.getLevelName(flare_log_level_int))
 
         return pid
 
