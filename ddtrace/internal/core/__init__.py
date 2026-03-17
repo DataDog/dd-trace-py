@@ -134,13 +134,23 @@ ROOT_CONTEXT_ID = "__root"
 
 
 class ExecutionContext(Generic[EventType]):
-    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+    __slots__ = (
+        "identifier",
+        "_data",
+        "_event",
+        "_suppress_exceptions",
+        "_parent",
+        "_inner_span",
+        "_token",
+        "_dispatch_end_event",
+    )
 
     def __init__(
         self,
         identifier: str,
         parent: Optional["ExecutionContext"] = None,
         event: Optional["EventType"] = None,
+        dispatch_end_event: bool = True,
         **kwargs,
     ) -> None:
         self.identifier: str = identifier
@@ -151,6 +161,7 @@ class ExecutionContext(Generic[EventType]):
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
+        self._dispatch_end_event: bool = dispatch_end_event
 
     def __enter__(self) -> "ExecutionContext":
         if "_CURRENT_CONTEXT" in globals():
@@ -177,7 +188,10 @@ class ExecutionContext(Generic[EventType]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        # For async flows, callers may need to exit the context without dispatching
+        # context.ended yet (for example, to defer span finishing).
+        if self._dispatch_end_event:
+            dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -280,7 +294,7 @@ class ExecutionContext(Generic[EventType]):
     @property
     def event(self) -> EventType:
         if self._event is None:
-            raise ValueError("No event provided in context")
+            raise AttributeError("ExecutionContext has no event. Use context_with_event(...)")
         return self._event
 
 
@@ -309,10 +323,21 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(
-    event: "EventType", parent=None, context_name_override: Optional[str] = None
+    event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
-    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
+    return _CONTEXT_CLASS(
+        identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event, dispatch_end_event=dispatch_end_event
+    )
+
+
+def dispatch_context_ended_event(
+    ctx: ExecutionContext,
+    exc_type: Optional[type] = None,
+    exc_value: Optional[BaseException] = None,
+    traceback: Optional[types.TracebackType] = None,
+):
+    dispatch("context.ended.%s" % ctx.identifier, (ctx, (exc_type, exc_value, traceback)))
 
 
 def add_suppress_exception(exc_type: type) -> None:
