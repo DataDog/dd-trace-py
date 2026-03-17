@@ -120,7 +120,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: brettlangdon/dd-trace-py.pipeline.artifacts
   needs:
     - job: "upload manylinux2014"
   rules:
