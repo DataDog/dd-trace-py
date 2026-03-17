@@ -205,11 +205,11 @@ def override_global_config(values):
         from ddtrace.appsec._listeners import load_appsec
 
         disable_appsec()
-        load_appsec(reconfigure_tracer=True)
+        load_appsec()
     else:
         from ddtrace.appsec._listeners import disable_appsec
 
-        disable_appsec(reconfigure_tracer=True)
+        disable_appsec()
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
