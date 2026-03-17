@@ -677,8 +677,8 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     // force=False preserves the existing child-side behaviour: threads with
     // __autorestart__ = False are cleaned up but not restarted.
     int force = 0;
-    static char* kwlist[] = { "force", NULL };
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", kwlist, &force))
+    static const char* kwlist[] = { "force", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", (char**)kwlist, &force))
         return NULL;
 
     // Check the __autorestart__ attribute (class or instance). Subclasses and
