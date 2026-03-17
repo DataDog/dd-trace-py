@@ -3,7 +3,7 @@ from wrapt import function_wrapper
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import _is_tracing_enabled
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -69,7 +69,7 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
 def _wrap_call_with_tracing_check(func, instance, name, resource=None, signal=None, do_dispatch=False):
     @function_wrapper
     def patch_func(wrapped, _instance, args, kwargs):
-        if not _is_tracing_enabled():
+        if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
         return _wrap_call(
             wrapped, name, resource=resource, signal=signal, do_dispatch=do_dispatch, args=args, kwargs=kwargs
@@ -94,7 +94,7 @@ def with_tracing_enabled(func):
     """Helper to wrap a function wrapper and ensure tracing is enabled."""
 
     def wrapper(wrapped, instance, args, kwargs):
-        if not _is_tracing_enabled():
+        if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
         return func(wrapped, instance, args, kwargs)
 

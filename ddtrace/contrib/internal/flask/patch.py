@@ -28,7 +28,7 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import _is_tracing_enabled
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
@@ -455,7 +455,7 @@ def _build_render_template_wrapper(name):
     name = "flask.%s" % name
 
     def traced_render(wrapped, instance, args, kwargs):
-        if not _is_tracing_enabled():
+        if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
         with (
             core.context_with_data(
@@ -473,7 +473,7 @@ def _build_render_template_wrapper(name):
 
 
 def patched_render(wrapped, instance, args, kwargs):
-    if not _is_tracing_enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
@@ -532,7 +532,7 @@ def patched_signal_receivers_for(signal):
 
 
 def patched_jsonify(wrapped, instance, args, kwargs):
-    if not _is_tracing_enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     with (
