@@ -34,14 +34,9 @@ def _supported_versions() -> dict[str, str]:
 config._add("anthropic", {})
 
 
-def _create_llm_event(
-    integration: AnthropicIntegration,
-    instance: Any,
-    func: Callable[..., Any],
-    kwargs: dict[str, Any],
-) -> LlmRequestEvent:
-    """Create an LlmRequestEvent for an Anthropic call."""
-    return LlmRequestEvent(
+def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
+    event = LlmRequestEvent(
         component="anthropic",
         service=int_service(None, integration.integration_config),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
@@ -54,11 +49,7 @@ def _create_llm_event(
         instance=instance,
     )
 
-
-def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: AnthropicIntegration = anthropic._datadog_integration
-    event = _create_llm_event(integration, instance, func, kwargs)
-
+    # Manually enter the context so streaming can keep it open until exhausted.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = func(*args, **kwargs)
@@ -76,7 +67,18 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: AnthropicIntegration = anthropic._datadog_integration
-    event = _create_llm_event(integration, instance, func, kwargs)
+    event = LlmRequestEvent(
+        component="anthropic",
+        service=int_service(None, integration.integration_config),
+        resource=f"{instance.__class__.__name__}.{func.__name__}",
+        provider="anthropic",
+        model=kwargs.get("model", ""),
+        llmobs_integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=kwargs,
+        interface_type="chat_model",
+        instance=instance,
+    )
 
     ctx = core.context_with_event(event, enter=True)
     try:

@@ -58,6 +58,7 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
 
 class BaseAnthropicStreamHandler:
     def finalize_stream(self, exception=None):
+        """Build the response from chunks, set it on the context, then close the context."""
         ctx = self.options["ctx"]
         try:
             resp_message = _construct_message(self.chunks)

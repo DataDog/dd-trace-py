@@ -9,7 +9,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
-# AIDEV-NOTE: Duplicated from ddtrace.llmobs._constants to avoid importing
+# Duplicated from ddtrace.llmobs._constants to avoid importing
 # ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
 _INTEGRATION = "_ml_obs.integration"
 _PROXY_REQUEST = "llmobs.proxy_request"
@@ -40,7 +40,6 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._meta.pop(COMPONENT, None)
         span._meta.pop(SPAN_KIND, None)
 
-        # Set base span tags (provider-specific)
         event.llmobs_integration._set_base_span_tags(
             span,
             model=event.model,
@@ -64,6 +63,11 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         ctx: core.ExecutionContext["LlmRequestEvent"],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
+        """Set LLMObs tags on the span.
+
+        Fires for both streaming and non-streaming paths. For streaming,
+        the stream handler closes the context after exhausting the iterator.
+        """
         event: LlmRequestEvent = ctx.event
         response = ctx.get_item("response")
         event.llmobs_integration.llmobs_set_tags(
