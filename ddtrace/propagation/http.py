@@ -269,9 +269,8 @@ class _DatadogMultiHeader:
             return
 
         # Only propagate trace tags which means ignoring the _dd.origin
-        tags_to_encode = {
-            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }
+        context_meta = list(span_context._meta.items())
+        tags_to_encode = {k: v for k, v in context_meta if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)}
 
         if tags_to_encode:
             try:

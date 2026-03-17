@@ -140,13 +140,18 @@ if(DEFINED NATIVE_EXTENSION_LOCATION)
     endif()
 endif()
 
+# Enable allocator-hook reentry assertions in test builds. setup.py turns this on when
+# DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY is set in the build environment.
+if(MEMALLOC_ASSERT_ON_REENTRY)
+    message(STATUS "MEMALLOC_ASSERT_ON_REENTRY enabled: will abort on reentrant allocator hook calls")
+    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_ASSERT_ON_REENTRY)
+endif()
+
 # Add NDEBUG flag for release builds
 if(CMAKE_BUILD_TYPE STREQUAL "Release"
    OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"
    OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE NDEBUG)
-else()
-    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE UNDEBUG)
 endif()
 
 # Install the extension

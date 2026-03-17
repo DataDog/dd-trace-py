@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ai_guard: Calls to evaluate now block if blocking was enabled for the service in the AI Guard UI.
+    This behavior can be disabled by passing the parameter `block=False`, which now defaults to `block=True`.

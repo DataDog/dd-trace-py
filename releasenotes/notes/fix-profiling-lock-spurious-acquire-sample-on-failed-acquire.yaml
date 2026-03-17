@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Lock acquire samples are now only recorded if the ``acquire`` call was successful.

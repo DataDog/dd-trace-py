@@ -55,7 +55,9 @@ def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
     return wrapped_fetch
 
 
-class Test_Tornado(utils.Contrib_TestClass_For_Threats):
+class _Test_Tornado_Base:
+    """Tornado-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         ttc = TornadoTestClient()
@@ -84,3 +86,11 @@ class Test_Tornado(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return self.headers(response)["location"]
+
+
+class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
+    pass
+
+
+class Test_Tornado_RC(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

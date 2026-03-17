@@ -8,11 +8,11 @@ import time
 from types import CodeType
 from types import FrameType
 from types import ModuleType
-from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import cast
 
 
 if TYPE_CHECKING:
@@ -113,8 +113,8 @@ class _ProfiledLock:
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
-            return self.__wrapped__ == other.__wrapped__
-        return self.__wrapped__ == other
+            return bool(self.__wrapped__ == other.__wrapped__)
+        return bool(self.__wrapped__ == other)
 
     def __getattr__(self, name: str) -> Any:
         # Delegates acquire_lock, release_lock, locked_lock, and any future methods
@@ -142,7 +142,7 @@ class _ProfiledLock:
 
     def locked(self) -> bool:
         """Return True if lock is currently held."""
-        return self.__wrapped__.locked()
+        return bool(self.__wrapped__.locked())
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -165,30 +165,31 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
-        result: Any = None
-        error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
-        try:
-            result = inner_func(*args, **kwargs)
-        except BaseException as exc:
-            error_info = (exc, exc.__traceback__)
+
+        # Note: this can raise an exception. We don't catch it because we
+        # want to be transparent about errors (for obvious reasons) and we
+        # don't need to "look" at the errors because we're not capturing them
+        # anywhere.
+        # What comes next in the function is only code for sampling the lock
+        # acquisition success, so it is irrelevant if it fails.
+        result = inner_func(*args, **kwargs)
+        if result is False:
+            return result
+
+        if self.is_internal:
+            return result
 
         end: int = time.monotonic_ns()
         self.acquired_time = end
-        if not self.is_internal:
-            try:
-                self._update_name()
-                self._flush_sample(start, end, is_acquire=True)
-            except AssertionError:
-                if config.enable_asserts:
-                    raise
-            except Exception:
-                # Instrumentation must never crash user code
-                pass  # nosec
-        if error_info is not None:
-            err: BaseException
-            tb: Optional[TracebackType]
-            err, tb = error_info
-            raise err.with_traceback(tb)
+        try:
+            self._update_name()
+            self._flush_sample(start, end, is_acquire=True)
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
 
         return result
 
@@ -201,31 +202,34 @@ class _ProfiledLock:
     def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
-    def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+    def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         start: Optional[int] = getattr(self, "acquired_time", None)
         self.acquired_time = None
 
-        result: Any = None
-        error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
-        try:
-            result = inner_func(*args, **kwargs)
-        except BaseException as exc:
-            error_info = (exc, exc.__traceback__)
+        # Note: this can raise an exception. We don't catch it because we
+        # want to be transparent about errors (for obvious reasons) and we
+        # don't need to "look" at the errors because we're not capturing them
+        # anywhere.
+        # What comes next in the function is only code for sampling the lock
+        # release, so it is irrelevant if it fails.
+        result = inner_func(*args, **kwargs)
 
-        if start and not self.is_internal:
-            try:
-                self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
-            except AssertionError:
-                if config.enable_asserts:
-                    raise
-            except Exception:
-                # Instrumentation must never crash user code
-                pass  # nosec
-        if error_info is not None:
-            err: BaseException
-            tb: Optional[TracebackType]
-            err, tb = error_info
-            raise err.with_traceback(tb)
+        # Early return if acquisition was not sampled
+        if start is None:
+            return result
+
+        # Early return if the lock is internal
+        if self.is_internal:
+            return result
+
+        try:
+            self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
 
         return result
 
@@ -430,7 +434,7 @@ class _LockAllocatorWrapper:
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    PROFILED_LOCK_CLASS: type[Any]
+    PROFILED_LOCK_CLASS: type[_ProfiledLock]
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
     # Module file to check for internal lock detection (e.g., threading.__file__ or asyncio.locks.__file__)
@@ -448,7 +452,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Any = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
-        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
+        return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
 
     def _set_patch_target(self, value: Any) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
