@@ -100,6 +100,50 @@ class TestLLMObsAnthropic:
         # Then: input is parsed as empty dict instead of raising TypeError
         assert result["content"][-1]["input"] == {}
 
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream_with_thinking(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
+    ):
+        """Ensure thinking blocks are properly captured from streamed responses."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_thinking.yaml"):
+            stream = llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
+                stream=True,
+            )
+            consume_stream(stream)
+
+            span = test_spans.pop_traces()[0][0]
+            assert mock_llmobs_writer.enqueue.call_count == 1
+            mock_llmobs_writer.enqueue.assert_called_with(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name="claude-sonnet-4-20250514",
+                    model_provider="anthropic",
+                    input_messages=[
+                        {"content": "What is the best selling book of all time?", "role": "user"},
+                    ],
+                    output_messages=[
+                        {
+                            "content": "Let me think about the best selling book.",
+                            "role": "reasoning",
+                        },
+                        {
+                            "content": "The best-selling book of all time is Don Quixote.",
+                            "role": "assistant",
+                        },
+                    ],
+                    metadata={"temperature": 1, "max_tokens": 16000.0},
+                    token_metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                )
+            )
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
@@ -258,6 +302,8 @@ class TestLLMObsAnthropic:
                     "total_tokens": 58,
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
@@ -963,6 +1009,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2173,
                             "cache_write_input_tokens": 2055,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 2055,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -993,11 +1041,70 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2166,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 2055,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
                 ),
             ]
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 66), reason="1h cache TTL not available until 0.66.0, skipping.")
+    def test_completion_prompt_caching_1h_ttl(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Test that prompt caching metrics with 1h TTL are properly captured."""
+        llm = anthropic.Anthropic()
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            },
+        ]
+        with request_vcr.use_cassette("anthropic_completion_cache_write_1h_ttl.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=100,
+                system=large_system_prompt,
+                temperature=0.1,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[
+                    {
+                        "content": large_system_prompt[0]["text"],
+                        "role": "system",
+                    },
+                    {
+                        "content": "What are the key principles for designing scalable systems?",
+                        "role": "user",
+                    },
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "temperature": 0.1,
+                    "max_tokens": 100.0,
+                },
+                token_metrics={
+                    "input_tokens": 2073,
+                    "output_tokens": 100,
+                    "total_tokens": 2173,
+                    "cache_write_input_tokens": 2056,
+                    "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 2056,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
         )
 
     def test_completion_stream_prompt_caching(
@@ -1064,6 +1171,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1149,
                             "cache_write_input_tokens": 1031,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 1031,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -1094,6 +1203,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1142,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 1031,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -1126,5 +1237,189 @@ class TestLLMObsAnthropic:
                     "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_completion_with_thinking(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure extended thinking content blocks are captured as reasoning messages."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[{"content": "What is the best selling book of all time?", "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "Let me think about the best selling book of all time.",
+                        "role": "reasoning",
+                    },
+                    {"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON QUIXOTE"', "role": "assistant"},
+                ],
+                metadata={"temperature": 1, "max_tokens": 16000.0},
+                token_metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_completion_with_thinking_and_tools(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure extended thinking + tool_use content blocks are both captured correctly."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking_tools.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=tools,
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "I need to use the get_weather tool to answer this question.",
+                        "role": "reasoning",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                ],
+                metadata={"max_tokens": 16000.0, "temperature": 1},
+                token_metrics={"input_tokens": 100, "output_tokens": 150, "total_tokens": 250},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_thinking_in_input_messages(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure thinking blocks in assistant input messages (tool use continuations) are captured."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking_tool_result.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[
+                    {"role": "user", "content": WEATHER_PROMPT},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": "I need to check the weather.", "signature": "sig_abc"},
+                            {
+                                "type": "tool_use",
+                                "id": "toolu_thinking_001",
+                                "name": "get_weather",
+                                "input": {"location": "San Francisco, CA"},
+                            },
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "toolu_thinking_001",
+                                "content": [{"type": "text", "text": "The weather is 73f"}],
+                            }
+                        ],
+                    },
+                ],
+                tools=tools,
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": WEATHER_PROMPT, "role": "user"},
+                    {"content": "I need to check the weather.", "role": "reasoning"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "result": "The weather is 73f",
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                ],
+                output_messages=[
+                    {
+                        "content": "The weather in San Francisco, CA is currently 73\u00b0F.",
+                        "role": "assistant",
+                    },
+                ],
+                metadata={"max_tokens": 16000.0, "temperature": 1},
+                token_metrics={"input_tokens": 200, "output_tokens": 30, "total_tokens": 230},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )

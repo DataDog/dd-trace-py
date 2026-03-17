@@ -29,6 +29,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -693,6 +694,16 @@ class LockCollectorTestBase:
             except Exception as e:
                 print("Error removing file: {}".format(e))
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+
 
 class TestGenericLockProfiling(LockCollectorTestBase):
     """Generic lock profiling tests that run once with threading.Lock.
@@ -813,8 +824,8 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
             found_callsite_sample = False
             for sample_idx, sample in enumerate(samples):
-                # Stack export allows one extra frame plus an omitted-frames marker.
-                assert len(sample.location_id) <= config.max_frames + 2, (
+                # Stack export allows one extra frame for the omitted-frames marker.
+                assert len(sample.location_id) <= config.max_frames + 1, (
                     f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
                 )
 
@@ -1548,6 +1559,39 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
         )
 
+    def test_failed_acquire_produces_no_sample(self) -> None:
+        """Test that a failed non-blocking acquire produces no acquire/release samples.
+
+        When acquire(blocking=False) returns False (lock unavailable), acquired_time
+        must NOT be set. Setting it would produce a spurious acquire sample and corrupt
+        the hold-time of the thread that actually holds the lock.
+        """
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            profiled = cast(_ProfiledLock, lock)
+            acquired_time_after_success = profiled.acquired_time
+            assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
+
+            result = lock.acquire(blocking=False)
+            assert result is False, "Non-blocking acquire on held lock must return False"
+            assert profiled.acquired_time == acquired_time_after_success, (
+                "acquired_time must not change after a failed acquire"
+            )
+
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        assert len(acquire_samples) == 1, (
+            f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
+        )
+        assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.
@@ -1563,6 +1607,15 @@ class TestThreadingLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Lock]:
         return threading.Lock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_lock(self) -> None:
+        """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when Lock is a factory function (Python < 3.14)
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates Lock-specific attributes."""
@@ -1597,6 +1650,15 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.RLock]:
         return threading.RLock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_rlock(self) -> None:
+        """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when RLock is a factory function
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates RLock-specific attributes."""

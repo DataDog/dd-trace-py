@@ -127,6 +127,11 @@ def extract_output_from_chunk(chunk, output_messages, token_metrics, role, is_co
                 "total_tokens": chunk["usage"]["total_tokens"],
             }
         )
+        completion_tokens_details = chunk["usage"].get("completion_tokens_details")
+        if completion_tokens_details:
+            reasoning_tokens = getattr(completion_tokens_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                token_metrics["reasoning_output_tokens"] = reasoning_tokens
 
     return output_messages, token_metrics, role
 
@@ -147,6 +152,11 @@ def parse_response(resp, is_completion=False):
     output_messages = []
     for choice in resp.choices:
         content = choice.text if is_completion else choice.message.content
+        # Extract reasoning_content before the regular message (mirrors openai_set_meta_tags_from_chat)
+        if not is_completion:
+            reasoning_content = getattr(choice.message, "reasoning_content", None)
+            if reasoning_content:
+                output_messages.append({"content": str(reasoning_content), "role": "reasoning"})
         message = {"content": content or ""}
         if choice.get("role", None) or choice.get("message", {}).get("role", None):
             message["role"] = choice["role"] if is_completion else choice["message"]["role"]
@@ -168,6 +178,23 @@ def parse_response(resp, is_completion=False):
         "output_tokens": resp.usage.completion_tokens,
         "total_tokens": resp.usage.total_tokens,
     }
+    prompt_tokens_details = getattr(resp.usage, "prompt_tokens_details", None)
+    if prompt_tokens_details is not None:
+        cached_tokens = getattr(prompt_tokens_details, "cached_tokens", None)
+        if cached_tokens:
+            token_metrics["cache_read_input_tokens"] = cached_tokens
+        cache_creation_tokens = getattr(prompt_tokens_details, "cache_creation_tokens", None)
+        if cache_creation_tokens:
+            token_metrics["cache_write_input_tokens"] = cache_creation_tokens
+    if "cache_write_input_tokens" not in token_metrics:
+        cache_creation_input_tokens = getattr(resp.usage, "cache_creation_input_tokens", None)
+        if cache_creation_input_tokens:
+            token_metrics["cache_write_input_tokens"] = cache_creation_input_tokens
+    completion_tokens_details = getattr(resp.usage, "completion_tokens_details", None)
+    if completion_tokens_details:
+        reasoning_tokens = getattr(completion_tokens_details, "reasoning_tokens", None)
+        if reasoning_tokens is not None:
+            token_metrics["reasoning_output_tokens"] = reasoning_tokens
     return output_messages, token_metrics
 
 

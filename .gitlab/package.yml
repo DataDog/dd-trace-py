@@ -59,6 +59,13 @@ variables:
   stage: package
   variables:
     BUCKET: dd-trace-py-builds
+  script:
+    - |
+      set -euo pipefail
+
+      # Pipeline/commit paths
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" ${UPLOAD_SUFFIX:-}
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
   extends: .build_base
@@ -94,6 +101,10 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+        DD_SLIM_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -101,6 +112,7 @@ variables:
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - export DD_SLIM_BUILD="${DD_SLIM_BUILD:-0}"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
@@ -139,6 +151,7 @@ variables:
     done
     sccache --show-stats
 
+# Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
   extends: .upload_wheels_base
   needs:
@@ -150,9 +163,26 @@ variables:
             PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
     - job: "package version"
-  script:
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
+  variables:
+    UPLOAD_SUFFIX: "manylinux2014_x86_64"
+
+# All manylinux2014 wheels
+"upload manylinux2014":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+    - job: "package version"
+  variables:
+    UPLOAD_SUFFIX: "manylinux2014"
 
 # Only the limited artifacts needed by downstream serverless jobs
 "upload serverless":
@@ -169,9 +199,8 @@ variables:
             PYTHON_TAG: "cp311-cp311"
             IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
     - job: "package version"
-  script:
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" serverless
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" serverless
+  variables:
+    UPLOAD_SUFFIX: "serverless"
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
@@ -254,17 +283,33 @@ download_dependency_wheels:
 "upload all":
   extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
-  script: |
-    set -euo pipefail
+  script:
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
 
-    # Upload to commit SHA and pipeline ID paths
-    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
-    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
 
-    # Upload to branch path (only for main/release branches)
-    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
-    fi
+# Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
+# Runs automatically on releases/RCs, available as manual trigger for other pipelines.
+"upload debug symbols to backend":
+  stage: release
+  extends: .testrunner
+  needs:
+    - job: "build linux"
+      artifacts: true
+  rules:
+    # Automatically run on releases/RCs
+    - if: !reference [.is_release]
+      when: on_success
+    # Manual trigger for any other pipeline
+    - when: manual
+      allow_failure: true
+  script:
+    - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":

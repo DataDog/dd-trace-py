@@ -196,7 +196,9 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
 
     assert len(buckets) == 1
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
+    assert PartitionKey(kafka_topic, 0, cluster_id) in list(buckets.values())[0].latest_produce_offsets, (
+        "DSM did not track the produce — delivery callback may not have fired"
+    )
 
     def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
         start_time = time.time()

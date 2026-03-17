@@ -1,6 +1,6 @@
 #!/usr/bin/env bash -eu
 
-set -eu
+set -euo pipefail
 
 PREFIX=${1}
 AUSTIN_VERSION="3.6"
@@ -37,10 +37,20 @@ popd
 pushd ${PREFIX}
     if [[ "$OSTYPE" == "linux-gnu"* ]]
     then
-        curl -s https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux64.tar.gz -L | tar xvz
+        for i in 1 2 3; do
+            curl -sSf https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux64.tar.gz -L | tar xvz && break
+            echo "k6 download attempt $i failed, retrying..."
+            sleep 5
+            [ "$i" -eq 3 ] && { echo "Failed to download k6 after 3 attempts"; exit 1; }
+        done
     elif [[ "$OSTYPE" == "darwin"* ]]
     then
-        curl -s https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-mac.zip -L -o ${PREFIX}/k6.zip
+        for i in 1 2 3; do
+            curl -sSf https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-mac.zip -L -o ${PREFIX}/k6.zip && break
+            echo "k6 download attempt $i failed, retrying..."
+            sleep 5
+            [ "$i" -eq 3 ] && { echo "Failed to download k6 after 3 attempts"; exit 1; }
+        done
         unzip k6.zip
         rm -f k6.zip
     fi

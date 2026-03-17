@@ -6,7 +6,6 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import _metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -386,7 +385,6 @@ def test_ddwaf_not_raises_exception():
             rules_json_str,
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
-            _metrics,
         )
 
 
@@ -515,7 +513,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 def test_ddwaf_run():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -535,7 +533,7 @@ def test_ddwaf_run():
 def test_ddwaf_run_timeout():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json = rule_set.read()
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
@@ -551,7 +549,7 @@ def test_ddwaf_run_timeout():
 def test_ddwaf_info():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         rules_json = json.loads(rules_json_str.decode())
@@ -564,7 +562,7 @@ def test_ddwaf_info():
 def test_ddwaf_info_with_2_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"), "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -580,7 +578,7 @@ def test_ddwaf_info_with_2_errors():
 def test_ddwaf_info_with_3_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json"), "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -859,7 +857,7 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi", "azure.apim"])
 def test_lambda_inferred_span(tracer, inferred_span_name):
     """
     Ensure that when the service entry span is below an inferred span, both spans have
