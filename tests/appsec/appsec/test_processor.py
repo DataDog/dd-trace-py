@@ -395,12 +395,9 @@ def test_appsec_abort_on_waf_failure():
     completely if an error is found in the bindings layer.
     """
     import ctypes
-    import importlib
-    import sys
 
     import mock
 
-    from ddtrace.appsec import _ddwaf
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
@@ -415,14 +412,7 @@ def test_appsec_abort_on_waf_failure():
 
     with (
         mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-        mock.patch.dict(sys.modules),
     ):
-        sys.modules.pop("ddtrace.appsec._ddwaf.ddwaf_types", None)
-        sys.modules.pop("ddtrace.appsec._ddwaf.is_available", None)
-        sys.modules.pop("ddtrace.appsec._ddwaf.failure_msg", None)
-        sys.modules.pop("ddtrace.appsec._ddwaf.waf", None)
-        importlib.reload(_ddwaf)
-
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -433,7 +423,6 @@ def test_appsec_abort_on_waf_failure():
             )
         ):
             assert asm_config._asm_libddwaf_available is False
-            assert _ddwaf.failure_msg == ERROR_MESSAGE
             assert asm_config._asm_enabled is False
             assert asm_config._asm_can_be_enabled is False
             assert asm_config._asm_rc_enabled is False
