@@ -27,6 +27,7 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
+      autoconf \
       build-essential \
       clang-format \
       gdb \
