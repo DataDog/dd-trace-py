@@ -53,7 +53,7 @@ done
 
 # Download wheel
 echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER"
-pip download --no-index --no-deps \
+python3 -m pip download --no-index --no-deps \
   --find-links S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER \
   ddtrace==VERSION_PLACEHOLDER \
   $PIP_ARGS \
@@ -102,14 +102,14 @@ trap "rm -rf '${TMP_DIR}'" EXIT
 
 # Download and install
 echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER"
-pip download --no-index --no-deps \
+python3 -m pip download --no-index --no-deps \
   --find-links S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER \
   ddtrace==VERSION_PLACEHOLDER \
   $PIP_ARGS \
   -d "${TMP_DIR}"
 
 echo "Installing ddtrace==VERSION_PLACEHOLDER"
-pip install "${TMP_DIR}"/ddtrace-*.whl
+python3 -m pip install "${TMP_DIR}"/ddtrace-*.whl
 
 echo "Successfully installed ddtrace==VERSION_PLACEHOLDER"
 INSTALL_SCRIPT_EOF
