@@ -1361,6 +1361,34 @@ def _on_pubsub_send_complete(
     _finish_span(ctx, exc_info)
 
 
+def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+    message = ctx.get_item("message")
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("subscription_id"))
+    span._set_attribute(MESSAGING_OPERATION, "receive")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+    if message.message_id:
+        span._set_attribute(MESSAGING_MESSAGE_ID, message.message_id)
+
+    propagated_context = ctx.get_item("propagated_context")
+    if propagated_context:
+        span.link_span(propagated_context)
+
+
+def _on_pubsub_receive_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1429,6 +1457,8 @@ def listen():
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
+    core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
+    core.on("google_cloud_pubsub.receive.completed", _on_pubsub_receive_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
