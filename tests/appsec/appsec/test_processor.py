@@ -1,6 +1,9 @@
+import ctypes
+import importlib
 import json
 import logging
 import os.path
+import sys
 
 import mock
 import pytest
@@ -390,23 +393,46 @@ def test_ddwaf_not_raises_exception():
 
 
 def test_load_appsec_disables_appsec_when_ddwaf_unavailable():
-    with (
-        mock.patch.object(_ddwaf, "is_available", False),
-        mock.patch.object(_ddwaf, "failure_msg", "mock import failure"),
-        override_global_config(
-            dict(
-                _asm_enabled=True,
-                _asm_can_be_enabled=True,
-                _asm_rc_enabled=True,
-                _api_security_active=True,
-                _load_modules=True,
-            )
-        ),
-    ):
-        assert asm_config._asm_enabled is False
-        assert asm_config._asm_can_be_enabled is False
-        assert asm_config._asm_rc_enabled is False
-        assert asm_config._load_modules is False
+    """Simulate a libddwaf loading error
+
+    AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
+    completely if an error is found in the bindings layer.
+    """
+    original_cdll = ctypes.CDLL
+
+    def _raise_on_libddwaf(path, *args, **kwargs):
+        if path == asm_config._asm_libddwaf:
+            raise OSError("mock load failure")
+        return original_cdll(path, *args, **kwargs)
+
+    try:
+        with (
+            mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
+            mock.patch.dict(sys.modules),
+        ):
+            sys.modules.pop("ddtrace.appsec._ddwaf.ddwaf_types", None)
+            sys.modules.pop("ddtrace.appsec._ddwaf.is_available", None)
+            sys.modules.pop("ddtrace.appsec._ddwaf.failure_msg", None)
+            sys.modules.pop("ddtrace.appsec._ddwaf.waf", None)
+            importlib.reload(_ddwaf)
+
+            with override_global_config(
+                dict(
+                    _asm_enabled=True,
+                    _asm_can_be_enabled=True,
+                    _asm_rc_enabled=True,
+                    _api_security_active=True,
+                    _load_modules=True,
+                )
+            ):
+                assert _ddwaf.is_available is False
+                assert _ddwaf.failure_msg == "mock load failure"
+                assert asm_config._asm_enabled is False
+                assert asm_config._asm_can_be_enabled is False
+                assert asm_config._asm_rc_enabled is False
+                assert asm_config._load_modules is False
+    finally:
+        importlib.reload(_ddwaf)
 
 
 def test_obfuscation_parameter_key_empty():
