@@ -102,7 +102,7 @@ class ThreadRestartTimer(PeriodicThread):
                         # This has already been restarted by the after-fork hook.
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
-                    thread._after_fork()
+                    thread._after_fork(force=True)
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -144,9 +144,11 @@ def _after_fork_child():
     _forking = False
 
     # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here. _after_fork() handles the __autorestart__ check
-    # internally: cleanup always runs, but the thread is only restarted when
-    # __autorestart__ is True.
+    # call to fork here. _after_fork() (without force=True) respects
+    # __autorestart__: cleanup always runs, but the thread is only restarted
+    # when __autorestart__ is True. This is intentional in the child — threads
+    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
+    # forked workers.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Restarting thread %s after fork in child", thread.name)
         thread._after_fork()

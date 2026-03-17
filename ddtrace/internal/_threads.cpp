@@ -667,19 +667,32 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
+    // force=True is passed by the parent-process restart path to override
+    // __autorestart__ and always restart the thread. The parent must restore
+    // every thread that was running before the fork, regardless of the
+    // autorestart preference (which only governs the child). The default
+    // force=False preserves the existing child-side behaviour: threads with
+    // __autorestart__ = False are cleaned up but not restarted.
+    int force = 0;
+    static char* kwlist[] = { "force", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", kwlist, &force))
+        return NULL;
+
     // Check the __autorestart__ attribute (class or instance). Subclasses and
     // instances can set __autorestart__ = False to opt out of automatic
-    // restart after fork. Cleanup is performed in both cases, but the extent
-    // differs — see below.
-    bool should_restart = true;
-    PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
-    if (autorestart != NULL) {
-        should_restart = (PyObject_IsTrue(autorestart) == 1);
-        Py_DECREF(autorestart);
-    } else {
-        PyErr_Clear();
+    // restart after fork in the child. When force=True (parent path) this
+    // check is skipped and the thread is always restarted.
+    bool should_restart = static_cast<bool>(force);
+    if (!should_restart) {
+        PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
+        if (autorestart != NULL) {
+            should_restart = (PyObject_IsTrue(autorestart) == 1);
+            Py_DECREF(autorestart);
+        } else {
+            PyErr_Clear();
+        }
     }
 
     // Always reset fork-specific state regardless of restart decision.
@@ -820,7 +833,10 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "stop", (PyCFunction)PeriodicThread_stop, METH_NOARGS, "Stop the thread" },
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
-    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
+    { "_after_fork",
+      (PyCFunction)(void*)PeriodicThread__after_fork,
+      METH_VARARGS | METH_KEYWORDS,
+      "Refresh the thread after fork" },
     { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };

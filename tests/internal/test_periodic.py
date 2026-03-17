@@ -164,6 +164,52 @@ def test_forksafe_awakeable_periodic_service():
     assert exit_code == 42
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_autorestart_false_service_restarts_in_parent_after_fork():
+    """A PeriodicService with autorestart=False must keep running in the parent
+    process after a fork. The flag means 'do not restart in the child', not
+    'stop permanently after any fork'.
+
+    The practical victim is RemoteConfigPoller (autorestart=False): after the
+    first fork in a loop, its worker is stopped by _before_fork() but never
+    restarted in the parent because _after_fork() checks __autorestart__ without
+    knowing whether it is running in the child or in the parent.
+    """
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=0.05, autorestart=False)
+    svc.start()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+
+    # ThreadRestartTimer fires ~100 ms after _before_fork(); wait well past that.
+    sleep(0.5)
+
+    # Nudge the worker in case it missed its next scheduled wakeup.
+    if svc._worker is not None:
+        svc._worker.awake()
+
+    ran = periodic_ran.wait(timeout=2)
+
+    os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert ran, (
+        "PeriodicService with autorestart=False was not restarted in the parent "
+        "after a fork. Fix: _after_fork() must always restart in the parent, "
+        "respecting __autorestart__ only in the child."
+    )
+
+
 def test_periodic_service_no_immediate_run_after_fork():
     periodic_ran = Event()
 
