@@ -11,11 +11,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
+from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -259,28 +260,28 @@ def test_ml_app_uses_global_as_default(llmobs):
         assert get_llmobs_ml_app(span) == "unnamed-ml-app"
 
 
-def test_start_span_writes_ml_app_to_context_meta(llmobs):
+def test_start_span_writes_ml_app_to_ctx_item(llmobs):
     with llmobs.workflow(ml_app="my-app") as span:
-        assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+        assert span._get_ctx_item(ML_APP) == "my-app"
 
 
-def test_start_span_writes_session_id_to_context_meta(llmobs):
+def test_start_span_writes_session_id_to_ctx_item(llmobs):
     with llmobs.workflow(session_id="test-session") as span:
-        assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session"
+        assert span._get_ctx_item(SESSION_ID) == "test-session"
 
 
-def test_child_span_inherits_ml_app_from_context_meta(llmobs):
+def test_child_span_inherits_ml_app_from_parent_ctx_item(llmobs):
     with llmobs.workflow(ml_app="my-app"):
         with llmobs.task() as child:
             assert get_llmobs_ml_app(child) == "my-app"
-            assert child.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+            assert child._get_ctx_item(ML_APP) == "my-app"
 
 
-def test_child_span_inherits_session_id_from_context_meta(llmobs):
+def test_child_span_inherits_session_id_from_parent_ctx_item(llmobs):
     with llmobs.workflow(session_id="test-session"):
         with llmobs.task() as child:
             assert get_llmobs_session_id(child) == "test-session"
-            assert child.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session"
+            assert child._get_ctx_item(SESSION_ID) == "test-session"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):

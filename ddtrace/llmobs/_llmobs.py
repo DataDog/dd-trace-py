@@ -67,12 +67,13 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
@@ -123,9 +124,9 @@ from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.llmobs._utils import get_span_links
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
@@ -474,7 +475,6 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
-            self._propagate_trace_details(span)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -562,7 +562,7 @@ class LLMObs(Service):
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
-        span_links = get_span_links(span)
+        span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
@@ -1803,14 +1803,11 @@ class LLMObs(Service):
             return context
         return None
 
-    def _propagate_trace_details(self, span: Span) -> None:
-        """Inherit ml_app and session_id from context._meta onto the new span, falling back to global config."""
-        ml_app = span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
-        session_id = span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
-        _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id or None)
-
     def _activate_llmobs_span(self, span: Span) -> None:
-        """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
+        """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
+        ml_app precedence: parent span._store > distributed context > global config > service.
+        session_id is optional and only propagated from span._store
+        """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             parent_id = llmobs_parent.span_id
@@ -1822,10 +1819,19 @@ class LLMObs(Service):
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
+            if isinstance(llmobs_parent, Span):
+                ml_app = llmobs_parent._get_ctx_item(ML_APP)
+                session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+            else:
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                session_id = None
         else:
-            parent_id = None
             llmobs_trace_id = generate_128bit_trace_id()
-        _annotate_llmobs_span_data(span, parent_id=parent_id, trace_id=llmobs_trace_id)
+            parent_id, ml_app, session_id = None, None, None
+        ml_app = ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+        _annotate_llmobs_span_data(
+            span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
+        )
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1845,11 +1851,6 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        # override values to context._meta so child spans inherit them via _propagate_trace_details
-        if ml_app is not None:
-            span.context._meta[PROPAGATED_ML_APP_KEY] = ml_app
-        if session_id is not None:
-            span.context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         _annotate_llmobs_span_data(
             span,
             kind=operation_kind,
@@ -2585,7 +2586,7 @@ class LLMObs(Service):
             ml_app = get_llmobs_ml_app(active_span)
             llmobs_trace_id = get_llmobs_trace_id(active_span)
         elif active_context is not None:
-            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
+            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
             _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
             llmobs_trace_id = (
                 int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
