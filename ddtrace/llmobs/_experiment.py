@@ -1306,28 +1306,6 @@ class Experiment:
             )
         return metrics
 
-    def _generate_summary_metrics(self, experiment_result: ExperimentRun) -> list["LLMObsExperimentEvalMetricEvent"]:
-        latest_timestamp = max(
-            (cast(int, r.get("timestamp", 0)) for r in experiment_result.rows),
-            default=0,
-        )
-        metrics: list["LLMObsExperimentEvalMetricEvent"] = []
-        for name, summary_eval_data in experiment_result.summary_evaluations.items():
-            if not summary_eval_data:
-                continue
-            metrics.append(
-                self._generate_metric_from_evaluation(
-                    name,
-                    summary_eval_data.get("value"),
-                    summary_eval_data.get("error"),
-                    "",
-                    "",
-                    latest_timestamp,
-                    source="summary",
-                )
-            )
-        return metrics
-
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
         if sample_size is not None and sample_size < len(self._dataset):
