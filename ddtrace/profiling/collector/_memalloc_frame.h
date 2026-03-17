@@ -41,6 +41,7 @@
 #include <internal/pycore_frame.h>
 #endif // _PY314_AND_LATER
 #include <internal/pycore_code.h>
+#include <internal/pycore_pystate.h>
 using memalloc_frame_t = _PyInterpreterFrame;
 #else
 using memalloc_frame_t = PyFrameObject;
@@ -69,6 +70,19 @@ memalloc_get_frame_from_thread_state(PyThreadState* tstate)
     /* Pre-3.11: tstate->frame is a public PyFrameObject*. */
     return tstate->frame;
 #endif // _PY313_AND_LATER
+}
+
+/* Return the current thread state without requiring the GIL.
+ * This is used by non-OBJ allocator domains where the callback can run
+ * without the GIL and must avoid APIs that enforce GIL ownership. */
+static inline PyThreadState*
+memalloc_get_unchecked_tstate_no_gil(void)
+{
+#ifdef _PY311_AND_LATER
+    return _PyThreadState_UncheckedGet();
+#else
+    return PyGILState_GetThisThreadState();
+#endif // _PY311_AND_LATER
 }
 
 /* Return the caller's frame (one level up the call stack) without creating

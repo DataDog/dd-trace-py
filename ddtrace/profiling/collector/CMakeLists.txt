@@ -13,6 +13,9 @@ add_compile_options(-fPIC -fvisibility=hidden -pthread -Wall -Wextra)
 if(APPLE)
     # Fix for newer macOS SDKs that don't define BSD-style types These are needed by Abseil on macOS
     add_compile_definitions(_DARWIN_C_SOURCE)
+    add_compile_definitions(PL_DARWIN)
+elseif(UNIX)
+    add_compile_definitions(PL_LINUX)
 endif()
 
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
@@ -66,7 +69,9 @@ if(NOT TARGET Python3::Python)
 endif()
 
 # Source files for the extension
-set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
+set(SOURCE_FILES
+    _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp
+    ../../internal/datadog/profiling/stack/src/echion/vm.cc ../../internal/datadog/profiling/stack/src/echion/danger.cc)
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
@@ -92,7 +97,7 @@ target_include_directories(
     ${FULL_EXTENSION_NAME}
     PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
-            ${RUST_GENERATED_HEADERS_DIR})
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/stack/echion ${RUST_GENERATED_HEADERS_DIR})
 
 # Link libraries Python3::Python target might not exist in all build environments (e.g., manylinux) Python modules
 # should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
@@ -146,6 +151,9 @@ if(MEMALLOC_ASSERT_ON_REENTRY)
     message(STATUS "MEMALLOC_ASSERT_ON_REENTRY enabled: will abort on reentrant allocator hook calls")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_ASSERT_ON_REENTRY)
 endif()
+
+# Default memalloc to track all allocator domains unless runtime env var overrides.
+target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_TRACK_ALL_DOMAINS_DEFAULT=1)
 
 # Add NDEBUG flag for release builds
 if(CMAKE_BUILD_TYPE STREQUAL "Release"

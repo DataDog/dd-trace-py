@@ -16,8 +16,8 @@ static const size_t page_size = []() -> size_t {
 
 #ifdef PL_DARWIN
     if (v <= 0) {
-        // Fallback on macOS just in case
-        v = getpagesize();
+        // Fallback on macOS just in case.
+        v = 4096;
     }
 #endif
 

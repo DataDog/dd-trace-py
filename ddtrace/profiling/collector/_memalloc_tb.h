@@ -15,7 +15,7 @@ class traceback_t
     Datadog::Sample sample;
 
     /* Constructor - also collects frames from the current Python frame chain. */
-    traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
+    traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
     ~traceback_t() = default;
 
@@ -23,7 +23,7 @@ class traceback_t
      * Assumes sample buffers are already clean (cleared when returned to pool).
      * Stack walking uses direct CPython struct reads to avoid allocator reentry
      * from refcount churn while still collecting Python frames. */
-    void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe);
+    void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
     // Non-copyable, non-movable
     traceback_t(const traceback_t&) = delete;

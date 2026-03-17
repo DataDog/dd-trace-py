@@ -1,7 +1,10 @@
+#include <array>
 #include <mutex>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -10,6 +13,7 @@
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
+#include "_memalloc_vm_copy.h"
 #include "_pymacro.h"
 
 // Ensure profile_state is initialized before creating Sample objects
@@ -22,6 +26,7 @@ typedef struct
     PyMemAllocatorDomain domain;
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
+    bool installed;
 
 } memalloc_context_t;
 
@@ -29,15 +34,46 @@ typedef struct
    module. If we ever want to be started multiple twice, we'd need a more
    object-oriented approach and allocate a context per object.
 */
-static memalloc_context_t global_memalloc_ctx;
+static constexpr size_t MEMALLOC_MAX_DOMAINS = 3;
+static memalloc_context_t global_memalloc_ctx[MEMALLOC_MAX_DOMAINS];
+static size_t global_memalloc_ctx_count = 0;
 
 static bool memalloc_enabled = false;
 static std::once_flag memalloc_fork_handler_once_flag;
 
+static inline bool
+_env_truthy(const char* val)
+{
+    if (val == nullptr) {
+        return false;
+    }
+    return strcmp(val, "1") == 0 || strcmp(val, "true") == 0 || strcmp(val, "TRUE") == 0 || strcmp(val, "on") == 0 ||
+           strcmp(val, "ON") == 0 || strcmp(val, "yes") == 0 || strcmp(val, "YES") == 0;
+}
+
+static inline bool
+memalloc_track_all_domains_enabled(void)
+{
+    const char* val = getenv("DD_PROFILING_MEMALLOC_TRACK_ALL_DOMAINS");
+    if (val == nullptr) {
+#ifdef MEMALLOC_TRACK_ALL_DOMAINS_DEFAULT
+        return true;
+#else
+        return false;
+#endif
+    }
+    if (strcmp(val, "0") == 0 || strcmp(val, "false") == 0 || strcmp(val, "FALSE") == 0 || strcmp(val, "off") == 0 ||
+        strcmp(val, "OFF") == 0 || strcmp(val, "no") == 0 || strcmp(val, "NO") == 0) {
+        return false;
+    }
+    return _env_truthy(val);
+}
+
 static void
 memalloc_free(void* ctx, void* ptr)
 {
-    PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
+    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    PyMemAllocatorEx* alloc = &memalloc_ctx->pymem_allocator_obj;
 
     if (ptr == NULL)
         return;
@@ -52,7 +88,7 @@ memalloc_free(void* ctx, void* ptr)
     }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
 
-    memalloc_heap_untrack_no_cpython(ptr);
+    memalloc_heap_untrack_no_cpython(ptr, memalloc_ctx->domain);
     alloc->free(alloc->ctx, ptr);
 }
 
@@ -91,11 +127,8 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
-    // The GIL is held here since we're using PYMEM_DOMAIN_OBJ.
-    // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
-    // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
+        memalloc_heap_untrack_no_cpython(ptr, memalloc_ctx->domain);
         memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
@@ -160,8 +193,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
-
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
         return nullptr;
@@ -171,6 +202,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
         return nullptr;
     }
+    _set_pid(getpid());
 
     PyMemAllocatorEx alloc;
 
@@ -178,13 +210,22 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.calloc = memalloc_calloc;
     alloc.realloc = memalloc_realloc;
     alloc.free = memalloc_free;
+    const bool all_domains_enabled = memalloc_track_all_domains_enabled();
+    const std::array<PyMemAllocatorDomain, MEMALLOC_MAX_DOMAINS> domains = { PYMEM_DOMAIN_OBJ,
+                                                                             PYMEM_DOMAIN_MEM,
+                                                                             PYMEM_DOMAIN_RAW };
+    global_memalloc_ctx_count = all_domains_enabled ? MEMALLOC_MAX_DOMAINS : 1;
 
-    alloc.ctx = &global_memalloc_ctx;
-
-    global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
-
-    PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
-    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
+    for (size_t i = 0; i < global_memalloc_ctx_count; ++i) {
+        memalloc_context_t* ctx = &global_memalloc_ctx[i];
+        ctx->domain = domains[i];
+        ctx->max_nframe = (uint16_t)max_nframe;
+        ctx->installed = false;
+        PyMem_GetAllocator(ctx->domain, &ctx->pymem_allocator_obj);
+        alloc.ctx = ctx;
+        PyMem_SetAllocator(ctx->domain, &alloc);
+        ctx->installed = true;
+    }
 
     memalloc_enabled = true;
 
@@ -210,7 +251,14 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * if they happened to release the GIL.
      * NB: We're assuming here that this is not called concurrently with iter_events
      * or memalloc_heap. The higher-level collector deals with this. */
-    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+    for (size_t i = global_memalloc_ctx_count; i > 0; --i) {
+        memalloc_context_t* ctx = &global_memalloc_ctx[i - 1];
+        if (ctx->installed) {
+            PyMem_SetAllocator(ctx->domain, &ctx->pymem_allocator_obj);
+            ctx->installed = false;
+        }
+    }
+    global_memalloc_ctx_count = 0;
 
     memalloc_heap_tracker_deinit_no_cpython();
 

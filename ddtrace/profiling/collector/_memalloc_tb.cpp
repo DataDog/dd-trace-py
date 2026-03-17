@@ -2,6 +2,7 @@
 
 #include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
+#include "_memalloc_vm_copy.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
  * CPython API calls that could allocate, free, or touch error state.
@@ -113,8 +114,94 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 }
 
+/* Collect frames by copying CPython structs into local storage.
+ * This path is used for non-OBJ domains where callbacks can run without the GIL,
+ * so direct Python-structure dereferences are avoided. */
+static void
+push_stacktrace_to_sample_remote_copy(Datadog::Sample& sample, uint16_t max_nframe)
+{
+    PyThreadState* tstate_addr = memalloc_get_unchecked_tstate_no_gil();
+    if (tstate_addr == NULL) {
+        sample.push_frame("<no thread state>", "<unknown>", 0, 0);
+        return;
+    }
+
+    PyThreadState tstate{};
+    if (memalloc_copy_type(tstate_addr, tstate)) {
+        sample.push_frame("<unreadable thread state>", "<unknown>", 0, 0);
+        return;
+    }
+
+    memalloc_frame_t* current_frame = NULL;
+#ifdef _PY313_AND_LATER
+    current_frame = tstate.current_frame;
+#elif defined(_PY311_AND_LATER)
+    if (tstate.cframe != NULL) {
+        _PyCFrame cframe{};
+        if (memalloc_copy_type(tstate.cframe, cframe)) {
+            sample.push_frame("<unreadable cframe>", "<unknown>", 0, 0);
+            return;
+        }
+        current_frame = cframe.current_frame;
+    }
+#else
+    current_frame = tstate.frame;
+#endif // _PY313_AND_LATER
+
+    if (current_frame == NULL) {
+        sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
+        return;
+    }
+
+    uint16_t pushed_frames = 0;
+    size_t walked_frames = 0;
+    while (current_frame != NULL) {
+        if (++walked_frames > TRACEBACK_MAX_WALKED_NFRAME) {
+            sample.incr_dropped_frames();
+            break;
+        }
+        if (pushed_frames >= max_nframe) {
+            sample.incr_dropped_frames();
+            break;
+        }
+
+        memalloc_frame_t frame{};
+        if (memalloc_copy_type(current_frame, frame)) {
+            sample.incr_dropped_frames();
+            break;
+        }
+
+        PyCodeObject* code_addr = NULL;
+#ifdef _PY314_AND_LATER
+        code_addr = (PyCodeObject*)((uintptr_t)frame.f_executable.bits & ~(uintptr_t)7);
+#elif defined(_PY313_AND_LATER)
+        code_addr = (PyCodeObject*)frame.f_executable;
+#elif defined(_PY311_AND_LATER)
+        code_addr = frame.f_code;
+#else
+        code_addr = frame.f_code;
+#endif // _PY314_AND_LATER
+
+        if (code_addr != NULL) {
+            PyCodeObject code{};
+            int lineno = 0;
+            if (!memalloc_copy_type(code_addr, code)) {
+                lineno = code.co_firstlineno;
+            }
+            sample.push_frame("<remote-python-frame>", "<remote>", 0, lineno);
+            ++pushed_frames;
+        }
+
+#ifdef _PY311_AND_LATER
+        current_frame = frame.previous;
+#else
+        current_frame = frame.f_back;
+#endif // _PY311_AND_LATER
+    }
+}
+
 void
-traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -126,16 +213,20 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
 
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
-    push_stacktrace_to_sample_no_refcount(sample, max_nframe);
+    if (domain == PYMEM_DOMAIN_OBJ) {
+        push_stacktrace_to_sample_no_refcount(sample, max_nframe);
+    } else {
+        push_stacktrace_to_sample_remote_copy(sample, max_nframe);
+    }
 }
 
 // AIDEV-NOTE: Constructor calls init_sample() which reads CPython structs directly
-traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     if (max_nframe == 0) {
         return;
     }
 
-    init_sample(size, weighted_size, max_nframe);
+    init_sample(size, weighted_size, max_nframe, domain);
 }
