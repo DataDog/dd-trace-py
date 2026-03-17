@@ -1,0 +1,68 @@
+# System tests - migrated from .github/workflows/system-tests.yml
+# See: https://github.com/DataDog/system-tests
+
+.system-tests-base:
+  image: registry.ddbuild.io/images/docker:27.3.1
+  tags: ["docker-in-docker:amd64"]
+  stage: system-tests
+  variables:
+    TEST_LIBRARY: python
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG:
+              - "cp39-cp39"
+              - "cp310-cp310"
+              - "cp311-cp311"
+              - "cp312-cp312"
+              - "cp313-cp313"
+              - "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  before_script:
+    # Install system dependencies
+    - apt-get update && apt-get install -y git bash patchelf curl
+    # Install uv and Python 3.12
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv python install 3.12
+    # Get GitHub token for cloning system-tests
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/system-tests --policy gitlab.github-access.read)
+      fi
+    # Clone system-tests at pinned ref
+    - git clone https://x-access-token:${GH_TOKEN}@github.com/DataDog/system-tests.git ${CI_PROJECT_DIR}/system-tests
+    - cd ${CI_PROJECT_DIR}/system-tests && git checkout ${SYSTEM_TESTS_REF}
+    # Copy wheels to binaries/
+    - mkdir -p ${CI_PROJECT_DIR}/system-tests/binaries
+    - cp ${CI_PROJECT_DIR}/pywheels/*.whl ${CI_PROJECT_DIR}/system-tests/binaries/ || true
+    - ls -la ${CI_PROJECT_DIR}/system-tests/binaries/
+    # Build system-tests runner venv
+    - uv venv venv --python 3.12
+    - source venv/bin/activate
+    - uv pip install --upgrade pip "setuptools==75.8.0"
+    - uv pip install -e .
+
+system-tests parametric:
+  extends: .system-tests-base
+  timeout: 60m
+  variables:
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  script:
+    - cd ${CI_PROJECT_DIR}/system-tests
+    - source venv/bin/activate
+    - ./run.sh PARAMETRIC
+  artifacts:
+    when: always
+    paths:
+      - system-tests/logs*/**
+    expire_in: 2 days
