@@ -1,0 +1,13 @@
+#!/bin/bash
+
+export DD_PROFILING_ENABLED=1
+export DD_PROFILING_PYTORCH_ENABLED=true
+
+export DD_SERVICE=thomas-pytorch
+
+rm pytorch_profile*pprof || echo "No pprof files to remove"
+rm pytorch_profile*json || echo "No json files to remove"
+
+# export DD_PROFILING_OUTPUT_PPROF=$(pwd)/pytorch_profile
+
+ddtrace-run python3 /home/bits/dd/dd-trace-py/pytorch_profile.py

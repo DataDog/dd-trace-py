@@ -28,16 +28,27 @@ def train(model: nn.Module, loader: DataLoader, epochs: int = 5) -> None:
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    for epoch in range(epochs):
-        total_loss = 0.0
-        for batch_X, batch_y in loader:
-            optimizer.zero_grad()
-            out = model(batch_X)
-            loss = criterion(out, batch_y)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        print(f"epoch {epoch + 1}/{epochs}  loss={total_loss / len(loader):.4f}")
+    with torch.profiler.profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        with_flops=True,
+        profile_memory=True,
+        schedule=torch.profiler.schedule(wait=0, warmup=1, active=3, repeat=1),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler("./log"),
+    ) as prof:
+        for epoch in range(epochs):
+            total_loss = 0.0
+            for batch_X, batch_y in loader:
+                optimizer.zero_grad()
+                out = model(batch_X)
+                loss = criterion(out, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+                prof.step()
+            print(f"epoch {epoch + 1}/{epochs}  loss={total_loss / len(loader):.4f}")
 
 
 def main() -> None:
