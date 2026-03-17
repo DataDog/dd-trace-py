@@ -212,7 +212,7 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U)
+  , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
