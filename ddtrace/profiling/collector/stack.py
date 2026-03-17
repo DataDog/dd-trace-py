@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from types import ModuleType
 import typing
 
 from ddtrace.internal import core
@@ -30,7 +31,7 @@ class StackCollector(collector.Collector):
 
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
-        self._native_call_monitor = None
+        self._native_call_monitor: typing.Optional[ModuleType] = None
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
