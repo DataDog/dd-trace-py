@@ -1,7 +1,7 @@
 #include <cassert>
-#include <cmath>
-#include <cstdlib>
+#include <cstdint>
 #include <memory>
+#include <random>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -128,7 +128,7 @@ class heap_tracker_t
     void postfork_child();
 
   private:
-    static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
+    uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* This function is called from heap_tracker_t::postfork_child() as part of
        the fork handler to reset the sampling state. */
@@ -136,6 +136,14 @@ class heap_tracker_t
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
+
+    /* Per-instance PRNG engine used by next_sample_size_no_cpython.
+     * Declared before current_sample_size so it is initialised first in the
+     * constructor member-initialiser list, allowing next_sample_size_no_cpython
+     * to be called safely during current_sample_size initialisation.
+     * std::minstd_rand stores all state in the object (no global locks), so it
+     * is fork-safe (unlike rand). */
+    std::minstd_rand rng;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
@@ -187,36 +195,24 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
 }
 
-// Static helper function
 uint32_t
 heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 {
-    /* We want to draw a sampling target from an exponential distribution with
-       average sample_size. We use the standard technique of inverse transform
-       sampling, where we take uniform randomness, which is easy to get, and
-       transform it by the inverse of the cumulative distribution function for
-       the distribution we want to sample.
-       See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
-    /* Get a value between (0, 1) — strictly positive to avoid log2(0) = -inf,
-       which would produce +inf and undefined behavior when cast to uint32_t.
-       Using rand()+1 in floating-point avoids int overflow while shifting the
-       range from [0, 1) to (0, 1). */
-    /* TODO: change to use a fork safe alternative instead of rand(), as rand()
-       internally uses a lock and may cause deadlock after fork in child
-       processes. Deferring this to a follow up, as we're not making the
-       situation worse. */
-    double q = ((double)rand() + 1.0) / ((double)RAND_MAX + 2.0);
-    /* Get a value between ]-inf, 0[, more likely close to 0 */
-    /* NOTE: technically log2 is not async signal safe per Linux man page,
-       but it doesn't seem to use locks internally. So we assume it's safe to
-       call it from heap_tracker_t::postfork_child() */
-    double log_val = log2(q);
-    return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
+    /* Draw a sampling target from an exponential distribution with mean
+       sample_size. std::exponential_distribution handles the inverse-transform
+       sampling internally.
+
+       NOTE: std::exponential_distribution calls log internally. log is not
+       listed as async-signal-safe by POSIX, but does not use locks in practice.
+       We assume it is safe to call from heap_tracker_t::postfork_child. */
+    std::exponential_distribution<double> dist(1.0 / (sample_size + 1));
+    return static_cast<uint32_t>(dist(rng));
 }
 
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
+  , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
