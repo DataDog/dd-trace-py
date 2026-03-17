@@ -63,7 +63,6 @@ def _reset_prompt_state():
     LLMObs.clear_prompt_cache(hot=True, warm=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
-    LLMObs._ff_prompt_serving = False
     from ddtrace.internal.settings.openfeature import config as ffe_config
 
     ffe_config.experimental_flagging_provider_enabled = False
@@ -74,7 +73,7 @@ def reset_llmobs():
     """Reset LLMObs state for each test."""
     _reset_prompt_state()
 
-    with override_global_config(dict(_dd_api_key="test-key")):
+    with override_global_config(dict(_dd_api_key="test-key", _llmobs_agentless_enabled=True)):
         yield
 
     _reset_prompt_state()
@@ -435,13 +434,14 @@ class TestPrompts:
         assert prompt is FF_MANAGED_PROMPT
         fetch_from_ff.assert_called_once_with("greeting", "production")
 
-    def test_enable_with_prompt_serving_local(self):
+    def test_enable_with_agent_initializes_prompt_manager_lazily(self):
         with override_global_config(dict(_dd_api_key="test-key", _llmobs_ml_app="test-app")):
             with patch("ddtrace.internal.openfeature._remoteconfiguration.enable_featureflags_rc") as mock_enable_rc:
-                LLMObs.enable(prompt_serving="local", agentless_enabled=False)
+                with patch.object(PromptManager, "get_prompt", return_value=FF_MANAGED_PROMPT):
+                    LLMObs.enable(agentless_enabled=False)
+                    mock_enable_rc.assert_not_called()
+                    LLMObs.get_prompt("greeting")
                 mock_enable_rc.assert_called_once()
-
-            assert LLMObs._ff_prompt_serving is True
 
             from ddtrace.internal.settings.openfeature import config as ffe_config
 
