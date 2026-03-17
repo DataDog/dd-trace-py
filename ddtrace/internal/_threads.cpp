@@ -648,27 +648,10 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 static PyObject*
 PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    // In the child process the parent's thread no longer exists. Detach before
-    // destroying the std::thread object so its destructor does not call
-    // std::terminate() on a still-joinable handle.
-    if (self->_thread != nullptr && self->_thread->joinable())
-        self->_thread->detach();
-    self->_thread = nullptr;
-
-    self->_stopping = false;
-    self->_skip_shutdown = false;
-
-    // During prefork, stop() sets _request to wake the thread promptly so it
-    // can exit before fork. That wakeup should not trigger a synthetic
-    // periodic() run right after restart.
-    self->_request->clear(REQUEST_REASON_FORK_STOP);
-    self->_started->clear();
-    self->_stopped->clear();
-    self->_served->clear();
-
-    // Check the __autorestart__ class attribute. Subclasses can set it to
-    // False to opt out of automatic restart after fork. We still perform the
-    // cleanup above regardless so state is consistent.
+    // Check the __autorestart__ attribute (class or instance). Subclasses and
+    // instances can set __autorestart__ = False to opt out of automatic
+    // restart after fork. Cleanup is performed in both cases, but the extent
+    // differs — see below.
     bool should_restart = true;
     PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
     if (autorestart != NULL) {
@@ -678,13 +661,53 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
         PyErr_Clear();
     }
 
+    // Always reset fork-specific state regardless of restart decision.
+    self->_stopping = false;
+    self->_skip_shutdown = false;
+    // During prefork, _before_fork() sets REQUEST_REASON_FORK_STOP to wake
+    // the thread promptly. Clear it so it does not trigger a spurious
+    // periodic() call after restart (or linger in the no-restart case).
+    self->_request->clear(REQUEST_REASON_FORK_STOP);
+
+    // Always detach the parent thread handle unconditionally. _before_fork()
+    // joins every thread before the fork, so joinable() is already false in
+    // the common case and this is a no-op. The explicit detach is a safety net
+    // for any edge case where the handle is still joinable, and it guarantees
+    // that after _after_fork the handle is always non-joinable — allowing
+    // PeriodicThread_dealloc to reset the unique_ptr without release().
+    if (self->_thread != nullptr && self->_thread->joinable())
+        self->_thread->detach();
+
     if (should_restart) {
+        self->_thread = nullptr;
+
+        self->_started->clear();
+        self->_stopped->clear();
+        self->_served->clear();
+
         PeriodicThread_start(self, NULL);
     } else {
-        // Remove the stale parent-process ident from periodic_threads so this
-        // thread is not picked up by subsequent fork cycles.
-        if (self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL)
-            PyDict_DelItem(self->_state->periodic_threads, self->ident);
+        // No restart: the common cleanup above is sufficient for fork-specific
+        // state. Two additional invariants are preserved intentionally:
+        //
+        // AIDEV-NOTE: We do NOT null _thread. The handle is non-joinable at
+        // this point (detached above, or joined by _before_fork + join before
+        // the fork). Keeping it non-null allows stop() — which guards on
+        // _thread == nullptr — to be called without raising "Thread not
+        // started".
+        //
+        // AIDEV-NOTE: We do NOT clear _stopped. It was set when the thread
+        // exited in the parent; leaving it set means join() returns immediately
+        // rather than blocking indefinitely.
+
+        // Remove the stale parent-process ident from periodic_threads so
+        // this thread is not picked up by subsequent fork cycles. The thread
+        // removes itself on exit, so the entry may already be gone — ignore
+        // the KeyError in that case.
+        if (self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL) {
+            if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
+                PyErr_Clear();
+        }
         Py_DECREF(self->ident);
         Py_INCREF(Py_None);
         self->ident = Py_None;
@@ -745,15 +768,20 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->ident);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
-    // The native thread holds a PyRef to this object, so dealloc can only be
-    // reached once that reference is dropped — i.e., the thread is already in
-    // its final teardown. Joining here would block on an OS thread that is
-    // finishing its own stack unwind, which can race with signal delivery
-    // (observed as SIGSEGV/si_tkill). Detaching instead lets the OS reclaim
-    // the thread resources without blocking and without risking that race.
+    // In the common path _after_fork() already detached this handle (or join()
+    // was called, leaving it non-joinable), so resetting the unique_ptr is a
+    // safe no-op destructor call. The release() path is a narrow safety net for
+    // the one edge case where neither happened: the thread exited and removed
+    // itself from periodic_threads *before* _before_fork() took its snapshot,
+    // so _after_fork() was never called. In a child process glibc may have
+    // recycled the old pthread_t for a new thread, making detach() or join() on
+    // the stale handle a SIGSEGV. release() leaks the tiny std::thread object
+    // (a few bytes + kernel zombie entry) to avoid both std::terminate() and
+    // any unsafe OS call; the child process typically exits shortly after.
     if (self->_thread != nullptr && self->_thread->joinable())
-        self->_thread->detach();
-    self->_thread = nullptr;
+        self->_thread.release();
+    else
+        self->_thread = nullptr;
 
     self->_started = nullptr;
     self->_stopped = nullptr;

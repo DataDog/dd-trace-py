@@ -315,6 +315,60 @@ def _get_native_thread_name():
     return None
 
 
+def test_periodic_thread_stop_without_join_forksafe():
+    """Dropping a PeriodicThread that was stop()'d without join() in a forked child
+    must not crash, even when the OS (Linux/glibc) recycles the old pthread descriptor
+    for a new thread between the stop() call and the dealloc in the child.
+
+    Scenario (mirrors repro.py):
+      1. Start a PeriodicThread, call stop() — *without* join().
+      2. Wait briefly so the OS thread exits and glibc marks the pthread_t reusable.
+      3. Fork.
+      4. In the child: spin up many short-lived threads to encourage glibc to recycle
+         the old pthread_t, then drop the last Python reference (triggering dealloc).
+      5. Assert the child exited cleanly (not killed by a signal).
+
+    Before the fix, PeriodicThread_dealloc called join() or detach() on the stale
+    handle, which on Linux causes SIGSEGV when the pthread descriptor has been reused.
+    """
+    import gc
+    import signal
+
+    def noop():
+        pass
+
+    t = periodic.PeriodicThread(60.0, noop)
+    t.start()
+    t.stop()
+    sleep(0.3)  # let the OS thread exit so the pthread_t is eligible for recycling
+
+    pid = os.fork()
+    if pid == 0:
+        # Churn threads to encourage glibc to recycle the victim's pthread descriptor.
+        for _ in range(5):
+            batch = [Thread(target=lambda: None, daemon=True) for _ in range(20)]
+            for th in batch:
+                th.start()
+            for th in batch:
+                th.join()
+
+        # Treat a hang (futex deadlock on dead pthread) as a failure too.
+        signal.alarm(3)
+
+        del t
+        gc.collect()
+        os._exit(0)
+    else:
+        _, status = os.waitpid(pid, 0)
+        assert not os.WIFSIGNALED(status), (
+            f"child killed by signal {os.WTERMSIG(status)} — "
+            "PeriodicThread_dealloc crashed on a stale/recycled pthread handle"
+        )
+        assert os.WEXITSTATUS(status) == 0
+        # Parent still owns a reference; join to clean up properly.
+        t.join()
+
+
 def test_periodic_thread_naming():
     """Test that native thread names are set correctly with various formats.
 
