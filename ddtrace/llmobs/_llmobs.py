@@ -1520,7 +1520,7 @@ class LLMObs(Service):
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         evaluators_list = list(evaluators)
-        eval_names = dict()
+        eval_names: dict[str, int] = {}
         for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=False)
             if _is_deep_eval_evaluator(evaluator):
@@ -1529,9 +1529,10 @@ class LLMObs(Service):
             if _is_pydantic_evaluator(evaluator):
                 duration = 0
                 eval_name_count = 1
-                if cls._instance._current_span() is not None:
-                    duration = cls._instance._current_span().duration_ns
-                eval_name = evaluator.get_default_evaluation_name()
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
                 if eval_name in eval_names:
                     eval_name_count = eval_names[eval_name]
                 evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, duration, eval_name_count)
@@ -1611,7 +1612,7 @@ class LLMObs(Service):
                 "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
             )
         evaluators_list = list(evaluators)
-        eval_names = dict()
+        eval_names: dict[str, int] = {}
         for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=True)
             if _is_deep_eval_evaluator(evaluator):
@@ -1620,9 +1621,10 @@ class LLMObs(Service):
             if _is_pydantic_evaluator(evaluator):
                 duration = 0
                 eval_name_count = 1
-                if cls._instance._current_span() is not None:
-                    duration = cls._instance._current_span().duration_ns
-                eval_name = evaluator.get_default_evaluation_name()
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
                 if eval_name in eval_names:
                     eval_name_count = eval_names[eval_name]
                 evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration, eval_name_count)

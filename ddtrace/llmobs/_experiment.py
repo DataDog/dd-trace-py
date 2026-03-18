@@ -539,14 +539,8 @@ else:
         BaseAsyncEvaluator,
     ]
 if PydanticEvaluator is not None:
-    EvaluatorType = Union[
-        EvaluatorType,
-        PydanticEvaluator,
-    ]
-    AsyncEvaluatorType = Union[
-        AsyncEvaluatorType,
-        PydanticEvaluator,
-    ]
+    EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
+    AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
