@@ -10,6 +10,8 @@ ddtrace/appsec/share
 ddtrace/profiling/collector/_task.c
 ddtrace/profiling/collector/_fast_poisson.c
 ddtrace/profiling/collector/_exception.c
+ddtrace/profiling/collector/_sampler.c
+ddtrace/profiling/collector/_lock.c
 ddtrace/profiling/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
