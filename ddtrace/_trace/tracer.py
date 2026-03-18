@@ -22,6 +22,7 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
+from ddtrace._trace.span import set_service
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
@@ -474,9 +475,7 @@ class Tracer(object):
             else:
                 service = config.service
 
-        # Update the service name based on any mapping
-        if service is not None:
-            service = config.service_mapping.get(service, service)
+        service = set_service(service=service)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):

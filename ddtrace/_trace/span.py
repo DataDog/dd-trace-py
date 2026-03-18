@@ -774,3 +774,12 @@ class Span(SpanData):
         return (self._local_root is self) or (
             self._parent is not None and self._parent.service != self.service and self.service is not None
         )
+
+
+def set_service(span: Optional[Span] = None, service: Optional[str] = None) -> str:
+    if service is None:
+        return
+    service = config.service_mapping.get(service, service)
+    if span is not None:
+        span.service = service
+    return service

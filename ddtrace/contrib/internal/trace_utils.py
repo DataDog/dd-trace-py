@@ -20,6 +20,7 @@ import wrapt
 
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
+from ddtrace._trace.span import set_service
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -398,7 +399,7 @@ def set_service_and_source(
         span.set_tag("_dd.svc_src", getattr(int_config, "integration_name", "true"))
     elif int_config.get("split_by_domain", False):
         span.set_tag("_dd.svc_src", "opt.split_by_domain")
-    span.service = service
+    set_service(span=span, service=service)
 
 
 def set_http_meta(
