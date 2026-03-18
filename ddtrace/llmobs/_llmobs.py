@@ -1812,7 +1812,12 @@ class LLMObs(Service):
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, generate_128bit_trace_id())
+            llmobs_trace_id = generate_128bit_trace_id()
+            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
+        # Write to local root span's meta so it's serialized to APM and visible to the backend otel gen_ai span
+        # processor. All spans in the local trace share the same _local_root object reference,
+        # so this single write makes the trace ID available on the root span in every payload.
+        span._local_root._meta["llmobs_trace_id"] = str(llmobs_trace_id)
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
