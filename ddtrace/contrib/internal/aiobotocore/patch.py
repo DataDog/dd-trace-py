@@ -129,7 +129,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         # set span.kind tag equal to type of request
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         try:

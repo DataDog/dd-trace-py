@@ -186,7 +186,6 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         _set_span_operation_tags(span, document)
@@ -217,7 +216,6 @@ def _traced_query(func, args, kwargs):
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         result = func(*args, **kwargs)

@@ -194,7 +194,6 @@ def _create_span(pin, method, invocation_metadata, method_kind):
     # set span.kind to the type of operation being performed
     span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-    # PERF: avoid setting via Span.set_tag
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     set_grpc_method_meta(span, method, method_kind)

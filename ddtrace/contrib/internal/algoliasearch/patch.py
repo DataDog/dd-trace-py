@@ -132,7 +132,6 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         # set span.kind to the type of request being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)

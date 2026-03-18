@@ -104,7 +104,6 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         s._set_attribute(COMPONENT, config.rediscluster.integration_name)
         s._set_attribute(db.SYSTEM, redisx.APP)
-        # PERF: avoid setting via Span.set_tag
         s._set_attribute(_SPAN_MEASURED_KEY, 1)
         s._set_attribute(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))

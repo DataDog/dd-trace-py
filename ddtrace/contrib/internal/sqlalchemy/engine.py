@@ -92,7 +92,6 @@ class EngineTracer(object):
         # set span.kind to the type of operation being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):

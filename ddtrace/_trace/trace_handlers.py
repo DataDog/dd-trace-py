@@ -165,7 +165,6 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         for tk, tv in tags.items():
             span.set_tag(tk, tv)
     if ctx.get_item("measured"):
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     maybe_set_service_source_tag(span, integration_config or dict())
@@ -204,7 +203,6 @@ def _finish_span(
 def _set_web_frameworks_tags(ctx, span, int_config):
     span._set_attribute(COMPONENT, int_config.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.SERVER)
-    # PERF: avoid setting via Span.set_tag
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
@@ -511,7 +509,6 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    # PERF: avoid setting via Span.set_tag
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     span._set_attribute(flask_version, flask_version_str)
