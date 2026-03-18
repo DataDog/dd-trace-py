@@ -148,6 +148,9 @@ class Span(SpanData):
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
+        if service:
+            self.set_tag("_dd.svc_src", "m")
+
     def _update_tags_from_context(self) -> None:
         with self.context:
             for tag in self.context._meta:
@@ -260,6 +263,7 @@ class Span(SpanData):
             return
         elif key == SERVICE_KEY:
             self.service = value
+            self.set_tag("_dd.svc_src", "m")
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
