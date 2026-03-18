@@ -747,8 +747,12 @@ if PydanticEvaluator is not None:
             # this is to identify the pass/fail assessment for LLMJudge evaluators
             first_item = next(iter(_eval_result.values()))
             second_item = list(_eval_result.values())[1]
-            first_item_value = first_item.value
-            second_item_value = second_item.value
+            if hasattr(first_item, 'value') and hasattr(second_item, 'value'):
+                first_item_value = first_item.value
+                second_item_value = second_item.value
+            else:
+                first_item_value = None
+                second_item_value = None
             if isinstance(first_item_value, bool):
                 assessment = "pass" if first_item_value else "fail"
                 value = second_item_value
@@ -758,10 +762,13 @@ if PydanticEvaluator is not None:
             else:
                 assessment = None
                 value = None
-            if first_item.reason == second_item.reason :
+            if hasattr(first_item, 'reason') and hasattr(second_item, 'reason') and first_item.reason == second_item.reason :
                 eval_result.value = value
                 eval_result.assessment = assessment
                 eval_result.reasoning = second_item.reason
+            elif first_item_value == second_item_value:
+                eval_result.value = value
+                eval_result.assessment = assessment
             else:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
@@ -769,7 +776,7 @@ if PydanticEvaluator is not None:
             eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
         return eval_result
-    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
@@ -804,9 +811,13 @@ if PydanticEvaluator is not None:
             return eval_result
             
         
-        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
+        eval_name = evaluator.get_default_evaluation_name()
+        if idx > 1:
+            wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
+        else:
+            wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator    
-    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
@@ -829,13 +840,17 @@ if PydanticEvaluator is not None:
             eval_result = get_pydantic_evaluator_result(result)
             return eval_result
         
-        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
+        eval_name = evaluator.get_default_evaluation_name()
+        if idx > 1:
+            wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
+        else:
+            wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 else:
-    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
-    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
