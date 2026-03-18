@@ -32,7 +32,6 @@ typedef struct
 */
 static memalloc_context_t global_memalloc_ctx;
 
-static bool memalloc_enabled = false;
 /* Once hooks are installed, they stay installed for the process lifetime.
  * This flag prevents re-installing hooks on start/stop/start cycles. */
 static bool memalloc_hooks_installed = false;
@@ -87,14 +86,6 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     void* ptr;
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     size_t total_size = nelem * elsize;
-
-    if (MEMALLOC_UNLIKELY(!memalloc_enabled)) {
-        /* Profiler is stopped but hooks are still installed — pass through */
-        if (use_calloc)
-            return memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
-        else
-            return memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, total_size);
-    }
 
     /* Check sampling decision BEFORE allocating so we know whether to
      * request extra space for the header. */
@@ -171,7 +162,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     bool old_sampled = memalloc_heap_is_sampled(ptr);
 
     if (MEMALLOC_LIKELY(!old_sampled)) {
-        if (MEMALLOC_UNLIKELY(!memalloc_enabled)) {
+        if (MEMALLOC_UNLIKELY(!heap_tracker_t::instance)) {
             /* Profiler stopped and allocation wasn't sampled — pure pass-through */
             return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
         }
@@ -268,7 +259,7 @@ PyDoc_STRVAR(memalloc_start__doc__,
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
-    if (memalloc_enabled) {
+    if (heap_tracker_t::instance) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
         return nullptr;
     }
@@ -331,7 +322,8 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         memalloc_hooks_installed = true;
     }
 
-    memalloc_enabled = true;
+    /* heap_tracker_t::instance being non-null is the canonical "enabled" signal.
+     * memalloc_heap_tracker_init_no_cpython() set it above. */
 
     Py_RETURN_NONE;
 }
@@ -346,7 +338,7 @@ PyDoc_STRVAR(memalloc_stop__doc__,
 static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    if (!memalloc_enabled) {
+    if (!heap_tracker_t::instance) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
@@ -354,12 +346,10 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     /* Do NOT restore the original allocator — hooks must stay installed
      * because live sampled allocations have prepended headers. Free/realloc
      * always check the signature, which is a single 8-byte read + compare.
-     * Disabling memalloc_enabled causes alloc to pass through without
-     * adding headers or sampling. */
+     * Nulling heap_tracker_t::instance (done by deinit below) causes alloc
+     * to pass through without adding headers or sampling. */
 
     memalloc_heap_tracker_deinit_no_cpython();
-
-    memalloc_enabled = false;
 
     Py_RETURN_NONE;
 }
@@ -372,7 +362,7 @@ PyDoc_STRVAR(memalloc_heap_py__doc__,
 static PyObject*
 memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    if (!memalloc_enabled) {
+    if (!heap_tracker_t::instance) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
