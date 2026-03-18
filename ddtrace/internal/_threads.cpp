@@ -6,6 +6,7 @@
 #include <cstring>
 #include <stddef.h>
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -322,8 +323,8 @@ typedef struct periodic_thread
 
     PyObject* _ddtrace_profiling_ignore;
 
-    bool _stopping;
-    bool _skip_shutdown;
+    std::atomic<bool> _stopping;
+    std::atomic<bool> _skip_shutdown;
 
     module_state* _state;
 

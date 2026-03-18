@@ -11,26 +11,27 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69a5eb2a00000000",
+      "_dd.svc.src": "aredis",
       "component": "aredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
-      "runtime-id": "2bc441c84b6b45fc9d6f6fdef59a24f3",
+      "runtime-id": "44c636383e7240d59d17575bf5f491a4",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 23297,
-      "redis.pipeline_length": 3
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 28047.0,
+      "redis.pipeline_length": 3.0
     },
-    "duration": 820292,
-    "start": 1692706868088460798
+    "duration": 1301208,
+    "start": 1772481322081948795
   }]]

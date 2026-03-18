@@ -313,6 +313,11 @@ def with_traced_module(func):
     return with_mod
 
 
+def is_tracing_enabled() -> bool:
+    tracer = core.tracer
+    return tracer is not None and (tracer.enabled or asm_config._apm_opt_out)
+
+
 def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
@@ -377,6 +382,13 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
 
     # A default is required since it's an external service.
     return default
+
+
+def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfig", dict]) -> None:
+    if span.service == int_config.get("_default_service"):
+        span.set_tag("_dd.svc.src", getattr(int_config, "integration_name", "true"))
+    elif int_config.get("split_by_domain", False):
+        span.set_tag("_dd.svc.src", "opt.split_by_domain")
 
 
 def set_http_meta(

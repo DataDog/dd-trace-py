@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Change experiment execution to run evaluators immediately
+    after each record's task completes instead of batching all tasks first.
+    Experiment spans and evaluation metrics are now posted incrementally as
+    records complete rather than waiting until the end. This improves progress
+    visibility and preserves partial results if a run fails midway.
