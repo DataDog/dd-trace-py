@@ -112,8 +112,8 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
-SLIM_BUILD = os.getenv("DD_SLIM_BUILD", "0").lower() in ("1", "yes", "on", "true")
-WHEEL_FLAVOR = "slim" if SLIM_BUILD else ""
+SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -279,9 +279,9 @@ def is_64_bit_python():
 rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("profiling")
-    if not SLIM_BUILD:
+    if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
-if not SLIM_BUILD:
+if not SERVERLESS_BUILD:
     rust_features.append("ffe")
 
 
