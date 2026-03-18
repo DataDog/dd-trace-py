@@ -130,7 +130,7 @@ experiments:
           - name: flasksimple-profiler
             thresholds:
               - execution_time < 2.10 ms
-              - max_rss_usage < 52.50 MB
+              - max_rss_usage < 53.50 MB
           - name: flasksimple-debugger
             thresholds:
               - execution_time < 2.00 ms
