@@ -48,7 +48,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform, ""))
         for platform in SERVERLESS_PLATFORMS:
-            expected.add((version, py_tag, platform, "serverless"))
+            expected.add((version, py_tag, platform, "-serverless"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
             expected.add((version, py_tag, "win_arm64", ""))
@@ -199,7 +199,7 @@ def main() -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
-    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtraceserverless builds")
+    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
     # Phase 5: Set Comparison
