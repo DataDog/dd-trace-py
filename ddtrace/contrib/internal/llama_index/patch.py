@@ -8,16 +8,14 @@ from typing import Optional
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
-from ddtrace.contrib.internal.llama_index._utils import build_agent_run_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_agent_tool_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_chat_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_complete_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_embedding_batch_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_embedding_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_predict_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_query_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_retrieve_kwargs
-from ddtrace.contrib.internal.llama_index._utils import get_model_name
+from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_agent_run_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_chat_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_complete_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_predict_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_query_embedding_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_query_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_batch_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import is_async_generator
 from ddtrace.contrib.internal.llama_index._utils import is_generator
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -57,18 +55,18 @@ _DD_WRAPPED = "__dd_wrapped__"
 # BoundFunctionWrapper descriptors causing TypeError during model instantiation.
 
 
-def _make_wrapper(wrapper_fn, original_fn):
+def _make_wrapper(wrapper_fn, original_fn, wrapper_args=()):
     """Replace *original_fn* with a wrapper that delegates to *wrapper_fn*."""
     if inspect.iscoroutinefunction(wrapper_fn):
 
         @functools.wraps(original_fn)
         async def wrapper(self, *args, **kwargs):
-            return await wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
+            return await wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs, *wrapper_args)
     else:
 
         @functools.wraps(original_fn)
         def wrapper(self, *args, **kwargs):
-            return wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs)
+            return wrapper_fn(original_fn.__get__(self, type(self)), self, args, kwargs, *wrapper_args)
 
     wrapper.__dd_wrapped__ = original_fn
     return wrapper
@@ -99,86 +97,221 @@ def _create_event(
     )
 
 
-def _traced(build_kw, interface_type, is_chat=None, operation="", may_stream=False, always_stream=False):
-    """Factory for traced sync wrappers."""
+def _run_llm_sync(
+    func,
+    instance,
+    args,
+    kwargs,
+    request_kwargs,
+    model,
+    interface_type,
+    is_chat,
+    always_stream=False,
+):
+    with core.context_with_event(
+        _create_event(instance, func, request_kwargs, interface_type, model=model, is_chat=is_chat)
+    ) as ctx:
+        resp = func(*args, **kwargs)
+        if always_stream or is_generator(resp):
+            ctx.event.is_stream = True
+            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx.span, is_chat=is_chat)
+        ctx.set_item("response", resp)
+        return resp
 
-    def wrapper(func, instance, args, kwargs):
-        kw = build_kw(instance, args, kwargs)
-        model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation)
-        with core.context_with_event(event) as ctx:
-            resp = func(*args, **kwargs)
-            if always_stream or (may_stream and is_generator(resp)):
-                event.is_stream = True
-                return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
-            ctx.set_item("response", resp)
-            return resp
 
-    return wrapper
+async def _run_llm_async(
+    func,
+    instance,
+    args,
+    kwargs,
+    request_kwargs,
+    model,
+    interface_type,
+    is_chat,
+    always_stream=False,
+):
+    with core.context_with_event(
+        _create_event(instance, func, request_kwargs, interface_type, model=model, is_chat=is_chat)
+    ) as ctx:
+        resp = await func(*args, **kwargs)
+        if always_stream or is_async_generator(resp):
+            ctx.event.is_stream = True
+            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx.span, is_chat=is_chat)
+        ctx.set_item("response", resp)
+        return resp
 
 
-def _traced_async(build_kw, interface_type, is_chat=None, operation="", may_stream=False, always_stream=False):
-    """Factory for traced async wrappers."""
+def _run_simple_sync(
+    func: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    request_kwargs_builder: Callable[[tuple[Any, ...], dict[str, Any]], dict[str, Any]],
+    interface_type: str,
+    operation: str,
+):
+    request_kwargs = request_kwargs_builder(args, kwargs)
+    with core.context_with_event(_create_event(instance, func, request_kwargs, interface_type, operation=operation)) as ctx:
+        resp = func(*args, **kwargs)
+        ctx.set_item("response", resp)
+        return resp
 
-    async def wrapper(func, instance, args, kwargs):
-        kw = build_kw(instance, args, kwargs)
-        model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation)
-        with core.context_with_event(event) as ctx:
-            resp = await func(*args, **kwargs)
-            if always_stream or (may_stream and is_async_generator(resp)):
-                event.is_stream = True
-                return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
-            ctx.set_item("response", resp)
-            return resp
 
-    return wrapper
+async def _run_simple_async(
+    func: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    request_kwargs_builder: Callable[[tuple[Any, ...], dict[str, Any]], dict[str, Any]],
+    interface_type: str,
+    operation: str,
+):
+    request_kwargs = request_kwargs_builder(args, kwargs)
+    with core.context_with_event(_create_event(instance, func, request_kwargs, interface_type, operation=operation)) as ctx:
+        resp = await func(*args, **kwargs)
+        ctx.set_item("response", resp)
+        return resp
+
+
+def _chat_wrapper(func, instance, args, kwargs, always_stream=False):
+    request_kwargs, model = build_chat_request_kwargs(instance, args, kwargs)
+    return _run_llm_sync(
+        func, instance, args, kwargs, request_kwargs, model, "chat_model", is_chat=True, always_stream=always_stream
+    )
+
+
+def _complete_wrapper(func, instance, args, kwargs, always_stream=False):
+    request_kwargs, model = build_complete_request_kwargs(instance, args, kwargs)
+    return _run_llm_sync(
+        func, instance, args, kwargs, request_kwargs, model, "completion", is_chat=False, always_stream=always_stream
+    )
+
+
+def _predict_wrapper(func, instance, args, kwargs):
+    request_kwargs, model = build_predict_request_kwargs(instance, args, kwargs)
+    return _run_llm_sync(func, instance, args, kwargs, request_kwargs, model, "completion", is_chat=False)
+
+
+async def _achat_wrapper(func, instance, args, kwargs, always_stream=False):
+    request_kwargs, model = build_chat_request_kwargs(instance, args, kwargs)
+    return await _run_llm_async(
+        func, instance, args, kwargs, request_kwargs, model, "chat_model", is_chat=True, always_stream=always_stream
+    )
+
+
+async def _acomplete_wrapper(func, instance, args, kwargs, always_stream=False):
+    request_kwargs, model = build_complete_request_kwargs(instance, args, kwargs)
+    return await _run_llm_async(
+        func, instance, args, kwargs, request_kwargs, model, "completion", is_chat=False, always_stream=always_stream
+    )
+
+
+async def _apredict_wrapper(func, instance, args, kwargs):
+    request_kwargs, model = build_predict_request_kwargs(instance, args, kwargs)
+    return await _run_llm_async(func, instance, args, kwargs, request_kwargs, model, "completion", is_chat=False)
+
+
+def _query_wrapper(func, instance, args, kwargs):
+    return _run_simple_sync(func, instance, args, kwargs, build_query_request_kwargs, "query", "query")
+
+
+async def _aquery_wrapper(func, instance, args, kwargs):
+    return await _run_simple_async(func, instance, args, kwargs, build_query_request_kwargs, "query", "query")
+
+
+def _retrieve_wrapper(func, instance, args, kwargs):
+    return _run_simple_sync(func, instance, args, kwargs, build_query_request_kwargs, "retrieval", "retrieval")
+
+
+async def _aretrieve_wrapper(func, instance, args, kwargs):
+    return await _run_simple_async(
+        func, instance, args, kwargs, build_query_request_kwargs, "retrieval", "retrieval"
+    )
+
+
+def _query_embedding_wrapper(func, instance, args, kwargs):
+    return _run_simple_sync(
+        func, instance, args, kwargs, build_query_embedding_request_kwargs, "embedding", "embedding"
+    )
+
+
+def _text_embedding_batch_wrapper(func, instance, args, kwargs):
+    return _run_simple_sync(
+        func, instance, args, kwargs, build_text_embedding_batch_request_kwargs, "embedding", "embedding"
+    )
+
+
+async def _aquery_embedding_wrapper(func, instance, args, kwargs):
+    return await _run_simple_async(
+        func, instance, args, kwargs, build_query_embedding_request_kwargs, "embedding", "embedding"
+    )
+
+
+async def _atext_embedding_batch_wrapper(func, instance, args, kwargs):
+    return await _run_simple_async(
+        func, instance, args, kwargs, build_text_embedding_batch_request_kwargs, "embedding", "embedding"
+    )
+
+
+def _agent_run_wrapper(func, instance, args, kwargs):
+    return _run_simple_sync(func, instance, args, kwargs, build_agent_run_request_kwargs, "agent", "agent")
+
+
+async def _agent_call_tool_wrapper(func, instance, args, kwargs):
+    return await _run_simple_async(
+        func, instance, args, kwargs, build_agent_call_tool_request_kwargs, "tool", "tool"
+    )
 
 
 _LLM_WRAPPERS = {
-    "chat": _traced(build_chat_kwargs, "chat_model", is_chat=True, may_stream=True),
-    "complete": _traced(build_complete_kwargs, "completion", is_chat=False, may_stream=True),
-    "stream_chat": _traced(build_chat_kwargs, "chat_model", is_chat=True, always_stream=True),
-    "stream_complete": _traced(build_complete_kwargs, "completion", is_chat=False, always_stream=True),
-    "predict": _traced(build_predict_kwargs, "completion", is_chat=False),
-    "achat": _traced_async(build_chat_kwargs, "chat_model", is_chat=True, may_stream=True),
-    "acomplete": _traced_async(build_complete_kwargs, "completion", is_chat=False, may_stream=True),
-    "astream_chat": _traced_async(build_chat_kwargs, "chat_model", is_chat=True, always_stream=True),
-    "astream_complete": _traced_async(build_complete_kwargs, "completion", is_chat=False, always_stream=True),
-    "apredict": _traced_async(build_predict_kwargs, "completion", is_chat=False),
+    "chat": _chat_wrapper,
+    "complete": _complete_wrapper,
+    "stream_chat": (_chat_wrapper, True),
+    "stream_complete": (_complete_wrapper, True),
+    "predict": _predict_wrapper,
+    "achat": _achat_wrapper,
+    "acomplete": _acomplete_wrapper,
+    "astream_chat": (_achat_wrapper, True),
+    "astream_complete": (_acomplete_wrapper, True),
+    "apredict": _apredict_wrapper,
 }
 
 _QUERY_ENGINE_WRAPPERS = {
-    "query": _traced(build_query_kwargs, "query", operation="query"),
-    "aquery": _traced_async(build_query_kwargs, "query", operation="query"),
+    "query": _query_wrapper,
+    "aquery": _aquery_wrapper,
 }
 
 _RETRIEVER_WRAPPERS = {
-    "retrieve": _traced(build_retrieve_kwargs, "retrieval", operation="retrieval"),
-    "aretrieve": _traced_async(build_retrieve_kwargs, "retrieval", operation="retrieval"),
+    "retrieve": _retrieve_wrapper,
+    "aretrieve": _aretrieve_wrapper,
 }
 
 _EMBEDDING_WRAPPERS = {
-    "get_query_embedding": _traced(build_embedding_kwargs, "embedding", operation="embedding"),
-    "get_text_embedding_batch": _traced(build_embedding_batch_kwargs, "embedding", operation="embedding"),
-    "aget_query_embedding": _traced_async(build_embedding_kwargs, "embedding", operation="embedding"),
-    "aget_text_embedding_batch": _traced_async(build_embedding_batch_kwargs, "embedding", operation="embedding"),
+    "get_query_embedding": _query_embedding_wrapper,
+    "get_text_embedding_batch": _text_embedding_batch_wrapper,
+    "aget_query_embedding": _aquery_embedding_wrapper,
+    "aget_text_embedding_batch": _atext_embedding_batch_wrapper,
 }
 
 _AGENT_WRAPPERS = {
-    "run": _traced(build_agent_run_kwargs, "agent", operation="agent"),
-    "call_tool": _traced_async(build_agent_tool_kwargs, "tool", operation="tool"),
+    "run": _agent_run_wrapper,
+    "call_tool": _agent_call_tool_wrapper,
 }
 
 
 def _wrap_class(cls, wrappers):
     """Wrap methods on *cls* using plain function replacement."""
-    for method_name, wrapper_fn in wrappers.items():
+    for method_name, wrapper in wrappers.items():
         original = cls.__dict__.get(method_name)
         if original is not None and not hasattr(original, _DD_WRAPPED):
             try:
+                wrapper_fn = wrapper
+                wrapper_args = ()
+                if isinstance(wrapper, tuple):
+                    wrapper_fn = wrapper[0]
+                    wrapper_args = wrapper[1:]
                 _originals[(cls, method_name)] = original
-                setattr(cls, method_name, _make_wrapper(wrapper_fn, original))
+                setattr(cls, method_name, _make_wrapper(wrapper_fn, original, wrapper_args))
             except Exception:
                 log.debug("Failed to wrap %s.%s", cls.__name__, method_name, exc_info=True)
     _wrapped_classes.add(cls)
