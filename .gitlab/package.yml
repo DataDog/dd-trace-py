@@ -104,7 +104,7 @@ variables:
       - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *X86_64_IMAGES
-        DD_SLIM_BUILD: "1"
+        DD_SERVERLESS_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -112,7 +112,7 @@ variables:
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
-    - export DD_SLIM_BUILD="${DD_SLIM_BUILD:-0}"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
