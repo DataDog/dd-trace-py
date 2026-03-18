@@ -78,7 +78,6 @@ def _create_event(
     instance: Any,
     func: Callable[..., Any],
     request_kwargs: dict[str, Any],
-    interface_type: str,
     model: str = "",
     is_chat: Optional[bool] = None,
     operation: str = "",
@@ -89,10 +88,9 @@ def _create_event(
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="llama_index",
         model=model,
-        integration=_integration,
+        llmobs_integration=_integration,
         submit_to_llmobs=True,
         request_kwargs=request_kwargs,
-        interface_type=interface_type,
         instance=instance,
         is_chat=is_chat,
         operation=operation,
@@ -105,7 +103,7 @@ def _traced(build_kw, interface_type, is_chat=None, operation="", may_stream=Fal
     def wrapper(func, instance, args, kwargs):
         kw = build_kw(instance, args, kwargs)
         model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation)
+        event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
         with core.context_with_event(event) as ctx:
             resp = func(*args, **kwargs)
             if always_stream or (may_stream and is_generator(resp)):
@@ -123,7 +121,7 @@ def _traced_async(build_kw, interface_type, is_chat=None, operation="", may_stre
     async def wrapper(func, instance, args, kwargs):
         kw = build_kw(instance, args, kwargs)
         model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, interface_type, model=model, is_chat=is_chat, operation=operation)
+        event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
         with core.context_with_event(event) as ctx:
             resp = await func(*args, **kwargs)
             if always_stream or (may_stream and is_async_generator(resp)):

@@ -30,11 +30,6 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
     Creates a traced stream with a callback that adds a text_stream attribute
     to the underlying stream object when it is created.
 
-    AIDEV-NOTE: Receives the ExecutionContext (not span) so that the stream
-    handler can close the context when the stream is exhausted. Closing the
-    context fires on_ended, which lets the subscriber handle llmobs tags and
-    span finishing uniformly for both streaming and non-streaming paths.
-
     Overrides the `text_stream` attribute to trace yielded chunks; otherwise,
     the underlying stream will bypass the wrapper tracing code
     """
@@ -62,14 +57,12 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
 
 
 class BaseAnthropicStreamHandler:
-    # AIDEV-NOTE: finalize_stream builds the response from chunks, sets it on
-    # the execution context, then closes the context. This triggers on_ended
-    # in the subscriber which handles llmobs_set_tags and span finishing.
     def finalize_stream(self, exception=None):
+        """Build the response from chunks, set it on the context, then close the context."""
         ctx = self.options["ctx"]
         try:
             resp_message = _construct_message(self.chunks)
-            ctx.set_item("response", resp_message)
+            ctx.event.response = resp_message
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
         exc_info = (type(exception), exception, exception.__traceback__) if exception else (None, None, None)
@@ -181,8 +174,7 @@ def _on_content_block_delta_chunk(chunk, message):
 def _on_content_block_stop_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
     # Anthropic beta streaming can emit content_block_stop without a corresponding
-    # content_block_start (e.g. empty tool blocks / vendor edge cases). Guard to
-    # avoid IndexError which breaks span construction.
+    # content_block_start (e.g. empty tool blocks). Guard against IndexError.
     if not message.get("content"):
         return message
 

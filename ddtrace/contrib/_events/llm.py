@@ -29,11 +29,11 @@ class LlmRequestEvent(TracingEvent):
 
     provider: str = event_field()
     model: str = event_field()
-    integration: "BaseLLMIntegration" = event_field()
+    llmobs_integration: "BaseLLMIntegration" = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
-    interface_type: str = event_field(default="")
     instance: Optional[Any] = event_field(default=None)
+    response: Optional[Any] = event_field(default=None)
     is_chat: Optional[bool] = event_field(default=None)
     operation: str = event_field(default="")
     is_stream: bool = event_field(default=False)
@@ -41,7 +41,7 @@ class LlmRequestEvent(TracingEvent):
     def __post_init__(self) -> None:
         self.span_name = f"{self.component}.request"
         # span_type is only LLM when LLMObs is enabled and submit_to_llmobs is True
-        if not (self.submit_to_llmobs and self.integration.llmobs_enabled):
+        if not (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled):
             self.__dict__["span_type"] = None
 
     def finish_span(self, span: "Span", response: Any = None) -> None:
@@ -50,7 +50,7 @@ class LlmRequestEvent(TracingEvent):
         Called manually when ``_end_span`` is ``False`` (e.g. streaming responses
         that finish on iterator exhaustion).
         """
-        self.integration.llmobs_set_tags(
+        self.llmobs_integration.llmobs_set_tags(
             span,
             args=[],
             kwargs=self.request_kwargs,

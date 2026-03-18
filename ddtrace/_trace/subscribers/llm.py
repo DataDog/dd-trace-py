@@ -9,7 +9,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
-# AIDEV-NOTE: Duplicated from ddtrace.llmobs._constants to avoid importing
+# Duplicated from ddtrace.llmobs._constants to avoid importing
 # ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
 _INTEGRATION = "_ml_obs.integration"
 _PROXY_REQUEST = "llmobs.proxy_request"
@@ -40,25 +40,21 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._meta.pop(COMPONENT, None)
         span._meta.pop(SPAN_KIND, None)
 
-        # Set base span tags (provider-specific)
-        event.integration._set_base_span_tags(
+        event.llmobs_integration._set_base_span_tags(
             span,
             model=event.model,
             provider=event.provider,
-            interface_type=event.interface_type,
             instance=event.instance,
         )
 
         if event.is_chat is not None:
             span._set_ctx_item("_dd_is_chat", event.is_chat)
 
-        # Proxy detection
-        base_url = event.integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
-        if event.integration._is_instrumented_proxy_url(base_url):
+        base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
+        if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
 
-        # LLMObs integration marker
-        if event.integration.llmobs_enabled:
+        if event.llmobs_integration.llmobs_enabled:
             span._set_ctx_item(_INTEGRATION, event.component)
 
     @classmethod
@@ -67,21 +63,21 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         ctx: core.ExecutionContext["LlmRequestEvent"],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        # AIDEV-NOTE: This fires for both streaming and non-streaming paths.
-        # For non-streaming (and anthropic streaming where the context stays open
-        # until the stream is exhausted), the response is already set on the context.
-        # For llama-index streaming where the context exits before the stream is
-        # consumed, we skip tag setting and defer span finishing to the stream handler.
+        """Set LLMObs tags on the span.
+
+        Fires for both streaming and non-streaming paths. For streaming
+        integrations where the context exits before the stream is consumed
+        (e.g. llama-index), we skip tag setting and defer to the stream handler.
+        """
         event: LlmRequestEvent = ctx.event
         has_error = exc_info[1] is not None
 
         if not event.is_stream or has_error:
-            response = ctx.get_item("response")
-            event.integration.llmobs_set_tags(
+            event.llmobs_integration.llmobs_set_tags(
                 ctx.span,
                 args=[],
                 kwargs=event.request_kwargs,
-                response=response,
+                response=event.response,
                 operation=event.operation,
             )
         else:

@@ -34,30 +34,19 @@ def _supported_versions() -> dict[str, str]:
 config._add("anthropic", {})
 
 
-def _create_llm_event(
-    integration: AnthropicIntegration,
-    instance: Any,
-    func: Callable[..., Any],
-    kwargs: dict[str, Any],
-) -> LlmRequestEvent:
-    """Create an LlmRequestEvent for an Anthropic call."""
-    return LlmRequestEvent(
+def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    integration: AnthropicIntegration = anthropic._datadog_integration
+    event = LlmRequestEvent(
         component="anthropic",
         service=int_service(None, integration.integration_config),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=kwargs.get("model", ""),
-        integration=integration,
+        llmobs_integration=integration,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
-        interface_type="chat_model",
         instance=instance,
     )
-
-
-def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: AnthropicIntegration = anthropic._datadog_integration
-    event = _create_llm_event(integration, instance, func, kwargs)
 
     # AIDEV-NOTE: Manually enter/finish the context so that streaming can keep it
     # open until the stream is exhausted. The stream handler closes the context
@@ -72,16 +61,26 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
-    ctx.set_item("response", resp)
+    event.response = resp
     ctx.finish()
     return resp
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: AnthropicIntegration = anthropic._datadog_integration
-    event = _create_llm_event(integration, instance, func, kwargs)
+    event = LlmRequestEvent(
+        component="anthropic",
+        service=int_service(None, integration.integration_config),
+        resource=f"{instance.__class__.__name__}.{func.__name__}",
+        provider="anthropic",
+        model=kwargs.get("model", ""),
+        llmobs_integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=kwargs,
+        instance=instance,
+    )
 
-    # AIDEV-NOTE: Same manual context pattern as sync version.
+    # Manually handle context. Same comment as sync version above.
     ctx = core.context_with_event(event, enter=True)
     try:
         resp = await func(*args, **kwargs)
@@ -92,7 +91,7 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     if is_streaming_operation(resp):
         return handle_streamed_response(integration, resp, args, kwargs, ctx)
 
-    ctx.set_item("response", resp)
+    event.response = resp
     ctx.finish()
     return resp
 
