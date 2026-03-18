@@ -19,6 +19,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -136,9 +137,9 @@ class _ClientInterceptor:
         span = tracer.trace(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
             resource=method_as_str,
         )
+        set_service_and_source(span, trace_utils.ext_service(self._pin, config.grpc_aio_client), config.grpc_aio_client)
 
         span._set_attribute(COMPONENT, config.grpc_aio_client.integration_name)
 

@@ -384,9 +384,14 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
-def set_service_and_source(span: Span, service: str, int_config: Union["IntegrationConfig", dict]) -> None:
+def set_service_and_source(
+    span: Span,
+    service: str,
+    int_config: Union["IntegrationConfig", dict],
+    default_service_key: str = "_default_service",
+) -> None:
     span.service = service
-    if service == int_config.get("_default_service"):
+    if service == int_config.get(default_service_key):
         span.set_tag("_dd.svc.src", getattr(int_config, "integration_name", "true"))
     elif int_config.get("split_by_domain", False):
         span.set_tag("_dd.svc.src", "opt.split_by_domain")

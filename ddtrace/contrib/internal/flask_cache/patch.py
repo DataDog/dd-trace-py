@@ -7,6 +7,7 @@ import typing
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.internal.constants import COMPONENT
@@ -94,8 +95,8 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             s = ddtracer.trace(
                 schematize_cache_operation(cmd, cache_provider="flask_cache"),
                 span_type=SpanTypes.CACHE,
-                service=self._datadog_service,
             )
+            set_service_and_source(s, self._datadog_service, config.flask_cache)
 
             s._set_attribute(COMPONENT, config.flask_cache.integration_name)
 

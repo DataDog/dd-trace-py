@@ -15,6 +15,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
@@ -45,8 +46,9 @@ def long_running_ray_span(
 ):
     """Context manager that handles Ray span creation and long-running span lifecycle"""
     with tracer.start_span(
-        name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
+        name=span_name, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
+        set_service_and_source(span, service, config.ray)
         span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)

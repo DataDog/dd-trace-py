@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -76,10 +77,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         with tracer.trace(
             self._self_datadog_name,
-            service=trace_utils.ext_service(pin, config.aiomysql),
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
+            set_service_and_source(s, trace_utils.ext_service(pin, config.aiomysql), config.aiomysql)
             s._set_attribute(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed

@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -110,8 +111,8 @@ def datadog_trace_operation(operation, wrapped):
     span = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=trace_utils.ext_service(None, config.pymongo),
     )
+    set_service_and_source(span, trace_utils.ext_service(None, config.pymongo), config.pymongo)
 
     span._set_attribute(COMPONENT, config.pymongo.integration_name)
 
@@ -231,8 +232,8 @@ def trace_cmd(cmd, socket_instance, address):
     s = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=trace_utils.ext_service(None, config.pymongo),
     )
+    set_service_and_source(s, trace_utils.ext_service(None, config.pymongo), config.pymongo)
 
     s._set_attribute(COMPONENT, config.pymongo.integration_name)
     s._set_attribute(db.SYSTEM, mongox.SERVICE)
