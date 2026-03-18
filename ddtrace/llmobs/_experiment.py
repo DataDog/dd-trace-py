@@ -593,6 +593,7 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
+
 def _is_pydantic_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a pydantic evaluator (inherits from PydanticEvaluator).
 
@@ -602,6 +603,7 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
     if PydanticEvaluator is None:
         return False
     return isinstance(evaluator, PydanticEvaluator)
+
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -713,14 +715,16 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
+
 if PydanticEvaluator is not None:
     from collections.abc import Mapping
+    import json
+
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
-    from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
-    import json
-    
+    from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
         eval_result = EvaluatorResult(
@@ -730,11 +734,11 @@ if PydanticEvaluator is not None:
         )
         if len(eval_result_list) == 1:
             first_item = eval_result_list[0]
-            if hasattr(first_item, 'value'):
+            if hasattr(first_item, "value"):
                 first_item_value = first_item.value
             else:
                 first_item_value = first_item
-            if hasattr(first_item, 'reason'):
+            if hasattr(first_item, "reason"):
                 reasoning = first_item.reason
             else:
                 reasoning = None
@@ -748,11 +752,11 @@ if PydanticEvaluator is not None:
         elif len(eval_result_list) == 2:
             first_item = eval_result_list[0]
             second_item = eval_result_list[1]
-            if hasattr(first_item, 'value'):
+            if hasattr(first_item, "value"):
                 first_item_value = first_item.value
             else:
                 first_item_value = first_item
-            if hasattr(second_item, 'value'):
+            if hasattr(second_item, "value"):
                 second_item_value = second_item.value
             else:
                 second_item_value = second_item
@@ -765,7 +769,11 @@ if PydanticEvaluator is not None:
             else:
                 assessment = None
                 value = None
-            if hasattr(first_item, 'reason') and hasattr(second_item, 'reason') and first_item.reason == second_item.reason :
+            if (
+                hasattr(first_item, "reason")
+                and hasattr(second_item, "reason")
+                and first_item.reason == second_item.reason
+            ):
                 eval_result.value = value
                 eval_result.assessment = assessment
                 eval_result.reasoning = second_item.reason
@@ -776,11 +784,12 @@ if PydanticEvaluator is not None:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
         else:
             eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
-        eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+        eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
         return eval_result
 
-    
-    def get_pydantic_evaluator_result(result: PydanticEvaluatorOutput) -> EvaluatorResult:
+    def get_pydantic_evaluator_result(
+        result: PydanticEvaluatorOutput,
+    ) -> EvaluatorResult:
         _eval_result = cast(PydanticEvaluatorOutput, result)
         eval_result = EvaluatorResult(
             value=None,
@@ -800,15 +809,22 @@ if PydanticEvaluator is not None:
             eval_result = get_mapping_result(_eval_result)
         else:
             eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
-            eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+            eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
         return eval_result
+
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
         :return: A callable function that can be used as an evaluator
         """
-        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None, duration: Optional[float] = None) -> EvaluatorResult:                
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+            duration: Optional[float] = None,
+        ) -> EvaluatorResult:
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -819,15 +835,16 @@ if PydanticEvaluator is not None:
                 _span_tree=None,
                 attributes=None,
                 metrics=None,
-                )
-            
+            )
+
             if asyncio.iscoroutinefunction(evaluator.evaluate):
-                try: 
+                try:
                     asyncio.get_running_loop()
                 except RuntimeError:
                     result = asyncio.run(evaluator.evaluate(evalContext))
                 else:
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                         _result = pool.submit(asyncio.run, evaluator.evaluate(evalContext))
                         result = _result.result()
@@ -835,21 +852,26 @@ if PydanticEvaluator is not None:
                 result = evaluator.evaluate(evalContext)
             eval_result = get_pydantic_evaluator_result(result)
             return eval_result
-            
-        
+
         eval_name = evaluator.get_default_evaluation_name()
         if idx > 1:
             wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
         else:
             wrapped_evaluator.__name__ = eval_name
-        return wrapped_evaluator    
+        return wrapped_evaluator
+
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
         :return: A callable function that can be used as an evaluator
         """
-        async def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
+
+        async def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -865,20 +887,24 @@ if PydanticEvaluator is not None:
             result = await evaluator.evaluate_async(evalContext)
             eval_result = get_pydantic_evaluator_result(result)
             return eval_result
-        
+
         eval_name = evaluator.get_default_evaluation_name()
         if idx > 1:
             wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
         else:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
+
 else:
+
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
+
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
+
 
 class Project(TypedDict):
     name: str
@@ -1625,10 +1651,19 @@ class Experiment:
                 self._tags["run_id"] = str(run._id)
                 self._tags["run_iteration"] = str(run._run_iteration)
                 task_results = await self._run_task(
-                    jobs, run, raise_errors, sample_size, max_retries=max_retries, retry_delay=retry_delay
+                    jobs,
+                    run,
+                    raise_errors,
+                    sample_size,
+                    max_retries=max_retries,
+                    retry_delay=retry_delay,
                 )
                 evaluations = await self._run_evaluators(
-                    task_results, raise_errors=raise_errors, jobs=jobs, max_retries=max_retries, retry_delay=retry_delay
+                    task_results,
+                    raise_errors=raise_errors,
+                    jobs=jobs,
+                    max_retries=max_retries,
+                    retry_delay=retry_delay,
                 )
                 summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
                 run_result = self._merge_results(run, task_results, evaluations, summary_evals)
@@ -1846,7 +1881,13 @@ class Experiment:
 
         semaphore = asyncio.Semaphore(jobs)
         coros = [
-            self._process_record(idx_record, run, semaphore, max_retries=max_retries, retry_delay=retry_delay)
+            self._process_record(
+                idx_record,
+                run,
+                semaphore,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+            )
             for idx_record in enumerate(subset_dataset)
         ]
         results = await asyncio.gather(*coros, return_exceptions=True)
@@ -1956,7 +1997,10 @@ class Experiment:
                                 evaluator_name = str(evaluator)
                                 eval_result = None
 
-                            eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
+                            (
+                                eval_result_value,
+                                extra_return_values,
+                            ) = self._extract_evaluator_result(eval_result)
                             break
 
                         except Exception as e:
@@ -1965,7 +2009,11 @@ class Experiment:
                             if attempt < max_retries:
                                 self._retries.append(
                                     "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
-                                        evaluator_name, idx, attempt + 1, max_retries + 1, e
+                                        evaluator_name,
+                                        idx,
+                                        attempt + 1,
+                                        max_retries + 1,
+                                        e,
                                     )
                                 )
                                 semaphore.release()

@@ -1,18 +1,17 @@
 """Tests for Pydantic AI evaluator integration with LLMObs experiments."""
 
 import asyncio
-import os
 from dataclasses import dataclass
+import os
 
+from pydantic_evals.evaluators import Evaluator
+from pydantic_evals.evaluators import EvaluatorContext
+from pydantic_evals.evaluators.evaluator import EvaluationReason
 import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
-
-from pydantic_evals.evaluators import Evaluator
-from pydantic_evals.evaluators import EvaluatorContext
-from pydantic_evals.evaluators.evaluator import EvaluationReason
 
 
 def _make_simple_pydantic_evaluator():
@@ -194,6 +193,7 @@ class TestPydanticEvaluatorInExperiment:
     @pytest.mark.asyncio
     async def test_async_experiment_run_with_pydantic_evaluator(self, llmobs):
         """Run an async experiment with a pydantic evaluator and assert it completes with correct results."""
+
         async def async_dummytask(input_data, config):
             return input_data.get("value", "")
 
@@ -255,6 +255,7 @@ class TestPydanticCustomScoreEvaluator:
 
     def test_experiment_run_with_custom_score_evaluator_pass(self, llmobs):
         """Custom score evaluator returns score and reasoning when output matches expected."""
+
         def dummytask(input_data, config):
             return input_data.get("value", "")
 
@@ -297,6 +298,7 @@ class TestPydanticCustomScoreEvaluator:
 
     def test_experiment_run_with_custom_score_evaluator_fail(self, llmobs):
         """Custom score evaluator returns lower score and reasoning when output does not match."""
+
         def task(input_data, config):
             return "wrong"
 
@@ -341,6 +343,7 @@ class TestPydanticLLMJudge:
 
     def test_experiment_run_with_llm_judge_mocked(self, llmobs):
         """LLMJudge (mocked) runs in an experiment and returns pass/reasoning without calling OpenAI."""
+
         async def async_dummytask(input_data, config):
             return "The capital of France is Paris."
 
@@ -389,6 +392,7 @@ class TestPydanticLLMJudge:
     @pytest.mark.asyncio
     async def test_async_experiment_run_with_llm_judge_mocked(self, llmobs):
         """Async experiment with mocked LLMJudge completes successfully."""
+
         async def async_task(input_data, config):
             return "Paris"
 

@@ -123,11 +123,11 @@ from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
-from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
-from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -1536,7 +1536,7 @@ class LLMObs(Service):
                     eval_name_count = eval_names[eval_name]
                 evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, duration, eval_name_count)
                 eval_names[eval_name] = eval_name_count + 1
-    
+
                 continue
         if summary_evaluators and not all(
             callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
@@ -1621,7 +1621,7 @@ class LLMObs(Service):
                 duration = 0
                 eval_name_count = 1
                 if cls._instance._current_span() is not None:
-                    duration = cls._instance._current_span().duration_ns    
+                    duration = cls._instance._current_span().duration_ns
                 eval_name = evaluator.get_default_evaluation_name()
                 if eval_name in eval_names:
                     eval_name_count = eval_names[eval_name]
