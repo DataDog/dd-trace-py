@@ -1,3 +1,4 @@
+from functools import partial
 import importlib.metadata as importlib_metadata
 import os
 
@@ -39,6 +40,36 @@ def _parse_resource_path(path):
     project_id = parts[1] if len(parts) >= 2 else ""
     resource_id = parts[3] if len(parts) >= 4 else path
     return project_id, resource_id
+
+
+def _traced_subscribe_callback(callback, project_id, subscription_id, message):
+    propagated_context = None
+    if config.google_cloud_pubsub.distributed_tracing_enabled and message.attributes:
+        ctx = HTTPPropagator.extract(dict(message.attributes))
+        if ctx.trace_id is not None and ctx.span_id is not None:
+            propagated_context = ctx
+
+    with core.context_with_data(
+        "google_cloud_pubsub.receive",
+        span_name="gcp.pubsub.receive",
+        span_type=SpanTypes.WORKER,
+        service=None,
+        resource=subscription_id,
+        call_trace=False,
+        activate=True,
+        child_of=propagated_context if config.google_cloud_pubsub.reparent_enabled else None,
+        propagated_context=propagated_context,
+        project_id=project_id,
+        subscription_id=subscription_id,
+        message=message,
+    ) as ctx:
+        try:
+            callback(message)
+        except BaseException as e:
+            core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (type(e), e, e.__traceback__)))
+            raise
+        else:
+            core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (None, None, None)))
 
 
 def patch():
@@ -96,35 +127,6 @@ def _traced_subscribe(func, instance, args, kwargs):
     subscription = get_argument_value(args, kwargs, 0, "subscription")
     callback = get_argument_value(args, kwargs, 1, "callback")
     project_id, subscription_id = _parse_resource_path(subscription)
-
-    def _traced_callback(message):
-        propagated_context = None
-        if config.google_cloud_pubsub.distributed_tracing_enabled and message.attributes:
-            ctx = HTTPPropagator.extract(dict(message.attributes))
-            if ctx.trace_id:
-                propagated_context = ctx
-
-        with core.context_with_data(
-            "google_cloud_pubsub.receive",
-            span_name="gcp.pubsub.receive",
-            span_type=SpanTypes.WORKER,
-            service=None,
-            resource=subscription_id,
-            call_trace=False,
-            activate=True,
-            child_of=propagated_context if config.google_cloud_pubsub.reparent_enabled else None,
-            propagated_context=propagated_context,
-            project_id=project_id,
-            subscription_id=subscription_id,
-            message=message,
-        ) as ctx:
-            try:
-                callback(message)
-            except BaseException as e:
-                core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (type(e), e, e.__traceback__)))
-                raise
-            else:
-                core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (None, None, None)))
-
-    args, kwargs = set_argument_value(args, kwargs, 1, "callback", _traced_callback)
+    traced_callback = partial(_traced_subscribe_callback, callback, project_id, subscription_id)
+    args, kwargs = set_argument_value(args, kwargs, 1, "callback", traced_callback)
     return func(*args, **kwargs)
