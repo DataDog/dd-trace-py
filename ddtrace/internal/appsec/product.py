@@ -23,7 +23,7 @@ def start():
     if config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        load_appsec()
+        load_appsec(reconfigure_tracer=False)
 
     if ai_guard_config._ai_guard_enabled:
         from ddtrace.appsec._ai_guard import init_ai_guard
