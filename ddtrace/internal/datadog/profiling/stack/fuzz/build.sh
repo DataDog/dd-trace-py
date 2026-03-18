@@ -1,9 +1,9 @@
 #!/bin/bash
 set -eo pipefail
 
-FUZZ_TARGETS="fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks"
+FUZZ_TARGETS="fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks fuzz_echion_tasks fuzz_echion_long fuzz_echion_interp"
 BUILD_DIR=/tmp/fuzz/build
-MANIFEST_FILE="${BUILD_DIR}/fuzz_binaries.txt"
+MANIFEST_FILE="/fuzz_binaries.txt"
 
 # Get the directory where this script lives, then go up one level to the stack source
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,6 +75,9 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
       -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
   && cmake --build "${BUILD_DIR}" -j
+
+# Copy LSan suppression file next to the binaries so it can be referenced at runtime
+cp "${SCRIPT_DIR}/lsan.supp" "${BUILD_DIR}/fuzz/lsan.supp"
 
 # Register the built binaries in the manifest file for the CI infrastructure to discover
 for TARGET in $FUZZ_TARGETS; do

@@ -233,15 +233,14 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
-                span._set_tag_str(COMPONENT, config.integration_name)
-                span._set_tag_str(dbx.SYSTEM, "vertica")
+                span._set_attribute(COMPONENT, config.integration_name)
+                span._set_attribute(dbx.SYSTEM, "vertica")
 
                 # set span.kind to the type of operation being performed
-                span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+                span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
                 if conf.get("measured", False):
-                    # PERF: avoid setting via Span.set_tag
-                    span.set_metric(_SPAN_MEASURED_KEY, 1)
+                    span._set_attribute(_SPAN_MEASURED_KEY, 1)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:

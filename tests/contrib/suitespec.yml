@@ -49,10 +49,24 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/*
-    - ddtrace/ext/*
+    # Shared package infrastructure (not covered by any specific component)
+    - ddtrace/contrib/__init__.py
+    - ddtrace/contrib/trace_utils.py
+    - ddtrace/contrib/_events/*
+    - ddtrace/contrib/internal/__init__.py
+    - ddtrace/contrib/internal/trace_utils.py
+    - ddtrace/contrib/internal/trace_utils_async.py
+    - ddtrace/contrib/internal/trace_utils_base.py
+    # Shared ext files used broadly across many integrations
+    - ddtrace/ext/__init__.py
+    - ddtrace/ext/http.py
+    - ddtrace/ext/net.py
+    - ddtrace/ext/user.py
+    - ddtrace/ext/websocket.py
+    # Propagation and settings shared across all integrations
     - ddtrace/propagation/*
     - ddtrace/internal/settings/_database_monitoring.py
+    # Shared test utilities
     - tests/contrib/patch.py
     - tests/contrib/config.py
     - tests/contrib/__init__.py
@@ -63,6 +77,7 @@ components:
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
+    - ddtrace/ext/sql.py
   ddtrace_api:
     - ddtrace/contrib/internal/ddtrace_api/*
     - tests/snapshots/tests.contrib.ddtrace_api.*
@@ -88,6 +103,8 @@ components:
     - ddtrace/contrib/internal/futures/*
   gevent:
     - ddtrace/contrib/internal/gevent/*
+  google_cloud_pubsub:
+    - ddtrace/contrib/internal/google_cloud_pubsub/*
   graphql:
     - ddtrace/contrib/internal/graphql/*
   grpc:
@@ -468,7 +485,6 @@ suites:
       - '@tracing'
       - '@llmobs'
       - '@botocore'
-      - '@llmobs'
       - '@datastreams'
       - tests/contrib/botocore/*
       - tests/contrib/boto/*
@@ -570,7 +586,6 @@ suites:
       - '@wsgi'
       - '@django'
       - '@dbapi'
-      - '@asgi'
       - '@pg'
       - tests/appsec/*
       - tests/contrib/django/*
@@ -727,6 +742,23 @@ suites:
     runner: riot
     snapshot: false
     venvs_per_job: 2
+  google_cloud_pubsub:
+    env:
+      TEST_PUBSUB_HOST: pubsub
+      TEST_PUBSUB_PORT: '8085'
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_cloud_pubsub'
+      - tests/contrib/google_cloud_pubsub/*
+      - tests/snapshots/tests.contrib.google_cloud_pubsub.*
+    runner: riot
+    services:
+      - pubsub
+    snapshot: true
+    venvs_per_job: 3
   graphql:graphene:
     parallelism: 1
     paths:
@@ -734,6 +766,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@graphql'
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
     runner: riot

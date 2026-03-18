@@ -36,7 +36,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -46,45 +45,9 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.native._native import SpanEventData
+from ddtrace.internal.native._native import SpanEvent
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
-
-
-class SpanEvent(SpanEventData):
-    __slots__ = ["name", "attributes", "time_unix_nano"]
-
-    def __init__(
-        self,
-        name: str,
-        attributes: Optional[dict[str, _AttributeValueType]] = None,
-        time_unix_nano: Optional[int] = None,
-    ):
-        super().__init__(name, attributes, time_unix_nano)
-        self.name: str = name
-        if time_unix_nano is None:
-            time_unix_nano = Time.time_ns()
-        self.time_unix_nano: int = time_unix_nano
-        self.attributes: dict = attributes if attributes else {}
-
-    def __dict__(self):
-        d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
-        if self.attributes:
-            d["attributes"] = self.attributes
-        return d
-
-    def __repr__(self):
-        """
-        Stringify and return value.
-        Attribute value can be either str, bool, int, float, or a list of these.
-        """
-        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
-
-    def __iter__(self):
-        yield "name", self.name
-        yield "time_unix_nano", self.time_unix_nano
-        if self.attributes:
-            yield "attributes", self.attributes
 
 
 log = get_logger(__name__)
@@ -387,18 +350,6 @@ class Span(SpanData):
     def _get_numeric_attributes(self) -> Mapping[str, NumericType]:
         """Return all numeric attributes."""
         return self._metrics
-
-    def _set_tag_str(self, key: str, value: str) -> None:
-        """Set a value for a tag. Values are coerced to unicode in Python 2 and
-        str in Python 3, with decoding errors in conversion being replaced with
-        U+FFFD.
-        """
-        try:
-            self._meta[key] = ensure_text(value, errors="replace")
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""

@@ -17,7 +17,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -66,7 +65,6 @@ def enable_appsec_rc() -> None:
 
 
 def disable_appsec_rc() -> None:
-    # only used to avoid data leaks between tests
     for product_name in APPSEC_PRODUCTS:
         remoteconfig_poller.unregister_callback(product_name)
         remoteconfig_poller.disable_product(product_name)
@@ -176,27 +174,13 @@ def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str
 
 def disable_asm() -> None:
     if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._listeners import disable_appsec
 
-        AppSecSpanProcessor.disable()
-
-        asm_config._asm_enabled = False
-        if asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.disable()
-
-        tracer.configure(appsec_enabled=False)
+        disable_appsec(reconfigure_tracer=True)
 
 
 def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        asm_config._asm_enabled = True
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.enable()
-        load_appsec()
-        tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
+        load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC)

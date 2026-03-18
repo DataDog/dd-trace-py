@@ -1,9 +1,9 @@
-import atexit
 from time import monotonic_ns
 import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
+from ddtrace.internal._threads import _detach_stopped_threads
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.logger import get_logger
 
@@ -72,18 +72,6 @@ class PeriodicThread(_PeriodicThread):
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
 
 
-@atexit.register
-def _():
-    # If the interpreter is shutting down we need to make sure that the threads
-    # are stopped before the runtime is marked as finalising. This is because
-    # any attempt to acquire the GIL while the runtime is finalising will cause
-    # the acquiring thread to be terminated with pthread_exit (on Linux). This
-    # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
-    # getting to that stage.
-    for thread in list(periodic_threads.values()):
-        thread._atexit()
-
-
 # A typical scenario is that of forking worker threads in a loop. For the
 # parent process, this would mean having to stop and restart the threads in
 # between forks, which is not ideal. Instead, we can use a timer to restart
@@ -114,7 +102,7 @@ class ThreadRestartTimer(PeriodicThread):
                         # This has already been restarted by the after-fork hook.
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
-                    thread._after_fork()
+                    thread._after_fork(force=True)
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -156,10 +144,12 @@ def _after_fork_child():
     _forking = False
 
     # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here.
+    # call to fork here. _after_fork() (without force=True) respects
+    # __autorestart__: cleanup always runs, but the thread is only restarted
+    # when __autorestart__ is True. This is intentional in the child — threads
+    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
+    # forked workers.
     for thread in _threads_to_restart_after_fork.copy():
-        if isinstance(thread, PeriodicThread) and not thread.__autorestart__:
-            continue
         log.debug("Restarting thread %s after fork in child", thread.name)
         thread._after_fork()
     _threads_to_restart_after_fork.clear()
@@ -204,3 +194,11 @@ def _before_fork() -> None:
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
+
+    # Detach threads that stopped naturally before the fork. In the parent their
+    # OS thread handles are guaranteed valid (a joinable thread's descriptor is
+    # not recycled until it is explicitly joined or detached), so detaching is
+    # safe here. This leaves joinable() == False on all stopped handles so that
+    # the child inherits non-joinable handles and dealloc never needs to make an
+    # OS call on them.
+    _detach_stopped_threads()

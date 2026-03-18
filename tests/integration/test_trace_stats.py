@@ -122,11 +122,6 @@ def test_stats_report_hostname(get_hostname):
         assert p._hostname == ""
 
 
-@pytest.mark.subprocess(
-    env={
-        "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true",
-    }
-)
 def test_periodic_payload_includes_process_tags():
     from unittest import mock
 
@@ -217,7 +212,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(_SPAN_MEASURED_KEY)
+                span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 @pytest.mark.snapshot()

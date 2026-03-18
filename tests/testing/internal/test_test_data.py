@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.test_data module."""
 
 from typing import Any
+from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 
 
@@ -264,3 +266,40 @@ class TestTestItem:
 
         status = parent._get_status_from_children()
         assert status == TestStatus.PASS
+
+
+class TestITRTelemetry:
+    def _make_test(self):
+        session = TestSession("pytest")
+        module, _ = session.get_or_create_child("module")
+        suite, _ = module.get_or_create_child("suite")
+        test, _ = suite.get_or_create_child("test_name")
+        return session, test
+
+    def test_mark_skipped_by_itr_records_telemetry(self):
+        session, test = self._make_test()
+        telemetry_api = Mock()
+
+        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+            test.mark_skipped_by_itr()
+
+        assert session.tests_skipped_by_itr == 1
+        telemetry_api.record_itr_skipped.assert_called_once()
+
+    def test_mark_unskippable_records_telemetry(self):
+        _, test = self._make_test()
+        telemetry_api = Mock()
+
+        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+            test.mark_unskippable()
+
+        telemetry_api.record_itr_unskippable.assert_called_once()
+
+    def test_mark_forced_run_records_telemetry(self):
+        _, test = self._make_test()
+        telemetry_api = Mock()
+
+        with patch("ddtrace.testing.internal.telemetry.TelemetryAPI.get", return_value=telemetry_api):
+            test.mark_forced_run()
+
+        telemetry_api.record_itr_forced_run.assert_called_once()
