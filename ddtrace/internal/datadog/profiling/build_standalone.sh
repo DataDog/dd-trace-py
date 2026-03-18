@@ -279,6 +279,7 @@ add_compiler_args() {
       ;;
     -t|--thread)
       cmake_args+=(${compiler_args["thread"]})
+      export DD_TSAN=1
       set_clang
       ;;
     -n|--numerical)

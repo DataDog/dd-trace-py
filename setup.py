@@ -279,6 +279,9 @@ if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("crashtracker")
     rust_features.append("profiling")
 
+if os.getenv("DD_TSAN", "0").lower() in ("1", "yes", "on", "true"):
+    rust_features.append("tsan-annotations")
+
 
 class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
