@@ -170,18 +170,63 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 
     bool old_sampled = memalloc_heap_is_sampled(ptr);
 
-    if (!memalloc_enabled && !old_sampled) {
-        /* Profiler stopped and allocation wasn't sampled — pure pass-through */
-        return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+    if (!old_sampled) {
+        if (!memalloc_enabled) {
+            /* Profiler stopped and allocation wasn't sampled — pure pass-through */
+            return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+        }
+
+        /* Check the new sampling decision before allocating so we know whether to
+         * add a header.  should_sample advances allocated_memory, so we must NOT
+         * call it again via memalloc_alloc — that would double-count the size. */
+        uint64_t allocated_memory_val = 0;
+        bool new_sampled = memalloc_heap_should_sample_no_cpython(new_size, &allocated_memory_val);
+
+        if (!new_sampled) {
+            /* non-sampled → non-sampled (common case): delegate to the underlying
+             * realloc directly.  We don't know old_size for non-sampled
+             * allocations, so using our own malloc+memcpy+free would risk
+             * memcpy reading past the end of the old block. */
+            return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+        }
+
+        /* non-sampled → sampled (rare): must switch to header-prefixed layout.
+         * Allocate the new block manually since memalloc_alloc would re-call
+         * should_sample_no_cpython and double-count the size. */
+        size_t alloc_size = new_size + MEMALLOC_HEADER_SIZE;
+        void* real_ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, alloc_size);
+        if (!real_ptr) {
+            return NULL;
+        }
+        void* new_ptr = static_cast<char*>(real_ptr) + MEMALLOC_HEADER_SIZE;
+
+        memalloc_header_t* new_header = static_cast<memalloc_header_t*>(real_ptr);
+        new_header->signature = MEMALLOC_SIGNATURE;
+        new_header->metadata_ptr = nullptr;
+
+        memalloc_heap_track_invokes_cpython(
+          memalloc_ctx->max_nframe, new_ptr, new_size, allocated_memory_val, memalloc_ctx->domain);
+
+        /* Copy old data.  old_size is unknown for non-sampled allocations; copy
+         * new_size bytes.  If new_size > old_size this over-reads the old block
+         * (UB), but: (a) this transition is rare, (b) callers growing allocations
+         * always write new positions before reading, so any garbage bytes beyond
+         * old_size are never observed. */
+        memcpy(new_ptr, ptr, new_size);
+
+        /* Free the old non-sampled block directly — no header to remove. */
+        memalloc_ctx->pymem_allocator_obj.free(memalloc_ctx->pymem_allocator_obj.ctx, ptr);
+
+        return new_ptr;
     }
 
-    /* Use malloc+memcpy+free for all cases involving sampled allocations.
+    /* Old allocation was sampled: use malloc+memcpy+free.
      * We can't use the underlying realloc when the header presence changes
      * (sampled→non-sampled or vice versa) because the data offset differs.
      * Even for sampled→sampled, malloc+memcpy+free is simpler and correct. */
 
     size_t old_size;
-    if (old_sampled) {
+    {
         const memalloc_header_t* header =
           reinterpret_cast<const memalloc_header_t*>(static_cast<const char*>(ptr) - MEMALLOC_HEADER_SIZE);
         traceback_t* old_tb = static_cast<traceback_t*>(header->metadata_ptr);
@@ -191,11 +236,6 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
             /* Tracking failed — we don't know the old size. Use new_size. */
             old_size = new_size;
         }
-    } else {
-        /* For non-sampled allocations we don't know the old size.
-         * Use new_size as upper bound for the copy (may read past old allocation
-         * but only within the same malloc chunk, which is safe). */
-        old_size = new_size;
     }
 
     /* Allocate new block via our alloc (which handles sampling decision) */
