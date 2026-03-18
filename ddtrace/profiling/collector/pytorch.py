@@ -186,7 +186,11 @@ def _handle_torch_trace(prof: Any) -> None:
             elif device_type_str.startswith("DeviceType.CUDA"):
                 thread_name = f"PYTORCH-CUDA-{e.device_index}"
             else:
-                raise AttributeError(f"Unexpected device_type {device_type_str}")
+                # Events for other device types (MPS, XPU, etc.) with nonzero
+                # device_time can reach here even though they're uncommon.
+                # Log and continue rather than crashing on_trace_ready.
+                LOG.warning("Unrecognised pytorch device_type %r; profiling data will still be recorded", device_type_str)
+                thread_name = f"PYTORCH-{device_type_str}-{e.device_index}"
             thread_info_cache[cache_key] = (native_id, thread_name)
 
         native_id, thread_name = thread_info_cache[cache_key]
