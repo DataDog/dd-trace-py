@@ -1819,7 +1819,7 @@ class LLMObs(Service):
         # so this single write makes the trace ID available on the root span in every payload.
         # Only set if not already present to avoid sibling LLMObs roots overwriting each other's trace IDs.
         if "llmobs_trace_id" not in span._local_root._meta:
-            span._local_root._meta["llmobs_trace_id"] = str(llmobs_trace_id)
+            span._local_root._meta["llmobs_trace_id"] = format_trace_id(llmobs_trace_id)
         self._llmobs_context_provider.activate(span)
 
     def _start_span(

@@ -646,6 +646,59 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]
 
 
+def test_llmobs_trace_id_written_to_local_root_meta(llmobs, llmobs_events):
+    """Test that llmobs_trace_id is written to the local root span's _meta for the backend processor."""
+    with llmobs._instance.tracer.trace("fastapi.request") as root:
+        with llmobs.workflow("chat-workflow") as wf:
+            pass
+
+    # The local root (fastapi.request) should have llmobs_trace_id in _meta
+    assert "llmobs_trace_id" in root._meta
+    # It should match the workflow span's llmobs_trace_id
+    assert root._meta["llmobs_trace_id"] == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
+
+
+def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_events):
+    """Test that non-LLM child spans share the local root that has llmobs_trace_id."""
+    with llmobs._instance.tracer.trace("fastapi.request") as root:
+        with llmobs.workflow("chat-workflow") as wf:
+            # Simulate OTel-bridged span (non-LLM, child of root)
+            child = llmobs._instance.tracer.start_span("gen_ai.chat", child_of=root, activate=False)
+            child._meta["gen_ai.system"] = "aws.bedrock"
+            child.finish()
+
+    # Root should have llmobs_trace_id
+    assert "llmobs_trace_id" in root._meta
+    # The child span shares the same local root
+    assert child._local_root is root
+    # So the processor will find llmobs_trace_id on the root span in the same payload
+    assert root._meta["llmobs_trace_id"] == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
+
+
+def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_events):
+    """Test that sibling LLMObs workflows don't overwrite each other's trace ID on the local root."""
+    with llmobs._instance.tracer.trace("parent_non_llm") as root:
+        with llmobs.workflow("first_child") as first:
+            pass
+        with llmobs.workflow("second_child") as second:
+            pass
+
+    # The local root should have the first child's trace ID (first-wins)
+    assert "llmobs_trace_id" in root._meta
+    assert root._meta["llmobs_trace_id"] == format_trace_id(first._get_ctx_item(const.LLMOBS_TRACE_ID))
+    # The two workflows should have different trace IDs
+    assert first._get_ctx_item(const.LLMOBS_TRACE_ID) != second._get_ctx_item(const.LLMOBS_TRACE_ID)
+
+
+def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
+    """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
+    with llmobs._instance.tracer.trace("regular_span") as span:
+        with llmobs._instance.tracer.trace("child_span"):
+            pass
+
+    assert "llmobs_trace_id" not in span._meta
+
+
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
 def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_env):
     from tests.utils import DummyWriter
