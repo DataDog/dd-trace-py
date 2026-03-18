@@ -148,9 +148,6 @@ class Span(SpanData):
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
-        if service:
-            self.set_tag("_dd.svc_src", "m")
-
     def _update_tags_from_context(self) -> None:
         with self.context:
             for tag in self.context._meta:
@@ -774,12 +771,3 @@ class Span(SpanData):
         return (self._local_root is self) or (
             self._parent is not None and self._parent.service != self.service and self.service is not None
         )
-
-
-def set_service(span: Optional[Span] = None, service: Optional[str] = None) -> Optional[str]:
-    if service is None:
-        return None
-    service = config.service_mapping.get(service, service)
-    if span is not None:
-        span.service = service
-    return service

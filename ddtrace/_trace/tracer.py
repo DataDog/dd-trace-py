@@ -475,7 +475,8 @@ class Tracer(object):
             else:
                 service = config.service
 
-        service = set_service(service=service)
+        if service is not None:
+            service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
