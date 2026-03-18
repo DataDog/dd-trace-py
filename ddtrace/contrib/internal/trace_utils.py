@@ -390,11 +390,15 @@ def set_service_and_source(
     int_config: Union["IntegrationConfig", dict],
     default_service_key: str = "_default_service",
 ) -> None:
-    span.service = service
-    if service == int_config.get(default_service_key):
+    mapped_service = config.service_mapping.get(service, service)
+    if service != mapped_service:
+        span.set_tag("_dd.svc_src", "opt.service_mapping")
+        service = mapped_service
+    elif service == int_config.get(default_service_key):
         span.set_tag("_dd.svc_src", getattr(int_config, "integration_name", "true"))
     elif int_config.get("split_by_domain", False):
         span.set_tag("_dd.svc_src", "opt.split_by_domain")
+    span.service = service
 
 
 def set_http_meta(
