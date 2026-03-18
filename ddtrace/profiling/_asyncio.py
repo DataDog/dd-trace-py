@@ -20,9 +20,7 @@ from ddtrace.internal.wrapping import wrap
 ASYNCIO_IMPORTED: bool = False
 
 
-def current_task(
-    loop: typing.Optional["asyncio.AbstractEventLoop"] = None,
-) -> typing.Optional["asyncio.Task[typing.Any]"]:
+def current_task() -> typing.Optional["asyncio.Task[typing.Any]"]:
     return None
 
 
@@ -123,11 +121,11 @@ def _(asyncio: ModuleType) -> None:
                 children = get_argument_value(args, kwargs, 1, "children")
                 assert children is not None  # nosec: assert is used for typing
 
-                # Pass an invalid positional index for 'loop'
-                loop = get_argument_value(args, kwargs, -1, "loop")
-
-                # Link the parent gathering task to the gathered children
-                parent = globals()["current_task"](loop)
+                # current_task() takes no arguments on Python 3.12+ (loop param removed).
+                # Do not pass loop here: negative indices are valid in Python so the
+                # old get_argument_value(args, kwargs, -1, "loop") silently returned
+                # args[-1] (i.e. the children list), causing TypeError on 3.12+.
+                parent = globals()["current_task"]()
 
                 for child in children:
                     stack.link_tasks(parent, child)
@@ -142,10 +140,9 @@ def _(asyncio: ModuleType) -> None:
                 return f(*args, **kwargs)
             finally:
                 futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                loop = typing.cast("aio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
 
-                # Link the parent gathering task to the gathered children
-                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"](loop))
+                # current_task() takes no arguments on Python 3.12+ (loop param removed).
+                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
                 for future in futures:
                     stack.link_tasks(parent, future)
 
@@ -156,7 +153,8 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
-            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"](loop)
+            # current_task() takes no arguments on Python 3.12+ (loop param removed).
+            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
 
             if parent is not None:
                 fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
