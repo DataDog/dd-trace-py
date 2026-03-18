@@ -414,7 +414,9 @@ def test_appsec_abort_on_waf_failure():
             raise OSError(ERROR_MESSAGE)
         return original_cdll(path, *args, **kwargs)
 
-    with (mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),):
+    with (
+        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
+    ):
         with override_global_config(
             dict(
                 _asm_enabled=True,

@@ -489,12 +489,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 1,
-                "probe-instance-method-1": 1,
-                "probe-instance-method-2": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 1,
+                    "probe-instance-method-1": 1,
+                    "probe-instance-method-2": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[1])
@@ -504,12 +506,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 2,
-                "probe-instance-method-2": 2,
-                "probe-instance-method-1": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 2,
+                    "probe-instance-method-2": 2,
+                    "probe-instance-method-1": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[0], probes[2])
