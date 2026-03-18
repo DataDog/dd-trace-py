@@ -101,14 +101,6 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-      - ARCH_TAG: "amd64"
-        PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: *X86_64_IMAGES
-        DD_SERVERLESS_BUILD: "1"
-      - ARCH_TAG: "arm64"
-        PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: *AARCH64_IMAGES
-        DD_SERVERLESS_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -124,6 +116,19 @@ variables:
       find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
+
+"build linux serverless":
+  extends: "build linux"
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
 
 "build macos":
   extends: .build_base
