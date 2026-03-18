@@ -314,6 +314,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
                 service=trace_utils.int_service(None, self._config),
                 start_span=True,
                 tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+                integration_config=self._config,
             ) as ctx,
             ctx.span,
         ):
