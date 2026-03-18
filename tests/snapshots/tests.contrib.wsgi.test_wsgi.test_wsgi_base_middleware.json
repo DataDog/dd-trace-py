@@ -12,7 +12,7 @@
       "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "699da0a500000000",
-      "_dd.svc.src": "wsgi",
+      "_dd.svc_src": "wsgi",
       "component": "wsgi",
       "http.status_code": "200",
       "language": "python",
