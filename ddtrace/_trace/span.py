@@ -778,7 +778,7 @@ class Span(SpanData):
 
 def set_service(span: Optional[Span] = None, service: Optional[str] = None) -> str:
     if service is None:
-        return
+        return None
     service = config.service_mapping.get(service, service)
     if span is not None:
         span.service = service
