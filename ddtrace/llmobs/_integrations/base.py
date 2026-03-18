@@ -60,8 +60,8 @@ class BaseLLMIntegration:
             span_type=span_type,
             activate=True,
         )
-        service = int_service(None, self.integration_config)
-        set_service_and_source(span, "", self.integration_config)
+        service = int_service(None, self.integration_config) or ""
+        set_service_and_source(span, service, self.integration_config)
 
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
