@@ -153,3 +153,21 @@ class TestManualContextEventsApi(unittest.TestCase):
         ctx.dispatch_ended_event()
         ctx.dispatch_ended_event()
         assert len(ended) == 1
+
+    def test_manual_dispatch_before_context_exit_prevents_auto_double_dispatch(self):
+        """Manual dispatch inside an auto-dispatch context should only emit once."""
+        context_id = "context_id"
+        ended = []
+
+        def on_context_ended(ctx, exc_info):
+            ended.append((ctx, exc_info))
+
+        core.on("context.ended.%s" % context_id, on_context_ended)
+
+        with core.context_with_data(context_id) as ctx:
+            pass
+        ctx.dispatch_ended_event()
+
+        assert len(ended) == 1
+        ended_ctx, ended_exc_info = ended[0]
+        assert ended_ctx is ctx

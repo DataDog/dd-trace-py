@@ -192,9 +192,10 @@ class ExecutionContext(Generic[EventType]):
     ) -> bool:
         # For async flows, callers may need to exit the context without dispatching
         # context.ended yet (for example, to defer span finishing).
-        if self._dispatch_end_event:
+        if self._dispatch_end_event and not self._end_event_dispatched:
             # we use dispatch directly to remove a function indirection on the hot path
             dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            self._end_event_dispatched = True
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
