@@ -14,10 +14,10 @@ except ImportError:
 
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import INTEGRATION_TAG_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import get_llmobs_parent_id
-from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -92,9 +92,9 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    span_llmobs_tags = get_llmobs_tags(span) or {}
-    if span_llmobs_tags.get("integration"):
-        expected_tags.append("integration:{}".format(span_llmobs_tags["integration"]))
+    integration = span._get_ctx_item(INTEGRATION_TAG_KEY)
+    if integration:
+        expected_tags.append("integration:{}".format(integration))
     if is_decorator:
         expected_tags.append("decorator:1")
     if tags:

@@ -73,6 +73,7 @@ class BaseLLMIntegration:
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
             _annotate_llmobs_span_data(span, tags={INTEGRATION_TAG_KEY: self._integration_name})
+            span._set_ctx_item(INTEGRATION_TAG_KEY, self._integration_name)
         return span
 
     def llmobs_set_tags(
