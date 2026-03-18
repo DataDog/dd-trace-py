@@ -1,0 +1,19 @@
+interactions:
+- request:
+    body: '{"input": ["test query"], "model": "text-embedding-ada-002", "encoding_format":
+      "base64"}'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://api.openai.com/v1/embeddings
+  response:
+    body:
+      string: '{"object":"list","data":[{"object":"embedding","index":0,"embedding":"AAAAPwAAAD8AAAA/"}],"model":"text-embedding-ada-002","usage":{"prompt_tokens":2,"total_tokens":2}}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1

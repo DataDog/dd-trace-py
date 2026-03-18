@@ -2,7 +2,7 @@
   {
     "name": "llama_index.request",
     "service": "tests.contrib.llama_index",
-    "resource": "OpenAI.stream_complete",
+    "resource": "OpenAI.achat",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -23,6 +23,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 8181125,
-    "start": 1773856570302507136
+    "duration": 9930750,
+    "start": 1773856570360080844
   }]]

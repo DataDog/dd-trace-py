@@ -3043,6 +3043,7 @@ venv = Venv(
                 "vcrpy": latest,
                 "llama-index-core": ["~=0.11.0", latest],
                 "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
             },
         ),
         Venv(

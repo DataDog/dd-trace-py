@@ -3,23 +3,20 @@ import inspect
 import sys
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
-from ddtrace.contrib.internal.llama_index._utils import build_agent_run_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_agent_tool_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_chat_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_complete_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_embedding_batch_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_embedding_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_predict_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_query_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_retrieve_kwargs
-from ddtrace.contrib.internal.llama_index._utils import get_model_name
-from ddtrace.contrib.internal.llama_index._utils import is_async_generator
-from ddtrace.contrib.internal.llama_index._utils import is_generator
+from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_agent_run_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_chat_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_complete_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_predict_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_query_embedding_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_query_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_batch_request_kwargs
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -78,7 +75,7 @@ def _create_event(
     instance: Any,
     func: Callable[..., Any],
     request_kwargs: dict[str, Any],
-    model: str = "",
+    model: Optional[str] = None,
     is_chat: Optional[bool] = None,
     operation: str = "",
 ) -> LlmRequestEvent:
@@ -97,86 +94,147 @@ def _create_event(
     )
 
 
-def _traced(build_kw, interface_type, is_chat=None, operation="", may_stream=False, always_stream=False):
-    """Factory for traced sync wrappers."""
+# ---------------------------------------------------------------------------
+# Trace runners — one pair for model calls (LLM + embeddings: needs model,
+# is_chat, streaming) and one pair for non-model operations (needs operation).
+# ---------------------------------------------------------------------------
 
+
+def _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream=False):
+    """Trace a sync LLM/embedding call (chat, complete, predict, stream, embedding variants)."""
+    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat)
+    # AIDEV-NOTE: dispatch_end_event=False defers the ended event for streaming.
+    # Non-streaming calls dispatch_ended_event() immediately; streaming defers
+    # to the stream handler's finalize_stream().
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        if always_stream or isinstance(resp, Generator):
+            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx, is_chat=is_chat)
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
+
+
+async def _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream=False):
+    """Trace an async LLM/embedding call (achat, acomplete, apredict, astream, aembedding variants)."""
+    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        if always_stream or inspect.isasyncgen(resp):
+            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx, is_chat=is_chat)
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
+
+
+def _traced_operation(func, instance, args, kwargs, request_kwargs, operation):
+    """Trace a sync non-model operation (query, retrieve, agent)."""
+    event = _create_event(instance, func, request_kwargs, operation=operation)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
+
+
+async def _traced_operation_async(func, instance, args, kwargs, request_kwargs, operation):
+    """Trace an async non-model operation (aquery, aretrieve, agent)."""
+    event = _create_event(instance, func, request_kwargs, operation=operation)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
+
+
+# ---------------------------------------------------------------------------
+# Wrapper factories — generate sync/async wrappers for the trace runners.
+# ---------------------------------------------------------------------------
+
+
+def _llm_wrapper(build_kwargs_fn, is_chat, always_stream=False):
     def wrapper(func, instance, args, kwargs):
-        kw = build_kw(instance, args, kwargs)
-        model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
-        # AIDEV-NOTE: dispatch_end_event=False defers the ended event for streaming.
-        # Non-streaming calls dispatch_ended_event() immediately; streaming defers
-        # to the stream handler's finalize_stream().
-        with core.context_with_event(event, dispatch_end_event=False) as ctx:
-            try:
-                resp = func(*args, **kwargs)
-            except Exception:
-                ctx.dispatch_ended_event(*sys.exc_info())
-                raise
-            if always_stream or (may_stream and is_generator(resp)):
-                return handle_streamed_response(_integration, resp, args, kw, ctx, is_chat=is_chat)
-            event.response = resp
-            ctx.dispatch_ended_event()
-            return resp
+        request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
+        return _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream)
 
     return wrapper
 
 
-def _traced_async(build_kw, interface_type, is_chat=None, operation="", may_stream=False, always_stream=False):
-    """Factory for traced async wrappers."""
-
+def _llm_wrapper_async(build_kwargs_fn, is_chat, always_stream=False):
     async def wrapper(func, instance, args, kwargs):
-        kw = build_kw(instance, args, kwargs)
-        model = get_model_name(instance) if is_chat is not None else ""
-        event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
-        with core.context_with_event(event, dispatch_end_event=False) as ctx:
-            try:
-                resp = await func(*args, **kwargs)
-            except Exception:
-                ctx.dispatch_ended_event(*sys.exc_info())
-                raise
-            if always_stream or (may_stream and is_async_generator(resp)):
-                return handle_streamed_response(_integration, resp, args, kw, ctx, is_chat=is_chat)
-            event.response = resp
-            ctx.dispatch_ended_event()
-            return resp
+        request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
+        return await _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream)
 
     return wrapper
 
+
+def _operation_wrapper(build_kwargs_fn, operation):
+    def wrapper(func, instance, args, kwargs):
+        return _traced_operation(func, instance, args, kwargs, build_kwargs_fn(args, kwargs), operation)
+
+    return wrapper
+
+
+def _operation_wrapper_async(build_kwargs_fn, operation):
+    async def wrapper(func, instance, args, kwargs):
+        return await _traced_operation_async(func, instance, args, kwargs, build_kwargs_fn(args, kwargs), operation)
+
+    return wrapper
+
+
+# ---------------------------------------------------------------------------
+# Method-to-wrapper mappings
+# ---------------------------------------------------------------------------
 
 _LLM_WRAPPERS = {
-    "chat": _traced(build_chat_kwargs, "chat_model", is_chat=True, may_stream=True),
-    "complete": _traced(build_complete_kwargs, "completion", is_chat=False, may_stream=True),
-    "stream_chat": _traced(build_chat_kwargs, "chat_model", is_chat=True, always_stream=True),
-    "stream_complete": _traced(build_complete_kwargs, "completion", is_chat=False, always_stream=True),
-    "predict": _traced(build_predict_kwargs, "completion", is_chat=False),
-    "achat": _traced_async(build_chat_kwargs, "chat_model", is_chat=True, may_stream=True),
-    "acomplete": _traced_async(build_complete_kwargs, "completion", is_chat=False, may_stream=True),
-    "astream_chat": _traced_async(build_chat_kwargs, "chat_model", is_chat=True, always_stream=True),
-    "astream_complete": _traced_async(build_complete_kwargs, "completion", is_chat=False, always_stream=True),
-    "apredict": _traced_async(build_predict_kwargs, "completion", is_chat=False),
+    "chat": _llm_wrapper(build_chat_request_kwargs, is_chat=True),
+    "complete": _llm_wrapper(build_complete_request_kwargs, is_chat=False),
+    "stream_chat": _llm_wrapper(build_chat_request_kwargs, is_chat=True, always_stream=True),
+    "stream_complete": _llm_wrapper(build_complete_request_kwargs, is_chat=False, always_stream=True),
+    "predict": _llm_wrapper(build_predict_request_kwargs, is_chat=False),
+    "achat": _llm_wrapper_async(build_chat_request_kwargs, is_chat=True),
+    "acomplete": _llm_wrapper_async(build_complete_request_kwargs, is_chat=False),
+    "astream_chat": _llm_wrapper_async(build_chat_request_kwargs, is_chat=True, always_stream=True),
+    "astream_complete": _llm_wrapper_async(build_complete_request_kwargs, is_chat=False, always_stream=True),
+    "apredict": _llm_wrapper_async(build_predict_request_kwargs, is_chat=False),
 }
 
 _QUERY_ENGINE_WRAPPERS = {
-    "query": _traced(build_query_kwargs, "query", operation="query"),
-    "aquery": _traced_async(build_query_kwargs, "query", operation="query"),
+    "query": _operation_wrapper(build_query_request_kwargs, operation="query"),
+    "aquery": _operation_wrapper_async(build_query_request_kwargs, operation="query"),
 }
 
 _RETRIEVER_WRAPPERS = {
-    "retrieve": _traced(build_retrieve_kwargs, "retrieval", operation="retrieval"),
-    "aretrieve": _traced_async(build_retrieve_kwargs, "retrieval", operation="retrieval"),
+    "retrieve": _operation_wrapper(build_query_request_kwargs, operation="retrieval"),
+    "aretrieve": _operation_wrapper_async(build_query_request_kwargs, operation="retrieval"),
 }
 
 _EMBEDDING_WRAPPERS = {
-    "get_query_embedding": _traced(build_embedding_kwargs, "embedding", operation="embedding"),
-    "get_text_embedding_batch": _traced(build_embedding_batch_kwargs, "embedding", operation="embedding"),
-    "aget_query_embedding": _traced_async(build_embedding_kwargs, "embedding", operation="embedding"),
-    "aget_text_embedding_batch": _traced_async(build_embedding_batch_kwargs, "embedding", operation="embedding"),
+    "get_query_embedding": _llm_wrapper(build_query_embedding_request_kwargs, is_chat=None),
+    "get_text_embedding_batch": _llm_wrapper(build_text_embedding_batch_request_kwargs, is_chat=None),
+    "aget_query_embedding": _llm_wrapper_async(build_query_embedding_request_kwargs, is_chat=None),
+    "aget_text_embedding_batch": _llm_wrapper_async(build_text_embedding_batch_request_kwargs, is_chat=None),
 }
 
 _AGENT_WRAPPERS = {
-    "run": _traced(build_agent_run_kwargs, "agent", operation="agent"),
-    "call_tool": _traced_async(build_agent_tool_kwargs, "tool", operation="tool"),
+    "run": _operation_wrapper(build_agent_run_request_kwargs, operation="agent"),
+    "call_tool": _operation_wrapper_async(build_agent_call_tool_request_kwargs, operation="tool"),
 }
 
 
