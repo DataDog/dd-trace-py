@@ -23,6 +23,7 @@ from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -133,7 +134,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         thinking_text = _get_attr(block, "thinking", "")
                         input_messages.append(Message(content=str(thinking_text), role="reasoning"))
 
-                    elif _get_attr(block, "type", None) == "tool_use":
+                    elif "tool_use" in _get_attr(block, "type", None):
                         text = _get_attr(block, "text", None)
                         input_data = _get_attr(block, "input", "")
                         if isinstance(input_data, str):
@@ -148,7 +149,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                             text = ""
                         input_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
 
-                    elif _get_attr(block, "type", None) == "tool_result":
+                    elif "tool_result" in _get_attr(block, "type", None):
                         content = _get_attr(block, "content", None)
                         formatted_content = self._format_tool_result_content(content)
                         tool_result_info = ToolResult(
@@ -166,7 +167,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         if isinstance(content, str):
             return content
         elif isinstance(content, dict):
-            return str(content)
+            return safe_json(content)
         elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
