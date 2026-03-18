@@ -351,8 +351,8 @@ download_dependency_wheels:
     reports:
       dotenv: package_version.env
 
-# Aggregates all Windows wheel artifacts (GitLab limits needs to 50 entries;
-# "build windows" alone expands to 12 parallel jobs, so we collect here first).
+# Aggregates all Windows wheel artifacts
+# DEV: "ddtrace package" has a limit of 50 jobs it can depend on
 "collect windows wheels":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
