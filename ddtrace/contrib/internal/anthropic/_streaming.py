@@ -147,7 +147,12 @@ def _on_content_block_start_chunk(chunk, message):
 
 
 def _on_content_block_delta_chunk(chunk, message):
-    # delta events contain new content for the current message.content block
+    """Append new content from delta events to current message.content block
+    Note: Anthropic beta streaming can emit content_block_delta without a corresponding
+    content_block_start. Guard to avoid IndexError which breaks span construction.
+    """
+    if not message.get("content"):
+        return message
     delta_block = _get_attr(chunk, "delta", "")
     if delta_block:
         chunk_content_text = _get_attr(delta_block, "text", "")
@@ -156,16 +161,18 @@ def _on_content_block_delta_chunk(chunk, message):
 
         chunk_content_json = _get_attr(delta_block, "partial_json", "")
         if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
+            if "input" not in message["content"][-1]:
+                message["content"][-1]["input"] = ""
             # we have a json content block, most likely a tool input dict
             message["content"][-1]["input"] += chunk_content_json
     return message
 
 
 def _on_content_block_stop_chunk(chunk, message):
-    # this is the start to a message.content block (possibly 1 of several content blocks)
-    # Anthropic beta streaming can emit content_block_stop without a corresponding
-    # content_block_start (e.g. empty tool blocks / vendor edge cases). Guard to
-    # avoid IndexError which breaks span construction.
+    """Finalize the current content block, parsing tool_use input JSON into a dict.
+    Anthropic beta streaming can emit content_block_stop without a corresponding
+    content_block_start. Guard to avoid IndexError which breaks span construction.
+    """
     if not message.get("content"):
         return message
 
