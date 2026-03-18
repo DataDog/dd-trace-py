@@ -62,7 +62,7 @@ class BaseAnthropicStreamHandler:
         ctx = self.options["ctx"]
         try:
             resp_message = _construct_message(self.chunks)
-            ctx.set_item("response", resp_message)
+            ctx.event.response = resp_message
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
         exc_info = (type(exception), exception, exception.__traceback__) if exception else (None, None, None)

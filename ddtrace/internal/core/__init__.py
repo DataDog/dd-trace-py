@@ -134,13 +134,24 @@ ROOT_CONTEXT_ID = "__root"
 
 
 class ExecutionContext(Generic[EventType]):
-    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+    __slots__ = (
+        "identifier",
+        "_data",
+        "_event",
+        "_suppress_exceptions",
+        "_parent",
+        "_inner_span",
+        "_token",
+        "_dispatch_end_event",
+        "_end_event_dispatched",
+    )
 
     def __init__(
         self,
         identifier: str,
         parent: Optional["ExecutionContext"] = None,
         event: Optional["EventType"] = None,
+        dispatch_end_event: bool = True,
         **kwargs,
     ) -> None:
         self.identifier: str = identifier
@@ -151,6 +162,8 @@ class ExecutionContext(Generic[EventType]):
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
+        self._dispatch_end_event: bool = dispatch_end_event
+        self._end_event_dispatched: bool = False
 
     def __enter__(self) -> "ExecutionContext":
         if "_CURRENT_CONTEXT" in globals():
@@ -177,7 +190,12 @@ class ExecutionContext(Generic[EventType]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        # For async flows, callers may need to exit the context without dispatching
+        # context.ended yet (for example, to defer span finishing).
+        if self._dispatch_end_event and not self._end_event_dispatched:
+            # we use dispatch directly to remove a function indirection on the hot path
+            dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            self._end_event_dispatched = True
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -200,6 +218,17 @@ class ExecutionContext(Generic[EventType]):
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]] = (None, None, None),
     ) -> bool:
         return self.__exit__(*exc_info)
+
+    def dispatch_ended_event(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[types.TracebackType] = None,
+    ) -> None:
+        if self._end_event_dispatched:
+            return
+        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        self._end_event_dispatched = True
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""
@@ -286,7 +315,7 @@ class ExecutionContext(Generic[EventType]):
     @property
     def event(self) -> EventType:
         if self._event is None:
-            raise ValueError("No event provided in context")
+            raise AttributeError("ExecutionContext has no event. Use context_with_event(...)")
         return self._event
 
 
@@ -319,9 +348,15 @@ def context_with_event(
     parent=None,
     context_name_override: Optional[str] = None,
     enter: bool = False,
+    dispatch_end_event: bool = True,
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
-    context = _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
+    context = _CONTEXT_CLASS(
+        identifier,
+        parent=(parent or _CURRENT_CONTEXT.get()),
+        event=event,
+        dispatch_end_event=dispatch_end_event,
+    )
     if enter:
         context.__enter__()
     return context
