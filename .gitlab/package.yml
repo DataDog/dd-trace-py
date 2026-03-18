@@ -105,6 +105,10 @@ variables:
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *X86_64_IMAGES
         DD_SERVERLESS_BUILD: "1"
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
