@@ -143,17 +143,26 @@ def _on_content_block_start_chunk(chunk, message):
         elif chunk_content_block_type == "thinking":
             chunk_content_block_thinking = _get_attr(chunk_content_block, "thinking", "")
             message["content"].append({"type": "thinking", "thinking": chunk_content_block_thinking})
-        elif chunk_content_block_type == "tool_use":
+        elif "tool_use" in chunk_content_block_type:
             chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
-            message["content"].append({"type": "tool_use", "name": chunk_content_block_name, "input": ""})
+            message["content"].append({"type": chunk_content_block_type, "name": chunk_content_block_name, "input": ""})
+        elif "tool_result" in chunk_content_block_type:
+            chunk_content_block_tool_id = _get_attr(chunk_content_block, "tool_use_id", "")
+            chunk_content_block_tool_result = _get_attr(chunk_content_block, "content", {})
+            message["content"].append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": chunk_content_block_tool_id,
+                    "content": chunk_content_block_tool_result,
+                }
+            )
+        else:  # Handle other generic block types
+            message["content"].append({"type": chunk_content_block_type, "text": "", "input": ""})
     return message
 
 
 def _on_content_block_delta_chunk(chunk, message):
-    """Append new content from delta events to current message.content block
-    Note: Anthropic beta streaming can emit content_block_delta without a corresponding
-    content_block_start. Guard to avoid IndexError which breaks span construction.
-    """
+    """Append new content from delta events to current message.content block."""
     if not message.get("content"):
         return message
     delta_block = _get_attr(chunk, "delta", "")
@@ -170,8 +179,6 @@ def _on_content_block_delta_chunk(chunk, message):
         elif delta_type == "input_json_delta":
             chunk_content_json = _get_attr(delta_block, "partial_json", "")
             if chunk_content_json:
-                if "input" not in message["content"][-1]:
-                    message["content"][-1]["input"] = ""
                 message["content"][-1]["input"] += chunk_content_json
         else:
             chunk_content_text = _get_attr(delta_block, "text", "")
@@ -181,15 +188,12 @@ def _on_content_block_delta_chunk(chunk, message):
 
 
 def _on_content_block_stop_chunk(chunk, message):
-    """Finalize the current content block, parsing tool_use input JSON into a dict.
-    Anthropic beta streaming can emit content_block_stop without a corresponding
-    content_block_start. Guard to avoid IndexError which breaks span construction.
-    """
+    """Finalize the current content block, parsing tool_use input JSON into a dict."""
     if not message.get("content"):
         return message
 
     content_type = _get_attr(message["content"][-1], "type", "")
-    if content_type == "tool_use":
+    if "tool_use" in content_type:
         input_json = _get_attr(message["content"][-1], "input", "{}")
         message["content"][-1]["input"] = json.loads(input_json)
     return message
@@ -207,8 +211,11 @@ def _on_message_delta_chunk(chunk, message):
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
         message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
 
+        input_tokens = _get_attr(chunk_usage, "input_tokens", None)
         cache_creation_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
         cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+        if input_tokens is not None:
+            message_usage["input_tokens"] = input_tokens
         if cache_creation_tokens is not None:
             message_usage["cache_creation_input_tokens"] = cache_creation_tokens
         if cache_read_tokens is not None:

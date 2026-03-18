@@ -70,24 +70,34 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_beta_tools_stream_input_json_delta_without_content_block_start(
+    def test_beta_server_tool_use_stream(
         self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
     ):
-        """Regression test: beta API features (e.g. tool_search_tool_regex) can emit input_json_delta
-        chunks without a preceding content_block_start of type tool_use. This previously caused a
-        KeyError on the 'input' key, preventing the LLMObs span from being submitted.
-        """
+        """Regression test for streamed server-side tool usage/results being captured"""
         llm = anthropic.Anthropic()
-        with request_vcr.use_cassette("anthropic_completion_tools_stream_no_content_block_start.yaml"):
+        with request_vcr.use_cassette("anthropic_completion_beta_tools_stream.yaml"):
             stream = llm.beta.messages.create(
-                model="claude-3-opus-20240229",
+                model="claude-sonnet-4-6",
                 max_tokens=200,
                 messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=[
-                    *tools,
                     {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
                 ],
-                betas=["tool-search-tool-regex-20251119"],
+                betas=[
+                    "context-management-2025-06-27",
+                    "context-1m-2025-08-07",
+                    "advanced-tool-use-2025-11-20",
+                    "interleaved-thinking-2025-05-14",
+                ],
                 stream=True,
             )
             consume_stream(stream)
@@ -97,18 +107,178 @@ class TestLLMObsAnthropic:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
-                model_name="claude-3-opus-20240229",
+                model_name="claude-sonnet-4-6",
                 model_provider="anthropic",
                 input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
-                    {"content": "Let me check the weather.", "role": "assistant"},
+                    {
+                        "content": "Let me search for a weather tool to help answer your question!",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "tool_search_tool_regex",
+                                "arguments": {"pattern": "weather"},
+                                "tool_id": "",
+                                "type": "server_tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_results": [
+                            {
+                                "result": "{'tool_references': [{'tool_name': 'get_weather',"
+                                " 'type': 'tool_reference'}],"
+                                " 'type': 'tool_search_tool_search_result'}",
+                                "tool_id": "srvtoolu_01TbRQZ9sz7wNun27iQQ8zKf",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                    {"content": "Found it! Let me get the weather for San Francisco, CA now.", "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
                 ],
                 metadata={"max_tokens": 200},
-                token_metrics={"input_tokens": 599, "output_tokens": 50, "total_tokens": 649},
+                token_metrics={
+                    "input_tokens": 1595,
+                    "output_tokens": 143,
+                    "total_tokens": 1738,
+                    "cache_write_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=[
-                    *EXPECTED_TOOL_DEFINITIONS,
                     {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+                    },
+                ],
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    def test_beta_server_tool_use_non_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_server_tool_use.yaml"):
+            llm.beta.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=[
+                    {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
+                ],
+                betas=[
+                    "context-management-2025-06-27",
+                    "context-1m-2025-08-07",
+                    "advanced-tool-use-2025-11-20",
+                    "interleaved-thinking-2025-05-14",
+                ],
+            )
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-6",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "Let me search for a weather tool to help answer your question!",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "tool_search_tool_regex",
+                                "arguments": {"pattern": "weather"},
+                                "tool_id": "srvtoolu_01YBjcsxNhiKh8MPSRLFpXSk",
+                                "type": "server_tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_results": [
+                            {
+                                "result": "{'tool_references': [{'tool_name': 'get_weather',"
+                                " 'type': 'tool_reference'}],"
+                                " 'type': 'tool_search_tool_search_result'}",
+                                "tool_id": "srvtoolu_01YBjcsxNhiKh8MPSRLFpXSk",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "I found a weather tool! Let me fetch the current weather for San Francisco, CA.",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_013vNgEGWuTc17pHztigU6j2",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                ],
+                metadata={"max_tokens": 200},
+                token_metrics={
+                    "input_tokens": 1595,
+                    "output_tokens": 146,
+                    "total_tokens": 1741,
+                    "cache_write_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=[
+                    {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+                    },
                 ],
             )
         )

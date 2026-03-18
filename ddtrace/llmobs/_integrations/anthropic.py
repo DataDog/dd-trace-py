@@ -165,6 +165,8 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _format_tool_result_content(self, content) -> str:
         if isinstance(content, str):
             return content
+        elif isinstance(content, dict):
+            return str(content)
         elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
@@ -192,9 +194,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_messages.append(Message(content=str(thinking_text), role="reasoning"))
                     continue
                 text = _get_attr(completion, "text", None)
-                if isinstance(text, str):
-                    output_messages.append(Message(content=text, role=str(role)))
-                elif _get_attr(completion, "type", None) == "tool_use":
+                output_message = Message(content=str(text) if text else "", role=str(role))
+                if "tool_use" in _get_attr(completion, "type", None):
                     input_data = _get_attr(completion, "input", "")
                     if isinstance(input_data, str):
                         input_data = json.loads(input_data)
@@ -204,9 +205,19 @@ class AnthropicIntegration(BaseLLMIntegration):
                         tool_id=str(_get_attr(completion, "id", "")),
                         type=str(_get_attr(completion, "type", "")),
                     )
-                    if text is None:
-                        text = ""
-                    output_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
+                    output_message["tool_calls"] = [tool_call_info]
+                if "tool_result" in _get_attr(completion, "type", None):
+                    result = _get_attr(completion, "content", {})
+                    if hasattr(result, "to_dict"):
+                        result = result.to_dict()
+                    formatted_result = self._format_tool_result_content(result)
+                    tool_result_info = ToolResult(
+                        result=formatted_result,
+                        tool_id=str(_get_attr(completion, "tool_use_id", "")),
+                        type="tool_result",
+                    )
+                    output_message["tool_results"] = [tool_result_info]
+                output_messages.append(output_message)
         return output_messages
 
     def _extract_usage(self, span: Span, usage: dict[str, Any]):
