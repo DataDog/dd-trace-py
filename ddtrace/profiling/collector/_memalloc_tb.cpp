@@ -1,3 +1,4 @@
+#include <array>
 #include <string_view>
 
 #include "_memalloc_frame.h"
@@ -23,6 +24,38 @@ unicode_to_sv_no_alloc(PyObject* obj)
         return std::string_view((const char*)PyUnicode_DATA(obj), (size_t)PyUnicode_GET_LENGTH(obj));
     }
     return "<non-ascii>";
+}
+
+template<size_t N>
+static inline std::string_view
+remote_unicode_to_sv_no_alloc(PyObject* unicode_addr, std::array<char, N>& buffer)
+{
+    if (unicode_addr == NULL) {
+        return "<unknown>";
+    }
+
+    PyASCIIObject remote_ascii{};
+    if (memalloc_copy_type(unicode_addr, remote_ascii)) {
+        return "<unreadable>";
+    }
+
+    if (!remote_ascii.state.compact || !remote_ascii.state.ascii) {
+        return "<non-ascii>";
+    }
+
+    Py_ssize_t len = remote_ascii.length;
+    if (len < 0 || static_cast<size_t>(len) >= N) {
+        return "<too-long>";
+    }
+
+    if (len > 0) {
+        const void* data_addr = reinterpret_cast<const char*>(unicode_addr) + sizeof(PyASCIIObject);
+        if (copy_memory(pid, data_addr, len, buffer.data())) {
+            return "<unreadable>";
+        }
+    }
+
+    return std::string_view(buffer.data(), static_cast<size_t>(len));
 }
 
 /* Helper function to get thread info using C-level APIs and push to sample.
@@ -185,10 +218,22 @@ push_stacktrace_to_sample_remote_copy(Datadog::Sample& sample, uint16_t max_nfra
         if (code_addr != NULL) {
             PyCodeObject code{};
             int lineno = 0;
+            std::array<char, 256> name_buf{};
+            std::array<char, 512> filename_buf{};
+            std::string_view name_sv = "<remote-python-frame>";
+            std::string_view filename_sv = "<remote>";
             if (!memalloc_copy_type(code_addr, code)) {
                 lineno = code.co_firstlineno;
+                PyObject* code_name_addr = NULL;
+#ifdef _PY311_AND_LATER
+                code_name_addr = code.co_qualname ? code.co_qualname : code.co_name;
+#else
+                code_name_addr = code.co_name;
+#endif
+                name_sv = remote_unicode_to_sv_no_alloc(code_name_addr, name_buf);
+                filename_sv = remote_unicode_to_sv_no_alloc(code.co_filename, filename_buf);
             }
-            sample.push_frame("<remote-python-frame>", "<remote>", 0, lineno);
+            sample.push_frame(name_sv, filename_sv, 0, lineno);
             ++pushed_frames;
         }
 
