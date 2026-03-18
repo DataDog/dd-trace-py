@@ -164,8 +164,15 @@ def _(asyncio: ModuleType) -> None:
                 for future in futures:
                     stack.link_tasks(parent, future)
 
-                # Replace fs with the ensured futures to avoid double-wrapping
-                args = (futures,) + args[1:]
+                # Replace fs with the ensured futures to avoid double-wrapping.
+                # Handle both positional (args[0]) and keyword ('fs') call patterns:
+                # if fs was positional we update args; if it was a keyword we must
+                # update kwargs instead, otherwise f() receives fs twice and raises
+                # TypeError: got multiple values for argument 'fs'.
+                if args:
+                    args = (futures,) + args[1:]
+                else:
+                    kwargs = {**kwargs, "fs": futures}
 
             return f(*args, **kwargs)
 
@@ -184,7 +191,13 @@ def _(asyncio: ModuleType) -> None:
             if parent is not None:
                 stack.link_tasks(parent, future)
 
-            args = (future,) + args[1:]
+            # Same positional-vs-keyword handling as the as_completed wrapper above:
+            # if 'arg' was passed positionally update args, otherwise update kwargs to
+            # avoid TypeError: got multiple values for argument 'arg'.
+            if args:
+                args = (future,) + args[1:]
+            else:
+                kwargs = {**kwargs, "arg": future}
 
             return f(*args, **kwargs)
 
