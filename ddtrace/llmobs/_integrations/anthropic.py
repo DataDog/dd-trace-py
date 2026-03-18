@@ -23,8 +23,8 @@ from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
