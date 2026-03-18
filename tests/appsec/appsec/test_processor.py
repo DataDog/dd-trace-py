@@ -161,6 +161,7 @@ def test_headers_collection(tracer):
         "service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -192,6 +193,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -322,6 +324,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -344,6 +347,7 @@ def test_appsec_span_tags_snapshot(tracer):
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
@@ -410,9 +414,7 @@ def test_appsec_abort_on_waf_failure():
             raise OSError(ERROR_MESSAGE)
         return original_cdll(path, *args, **kwargs)
 
-    with (
-        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-    ):
+    with (mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),):
         with override_global_config(
             dict(
                 _asm_enabled=True,

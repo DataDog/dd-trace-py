@@ -12,6 +12,7 @@
       "_dd.base_service": "pytest",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
+      "_dd.svc_src": "m",
       "component": "cherrypy",
       "http.method": "GET",
       "http.request.headers.host": "127.0.0.1:54583",
