@@ -21,6 +21,7 @@ def _abort_appsec(failure_msg: str) -> None:
 
     asm_config._asm_enabled = False
     asm_config._asm_can_be_enabled = False
+    asm_config._asm_libddwaf_available = False
     asm_config._asm_rc_enabled = False
     asm_config._load_modules = False
 
@@ -32,13 +33,11 @@ def _abort_appsec(failure_msg: str) -> None:
 
 
 def disable_appsec(reconfigure_tracer: bool = False) -> None:
-    from ddtrace.appsec import _ddwaf
-
-    if not asm_config._asm_libddwaf_available:
-        _abort_appsec(_ddwaf.failure_msg)
+    try:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+    except Exception as e:
+        _abort_appsec(str(e))
         return
-
-    from ddtrace.appsec._processor import AppSecSpanProcessor
 
     AppSecSpanProcessor.disable()
 
@@ -57,10 +56,10 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
 
 def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     """Lazily load the appsec module listeners."""
-    from ddtrace.appsec import _ddwaf
-
-    if not asm_config._asm_libddwaf_available:
-        _abort_appsec(_ddwaf.failure_msg)
+    try:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+    except Exception as e:
+        _abort_appsec(str(e))
         return False
 
     from ddtrace.appsec._asm_request_context import asm_listen
