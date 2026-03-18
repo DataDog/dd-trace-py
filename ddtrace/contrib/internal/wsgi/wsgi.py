@@ -9,7 +9,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.pin import Pin  # noqa:F401
     from ddtrace.internal.settings._config import Config  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
@@ -63,7 +62,6 @@ class _DDWSGIMiddlewareBase(object):
     :param application: The WSGI application to apply the middleware to.
     :param tracer: [Deprecated] Global tracer will be used instead.
     :param int_config: Integration specific configuration object.
-    :param pin: Set tracing metadata on a particular traced connection
     :param app_is_iterator: Boolean indicating whether the wrapped app is a Python iterator
     """
 
@@ -72,7 +70,6 @@ class _DDWSGIMiddlewareBase(object):
         application: Iterable,
         tracer: Optional["Tracer"],
         int_config: "Config",
-        pin: "Pin",
         app_is_iterator: bool = False,
     ) -> None:
         if tracer is not None:
@@ -84,7 +81,6 @@ class _DDWSGIMiddlewareBase(object):
             )
         self.app = application
         self._config = int_config
-        self._pin = pin
         self.app_is_iterator = app_is_iterator
 
     @property
@@ -111,7 +107,7 @@ class _DDWSGIMiddlewareBase(object):
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
-            service=trace_utils.int_service(self._pin, self._config),
+            service=trace_utils.int_service(None, self._config),
             span_type=SpanTypes.WEB,
             span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
             middleware_config=self._config,
@@ -297,7 +293,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         span_modifier: Callable[["Span", dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
-        super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, None, app_is_iterator=app_is_iterator)
+        super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

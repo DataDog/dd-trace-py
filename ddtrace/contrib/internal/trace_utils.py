@@ -313,6 +313,11 @@ def with_traced_module(func):
     return with_mod
 
 
+def is_tracing_enabled() -> bool:
+    tracer = core.tracer
+    return tracer is not None and (tracer.enabled or asm_config._apm_opt_out)
+
+
 def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
