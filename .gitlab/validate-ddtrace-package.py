@@ -47,8 +47,6 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform, ""))
-        for platform in SERVERLESS_PLATFORMS:
-            expected.add((version, py_tag, platform, "-serverless"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
             expected.add((version, py_tag, "win_arm64", ""))
