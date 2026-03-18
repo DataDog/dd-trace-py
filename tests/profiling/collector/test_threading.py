@@ -13,7 +13,7 @@ from typing import Union
 from typing import cast
 import uuid
 
-import mock
+import mock  # type: ignore[import-untyped]
 import pytest
 
 from ddtrace import ext
@@ -29,6 +29,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -591,17 +592,19 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        lock._update_name = mock.Mock(  # type: ignore[attr-defined]
+            side_effect=AssertionError("Unexpected frame in stack: 'fubar'")
+        )
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise RuntimeError
-        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise Exception
-        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
@@ -626,7 +629,7 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
         bsem.release()
 
         # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
+        wrapped_bsem = bsem.__wrapped__  # type: ignore[attr-defined]
         assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
@@ -692,6 +695,16 @@ class LockCollectorTestBase:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
 
 class TestGenericLockProfiling(LockCollectorTestBase):
@@ -813,8 +826,8 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
             found_callsite_sample = False
             for sample_idx, sample in enumerate(samples):
-                # Stack export allows one extra frame plus an omitted-frames marker.
-                assert len(sample.location_id) <= config.max_frames + 2, (
+                # Stack export allows one extra frame for the omitted-frames marker.
+                assert len(sample.location_id) <= config.max_frames + 1, (
                     f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
                 )
 
@@ -1324,11 +1337,11 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             foo_func = foo
             test_bar_class = TestBar
 
-            _test_global_bar_instance = TestBar(self.lock_class)
+            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
             # Use the locks
             foo()
-            _test_global_bar_instance.bar()
+            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1473,7 +1486,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         with self.collector_class(capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             with pytest.raises(AttributeError):
-                _ = lock.this_attribute_does_not_exist  # type: ignore[attr-defined]
+                _ = lock.this_attribute_does_not_exist  # type: ignore[union-attr]
 
     def test_lock_slots_enforced(self) -> None:
         """Test that __slots__ is defined on _ProfiledLock for memory efficiency."""
@@ -1548,6 +1561,39 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
         )
 
+    def test_failed_acquire_produces_no_sample(self) -> None:
+        """Test that a failed non-blocking acquire produces no acquire/release samples.
+
+        When acquire(blocking=False) returns False (lock unavailable), acquired_time
+        must NOT be set. Setting it would produce a spurious acquire sample and corrupt
+        the hold-time of the thread that actually holds the lock.
+        """
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            profiled = cast(_ProfiledLock, lock)
+            acquired_time_after_success = profiled.acquired_time
+            assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
+
+            result = lock.acquire(blocking=False)
+            assert result is False, "Non-blocking acquire on held lock must return False"
+            assert profiled.acquired_time == acquired_time_after_success, (
+                "acquired_time must not change after a failed acquire"
+            )
+
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        assert len(acquire_samples) == 1, (
+            f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
+        )
+        assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.
@@ -1563,6 +1609,15 @@ class TestThreadingLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Lock]:
         return threading.Lock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_lock(self) -> None:
+        """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when Lock is a factory function (Python < 3.14)
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates Lock-specific attributes."""
@@ -1597,6 +1652,15 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.RLock]:
         return threading.RLock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_rlock(self) -> None:
+        """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when RLock is a factory function
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates RLock-specific attributes."""
@@ -1642,7 +1706,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
+            class CustomLock(self.lock_class):  # type: ignore[name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -1748,13 +1812,17 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
 
             # Create a semaphore-like lock - it should NOT be internal
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
             # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
+            assert not sem.is_internal, (  # type: ignore[union-attr]
+                f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
+            )
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+            internal_lock: LockTypeInst = (
+                sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
+            )
             assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
             assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
                 "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
@@ -1769,7 +1837,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
         with self.collector_class(capture_pct=0):
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
 
             # Test that blocking acquire succeeds
             result1 = sem.acquire(blocking=True)

@@ -86,7 +86,7 @@ def expected_agent_span_args(role):
     return {
         "input_value": mock.ANY,
         "output_value": mock.ANY,
-        "metadata": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[role]},
+        "metadata": {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[role]}},
         "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
         "span_links": True,
     }

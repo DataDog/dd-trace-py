@@ -8,6 +8,7 @@ import typing as t
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
@@ -19,7 +20,6 @@ from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -106,6 +106,11 @@ class SessionManager:
         self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
         self.session = session
         self.session.set_service(self.service)
+        self.session.set_itr_attributes(
+            itr_enabled=self.settings.itr_enabled,
+            skipping_enabled=self.settings.skipping_enabled,
+            skipping_level=self.itr_skipping_level,
+        )
 
         self.writer.add_metadata("*", self.env_tags)
         self.writer.add_metadata("*", self.platform_tags)

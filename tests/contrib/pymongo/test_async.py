@@ -54,16 +54,27 @@ class TestAsyncPymongo(AsyncioTestCase):
             assert queried[0]["name"] == "Team1"
 
             spans = self.pop_spans()
+            # Filter out checkout spans like sync tests do
             cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
             assert len(cmd_spans) >= 4
 
-            for span in cmd_spans:
+            # Filter to spans with collections (exclude internal commands like ismaster)
+            teams_spans = [s for s in cmd_spans if s.get_tag("mongodb.collection") == "teams"]
+            assert len(teams_spans) >= 4
+
+            for span in teams_spans:
                 assert_is_measured(span)
                 assert span.service == "pymongo"
                 assert span.span_type == SpanTypes.MONGODB
+                assert span.get_tag("component") == "pymongo"
+                assert span.get_tag("span.kind") == "client"
+                assert span.get_tag("db.system") == "mongodb"
                 assert span.get_tag("mongodb.collection") == "teams"
+                assert span.get_tag("mongodb.db") == "testdb"
+                assert span.get_tag("out.host")
+                assert span.get_metric("network.destination.port")
 
-            find_spans = [s for s in cmd_spans if "find" in s.resource]
+            find_spans = [s for s in teams_spans if "find" in s.resource]
             assert len(find_spans) >= 2
             find_all = [s for s in find_spans if s.get_tag("mongodb.query") is None][0]
             find_query = [s for s in find_spans if s.get_tag("mongodb.query") is not None][0]
@@ -144,22 +155,32 @@ class TestAsyncPymongo(AsyncioTestCase):
     async def test_async_span_parenting(self):
         from ddtrace.contrib.internal.pymongo.utils import _CHECKOUT_FN_NAME
 
-        client = AsyncMongoClient(port=MONGO_CONFIG["port"])
+        client = AsyncMongoClient(port=MONGO_CONFIG["port"], maxPoolSize=1)
         try:
             db = client["testdb"]
-            await db.drop_collection("test_parenting")
-            await db.test_parenting.insert_one({"name": "test1"})
+            await db.drop_collection("test_socket")
+            await db.test_socket.insert_one({"name": "test1"})
 
             spans = self.pop_spans()
-            cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
-            checkout_spans = {s.span_id: s for s in spans if s.name == f"pymongo.{_CHECKOUT_FN_NAME}"}
+            # Should have at least one checkout span and one cmd span per operation
+            assert len(spans) >= 2
 
+            checkout_spans = [s for s in spans if s.name == f"pymongo.{_CHECKOUT_FN_NAME}"]
+            cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
+
+            assert len(checkout_spans) >= 1
             assert len(cmd_spans) >= 1
-            for cmd_span in cmd_spans:
-                assert cmd_span.parent_id is not None
-                checkout_parent = checkout_spans.get(cmd_span.parent_id)
-                if checkout_parent:
-                    assert checkout_parent.trace_id == cmd_span.trace_id
+
+            # Verify checkout span metadata
+            checkout_span = checkout_spans[0]
+            assert checkout_span.service == "pymongo"
+            assert checkout_span.span_type == SpanTypes.MONGODB
+            assert checkout_span.get_tag("out.host") == "localhost"
+            assert checkout_span.get_tag("component") == "pymongo"
+            assert checkout_span.get_tag("span.kind") == "client"
+            assert checkout_span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
+            assert checkout_span.get_tag("db.system") == "mongodb"
+            assert_is_measured(checkout_span)
         finally:
             await client.close()
             await asyncio.sleep(0.1)

@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.36.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.43.0
     alias: testagent
     variables:
       LOG_LEVEL: ERROR
@@ -144,6 +144,10 @@
     variables:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Localtestpass1!"
+  pubsub:
+    name: registry.ddbuild.io/images/mirror/google/cloud-sdk:557.0.0-emulators
+    alias: pubsub
+    command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port=0.0.0.0:8085"]
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite

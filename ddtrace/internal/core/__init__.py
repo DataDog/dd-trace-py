@@ -103,15 +103,18 @@ import logging
 import types
 import typing
 from typing import Any  # noqa:F401
+from typing import Generic
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+from .events import EventType
 
 
 if typing.TYPE_CHECKING:
@@ -130,12 +133,19 @@ log = logging.getLogger(__name__)
 ROOT_CONTEXT_ID = "__root"
 
 
-class ExecutionContext(object):
-    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+class ExecutionContext(Generic[EventType]):
+    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        identifier: str,
+        parent: Optional["ExecutionContext"] = None,
+        event: Optional["EventType"] = None,
+        **kwargs,
+    ) -> None:
         self.identifier: str = identifier
         self._data: dict[str, Any] = {}
+        self._event: Optional["EventType"] = event
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
@@ -252,7 +262,12 @@ class ExecutionContext(object):
     @property
     def span(self) -> "Span":
         if self._inner_span is None:
-            log.warning("No span found in ExecutionContext %s", self.identifier)
+            log.warning(
+                "No span found in %s. "
+                "This may indicate the context.started event handler did not set a span. "
+                "Creating fallback 'default' span.",
+                self,
+            )
             self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
@@ -261,6 +276,12 @@ class ExecutionContext(object):
         self._inner_span = value
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
+
+    @property
+    def event(self) -> EventType:
+        if self._event is None:
+            raise ValueError("No event provided in context")
+        return self._event
 
 
 def __getattr__(name):
@@ -271,7 +292,9 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext] = contextvars.ContextVar(
+    "ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID)
+)
 _CONTEXT_CLASS = ExecutionContext
 
 
@@ -283,6 +306,13 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(
+    event: "EventType", parent=None, context_name_override: Optional[str] = None
+) -> ExecutionContext[EventType]:
+    identifier = context_name_override or event.event_name
+    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
 
 def add_suppress_exception(exc_type: type) -> None:

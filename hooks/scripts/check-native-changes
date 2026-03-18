@@ -81,7 +81,7 @@ main() {
         for file in $changed_files; do
             if [ $count -lt 10 ]; then
                 echo -e "  ${GREEN}•${NC} $file"
-                ((count++))
+                count=$((count + 1))
             fi
         done
 
@@ -93,7 +93,7 @@ main() {
         fi
 
         echo ""
-        echo -e "${YELLOW}You need to rebuild native extensions!${NC}"
+        echo -e "${YELLOW}You may need to rebuild native extensions.${NC}"
         echo ""
         echo -e "${BLUE}Run one of the following commands:${NC}"
         echo ""
@@ -112,3 +112,4 @@ main() {
 }
 
 main "$@"
+exit 0

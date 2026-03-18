@@ -4,13 +4,16 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod config;
 mod data_pipeline;
+#[cfg(feature = "stats")]
 mod ddsketch;
+#[cfg(feature = "ffe")]
 mod ffe;
 mod library_config;
 mod log;
 mod py_string;
 mod rand;
 mod span;
+mod tracer_flare;
 
 use pyo3::prelude::*;
 
@@ -20,7 +23,11 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ddsketch::DDSketchPy>()?;
+    #[cfg(feature = "stats")]
+    {
+        m.add_class::<ddsketch::DDSketchPy>()?;
+    }
+
     m.add_class::<library_config::PyConfigurator>()?;
 
     #[cfg(feature = "crashtracker")]
@@ -35,6 +42,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
     }
+
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
@@ -44,11 +52,17 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 
     // Add FFE submodule
-    m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    #[cfg(feature = "ffe")]
+    {
+        m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    }
 
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);
     m.add_wrapped(logger_module)?;
+
+    // Add tracer_flare submodule
+    m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
 
     Ok(())
 }

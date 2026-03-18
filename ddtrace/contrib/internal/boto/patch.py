@@ -93,10 +93,10 @@ def patched_query_request(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -136,7 +136,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.METHOD, result._method)
 
         return result
 
@@ -205,12 +205,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.METHOD, result._method)
 
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         return result
 
