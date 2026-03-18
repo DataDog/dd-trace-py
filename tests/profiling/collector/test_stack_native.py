@@ -1437,7 +1437,7 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
     ddup.upload()
 
     def inner_key(x: int) -> int:
-        return math.factorial(x)
+        return math.factorial(x + 2000)
 
     def outer_key(x: int) -> int:
         inner_data = list(range(x + 1))
