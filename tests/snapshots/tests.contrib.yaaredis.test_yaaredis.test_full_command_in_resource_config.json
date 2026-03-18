@@ -35,7 +35,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.yaaredis",
-         "_dd.svc.src": "yaaredis",
+         "_dd.svc_src": "yaaredis",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -65,7 +65,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.yaaredis",
-         "_dd.svc.src": "yaaredis",
+         "_dd.svc_src": "yaaredis",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
