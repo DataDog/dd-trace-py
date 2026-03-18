@@ -43,7 +43,7 @@
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "699da49e00000000",
-      "_dd.svc.src": "rq_worker",
+      "_dd.svc_src": "rq_worker",
       "component": "rq",
       "job.id": "f7405633-a123-4e12-a1c7-c1aef54ce86f",
       "job.origin": "q",
