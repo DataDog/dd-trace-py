@@ -2,7 +2,6 @@ from typing import Any
 from typing import Optional
 from typing import Sequence
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
@@ -33,8 +32,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
@@ -86,7 +85,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
-        user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
+        user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
+        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
+        # without setting user_prompt, we fall back to extracting the last user message from
+        # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
+        if user_prompt is None:
+            user_prompt = self._extract_user_prompt_from_message_history(kwargs)
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
             result = getattr(result.result, "output", "")
@@ -105,6 +109,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 OUTPUT_VALUE: result,
             }
         )
+
+    @staticmethod
+    def _extract_user_prompt_from_message_history(kwargs: dict[str, Any]) -> Optional[str]:
+        """Extract the last user prompt from message_history when user_prompt is not provided."""
+        message_history = kwargs.get("message_history")
+        if not message_history:
+            return None
+        for message in reversed(message_history):
+            for part in reversed(getattr(message, "parts", [])):
+                if getattr(part, "part_kind", None) == "user-prompt":
+                    content = getattr(part, "content", None)
+                    if content is not None:
+                        return str(content)
+        return None
 
     def _llmobs_set_tags_tool(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None

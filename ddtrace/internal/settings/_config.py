@@ -22,6 +22,7 @@ from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
@@ -95,6 +96,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 # This allows users to set integration configs before an integration is patched.
 INTEGRATION_CONFIGS = frozenset(
     {
+        "claude_agent_sdk",
         "pyodbc",
         "dramatiq",
         "flask",
@@ -197,6 +199,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "google_cloud_pubsub",
     }
 )
 
@@ -422,7 +425,7 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
 
@@ -431,12 +434,12 @@ class Config(object):
         self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs = {}
+        self._integration_configs: dict[str, IntegrationConfig] = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
@@ -502,7 +505,7 @@ class Config(object):
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
-        self._extra_services = set()
+        self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
@@ -553,7 +556,9 @@ class Config(object):
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        _native_config.set_128_bit_trace_id_enabled(
+            _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        )
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
@@ -608,7 +613,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
         self._trace_compute_stats = _get_config(
             ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
@@ -663,6 +668,8 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
+        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
@@ -677,9 +684,6 @@ class Config(object):
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
         )
-        self._process_tags_enabled = _get_config(
-            "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", default=False, modifier=asbool
-        )
 
         # Long-running span interval configurations
         # Only supported for Ray spans for now
@@ -689,6 +693,27 @@ class Config(object):
         self._long_running_initial_flush_interval = _get_config(
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
+        # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
+        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        if self._trace_agentless_enabled:
+            log.debug(
+                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
+                "bypassing the agent.",
+            )
+            self._trace_rate_limit = -1
+            self._trace_compute_stats = False
+            setattr(self, "_trace_sampling_rules", "")
+            self._report_hostname = True
+            self._health_metrics_enabled = False
+
+    @property
+    def _128_bit_trace_id_enabled(self) -> bool:
+        return _native_config.get_128_bit_trace_id_enabled()
+
+    @_128_bit_trace_id_enabled.setter
+    def _128_bit_trace_id_enabled(self, value: bool) -> None:
+        _native_config.set_128_bit_trace_id_enabled(bool(value))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

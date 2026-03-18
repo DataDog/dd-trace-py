@@ -112,7 +112,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_tag_str(http.STATUS_CODE, "500")
+    span._set_attribute(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -298,7 +298,7 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             for name, value in tags.items():
-                span._set_tag_str(name, value)
+                span._set_attribute(name, value)
 
             @wraps(receive)
             async def wrapped_receive():
@@ -480,8 +480,10 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
-                if span in scope["datadog"]["request_spans"]:
-                    scope["datadog"]["request_spans"].remove(span)
+                # missing datadog scope should not crash request teardown.
+                request_spans = scope.get("datadog", {}).get("request_spans")
+                if request_spans and span in request_spans:
+                    request_spans.remove(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:

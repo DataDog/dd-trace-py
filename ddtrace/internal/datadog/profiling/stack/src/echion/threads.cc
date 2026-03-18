@@ -87,7 +87,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             if (is_boundary_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and re-use it to determine
+                // This means we can keep the cache key and reuse it to determine
                 // whether we see the boundary Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 upper_python_stack_size = python_stack.size() - i;
@@ -197,6 +197,17 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     }
 
+    // Pre-compute per-task coroutine stacks so that each task's coroutine chain is walked exactly once.
+    // Without this, a parent task's coroutine chain would be walked once for each child task that
+    // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
+    // of the parent's coroutine chain).
+    std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
+    for (auto& task : all_tasks) {
+        FrameStack task_stack;
+        task->unwind(echion, task_stack, using_uvloop);
+        task_coro_stacks.emplace(task->origin, std::move(task_stack));
+    }
+
     // Make sure the on CPU task is first
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
         if (leaf_tasks[i].get().is_on_cpu) {
@@ -211,10 +222,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        // Safety: prevent infinite loops from cycles in task chain maps
+        size_t task_chain_depth = 0;
         for (auto current_task = leaf_task;;) {
+            if (++task_chain_depth > MAX_RECURSION_DEPTH) {
+                break;
+            }
             auto& task = current_task.get();
 
-            auto task_stack_size = task.unwind(echion, stack, using_uvloop);
+            // Look up the pre-computed coroutine stack for this task
+            size_t task_stack_size = 0;
+            if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
+                task_stack_size = it->second.size();
+                for (const auto& frame_ref : it->second) {
+                    if (stack.size() >= max_frames) {
+                        break;
+                    }
+                    stack.push_back(frame_ref);
+                }
+            }
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -534,76 +560,99 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 void
 ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+    std::vector<GreenletSnapshot> snapshots;
 
-    auto& greenlet_info_map = echion.greenlet_info_map();
-    auto& greenlet_parent_map = echion.greenlet_parent_map();
-    auto& greenlet_thread_map = echion.greenlet_thread_map();
+    // Phase 1: Snapshot greenlet data under the lock.
+    // This minimises the time we hold greenlet_info_map_lock, which is also
+    // acquired by update_greenlet_frame() on every greenlet switch.  Holding
+    // the lock during the expensive unwind (Phase 2) would block ALL greenlet
+    // switches and lead to resource exhaustion (e.g. DB connection pools).
+    {
+        const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
 
-    if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
-        return;
+        auto& greenlet_info_map = echion.greenlet_info_map();
+        auto& greenlet_parent_map = echion.greenlet_parent_map();
+        auto& greenlet_thread_map = echion.greenlet_thread_map();
 
-    std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
+            return;
 
-    // Collect all parent greenlets
-    std::transform(greenlet_parent_map.cbegin(),
-                   greenlet_parent_map.cend(),
-                   std::inserter(parent_greenlets, parent_greenlets.begin()),
-                   [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
+        std::unordered_set<GreenletInfo::ID> parent_greenlets;
 
-    // Unwind the leaf greenlets
-    for (auto& greenlet_info : greenlet_info_map) {
-        auto greenlet_id = greenlet_info.first;
-        auto& greenlet = greenlet_info.second;
+        // Collect all parent greenlets
+        std::transform(greenlet_parent_map.cbegin(),
+                       greenlet_parent_map.cend(),
+                       std::inserter(parent_greenlets, parent_greenlets.begin()),
+                       [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
 
-        if (parent_greenlets.contains(greenlet_id))
-            continue;
+        // Snapshot the leaf greenlets and precompute their parent chains
+        for (auto& [gid, greenlet] : greenlet_info_map) {
+            if (parent_greenlets.contains(gid))
+                continue;
 
-        auto frame = greenlet->frame;
-        if (frame == FRAME_NOT_SET) {
-            // The greenlet has not been started yet or has finished
-            continue;
+            auto frame = greenlet->frame;
+            if (frame == FRAME_NOT_SET) {
+                // The greenlet has not been started yet or has finished
+                continue;
+            }
+
+            GreenletSnapshot snap;
+            snap.greenlet_id = gid;
+            snap.name = greenlet->name;
+            snap.frame = frame;
+
+            // Precompute parent chain while we still hold the lock
+            auto current_id = gid;
+            std::unordered_set<GreenletInfo::ID> visited;
+            // The limit here is arbitrary, but it should be more than enough for
+            // most use cases.
+            const size_t MAX_GREENLET_DEPTH = 512;
+            // Safety: prevent infinite loops from cycles or corrupted parent maps
+            for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
+                // Check for cycles
+                if (visited.contains(current_id))
+                    break;
+                visited.insert(current_id);
+
+                auto pit = greenlet_parent_map.find(current_id);
+                if (pit == greenlet_parent_map.end())
+                    break;
+
+                auto parent_id = pit->second;
+                auto git = greenlet_info_map.find(parent_id);
+                if (git == greenlet_info_map.end())
+                    break;
+
+                auto parent_frame = git->second->frame;
+                if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
+                    break;
+
+                snap.parent_chain.emplace_back(git->second->name, parent_frame);
+
+                // Move up the greenlet chain
+                current_id = parent_id;
+            }
+
+            snapshots.push_back(std::move(snap));
         }
+    } // Lock released here
 
-        bool on_cpu = frame == Py_None;
-
-        auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
+    // Phase 2: Unwind outside the lock.
+    // The expensive process_vm_readv / copy_type calls happen here, without
+    // blocking greenlet switches.  Snapshotted frame pointers may have become
+    // stale, but unwind_frame() handles invalid pointers gracefully via
+    // copy_type() which returns non-zero on failure.
+    for (auto& snap : snapshots) {
+        bool on_cpu = snap.frame == Py_None;
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
         auto& stack = stack_info->stack;
 
-        greenlet->unwind(echion, frame, tstate, stack);
+        GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
+        temp.unwind(echion, snap.frame, tstate, stack);
 
-        std::unordered_set<GreenletInfo::ID> visited;
-
-        // Unwind the parent greenlets
-        // The limit here is arbitrary, but it should be more than enough for
-        // most use cases.
-        const size_t MAX_GREENLET_DEPTH = 512;
-        // Safety: prevent infinite loops from cycles or corrupted parent maps
-        for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
-            // Check for cycles
-            if (visited.contains(greenlet_id)) {
-                break;
-            }
-            visited.insert(greenlet_id);
-
-            auto parent_greenlet_info = greenlet_parent_map.find(greenlet_id);
-            if (parent_greenlet_info == greenlet_parent_map.end())
-                break;
-
-            auto parent_greenlet_id = parent_greenlet_info->second;
-
-            auto parent_greenlet = greenlet_info_map.find(parent_greenlet_id);
-            if (parent_greenlet == greenlet_info_map.end())
-                break;
-
-            auto parent_frame = parent_greenlet->second->frame;
-            if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
-                break;
-
-            parent_greenlet->second->unwind(echion, parent_frame, tstate, stack);
-
-            // Move up the greenlet chain
-            greenlet_id = parent_greenlet_id;
+        for (auto& [parent_name, parent_frame] : snap.parent_chain) {
+            GreenletInfo parent_temp(0, parent_frame, parent_name);
+            parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
         current_greenlets.push_back(std::move(stack_info));
@@ -640,7 +689,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, task_stack_info->on_cpu);
-            renderer.render_stack_begin();
 
             task_stack_info->stack.render(echion);
 
@@ -657,7 +705,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
-            renderer.render_stack_begin();
 
             auto& stack = greenlet_stack->stack;
             stack.render(echion);
@@ -667,7 +714,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
         current_greenlets.clear();
     } else {
-        renderer.render_stack_begin();
         python_stack.render(echion);
         renderer.render_stack_end();
     }
@@ -718,7 +764,7 @@ ThreadInfo::update_cpu_time()
 }
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;

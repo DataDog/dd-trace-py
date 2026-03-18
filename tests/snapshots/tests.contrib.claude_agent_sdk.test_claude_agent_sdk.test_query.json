@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "claude_agent_sdk.request",
+    "service": "tests.contrib.claude_agent_sdk",
+    "resource": "claude_agent_sdk.query",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6983c18400000000",
+      "claude_agent_sdk.request.model": "claude-sonnet-4-5-20250929",
+      "language": "python",
+      "runtime-id": "6d8b44096ea1434e9a4bb9ea70ad6407"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 57618.0
+    },
+    "duration": 277000,
+    "start": 1770242436495579000
+  }]]

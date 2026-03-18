@@ -6,14 +6,14 @@
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
 
 os tests ubuntu:
   extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   needs:
     - job: "build linux"
       parallel:
@@ -42,11 +42,18 @@ os tests macos:
     WHEEL_PATTERN: "macosx*x86_64.whl"
     PLATFORM: "macOS"
   script:
-    - bash .gitlab/scripts/multi-os-tests.sh
+    - |
+      for PYTHON_VERSION in 3.10 3.12 3.14; do
+        export PYTHON_VERSION
+        bash .gitlab/scripts/multi-os-tests.sh
+      done
 
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
   needs: ["download windows wheels"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1

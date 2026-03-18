@@ -6,12 +6,11 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import _metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import waf_module
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -35,6 +34,7 @@ except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
 
+DDWaf = waf_module()
 
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
@@ -385,7 +385,6 @@ def test_ddwaf_not_raises_exception():
             rules_json_str,
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
-            _metrics,
         )
 
 
@@ -514,7 +513,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 def test_ddwaf_run():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -534,7 +533,7 @@ def test_ddwaf_run():
 def test_ddwaf_run_timeout():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json = rule_set.read()
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
@@ -550,7 +549,7 @@ def test_ddwaf_run_timeout():
 def test_ddwaf_info():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         rules_json = json.loads(rules_json_str.decode())
@@ -563,7 +562,7 @@ def test_ddwaf_info():
 def test_ddwaf_info_with_2_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"), "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -579,7 +578,7 @@ def test_ddwaf_info_with_2_errors():
 def test_ddwaf_info_with_3_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json"), "br") as rule_set:
         rules_json_str = rule_set.read()
-        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
+        _ddwaf = DDWaf(rules_json_str, b"", b"")
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -783,7 +782,7 @@ def test_required_addresses():
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
-@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -796,18 +795,24 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert processor
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
         # second call must only send ephemeral data to the waf, not persistent data again
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
-@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_waf_action_null_ephemeral_addresses(mock_run):
     from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -820,7 +825,10 @@ def test_waf_action_null_ephemeral_addresses(mock_run):
         assert processor
         # None value for ephemeral addresses should not be discarded
         processor._waf_action(span, None, {"LOGIN_FAILURE": None})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
 
 
@@ -849,7 +857,7 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi", "azure.apim"])
 def test_lambda_inferred_span(tracer, inferred_span_name):
     """
     Ensure that when the service entry span is below an inferred span, both spans have

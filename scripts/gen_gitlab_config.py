@@ -98,9 +98,13 @@ class JobSpec:
         if self.snapshot:
             wait_for.add("testagent")
 
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # so the value is set when tests-gen runs and is present in the child job.
+        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
+        lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
@@ -248,12 +252,11 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     if not required_suites:
         MICROBENCHMARKS_GEN.write_text(
             """
-noop:
+microbenchmark-noop:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   script: |
     echo "noop"
-
 """
         )
         return
@@ -437,6 +440,11 @@ def gen_pre_checks() -> None:
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
     )
     check(
+        name="Spelling",
+        command="hatch run lint:spelling",
+        paths={"*"},
+    )
+    check(
         name="Security",
         command="hatch run lint:security",
         paths={"docker*", "ddtrace/*", "hatch.toml"},
@@ -532,7 +540,13 @@ def gen_build_base_venvs() -> None:
     on the cached testrunner job, which is also generated dynamically.
     """
     with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-venvs", unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false"))
+        f.write(
+            template(
+                "build-base-venvs",
+                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
+                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+            )
+        )
 
 
 def gen_debugger_exploration() -> None:
@@ -558,8 +572,44 @@ def gen_debugger_exploration() -> None:
         f.write(template("debugging/exploration"))
 
 
+def gen_appsec_iast_aggregated_leak_testing() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because
+    we don't use riot to execute the tests
+    """
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
+            "tests/appsec/iast_aggregated_memcheck/*",
+            "ddtrace/appsec/_iast/**",
+        }
+    ):
+        return
+
+    with TESTS_GEN.open("a") as f:
+        f.write(template("appsec/iast_aggregated_leak_testing"))
+
+
 def gen_detect_global_locks() -> None:
     """Generate the global lock detection job."""
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            "ddtrace/*",
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml",
+            "src/native/*",
+            "scripts/global-lock-detection.py",
+            ".gitlab/templates/detect-global-locks.yml",
+        }
+    ):
+        return
+
     with TESTS_GEN.open("a") as f:
         f.write(template("detect-global-locks"))
 

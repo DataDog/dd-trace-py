@@ -59,6 +59,8 @@ CGroup
 cgroups
 cherrypy
 ciapp
+claude
+claude-agent-sdk
 client_ip
 CMake
 codepath
@@ -192,6 +194,7 @@ loopback
 macOS
 mako
 mariadb
+memalloc
 memcached
 metadata
 microservices
@@ -249,6 +252,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pyenv
 PyFrameObject
@@ -264,6 +268,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+reentrant
 redis
 rediscluster
 renderer
@@ -283,6 +288,7 @@ runtimes
 Runtimes
 sanic
 screenshots
+sdk
 serializable
 serverless
 Serverless

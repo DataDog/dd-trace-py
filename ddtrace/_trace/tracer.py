@@ -475,7 +475,8 @@ class Tracer(object):
                 service = config.service
 
         # Update the service name based on any mapping
-        service = config.service_mapping.get(service, service)
+        if service is not None:
+            service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
@@ -517,10 +518,10 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span._set_tag_str("runtime-id", get_runtime_id())
+            span._set_attribute("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -528,7 +529,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if config.env:
-            span._set_tag_str(ENV_KEY, config.env)
+            span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -540,7 +541,7 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_tag_str(VERSION_KEY, config.version)
+                span._set_attribute(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)
@@ -578,13 +579,15 @@ class Tracer(object):
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
+        # run handlers before flushing that don't need the span in its final state
+        core.dispatch("trace.span_finish", (span,))
+
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
 
-        core.dispatch("trace.span_finish", (span,))
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
@@ -765,7 +768,7 @@ class Tracer(object):
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
         :param str service: the name of the service being traced. If not set,
-                            it will inherit the service from it's parent.
+                            it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 

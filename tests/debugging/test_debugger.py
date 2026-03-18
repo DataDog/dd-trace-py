@@ -1182,7 +1182,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == "child"
 
-            assert span.parent_id is root.span_id
+            assert span.parent_id == root.span_id
 
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator

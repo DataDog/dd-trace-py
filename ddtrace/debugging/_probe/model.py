@@ -91,12 +91,12 @@ class Probe(abc.ABC):
     def is_global_rate_limited(self) -> bool:
         return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.probe_id)
 
 
 class AbstractProbeMixIn(abc.ABC):
-    def __post_init__(self): ...
+    def __post_init__(self) -> None: ...
 
 
 @dataclass
@@ -104,7 +104,7 @@ class RateLimitMixin(AbstractProbeMixIn):
     rate: float
     limiter: RateLimiter = field(init=False, repr=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__post_init__()
         self.limiter = RateLimiter(
             limit_rate=self.rate,
@@ -127,7 +127,7 @@ class ProbeConditionMixin(AbstractProbeMixIn):
     condition_error_rate: float = field(compare=False)
     condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__post_init__()
         self.condition_error_limiter = RateLimiter(
             limit_rate=self.condition_error_rate,
@@ -153,11 +153,11 @@ class LineLocationMixin(ProbeLocationMixin):
     line: int = field(compare=False)
     resolved_source_file: Optional[Path] = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__post_init__()
         self.resolved_source_file = _resolve_source_file(self.source_file)
 
-    def location(self):
+    def location(self) -> tuple[Optional[str], int]:
         return (maybe_stringify(self.resolved_source_file), self.line)
 
 
@@ -172,7 +172,7 @@ class FunctionLocationMixin(ProbeLocationMixin):
     module: str = field(compare=False)
     func_qname: str = field(compare=False)
 
-    def location(self):
+    def location(self) -> tuple[str, str]:
         return (self.module, self.func_qname)
 
 
@@ -234,7 +234,7 @@ class StringTemplate:
     segments: list[TemplateSegment]
 
     def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
-        def _to_str(value):
+        def _to_str(value: Any) -> str:
             return value if _isinstance(value, str) else serializer(value)
 
         return "".join([_to_str(s.eval(scope)) for s in self.segments])

@@ -1,3 +1,12 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#  "PrettyPrintTree",
+#  "cmd2<3",
+# ]
+# ///
 import json
 import os
 import sys

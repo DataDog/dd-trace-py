@@ -6,6 +6,7 @@ import os
 import typing as t
 
 from envier import Env
+from envier import validators
 
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -14,6 +15,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -70,22 +72,22 @@ def _check_for_stack_available():
     return (stack.failure_msg, stack.is_available)
 
 
-def _parse_profiling_enabled(raw: str) -> bool:
-    # Try to derive whether we're enabled via DD_INJECTION_ENABLED
-    # - Are we injected (DD_INJECTION_ENABLED set)
-    # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
-            if tok.strip().lower() == "profiler":
-                return True
+def _injection_enabled_has_profiler() -> bool:
+    """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
+    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    if injection_enabled is None:
+        return False
 
-    # This is the normal check
-    raw_lc = raw.lower()
-    if raw_lc in ("1", "true", "yes", "on", "auto"):
+    return any(tok.strip().lower() == "profiler" for tok in injection_enabled.split(","))
+
+
+def _parse_profiling_enabled(raw: str) -> bool:
+    # DD_INJECTION_ENABLED=...,profiler,... takes precedence over the env var value.
+    if _injection_enabled_has_profiler():
         return True
 
-    # If it wasn't enabled, then disable it
-    return False
+    raw_lc = raw.lower()
+    return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
 def _update_git_metadata_tags(tags):
@@ -130,6 +132,16 @@ class ProfilingConfig(DDConfig):
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
 
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
+        # without invoking the parser. This means the DD_INJECTION_ENABLED check in
+        # _parse_profiling_enabled is skipped, so we apply it here as a post-init step.
+        if not self.enabled and _injection_enabled_has_profiler():
+            self.enabled = True
+            self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
     agentless = DDConfig.v(
         bool,
         "agentless",
@@ -166,6 +178,7 @@ class ProfilingConfig(DDConfig):
         float,
         "upload_interval",
         default=60.0,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Float",
         help="The interval in seconds to wait before flushing out recorded events",
     )
@@ -174,16 +187,18 @@ class ProfilingConfig(DDConfig):
         float,
         "capture_pct",
         default=1.0,
+        validator=validators.range(0, 100),
         help_type="Float",
         help="The percentage of events that should be captured (e.g. memory "
         "allocation). Greater values reduce the program execution speed. Must be "
-        "greater than 0 lesser or equal to 100",
+        "between 0 and 100",
     )
 
     max_frames = DDConfig.v(
         int,
         "max_frames",
         default=64,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The maximum number of frames to capture in stack execution tracing",
     )
@@ -200,15 +215,19 @@ class ProfilingConfig(DDConfig):
         float,
         "max_time_usage_pct",
         default=1.0,
+        validator=validators.range(0, 100),
         help_type="Float",
-        help="The percentage of maximum time the stack profiler can use when computing "
-        "statistics. Must be greater than 0 and lesser or equal to 100",
+        help=(
+            "The percentage of maximum time the stack profiler can use when computing "
+            "statistics. Must be between 0 and 100"
+        ),
     )
 
     api_timeout_ms = DDConfig.v(
         int,
         "api_timeout_ms",
         default=10000,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
     )
@@ -218,8 +237,10 @@ class ProfilingConfig(DDConfig):
         "timeline_enabled",
         default=True,
         help_type="Boolean",
-        help="Whether to add timestamp information to captured samples.  Adds a small amount of "
-        "overhead to the profiler, but enables the use of the Timeline view in the UI.",
+        help=(
+            "Whether to add timestamp information to captured samples.  Adds a small amount of "
+            "overhead to the profiler, but enables the use of the Timeline view in the UI."
+        ),
     )
 
     tags = DDConfig.v(
@@ -243,10 +264,13 @@ class ProfilingConfig(DDConfig):
         int,
         "sample_pool_capacity",
         default=4,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
-        help="The number of Sample objects to keep in the pool for reuse. "
-        "Increasing this can reduce the overhead from frequently allocating "
-        "and deallocating Sample objects.",
+        help=(
+            "The number of Sample objects to keep in the pool for reuse. "
+            "Increasing this can reduce the overhead from frequently allocating "
+            "and deallocating Sample objects."
+        ),
     )
 
 
@@ -277,6 +301,14 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable uvloop support for async profiling",
     )
 
+    native_frames = DDConfig.v(
+        bool,
+        "native_frames",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -294,8 +326,10 @@ class ProfilingConfigLock(DDConfig):
         "name_inspect_dir",
         default=True,
         help_type="Boolean",
-        help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
-        "With this enabled, the profiler finds the name of locks that are attributes of an object.",
+        help=(
+            "Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+            "With this enabled, the profiler finds the name of locks that are attributes of an object."
+        ),
     )
 
 
@@ -314,6 +348,7 @@ class ProfilingConfigMemory(DDConfig):
         int,
         "events_buffer",
         default=16,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
     )
@@ -340,6 +375,16 @@ class ProfilingConfigHeap(DDConfig):
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
+def _validate_non_negative_int(value: int) -> None:
+    if value < 0:
+        raise ValueError("value must be non negative")
+
+
+def _validate_positive_int(value: int) -> None:
+    if value < 1:
+        raise ValueError("value must be >= 1")
+
+
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
@@ -355,8 +400,42 @@ class ProfilingConfigPytorch(DDConfig):
         int,
         "events_limit",
         default=1_000_000,
+        validator=_validate_non_negative_int,
         help_type="Integer",
         help="How many events the PyTorch profiler records each collection",
+    )
+
+
+class ProfilingConfigException(DDConfig):
+    __item__ = __prefix__ = "exception"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the exception profiler",
+    )
+
+    sampling_interval = DDConfig.v(
+        int,
+        "sampling_interval",
+        default=100,
+        help_type="Integer",
+        validator=_validate_positive_int,
+        help=(
+            "Average number of exceptions between samples (uses Poisson distribution). "
+            "Lower values sample more frequently but add more overhead."
+            "This value must be >= 1."
+        ),
+    )
+
+    collect_message = DDConfig.v(
+        bool,
+        "collect_message",
+        default=False,
+        help_type="Boolean",
+        help="Whether to collect exception messages, which can contain sensitive data.",
     )
 
 
@@ -366,6 +445,7 @@ ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
+ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
 report_configuration(config)
@@ -387,10 +467,10 @@ if not ddup_is_available:
 stack_failure_msg, stack_is_available = _check_for_stack_available()
 if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), falling back to v1 stack sampler", msg)
+    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling profiling" % msg,
+        "Failed to load stack module (%s), disabling stack profiling" % msg,
     )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -413,6 +493,8 @@ def config_str(config) -> str:
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
+    if config.exception.enabled:
+        configured_features.append("exception")
     configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))

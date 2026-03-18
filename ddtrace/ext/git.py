@@ -128,7 +128,7 @@ def _git_subprocess_cmd_with_details(
     if git_cmd is None:
         raise FileNotFoundError("Git executable not found")
     git_cmd = [git_cmd]
-    git_cmd.extend(cmd)
+    git_cmd.extend(_add_safe_directory_override(list(cmd), cwd))
 
     log.debug("Executing git command: %s", git_cmd)
 
@@ -158,13 +158,59 @@ def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, s
     raise ValueError(stderr)
 
 
-def _set_safe_directory():
-    try:
-        _git_subprocess_cmd("config --global --add safe.directory *")
-    except GitNotFoundError:
-        log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error setting safe directory")
+def _is_bare_git_root(path: str) -> bool:
+    return (
+        os.path.isfile(os.path.join(path, "HEAD"))
+        and os.path.isdir(os.path.join(path, "objects"))
+        and os.path.isdir(os.path.join(path, "refs"))
+    )
+
+
+@cached(maxsize=256)
+def _resolve_git_root_cached(start_dir: str) -> str:
+    """Cached implementation of git root resolution.
+
+    Args:
+        start_dir: Absolute path to start searching from
+
+    Returns:
+        The git repository root path
+    """
+    current = os.path.realpath(start_dir)
+    log.debug("Finding git repository root for %s", current)
+    while current:
+        git_marker = os.path.join(current, ".git")
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
+            log.debug("Git repository root found as %s", current)
+            return current
+        if _is_bare_git_root(current):
+            log.debug("Bare git repository root found as %s", current)
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            log.debug("No .git found for repository root, defaulting to original starting directory")
+            return os.path.realpath(start_dir)
+        current = parent
+    return os.path.realpath(start_dir)
+
+
+def _resolve_git_root(cwd: Optional[str]) -> str:
+    """Resolve the git repository root from a given directory.
+
+    Args:
+        cwd: Directory to start searching from, or None to use current directory
+
+    Returns:
+        The git repository root path
+    """
+    # Normalize to absolute path for consistent caching
+    start_dir = os.path.abspath(cwd or os.getcwd())
+    return _resolve_git_root_cached(start_dir)
+
+
+def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
+    root = _resolve_git_root(cwd)
+    return ["-c", "safe.directory={0}".format(root), *cmd]
 
 
 def _extract_clone_defaultremotename_with_details(cwd: Optional[str]) -> _GitSubprocessDetails:
@@ -363,7 +409,6 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
 def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
-    _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)

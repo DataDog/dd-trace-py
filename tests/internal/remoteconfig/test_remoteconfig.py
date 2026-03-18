@@ -3,7 +3,9 @@ import base64
 import datetime
 import hashlib
 import json
+import os
 import sys
+from unittest.mock import patch
 
 import mock
 import pytest
@@ -11,6 +13,11 @@ import pytest
 from ddtrace._trace.product import _convert_rc_trace_sampling_rules
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -24,6 +31,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
+from tests.utils import process_tag_reload
 
 
 def to_bytes(string):
@@ -140,7 +148,8 @@ def test_remote_config_register_auto_enable(remote_config_worker):
     with override_global_config(dict(_remote_config_enabled=True)):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-        remoteconfig_poller.register("LIVE_DEBUGGER", mock_callback)
+        remoteconfig_poller.register_callback("LIVE_DEBUGGER", mock_callback)
+        remoteconfig_poller.enable_product("LIVE_DEBUGGER")
 
         assert remoteconfig_poller.status == ServiceStatus.RUNNING
         assert remoteconfig_poller._client._product_callbacks["LIVE_DEBUGGER"] is not None
@@ -158,7 +167,7 @@ def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", MockCallback())
+        remoteconfig_poller.register_callback("LIVE_DEBUGGER", MockCallback())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -607,27 +616,7 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
         config.env = original_env
 
 
-def test_remote_config_payload_not_includes_process_tags():
-    client = RemoteConfigClient()
-    payload = client._build_payload({})
-
-    assert "process_tags" not in payload["client"]["client_tracer"]
-
-
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
 def test_remote_config_payload_includes_process_tags():
-    import os
-    import sys
-    from unittest.mock import patch
-
-    from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
-    from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
-    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
-    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
-    from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
-    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-    from tests.utils import process_tag_reload
-
     with (
         patch.object(sys, "argv", ["/path/to/test_script.py"]),
         patch.object(os, "getcwd", return_value="/path/to/workdir"),
@@ -668,8 +657,8 @@ def test_callback_error_isolation():
         callback_calls["PRODUCT_B"].append(payloads)
 
     # Register both products
-    rc_client.register_product("PRODUCT_A", failing_callback)
-    rc_client.register_product("PRODUCT_B", working_callback)
+    rc_client.register_callback("PRODUCT_A", failing_callback)
+    rc_client.register_callback("PRODUCT_B", working_callback)
 
     # Create payloads for both products
     payloads = [

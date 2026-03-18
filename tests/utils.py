@@ -172,6 +172,7 @@ def override_global_config(values):
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
+        "_model_lab_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -956,7 +957,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
 
     Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace.trace.Span`
-    along with any children who have that span as it's parent.
+    along with any children who have that span as its parent.
 
     This class can be used to assert on the parent/child relationships between spans.
 
@@ -987,10 +988,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
 
     def assert_structure(self, root, children=NO_CHILDREN):
         """
-        Assertion to assert on the structure of this node and it's children.
+        Assertion to assert on the structure of this node and its children.
 
         This assertion takes a dictionary of properties to assert for this node
-        along with a list of assertions to make for it's children.
+        along with a list of assertions to make for its children.
 
         Example::
 
@@ -1007,7 +1008,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
                     dict(name='root_span'),
 
                     (
-                        # Child span with one child of it's own
+                        # Child span with one child of its own
                         (
                             dict(name='child_span'),
 
@@ -1221,7 +1222,9 @@ def snapshot_context(
         variant_id = applicable_variant_ids[0]
         token = "{}_{}".format(token, variant_id) if variant_id else token
 
-    ignores = ignores or []
+    ignores = list(ignores or [])
+    if not token.startswith("tests.internal.test_process_tags."):
+        ignores.append("meta._dd.tags.process")
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)

@@ -13,7 +13,7 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 def generate_callers_from_callees(callers_file=""):
     """
-    Generate a callers module from a callees module, calling all it's functions.
+    Generate a callers module from a callees module, calling all its functions.
     """
     module_functions = [
         "bytearray",

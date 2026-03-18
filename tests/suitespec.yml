@@ -20,7 +20,6 @@ components:
     - tests/test_module/*
     - .gitlab-ci.yml
     - .gitlab/*
-    - tests/suitespec.yml
   $setup:
     - setup.py
     - setup.cfg
@@ -30,7 +29,7 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
   ci:
-    - ddtrace/ext/ci.py
+    - ddtrace/ext/ci/*
   codeowners:
     - ddtrace/internal/codeowners.py
   core:
@@ -193,7 +192,7 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    venvs_per_job: 3
+    venvs_per_job: 2
     paths:
       - '@core'
       - '@remoteconfig'

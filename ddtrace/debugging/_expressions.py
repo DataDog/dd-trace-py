@@ -32,9 +32,11 @@ import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
+from typing import Collection
 from typing import Mapping
 from typing import Optional
 from typing import Union
+from typing import cast
 
 from bytecode import BinaryOp
 from bytecode import Bytecode
@@ -101,19 +103,19 @@ def get_local(_locals: Mapping[str, Any], name: str) -> Any:
 
 
 class DDCompiler:
-    def __init__(self):
+    def __init__(self) -> None:
         self._lambda_level = 0
 
     @classmethod
-    def __getmember__(cls, o, a):
+    def __getmember__(cls, o: Any, a: str) -> Any:
         return object.__getattribute__(o, a)
 
     @classmethod
-    def __index__(cls, o, i):
+    def __index__(cls, o: Any, i: Any) -> Any:
         return safe_getitem(o, i)
 
     @classmethod
-    def __ref__(cls, x):
+    def __ref__(cls, x: Any) -> Any:
         return x
 
     def _make_function(self, instrs: list[Instr], args: tuple[str, ...], name: str) -> FunctionType:
@@ -214,9 +216,11 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            def coll_iter(it, cond, _locals):
+            def coll_iter(
+                it: Collection, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+            ) -> Any:
                 if _isinstance(it, dict):
-                    return f(cond(k, k, v, _locals) for k, v in it.items())
+                    return f(cond(k, k, v, _locals) for k, v in cast(dict, it).items())
                 return f(cond(e, None, None, _locals) for e in it)
 
             return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -319,9 +323,11 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            def coll_filter(it, cond, _locals):
+            def coll_filter(
+                it: Any, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+            ) -> Any:
                 if _isinstance(it, dict):
-                    return type(it)({k: v for k, v in it.items() if cond(k, k, v, _locals)})
+                    return type(it)({k: v for k, v in cast(dict, it).items() if cond(k, k, v, _locals)})
                 return type(it)(e for e in it if cond(e, None, None, _locals))
 
             return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -393,13 +399,13 @@ dd_compile = DDCompiler().compile
 class DDExpressionEvaluationError(Exception):
     """Thrown when an error occurs while evaluating a dsl expression."""
 
-    def __init__(self, dsl, e):
+    def __init__(self, dsl: str, e: Exception) -> None:
         super().__init__('Failed to evaluate expression "%s": %s' % (dsl, str(e)))
         self.dsl = dsl
         self.error = str(e)
 
 
-def _invalid_expression(_):
+def _invalid_expression(_: Any) -> None:
     """Forces probes with invalid expression/conditions to never trigger.
 
     Any signs of invalid conditions in logs is an indication of a problem with

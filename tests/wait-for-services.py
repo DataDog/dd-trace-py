@@ -20,6 +20,7 @@ from contrib.config import MOTO_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import OPENSEARCH_CONFIG
 from contrib.config import POSTGRES_CONFIG
+from contrib.config import PUBSUB_CONFIG
 from contrib.config import RABBITMQ_CONFIG
 from contrib.config import REDIS_CONFIG
 from contrib.config import VERTICA_CONFIG
@@ -183,6 +184,16 @@ def check_azuresqledge(azuresqledge_config):
         conn.close()
 
 
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/v1/projects/test-project/topics".format(**PUBSUB_CONFIG)},
+)
+def check_pubsub(url):
+    requests.get(url).raise_for_status()
+
+
 @try_until_timeout(Exception, args={"azurite_config": AZURITE_CONFIG})
 def check_azurite(azurite_config):
     blob_service_client = BlobServiceClient.from_connection_string(
@@ -211,6 +222,7 @@ if __name__ == "__main__":
         "mysql": check_mysql,
         "opensearch": check_opensearch,
         "postgres": check_postgres,
+        "pubsub": check_pubsub,
         "rabbitmq": check_rabbitmq,
         "redis": check_redis,
         "testagent": check_agent,

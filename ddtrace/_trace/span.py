@@ -5,6 +5,7 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Mapping
 from typing import Optional
 from typing import Text
 from typing import Union
@@ -35,7 +36,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -44,8 +44,6 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import generate_128bit_trace_id
-from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.settings._config import config
@@ -104,9 +102,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "span_id",
-        "trace_id",
-        "parent_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -160,40 +155,21 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-
-        if not (span_id is None or isinstance(span_id, int)):
-            if config._raise:
-                raise TypeError("span_id must be an integer")
-            return
-        if not (trace_id is None or isinstance(trace_id, int)):
-            if config._raise:
-                raise TypeError("trace_id must be an integer")
-            return
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-
         self._meta: dict[str, str] = {}
         self._metrics: dict[str, NumericType] = {}
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
-        if trace_id is not None:
-            self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
-        else:
-            self.trace_id: int = rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or rand64bits()
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
+        # PERF: cache trace_id/span_id to avoid repeated Rust property calls
+        _trace_id = self.trace_id
+        _span_id = self.span_id
         self.context: Context = (
-            context.copy(self.trace_id, self.span_id)
+            context.copy(_trace_id, _span_id)
             if context
-            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+            else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
         )
 
         self._links: list[Union[SpanLink, _SpanPointer]] = []
@@ -235,10 +211,6 @@ class Span(SpanData):
         if not self._store:
             return None
         return self._store.get(key)
-
-    @property
-    def _trace_id_64bits(self) -> int:
-        return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
@@ -354,17 +326,66 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def _set_tag_str(self, key: str, value: str) -> None:
-        """Set a value for a tag. Values are coerced to unicode in Python 2 and
-        str in Python 3, with decoding errors in conversion being replaced with
-        U+FFFD.
-        """
-        try:
-            self._meta[key] = ensure_text(value, errors="replace")
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None:
+        """Set a tag key/value pair on the span. Values must be either strings or numbers."""
+        if isinstance(value, str):
+            self._meta[key] = value
+            if key in self._metrics:
+                del self._metrics[key]
+        elif isinstance(value, (int, float)):
+            if math.isnan(value) or math.isinf(value):
+                log.debug("ignoring not real attribute %s:%s", key, value)
+                return
+            self._metrics[key] = value
+            if key in self._meta:
+                del self._meta[key]
+        elif isinstance(value, bytes):
+            self._meta[key] = value.decode("utf-8", errors="replace")
+            if key in self._metrics:
+                del self._metrics[key]
+        else:
+            try:
+                self._meta[key] = str(value)
+            except Exception:
+                if config._raise:
+                    raise
+                log.warning("Failed to convert attribute '%s' to str, ignoring it", key, exc_info=True)
+                return
+            if key in self._metrics:
+                del self._metrics[key]
+
+    def _has_attribute(self, key: str) -> bool:
+        """Return whether the given attribute exists."""
+        return key in self._meta or key in self._metrics
+
+    def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
+        """Return the given attribute or None if it doesn't exist."""
+        if key in self._meta:
+            return self._meta[key]
+        elif key in self._metrics:
+            return self._metrics[key]
+        else:
+            return None
+
+    def _get_str_attribute(self, key: str) -> Optional[str]:
+        """Return the string attribute for the given key, or None if it doesn't exist."""
+        return self._meta.get(key)
+
+    def _get_numeric_attribute(self, key: str) -> Optional[NumericType]:
+        """Return the numeric attribute for the given key, or None if it doesn't exist."""
+        return self._metrics.get(key)
+
+    def _get_attributes(self) -> Mapping[str, Union[str, NumericType]]:
+        """Return all attributes (both string and numeric) as a single mapping."""
+        return {**self._meta, **self._metrics}
+
+    def _get_str_attributes(self) -> Mapping[str, str]:
+        """Return all string attributes."""
+        return self._meta
+
+    def _get_numeric_attributes(self) -> Mapping[str, NumericType]:
+        """Return all numeric attributes."""
+        return self._metrics
 
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
