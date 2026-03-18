@@ -38,10 +38,6 @@ def stop(join: bool = False) -> None:
         _stop()
 
 
-def at_exit(join: bool = False) -> None:
-    stop(join=join)
-
-
 class APMCapabilities(enum.IntFlag):
     APM_TRACING_ENABLE_EXCEPTION_REPLAY = 1 << 39
 

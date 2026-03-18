@@ -112,6 +112,8 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
+SLIM_BUILD = os.getenv("DD_SLIM_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "slim" if SLIM_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -274,10 +276,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = []
+rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-    rust_features.append("crashtracker")
     rust_features.append("profiling")
+    if not SLIM_BUILD:
+        rust_features.append("crashtracker")
+if not SLIM_BUILD:
+    rust_features.append("ffe")
 
 
 class PatchedDistribution(Distribution):
@@ -1190,10 +1195,14 @@ if not IS_PYSTON:
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        memalloc_cmake_args = []
+        if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
+            memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
+                cmake_args=memalloc_cmake_args,
                 optional=False,
             )
         )
@@ -1258,6 +1267,26 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._exception",
+                sources=["ddtrace/profiling/collector/_exception.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._fast_poisson",
+                sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._sampler",
+                sources=["ddtrace/profiling/collector/_sampler.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._lock",
+                sources=["ddtrace/profiling/collector/_lock.pyx"],
+                language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
@@ -1270,6 +1299,11 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
         compiler_directives={"language_level": "3"},
         cache=True,
     )
+
+PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
+if PACKAGE_NAME != "ddtrace":
+    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
+print(f"INFO: building package '{PACKAGE_NAME}'")
 
 interpose_sccache()
 setup(

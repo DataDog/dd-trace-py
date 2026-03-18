@@ -42,7 +42,9 @@ class BaseFlaskTestCase(TracerTestCase):
         super(BaseFlaskTestCase, self).tearDown()
 
 
-class Test_Flask(utils.Contrib_TestClass_For_Threats):
+class _Test_Flask_Base:
+    """Flask-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         bftc = BaseFlaskTestCase()
@@ -99,3 +101,11 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return response.location
+
+
+class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
+    pass
+
+
+class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass
