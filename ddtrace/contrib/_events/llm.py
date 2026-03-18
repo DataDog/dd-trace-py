@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from dataclasses import field
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -24,7 +25,6 @@ class LlmRequestEvent(TracingEvent):
 
     event_name = "llm.request"
     span_kind = SpanKind.CLIENT
-    span_type = SpanTypes.LLM
 
     provider: str = event_field()
     model: str = event_field()
@@ -36,8 +36,10 @@ class LlmRequestEvent(TracingEvent):
     is_chat: Optional[bool] = event_field(default=None)
     operation: str = event_field(default="")
 
+    # Override ClassVar from TracingEvent with an instance field so span_type
+    # can be determined dynamically per-request based on LLMObs state.
+    span_type: Optional[str] = field(init=False)  # type: ignore[assignment]
+
     def __post_init__(self) -> None:
         self.span_name = f"{self.component}.request"
-        # span_type is only LLM when LLMObs is enabled and submit_to_llmobs is True
-        if not (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled):
-            self.__dict__["span_type"] = None
+        self.span_type = SpanTypes.LLM if (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled) else None
