@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
@@ -123,6 +124,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
+        maybe_set_service_source_tag(span, config.urllib3)
         span._set_attribute(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
