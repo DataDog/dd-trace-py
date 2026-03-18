@@ -122,7 +122,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "tool_search_tool_regex",
                                 "arguments": {"pattern": "weather"},
-                                "tool_id": "",
+                                "tool_id": "srvtoolu_01TbRQZ9sz7wNun27iQQ8zKf",
                                 "type": "server_tool_use",
                             }
                         ],
@@ -132,9 +132,9 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                         "tool_results": [
                             {
-                                "result": "{'tool_references': [{'tool_name': 'get_weather',"
-                                " 'type': 'tool_reference'}],"
-                                " 'type': 'tool_search_tool_search_result'}",
+                                "result": '{"tool_references": [{"tool_name": "get_weather",'
+                                ' "type": "tool_reference"}],'
+                                ' "type": "tool_search_tool_search_result"}',
                                 "tool_id": "srvtoolu_01TbRQZ9sz7wNun27iQQ8zKf",
                                 "type": "tool_result",
                             }
@@ -148,7 +148,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "get_weather",
                                 "arguments": {"location": "San Francisco, CA"},
-                                "tool_id": "",
+                                "tool_id": "toolu_01SHf2kbTahK9zYYPDyvNp5r",
                                 "type": "tool_use",
                             }
                         ],
@@ -236,9 +236,9 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                         "tool_results": [
                             {
-                                "result": "{'tool_references': [{'tool_name': 'get_weather',"
-                                " 'type': 'tool_reference'}],"
-                                " 'type': 'tool_search_tool_search_result'}",
+                                "result": '{"tool_references": [{"tool_name": "get_weather",'
+                                ' "type": "tool_reference"}],'
+                                ' "type": "tool_search_tool_search_result"}',
                                 "tool_id": "srvtoolu_01YBjcsxNhiKh8MPSRLFpXSk",
                                 "type": "tool_result",
                             }

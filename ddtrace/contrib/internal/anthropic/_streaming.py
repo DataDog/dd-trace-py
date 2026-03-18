@@ -145,7 +145,10 @@ def _on_content_block_start_chunk(chunk, message):
             message["content"].append({"type": "thinking", "thinking": chunk_content_block_thinking})
         elif "tool_use" in chunk_content_block_type:
             chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
-            message["content"].append({"type": chunk_content_block_type, "name": chunk_content_block_name, "input": ""})
+            tool_id = _get_attr(chunk_content_block, "id", "")
+            message["content"].append(
+                {"type": chunk_content_block_type, "name": chunk_content_block_name, "input": "", "id": tool_id}
+            )
         elif "tool_result" in chunk_content_block_type:
             chunk_content_block_tool_id = _get_attr(chunk_content_block, "tool_use_id", "")
             chunk_content_block_tool_result = _get_attr(chunk_content_block, "content", {})
