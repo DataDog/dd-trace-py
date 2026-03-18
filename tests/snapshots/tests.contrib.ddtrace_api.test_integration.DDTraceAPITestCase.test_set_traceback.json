@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "67eae8db00000000",
+      "_dd.svc_src": "m",
       "error.message": "",
       "error.stack": "Traceback (most recent call last):\n  File \"/root/project/tests/contrib/dd_trace_api/test_integration.py\", line 94, in test_set_traceback\nException\n",
       "error.type": "builtins.Exception",
