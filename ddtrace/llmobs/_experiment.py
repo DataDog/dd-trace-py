@@ -766,7 +766,7 @@ if PydanticEvaluator is not None:
                 eval_result.value = value
                 eval_result.assessment = assessment
                 eval_result.reasoning = second_item.reason
-            elif first_item_value == second_item_value:
+            elif first_item_value == second_item_value and first_item.reason != None:
                 eval_result.value = value
                 eval_result.assessment = assessment
             else:
