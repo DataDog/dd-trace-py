@@ -12,7 +12,7 @@
       "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "699da0a500000000",
-      "_dd.svc.src": "wsgi",
+      "_dd.svc_src": "wsgi",
       "component": "wsgi",
       "error.message": "base exception raised in wsgi app",
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/wsgi/wsgi.py\", line 149, in __call__\n    closing_iterable = self.app(environ, ctx.find_item(\"intercept_start_response\"))\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/wsgi/test_wsgi.py\", line 48, in application\n    raise BaseException(\"base exception raised in wsgi app\")\nBaseException: base exception raised in wsgi app\n",

@@ -35,7 +35,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.svc.src": "aredis",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -65,7 +65,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.svc.src": "aredis",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
