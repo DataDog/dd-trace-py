@@ -9,7 +9,6 @@ suites:
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile-v2$ | wc -1` = 26
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -18,6 +17,34 @@ suites:
       - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
-    pattern: profile
+    pattern: profile$
+    retry: 2
+    runner: riot
+  profile-uwsgi:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - '@vendor'
+      - tests/profiling/suitespec.yml
+      - tests/profiling/*
+    pattern: profile-uwsgi
+    retry: 2
+    runner: riot
+  profile-memalloc:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - '@vendor'
+      - tests/profiling/suitespec.yml
+      - tests/profiling/*
+    pattern: profile-memalloc
     retry: 2
     runner: riot
