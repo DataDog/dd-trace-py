@@ -391,7 +391,8 @@ def set_service_and_source(
     int_config: Union["IntegrationConfig", dict],
     default_service_key: str = "_default_service",
 ) -> None:
-    del span._meta[_SERVICE_SOURCE]
+    if _SERVICE_SOURCE in span._meta:
+        del span._meta[_SERVICE_SOURCE]
     mapped_service = config.service_mapping.get(service, service)
     if service != mapped_service:
         span.set_tag(_SERVICE_SOURCE, "opt.service_mapping")

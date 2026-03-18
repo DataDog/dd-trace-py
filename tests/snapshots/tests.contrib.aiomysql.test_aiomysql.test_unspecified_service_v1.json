@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "_dd.peer.service.source": "db.name",
+      "_dd.svc_src": "aiomysql",
       "component": "aiomysql",
       "db.name": "test",
       "db.system": "mysql",
