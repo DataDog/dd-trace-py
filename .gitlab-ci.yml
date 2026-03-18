@@ -121,7 +121,8 @@ serverless lambda tests:
     project: DataDog/datadog-lambda-python
     strategy: depend
     branch: main
-  needs: []
+  needs:
+    - job: "upload manylinux2014"
   rules:
     - allow_failure: true
   variables:

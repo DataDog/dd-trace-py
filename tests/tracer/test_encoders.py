@@ -598,9 +598,9 @@ def test_span_link_v04_encoding():
                     "link.name": "link_name",
                     "link.kind": "link_kind",
                     "someval": 1,
-                    "drop_me": "bye",
                     "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -611,10 +611,6 @@ def test_span_link_v04_encoding():
         extra_attributes={"some": "extra"},
     )
     assert span._links
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_6, *others] = [link for link in span._links if link.span_id == 6]
-    assert not others
-    link_6._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -779,9 +775,9 @@ def test_span_link_v05_encoding():
                     "moon": "ears",
                     "link.name": "link_name",
                     "link.kind": "link_kind",
-                    "drop_me": "bye",
                     "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -792,10 +788,6 @@ def test_span_link_v05_encoding():
     )
 
     assert len(span._links) == 3
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
-    assert not others
-    link_bignum._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()

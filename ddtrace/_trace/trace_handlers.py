@@ -29,6 +29,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -167,6 +168,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
+    maybe_set_service_source_tag(span, integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -187,6 +189,9 @@ def _finish_span(
     span = ctx.span
     if not span:
         return
+
+    integration_config = ctx.get_item("integration_config")
+    maybe_set_service_source_tag(span, integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -295,7 +300,7 @@ def _on_inferred_proxy_finish(ctx):
 
 def _on_traced_request_context_started_flask(ctx):
     current_span = tracer.current_span()
-    if not ctx.get_item("pin").enabled or not current_span:
+    if not current_span:
         return
 
     ctx.span = current_span

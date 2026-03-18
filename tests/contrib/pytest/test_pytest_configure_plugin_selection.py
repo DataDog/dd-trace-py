@@ -169,27 +169,65 @@ class TestPluginClassSelection:
 
         item.add_marker.assert_called_once()
 
-    def test_attempt_to_fix_uses_user_property_not_xfail(self):
-        """ATF tests use user property instead of xfail, so _get_test_outcome captures real FAIL status."""
+    @pytest.mark.parametrize(
+        "is_quarantined,is_disabled,is_attempt_to_fix",
+        [
+            (True, False, False),  # quarantined
+            (False, True, True),  # disabled + ATF (ATF retries unavailable, treated same as quarantine)
+            (True, False, True),  # quarantined + ATF (same: ATF retries unavailable in base class)
+        ],
+    )
+    def test_base_plugin_uses_xfail_for_quarantine_and_atf(self, is_quarantined, is_disabled, is_attempt_to_fix):
+        """Base plugin (no retry control) always uses xfail for quarantine/ATF — ATF retries can't fire anyway."""
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
         test = mock.MagicMock()
-        test.is_quarantined.return_value = False
-        test.is_disabled.return_value = True
-        test.is_attempt_to_fix.return_value = True
+        test.is_quarantined.return_value = is_quarantined
+        test.is_disabled.return_value = is_disabled
+        test.is_attempt_to_fix.return_value = is_attempt_to_fix
 
         item = mock.MagicMock()
         item.user_properties = []
 
         TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
 
-        # ATF should NOT use xfail (no marker added), but set a user property instead
+        xfail_calls = [
+            call
+            for call in item.add_marker.call_args_list
+            if len(call[0]) > 0 and hasattr(call[0][0], "mark") and call[0][0].mark.name == "xfail"
+        ]
+        assert len(xfail_calls) == 1
+        assert xfail_calls[0][0][0].mark.kwargs["reason"] == "dd_quarantined"
+        assert item.user_properties == []
+
+    @pytest.mark.parametrize(
+        "is_quarantined,is_disabled,is_attempt_to_fix",
+        [
+            (False, True, True),  # disabled + ATF
+            (True, False, True),  # quarantined + ATF
+        ],
+    )
+    def test_child_plugin_uses_user_property_for_atf(self, is_quarantined, is_disabled, is_attempt_to_fix):
+        """Child plugin (drives retries) uses user property for ATF so real FAIL status is captured."""
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = True
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = is_quarantined
+        test.is_disabled.return_value = is_disabled
+        test.is_attempt_to_fix.return_value = is_attempt_to_fix
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        TestOptPluginWithProtocol._apply_test_management_markers(plugin, item=item, test=test)
+
         item.add_marker.assert_not_called()
         assert ("dd_disabled_attempt_to_fix", True) in item.user_properties
 
-    def test_quarantined_uses_xfail(self):
-        """Quarantined tests use xfail marker for compatibility with external rerun plugins."""
+    def test_child_plugin_uses_xfail_for_quarantine_without_atf(self):
+        """Child plugin uses xfail for quarantined non-ATF tests (same as base)."""
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
@@ -201,9 +239,8 @@ class TestPluginClassSelection:
         item = mock.MagicMock()
         item.user_properties = []
 
-        TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
+        TestOptPluginWithProtocol._apply_test_management_markers(plugin, item=item, test=test)
 
-        # Quarantined should use xfail marker
         xfail_calls = [
             call
             for call in item.add_marker.call_args_list
@@ -211,4 +248,25 @@ class TestPluginClassSelection:
         ]
         assert len(xfail_calls) == 1
         assert xfail_calls[0][0][0].mark.kwargs["reason"] == "dd_quarantined"
-        assert item.user_properties == []  # No user property for quarantine
+        assert item.user_properties == []
+
+    @pytest.mark.parametrize("plugin_class", [TestOptPlugin, TestOptPluginWithProtocol])
+    def test_plain_atf_no_markers_applied(self, plugin_class):
+        """A test that is attempt-to-fix but neither disabled nor quarantined gets no marker or property.
+        ATF retry semantics only apply when the test is also disabled or quarantined; plain ATF runs normally.
+        """
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = True
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = False
+        test.is_disabled.return_value = False
+        test.is_attempt_to_fix.return_value = True
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        plugin_class._apply_test_management_markers(plugin, item=item, test=test)
+
+        item.add_marker.assert_not_called()
+        assert item.user_properties == []
