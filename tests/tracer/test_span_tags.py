@@ -12,8 +12,12 @@ import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import SERVICE_VERSION_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
@@ -189,6 +193,18 @@ def test_set_tag_service_key():
     s.set_tag(SERVICE_KEY, "my-service")  # ast-grep-ignore: span-set-tag-service-key
     assert s.service == "my-service"
     assert s.get_tag(SERVICE_KEY) == "my-service"
+
+
+def test_set_tag_manual_keep():
+    s = Span(name="test.span")
+    s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
+    assert s.context.sampling_priority == USER_KEEP
+
+
+def test_set_tag_manual_drop():
+    s = Span(name="test.span")
+    s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
+    assert s.context.sampling_priority == USER_REJECT
 
 
 # ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -167,6 +168,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
+    maybe_set_service_source_tag(span, integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -187,6 +189,9 @@ def _finish_span(
     span = ctx.span
     if not span:
         return
+
+    integration_config = ctx.get_item("integration_config")
+    maybe_set_service_source_tag(span, integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -295,7 +300,7 @@ def _on_inferred_proxy_finish(ctx):
 
 def _on_traced_request_context_started_flask(ctx):
     current_span = tracer.current_span()
-    if not ctx.get_item("pin").enabled or not current_span:
+    if not current_span:
         return
 
     ctx.span = current_span
@@ -1332,6 +1337,33 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
+    span._set_attribute(MESSAGING_OPERATION, "send")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+    if config.google_cloud_pubsub.distributed_tracing_enabled:
+        # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
+        HTTPPropagator.inject(span.context, ctx.get_item("publish_kwargs"))
+
+
+def _on_pubsub_send_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    message_id: Optional[str],
+) -> None:
+    if message_id is not None:
+        ctx.span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1398,6 +1430,8 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
+    core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
