@@ -2,6 +2,7 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -28,16 +29,21 @@ class _BaseLlamaIndexStreamHandler:
     _is_chat: bool = True
 
     def finalize_stream(self, exception: Optional[Exception] = None) -> None:
-        """Process accumulated chunks and finish the span."""
-        _process_finished_stream(
-            self.integration,
-            self.primary_span,
-            self.request_args,
-            self.request_kwargs,
-            self.chunks,
-            is_chat=self._is_chat,
-        )
-        self.primary_span.finish()
+        """Dispatch the deferred ended event with the constructed response.
+
+        The TracingSubscriber's _on_context_ended will set LLMObs tags
+        (via on_ended) and finish the span automatically.
+        """
+        ctx = self.options["ctx"]
+        try:
+            resp = _construct_response(self.chunks, self._is_chat)
+            ctx.event.response = resp
+        except Exception:
+            log.warning("Error processing streamed LlamaIndex response.", exc_info=True)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class LlamaIndexStreamHandler(_BaseLlamaIndexStreamHandler, StreamHandler):
@@ -55,33 +61,17 @@ def handle_streamed_response(
     resp: Any,
     args: tuple,
     kwargs: dict[str, Any],
-    span: Span,
+    ctx: core.ExecutionContext,
     is_chat: Optional[bool] = True,
 ) -> Any:
     """Wrap a sync or async LlamaIndex stream for tracing."""
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
     if hasattr(resp, "__anext__"):
-        handler = LlamaIndexAsyncStreamHandler(integration, span, args, kwargs)
+        handler = LlamaIndexAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     else:
-        handler = LlamaIndexStreamHandler(integration, span, args, kwargs)
+        handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     handler._is_chat = bool(is_chat)
     return make_traced_stream(resp, handler)
-
-
-def _process_finished_stream(
-    integration: LlamaIndexIntegration,
-    span: Span,
-    args: tuple,
-    kwargs: dict[str, Any],
-    streamed_chunks: list[Any],
-    is_chat: Optional[bool] = True,
-) -> None:
-    """Process chunks from a finished stream and set LLMObs tags on the span."""
-    try:
-        resp = _construct_response(streamed_chunks, is_chat)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-    except Exception:
-        log.warning("Error processing streamed LlamaIndex response.", exc_info=True)
 
 
 def _construct_response(streamed_chunks: list[Any], is_chat: bool = True) -> Optional[Any]:

@@ -104,12 +104,15 @@ def _traced(build_kw, interface_type, is_chat=None, operation="", may_stream=Fal
         kw = build_kw(instance, args, kwargs)
         model = get_model_name(instance) if is_chat is not None else ""
         event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
-        with core.context_with_event(event) as ctx:
+        # AIDEV-NOTE: dispatch_end_event=False defers the ended event for streaming.
+        # Non-streaming calls dispatch_ended_event() immediately; streaming defers
+        # to the stream handler's finalize_stream().
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
             resp = func(*args, **kwargs)
             if always_stream or (may_stream and is_generator(resp)):
-                event.is_stream = True
-                return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
+                return handle_streamed_response(_integration, resp, args, kw, ctx, is_chat=is_chat)
             event.response = resp
+            ctx.dispatch_ended_event()
             return resp
 
     return wrapper
@@ -122,12 +125,12 @@ def _traced_async(build_kw, interface_type, is_chat=None, operation="", may_stre
         kw = build_kw(instance, args, kwargs)
         model = get_model_name(instance) if is_chat is not None else ""
         event = _create_event(instance, func, kw, model=model, is_chat=is_chat, operation=operation)
-        with core.context_with_event(event) as ctx:
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
             resp = await func(*args, **kwargs)
             if always_stream or (may_stream and is_async_generator(resp)):
-                event.is_stream = True
-                return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
+                return handle_streamed_response(_integration, resp, args, kw, ctx, is_chat=is_chat)
             event.response = resp
+            ctx.dispatch_ended_event()
             return resp
 
     return wrapper

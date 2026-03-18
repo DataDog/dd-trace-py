@@ -66,20 +66,14 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         """Set LLMObs tags on the span.
 
         Fires for both streaming and non-streaming paths. For streaming
-        integrations where the context exits before the stream is consumed
-        (e.g. llama-index), we skip tag setting and defer to the stream handler.
+        with deferred dispatch, this fires when the stream handler calls
+        dispatch_ended_event().
         """
         event: LlmRequestEvent = ctx.event
-        has_error = exc_info[1] is not None
-
-        if not event.is_stream or has_error:
-            event.llmobs_integration.llmobs_set_tags(
-                ctx.span,
-                args=[],
-                kwargs=event.request_kwargs,
-                response=event.response,
-                operation=event.operation,
-            )
-        else:
-            # Streaming: defer span finishing to the stream handler's finalize_stream()
-            event._end_span = False
+        event.llmobs_integration.llmobs_set_tags(
+            ctx.span,
+            args=[],
+            kwargs=event.request_kwargs,
+            response=event.response,
+            operation=event.operation,
+        )
