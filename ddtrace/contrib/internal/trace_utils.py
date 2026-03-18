@@ -400,7 +400,8 @@ def set_service_and_source(
         span.set_tag(_SERVICE_SOURCE, getattr(int_config, "integration_name", "true"))
     elif int_config.get("split_by_domain", False):
         span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
-    span.service = service
+    if service:
+        span.service = service
 
 
 def set_http_meta(
