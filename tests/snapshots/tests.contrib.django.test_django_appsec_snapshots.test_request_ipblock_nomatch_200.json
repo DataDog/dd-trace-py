@@ -15,6 +15,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
       "_dd.runtime_family": "python",
+      "_dd.svc_src": "django",
       "asgi.version": "3.0",
       "component": "django",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",

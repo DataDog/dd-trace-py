@@ -54,6 +54,9 @@ def trace_prerun(*args, **kwargs):
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
     span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    # Use inline check for worker default service
+    if span.service == config.celery["_default_service_worker"]:
+        span.set_tag("_dd.svc_src", "celery")
 
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
@@ -61,8 +64,7 @@ def trace_prerun(*args, **kwargs):
     # set component tag equal to name of integration
     span._set_attribute(COMPONENT, config.celery.integration_name)
 
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -127,6 +129,9 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
     span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    # Use inline check for producer default service
+    if span.service == config.celery["_default_service_producer"]:
+        span.set_tag("_dd.svc_src", "celery")
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)
@@ -136,8 +141,7 @@ def trace_before_publish(*args, **kwargs):
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span._set_attribute("celery.id", task_id)
     set_tags_from_context(span, kwargs)

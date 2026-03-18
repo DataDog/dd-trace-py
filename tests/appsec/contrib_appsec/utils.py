@@ -1101,12 +1101,34 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
             ),
+            # multipart with duplicate keys
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nsafe_value\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nyqrweytqwreasldhkuqwgervflnmlnli\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nanother_safe_value\r\n"
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
             # raw body must not be blocked
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
-        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
+        ids=[
+            "json",
+            "text_json",
+            "json_large",
+            "xml",
+            "form",
+            "form_multipart",
+            "form_multipart_duplicate_keys",
+            "text",
+            "no_attack",
+        ],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
@@ -1512,15 +1534,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
 
-        # clear the hashtable to avoid collisions with previous tests
-        if apisec_enabled:
-            assert APIManager._instance, "APIManager instance should be initialized"
-            APIManager._instance._hashtable.clear()
-
         payload = {"mastercard": "5123456789123456"}
         with override_global_config(
             dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_delay=delay)
         ):
+            # Clear sampling state after AppSec has been reconfigured for this case.
+            if apisec_enabled:
+                assert APIManager._instance, "APIManager instance should be initialized"
+                APIManager._instance._hashtable.clear()
+
             self.update_tracer(interface)
             response = interface.client.post(
                 f"/asm/?priority={priority}",
