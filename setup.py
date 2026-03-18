@@ -1189,10 +1189,14 @@ if not IS_PYSTON:
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        memalloc_cmake_args = []
+        if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
+            memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
+                cmake_args=memalloc_cmake_args,
                 optional=False,
             )
         )
