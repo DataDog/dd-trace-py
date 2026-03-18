@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixed an issue where a test marked as both quarantined and attempt-to-fix was incorrectly treated as plain quarantined, preventing attempt-to-fix flow from running.
