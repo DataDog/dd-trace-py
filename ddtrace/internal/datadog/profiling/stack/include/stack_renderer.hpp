@@ -86,6 +86,7 @@ class StackRenderer
     void render_task_begin(const std::string& task_name, bool on_cpu);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
+    void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();
 
     // Clear caches after fork to avoid using stale interned string/function IDs

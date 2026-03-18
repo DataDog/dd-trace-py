@@ -98,6 +98,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
             pin=pin,
             service=trace_utils.int_service(pin, config.rq),
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
+            integration_config=config.rq,
         ) as ctx,
         ctx.span,
     ):
@@ -155,6 +156,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
             resource=job.func_name,
             pin=pin,
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
+            integration_config=config.rq,
         ) as ctx,
         ctx.span,
     ):
@@ -174,6 +176,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             service=trace_utils.ext_service(pin, config.rq_worker),
             pin=pin,
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
+            integration_config=config.rq_worker,
         ) as ctx,
         ctx.span,
     ):
