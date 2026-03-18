@@ -34,7 +34,7 @@ typedef struct
    module. If we ever want to be started multiple twice, we'd need a more
    object-oriented approach and allocate a context per object.
 */
-static constexpr size_t MEMALLOC_MAX_DOMAINS = 2;
+static constexpr size_t MEMALLOC_MAX_DOMAINS = 3;
 static memalloc_context_t global_memalloc_ctx[MEMALLOC_MAX_DOMAINS];
 static size_t global_memalloc_ctx_count = 0;
 
@@ -211,7 +211,9 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.realloc = memalloc_realloc;
     alloc.free = memalloc_free;
     const bool all_domains_enabled = memalloc_track_all_domains_enabled();
-    const std::array<PyMemAllocatorDomain, MEMALLOC_MAX_DOMAINS> domains = { PYMEM_DOMAIN_MEM, PYMEM_DOMAIN_RAW };
+    const std::array<PyMemAllocatorDomain, MEMALLOC_MAX_DOMAINS> domains = { PYMEM_DOMAIN_OBJ,
+                                                                             PYMEM_DOMAIN_MEM,
+                                                                             PYMEM_DOMAIN_RAW };
     global_memalloc_ctx_count = all_domains_enabled ? MEMALLOC_MAX_DOMAINS : 1;
 
     for (size_t i = 0; i < global_memalloc_ctx_count; ++i) {

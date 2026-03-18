@@ -227,8 +227,8 @@ These environment variables modify aspects of the build process.
 
     description: |
         Controls memalloc allocator domain coverage at runtime.
-        By default, builds enable MEM and RAW domain hooks.
-        Set to 0 to force MEM-only behavior.
+        By default, builds enable OBJ, MEM, and RAW domain hooks.
+        Set to 0 to force OBJ-only behavior.
 
   DD_CMAKE_INCREMENTAL_BUILD:
     type: Boolean

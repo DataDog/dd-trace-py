@@ -256,7 +256,23 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe,
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
+    std::string_view domain_sv = "<unknown>";
+    switch (domain) {
+        case PYMEM_DOMAIN_OBJ:
+            domain_sv = "obj";
+            break;
+        case PYMEM_DOMAIN_MEM:
+            domain_sv = "mem";
+            break;
+        case PYMEM_DOMAIN_RAW:
+            domain_sv = "raw";
+            break;
+        default:
+            break;
+    }
+
     sample.push_alloc(weighted_size, count);
+    sample.push_label(Datadog::ExportLabelKey::allocator_domain, domain_sv);
     push_threadinfo_to_sample(sample);
     if (domain == PYMEM_DOMAIN_OBJ) {
         push_stacktrace_to_sample_no_refcount(sample, max_nframe);
