@@ -67,7 +67,6 @@ def _wrap_render(wrapped, instance, args, kwargs):
     ) as span:
         span._set_attribute(COMPONENT, "mako")
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)

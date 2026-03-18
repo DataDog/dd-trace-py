@@ -102,7 +102,6 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         # set span.kind tag equal to type of span
         span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)

@@ -118,7 +118,6 @@ def datadog_trace_operation(operation, wrapped):
     # set span.kind to the operation type being performed
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-    # PERF: avoid setting via Span.set_tag
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(mongox.DB, cmd.db)
     span._set_attribute(mongox.COLLECTION, cmd.coll)

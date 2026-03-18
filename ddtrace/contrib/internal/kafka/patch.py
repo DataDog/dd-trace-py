@@ -206,7 +206,6 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span._set_attribute(kafkax.TOMBSTONE, str(value is None))
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
             span._set_attribute(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
@@ -304,7 +303,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 pass
             span._set_attribute(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        # PERF: avoid setting via Span.set_tag
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if err is not None:
