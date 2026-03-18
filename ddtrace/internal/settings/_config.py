@@ -9,7 +9,8 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
+from ddtrace.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
@@ -372,7 +373,7 @@ def _default_config() -> dict[str, _ConfigItem]:
             modifier=parse_tags_str,
         ),
         "tags": _ConfigItem(
-            default=lambda: {"_dd.svc_src": "m"},
+            default=lambda: {_SERVICE_SOURCE: "m"},
             envs=["DD_TAGS"],
             otel_env="OTEL_RESOURCE_ATTRIBUTES",
             modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),

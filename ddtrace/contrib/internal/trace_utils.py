@@ -22,6 +22,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import set_service
 from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -391,15 +392,15 @@ def set_service_and_source(
     int_config: Union["IntegrationConfig", dict],
     default_service_key: str = "_default_service",
 ) -> None:
-    del span._meta["_dd.svc_src"]
+    del span._meta[_SERVICE_SOURCE]
     mapped_service = config.service_mapping.get(service, service)
     if service != mapped_service:
-        span.set_tag("_dd.svc_src", "opt.service_mapping")
+        span.set_tag(_SERVICE_SOURCE, "opt.service_mapping")
         service = mapped_service
     elif service == int_config.get(default_service_key):
-        span.set_tag("_dd.svc_src", getattr(int_config, "integration_name", "true"))
+        span.set_tag(_SERVICE_SOURCE, getattr(int_config, "integration_name", "true"))
     elif int_config.get("split_by_domain", False):
-        span.set_tag("_dd.svc_src", "opt.split_by_domain")
+        span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
     span.service = service
 
 

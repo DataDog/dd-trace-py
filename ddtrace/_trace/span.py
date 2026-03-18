@@ -21,6 +21,7 @@ from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -260,7 +261,7 @@ class Span(SpanData):
             return
         elif key == SERVICE_KEY:
             self.service = value
-            self.set_tag("_dd.svc_src", "m")
+            self.set_tag(_SERVICE_SOURCE, "m")
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
