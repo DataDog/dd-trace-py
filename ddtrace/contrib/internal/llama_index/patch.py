@@ -109,7 +109,7 @@ def _traced(build_kw, interface_type, is_chat=None, operation="", may_stream=Fal
             if always_stream or (may_stream and is_generator(resp)):
                 event.is_stream = True
                 return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
-            ctx.set_item("response", resp)
+            event.response = resp
             return resp
 
     return wrapper
@@ -127,7 +127,7 @@ def _traced_async(build_kw, interface_type, is_chat=None, operation="", may_stre
             if always_stream or (may_stream and is_async_generator(resp)):
                 event.is_stream = True
                 return handle_streamed_response(_integration, resp, args, kw, ctx.span, is_chat=is_chat)
-            ctx.set_item("response", resp)
+            event.response = resp
             return resp
 
     return wrapper
