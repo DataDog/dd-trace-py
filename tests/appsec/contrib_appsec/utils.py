@@ -1101,12 +1101,34 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
             ),
+            # multipart with duplicate keys
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nsafe_value\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nyqrweytqwreasldhkuqwgervflnmlnli\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nanother_safe_value\r\n"
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
             # raw body must not be blocked
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
-        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
+        ids=[
+            "json",
+            "text_json",
+            "json_large",
+            "xml",
+            "form",
+            "form_multipart",
+            "form_multipart_duplicate_keys",
+            "text",
+            "no_attack",
+        ],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
