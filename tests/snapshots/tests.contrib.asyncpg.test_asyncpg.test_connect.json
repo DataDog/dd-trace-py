@@ -12,7 +12,7 @@
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a5ec6700000000",
-      "_dd.svc.src": "asyncpg",
+      "_dd.svc_src": "asyncpg",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
