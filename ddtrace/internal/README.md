@@ -19,8 +19,9 @@ object that implements the product protocol. This consists of a Python object
 | `enabled() -> bool` | A function that returns whether the product should be started; called before `start()` by the product manager |
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
-| `stop(join: bool = False) -> None` | A function with the logic required to stop the product |
-| `at_exit(join: bool = False) -> None` | A function with the logic required to stop the product at exit |
+| `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
+| `post_preload() -> None` | A function with the logic required to finish initialization after the library preload stage |
+>>>>>>> origin/main
 
 The product object needs to be made available to the Python plugin system by
 defining an entry point in the `project.entry-points.'ddtrace.products'` section
@@ -40,6 +41,7 @@ gets extended to add support for additional features.
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
+| `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
@@ -235,5 +237,5 @@ does not yet want the agent to push configuration can call
 4. **Thread safety**: Both `__call__` and `periodic()` run in the subscriber
    thread — protect any shared state that is also accessed from the main thread.
 5. **Always pair register with unregister**: Call `unregister_callback()` (and
-   `disable_product()` if applicable) in your product's `stop()` / `at_exit()`
-   to release resources and stop advertising the product to the agent.
+   `disable_product()` if applicable) in your product's `stop()` to release
+   resources and stop advertising the product to the agent.

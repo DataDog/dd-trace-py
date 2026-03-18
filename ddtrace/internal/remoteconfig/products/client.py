@@ -15,16 +15,17 @@ def _register_rc_products() -> None:
     from ddtrace.internal.flare._subscribers import TracerFlareCallback
     from ddtrace.internal.flare._subscribers import TracerFlareState
     from ddtrace.internal.flare.flare import Flare
-    from ddtrace.internal.flare.handler import _handle_tracer_flare
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    flare = Flare(trace_agent_url=agent_config.trace_agent_url, api_key=config._dd_api_key, ddconfig=config.__dict__)
+    flare = Flare(
+        trace_agent_url=str(agent_config.trace_agent_url), api_key=config._dd_api_key, ddconfig=config.__dict__
+    )
 
     # Create shared state
     _flare_state = TracerFlareState()
 
     # Create the callback (stale check logic is now handled inside the callback)
-    flare_callback = TracerFlareCallback(_handle_tracer_flare, flare, _flare_state)
+    flare_callback = TracerFlareCallback(flare, _flare_state)
 
     # Register for both AGENT_CONFIG and AGENT_TASK products (they share the same callback)
     remoteconfig_poller.register_callback("AGENT_CONFIG", flare_callback)
@@ -61,6 +62,5 @@ def stop(join=False):
     remoteconfig_poller.disable(join=join)
 
 
-def at_exit(join=False):
-    if not rc_config.skip_shutdown:
-        stop(join=join)
+def skip_exit():
+    return rc_config.skip_shutdown

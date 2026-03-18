@@ -464,23 +464,23 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> BackendResult:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_get_json(endpoint: str, max_attempts: int = 0) -> tuple[Mock, t.Any]:
+        def mock_get_json(endpoint: str, max_attempts: int = 0) -> BackendResult:
             if endpoint in self._get_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._get_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_request(method: str, path: str, **kwargs: t.Any) -> tuple[Mock, t.Any]:
+        def mock_request(method: str, path: str, **kwargs: t.Any) -> BackendResult:
             key = f"{method}:{path}"
             if key in self._request_responses:
-                BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
+                return BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
             return self._make_404_response()
 
-        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> tuple[Mock, dict[str, t.Any]]:
+        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> BackendResult:
             return BackendResult(response=Mock(status=200))
 
         mock_connector.post_json.side_effect = mock_post_json
@@ -682,14 +682,14 @@ class EventCapture:
             if event["type"] == event_type:
                 yield event
 
-    def events_by_test_name(self, test_name: str) -> t.Iterable[Event]:
+    def events_by_test_name(self, test_name: str) -> t.Iterator[Event]:
         for event in self.events():
             if event["type"] == "test" and event["content"]["meta"]["test.name"] == test_name:
                 yield event
 
     def event_by_test_name(self, test_name: str) -> Event:
         try:
-            return next(self.events_by_test_name(test_name))
+            return next(iter(self.events_by_test_name(test_name)))
         except StopIteration:
             raise AssertionError(f"Expected event with test name {test_name!r}, found none")
 

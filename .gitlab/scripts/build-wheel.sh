@@ -9,3 +9,8 @@ build_wheel
 repair_wheel
 finalize
 test_wheel
+
+# Show sccache stats if available
+if command -v sccache &> /dev/null; then
+  sccache --show-stats || true
+fi

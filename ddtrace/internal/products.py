@@ -45,8 +45,6 @@ class Product(Protocol):
 
     def stop(self, join: bool = False) -> None: ...
 
-    def at_exit(self, join: bool = False) -> None: ...
-
 
 class ProductManager:
     __products__: dict[str, Product] = {}  # All discovered products
@@ -187,10 +185,13 @@ class ProductManager:
             try:
                 if not product.enabled():
                     continue
-                log.debug("Exiting product '%s'", name)
-                product.at_exit(join=join)
+                if (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
+                    log.debug("Skipping stop on exit for product '%s'", name)
+                    continue
+                product.stop(join=join)
+                log.debug("Stopped product '%s' on exit", name)
             except Exception:
-                log.exception("Failed to exit product '%s'", name)
+                log.exception("Failed to stop product '%s' on exit", name)
 
     def post_preload_products(self) -> None:
         for name, product in self.products:

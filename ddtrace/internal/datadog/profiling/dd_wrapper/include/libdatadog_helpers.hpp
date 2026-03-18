@@ -14,6 +14,13 @@ extern "C"
 
 namespace Datadog {
 
+// Intern a string into libdatadog, returning a string ID
+// (or nullopt if interning failed).
+// Passing the same string twice will deduplicate the string and return
+// the same string ID.
+// Note: although this function is a wrapper around libdatadog utilities,
+// it maintains a local cache of string -> string ID mappings to avoid
+// redundant FFI boundary-crossing calls.
 std::optional<ddog_prof_StringId2>
 intern_string(std::string_view s);
 
@@ -41,6 +48,7 @@ intern_string(std::string_view s);
 // to have spaces in the names.
 #define EXPORTER_LABELS(X)                                                                                             \
     X(exception_type, "exception type")                                                                                \
+    X(exception_message, "exception message")                                                                          \
     X(thread_id, "thread id")                                                                                          \
     X(thread_native_id, "thread native id")                                                                            \
     X(thread_name, "thread name")                                                                                      \

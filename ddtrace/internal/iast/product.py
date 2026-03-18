@@ -119,10 +119,3 @@ def stop(join=False):
     Stop the IAST product.
     """
     pass
-
-
-def at_exit(join=False):
-    """
-    Clean up IAST product at application exit.
-    """
-    pass

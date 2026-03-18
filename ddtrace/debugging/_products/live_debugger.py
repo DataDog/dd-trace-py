@@ -27,7 +27,3 @@ def stop(join: bool = False) -> None:
     from ddtrace.debugging._live import disable
 
     disable()
-
-
-def at_exit(join: bool = False) -> None:
-    stop(join=join)

@@ -16,6 +16,7 @@ class BufferItemTooLarge(Exception):
     pass
 
 class BufferedEncoder(object):
+    content_type: str
     max_size: int
     max_item_size: int
     def __init__(self, max_size: int, max_item_size: int) -> None: ...

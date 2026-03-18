@@ -1,28 +1,11 @@
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
+"""ctypes bindings for AppSec's security library: libddwaf
+
+Importing this module will load `libddwaf.so` as a side-effect and update `_asm_libddwaf_available` accordingly.
+"""
+
+from ddtrace.appsec._ddwaf.waf import DDWaf
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-from ddtrace.appsec._utils import DDWaf_info
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 
 
-__all__ = ["DDWaf", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
-
-LOGGER = get_logger(__name__)
-
-_DDWAF_LOADED: bool = False
-
-if asm_config._asm_libddwaf_available:
-    try:
-        import ddtrace.appsec._ddwaf.waf as waf_module
-
-        _DDWAF_LOADED = True
-    except Exception:
-        import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
-
-        LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
-else:
-    import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
-
-DDWaf: type[WAF] = waf_module.DDWaf
-version = waf_module.version
+__all__ = ["DDWaf", "DDWafRulesType", "ddwaf_context_capsule"]

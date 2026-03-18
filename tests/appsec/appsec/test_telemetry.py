@@ -7,8 +7,8 @@ import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
+import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import enable_asm
@@ -32,6 +32,10 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, expected_name=[]):
+    from ddtrace.appsec._ddwaf.waf import version as get_waf_version
+
+    version = get_waf_version()
+
     metric_update = 0
     # Since the appsec.enabled metric is emitted on each telemetry worker interval, it can cause random errors in
     # this function and make the tests flaky. That's why we exclude the "enabled" metric from this assert
@@ -50,17 +54,17 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
             # assert not any(tag.startswith("request_truncated") for tag in metric.["tags"])
             assert "waf_timeout:false" in metric["tags"]
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert any("event_rules_version:" in t for t in metric["tags"])
         elif metric_name == "waf.init":
             assert len(metric["points"]) == 1
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert "success:true" in metric["tags"]
             assert any("event_rules_version" in t for t in metric["tags"])
             assert len(metric["tags"]) == 3
         elif metric_name == "waf.updates":
             assert len(metric["points"]) == 1
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert "success:true" in metric["tags"]
             assert any("event_rules_version" in t for t in metric["tags"])
             assert len(metric["tags"]) == 3
@@ -74,6 +78,8 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
+    from ddtrace.appsec._ddwaf.waf import version
+
     distributions_metrics = metrics_result[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][TELEMETRY_NAMESPACE.APPSEC.value]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
@@ -162,6 +168,8 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_init(telemetry_writer):
+    from ddtrace.appsec._ddwaf.waf import version
+
     with override_global_config(
         dict(
             _asm_enabled=True,
@@ -210,6 +218,8 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):
+    from ddtrace.appsec._ddwaf.waf import version
+
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules([], invalid_rule_update)
@@ -231,6 +241,8 @@ def _wrapped_run(*args, **kwargs):
 @mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
+    from ddtrace.appsec._ddwaf.waf import version
+
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
             span_processor = AppSecSpanProcessor()

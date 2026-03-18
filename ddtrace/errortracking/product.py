@@ -30,7 +30,3 @@ def stop(join: bool = False):
     from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 
     HandledExceptionCollector.disable()
-
-
-def at_exit(join: bool = False):
-    stop(join=join)

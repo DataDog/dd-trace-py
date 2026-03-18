@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
 
-import pytest
-
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
@@ -15,13 +13,6 @@ from ddtrace.internal.core.events import event_field
 
 
 ExcInfoType = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
-
-
-@pytest.fixture(autouse=True)
-def reset_event_hub():
-    """Reset event hub after each test to prevent listener leakage between tests."""
-    yield
-    event_hub.reset()
 
 
 @dataclass
@@ -56,13 +47,19 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
     def on_context_ended(ctx: core.ExecutionContext, err_info: ExcInfoType):
         _finish_span(ctx, err_info)
 
-    core.on(f"context.started.{TestTracingEvent.event_name}", on_context_started)
-    core.on(f"context.ended.{TestTracingEvent.event_name}", on_context_ended)
+    started_event = f"context.started.{TestTracingEvent.event_name}"
+    ended_event = f"context.ended.{TestTracingEvent.event_name}"
+    core.on(started_event, on_context_started, name="test_tracing_event_started")
+    core.on(ended_event, on_context_ended, name="test_tracing_event_ended")
 
-    with core.context_with_event(
-        TestTracingEvent(resource="test.resource", service="svc", component="comp", my_span_name="name")
-    ):
-        pass
+    try:
+        with core.context_with_event(
+            TestTracingEvent(resource="test.resource", service="svc", component="comp", my_span_name="name")
+        ):
+            pass
+    finally:
+        event_hub.reset(started_event, on_context_started)
+        event_hub.reset(ended_event, on_context_ended)
 
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
