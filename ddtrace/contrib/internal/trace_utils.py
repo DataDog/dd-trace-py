@@ -20,7 +20,6 @@ import wrapt
 
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
-from ddtrace._trace.span import set_service
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
