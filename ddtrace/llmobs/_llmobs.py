@@ -1817,7 +1817,9 @@ class LLMObs(Service):
         # Write to local root span's meta so it's serialized to APM and visible to the backend otel gen_ai span
         # processor. All spans in the local trace share the same _local_root object reference,
         # so this single write makes the trace ID available on the root span in every payload.
-        span._local_root._meta["llmobs_trace_id"] = str(llmobs_trace_id)
+        # Only set if not already present to avoid sibling LLMObs roots overwriting each other's trace IDs.
+        if "llmobs_trace_id" not in span._local_root._meta:
+            span._local_root._meta["llmobs_trace_id"] = str(llmobs_trace_id)
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
