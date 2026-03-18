@@ -7,45 +7,50 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69a5f87d00000000",
       "_dd.runtime_family": "python",
+      "_dd.svc.src": "flask",
       "component": "flask",
       "flask.endpoint": "run_subcommunicateshell",
       "flask.url_rule": "/executions/subcommunicateshell",
       "flask.version": "1.1.4",
       "http.client_ip": "127.0.0.1",
       "http.method": "GET",
+      "http.request.headers.accept": "*/*",
+      "http.request.headers.accept-encoding": "gzip, deflate",
+      "http.request.headers.host": "0.0.0.0:8000",
+      "http.request.headers.user-agent": "python-requests/2.32.3",
       "http.response.headers.content-length": "1",
       "http.response.headers.content-type": "text/html; charset=utf-8",
       "http.route": "/executions/subcommunicateshell",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/executions/subcommunicateshell",
-      "http.useragent": "python-requests/2.28.2",
+      "http.useragent": "python-requests/2.32.3",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "ae1050148c3848cda1d7c8ea28db9414",
+      "runtime-id": "6aea2ea0d5d4457fb847fe6b41155314",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
-      "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 5,
-      "_dd.appsec.waf.duration": 12.166,
-      "_dd.appsec.waf.duration_ext": 202.178955078125,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.appsec.event_rules.error_count": 0.0,
+      "_dd.appsec.event_rules.loaded": 8.0,
+      "_dd.appsec.waf.duration": 14.625,
+      "_dd.appsec.waf.duration_ext": 383.376000172575,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 45379
+      "_sampling_priority_v1": 1.0,
+      "process_id": 70626.0
     },
-    "duration": 9763750,
-    "start": 1692710168666409425
+    "duration": 38474750,
+    "start": 1772484733272587095
   },
      {
        "name": "flask.application",
@@ -54,17 +59,14 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "run_subcommunicateshell",
          "flask.url_rule": "/executions/subcommunicateshell"
        },
-       "duration": 8857500,
-       "start": 1692710168666805759
+       "duration": 36613875,
+       "start": 1772484733273414387
      },
         {
           "name": "flask.try_trigger_before_first_request_functions",
@@ -73,15 +75,12 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 13542,
-          "start": 1692710168666881092
+          "duration": 28625,
+          "start": 1772484733273561220
         },
         {
           "name": "flask.preprocess_request",
@@ -90,15 +89,12 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 22583,
-          "start": 1692710168666948842
+          "duration": 33000,
+          "start": 1772484733273678678
         },
         {
           "name": "flask.dispatch_request",
@@ -107,15 +103,12 @@
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 7964334,
-          "start": 1692710168667006675
+          "duration": 35142458,
+          "start": 1772484733273759012
         },
            {
              "name": "tests.contrib.flask.app.run_subcommunicateshell",
@@ -124,15 +117,12 @@
              "trace_id": 0,
              "span_id": 10,
              "parent_id": 6,
-             "type": "",
-             "error": 0,
              "meta": {
                "_dd.base_service": "",
-               "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
-             "duration": 7919959,
-             "start": 1692710168667033300
+             "duration": 35045292,
+             "start": 1772484733273813928
            },
               {
                 "name": "command_execution",
@@ -142,13 +132,11 @@
                 "span_id": 11,
                 "parent_id": 10,
                 "type": "system",
-                "error": 0,
                 "meta": {
-                  "_dd.base_service": "",
-                  "_dd.p.tid": "654a694400000000"
+                  "_dd.base_service": ""
                 },
-                "duration": 49291,
-                "start": 1692710168667967759
+                "duration": 2742875,
+                "start": 1772484733275280637
               },
               {
                 "name": "command_execution",
@@ -158,16 +146,14 @@
                 "span_id": 12,
                 "parent_id": 10,
                 "type": "system",
-                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
                 },
-                "duration": 4103250,
-                "start": 1692710168670754634
+                "duration": 30399917,
+                "start": 1772484733278300345
               },
               {
                 "name": "command_execution",
@@ -177,16 +163,14 @@
                 "span_id": 13,
                 "parent_id": 10,
                 "type": "system",
-                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
                 },
-                "duration": 17709,
-                "start": 1692710168674912675
+                "duration": 43417,
+                "start": 1772484733308786970
               },
         {
           "name": "flask.process_response",
@@ -195,15 +179,12 @@
           "trace_id": 0,
           "span_id": 7,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 45542,
-          "start": 1692710168675144342
+          "duration": 88084,
+          "start": 1772484733309123303
         },
         {
           "name": "flask.do_teardown_request",
@@ -212,15 +193,12 @@
           "trace_id": 0,
           "span_id": 8,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 19792,
-          "start": 1692710168675560925
+          "duration": 44250,
+          "start": 1772484733309839637
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -229,15 +207,12 @@
           "trace_id": 0,
           "span_id": 9,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
-          "duration": 12708,
-          "start": 1692710168675616259
+          "duration": 27291,
+          "start": 1772484733309948262
         },
      {
        "name": "flask.response",
@@ -246,13 +221,10 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },
-       "duration": 483708,
-       "start": 1692710168675674217
+       "duration": 999667,
+       "start": 1772484733310042678
      }]]
