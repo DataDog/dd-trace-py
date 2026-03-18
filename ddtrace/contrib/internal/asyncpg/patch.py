@@ -134,8 +134,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)
 
         # dispatch DBM
