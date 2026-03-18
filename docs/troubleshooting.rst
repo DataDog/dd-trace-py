@@ -94,6 +94,38 @@ While this is default behavior for integrations, users can add a trace filter to
   tracer.configure(trace_processors=[ErrorFilter()])
 
 
+.. _build-failures-local-install:
+
+Build failures when installing ddtrace locally
+==============================================
+
+When installing ddtrace from source locally (e.g. ``pip install -e .``), you may encounter build failures,
+CMake errors, or stale native extension issues. Build requires Rust, cmake, Cython, and setuptools-rust—see
+:doc:`build_system` for installation. Run a full clean to remove cached artifacts before reinstalling:
+
+**Preferred: Hatch clean env** (creates a venv with build deps, no global install needed):
+
+.. code-block:: bash
+
+    $ hatch run clean:all
+
+**Alternative:** The best use case for ``python setup.py clean --all`` is when ddtrace is installed from
+source into a sample app for local dev testing. If your build environment is already installed:
+
+1. Uninstall ddtrace from your environment (e.g. your sample app's venv):
+
+   .. code-block:: bash
+
+       $ python -m pip uninstall /path/to/dd-trace-py
+
+2. Clean build artifacts from the dd-trace-py source tree:
+
+   .. code-block:: bash
+
+       $ python /path/to/dd-trace-py/setup.py clean --all
+
+3. Reinstall: ``python -m pip install -e /path/to/dd-trace-py``
+
 ModuleNotFoundError when running tests with riot
 ================================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``

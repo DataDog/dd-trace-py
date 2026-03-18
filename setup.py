@@ -101,11 +101,13 @@ DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
-LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
-IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
-DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
+DDTRACE_DIR = HERE / "ddtrace"
+LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
+IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
+DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
+STACK_DIR = DDTRACE_DIR/ "internal" / "datadog" / "profiling" / "stack"
+VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
@@ -604,23 +606,56 @@ class LibraryDownloader(BuildPyCommand):
 
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_artifacts():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(IAST_DIR / "*.so", True)
+    def remove_native_extensions():
+        """Remove native extensions and shared libraries installed by setup.py."""
+        for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
+            for path in DDTRACE_DIR.rglob(pattern):
+                # Avoid modifying vendored directories
+                if path.is_file() and not path.is_relative_to(VENDOR_DIR):
+                    try:
+                        path.unlink()
+                    except OSError as e:
+                        print(f"WARNING: could not remove {path}: {e}")
 
     @staticmethod
-    def remove_rust():
-        """Clean the Rust crate using cargo clean."""
-        if CARGO_TARGET_DIR.exists():
-            subprocess.run(
-                ["cargo", "clean"],
-                cwd=str(NATIVE_CRATE),
-                check=True,
-            )
+    def remove_artifacts():
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        CleanLibraries.remove_native_extensions()
+        # CMake FetchContent cache can become corrupted and cause build failures on reinstall
+        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        if cmake_deps.exists():
+            shutil.rmtree(cmake_deps, True)
+
+    @staticmethod
+    def remove_rust_targets():
+        """Remove all versioned Rust target dirs (target3.9, target3.10, etc.)."""
+        # rmtree is a superset of `cargo clean`; tighter glob avoids unrelated dirs
+        for target_dir in NATIVE_CRATE.glob("target[0-9]*"):
+            if target_dir.is_dir():
+                shutil.rmtree(target_dir, True)
+
+    @staticmethod
+    def remove_build_artifacts():
+        """Remove egg-info, dist, .eggs, and *.egg.
+
+        The base distutils clean command does not remove these. They can cause
+        stale metadata and odd behavior on reinstall. Invoked only for
+        ``clean --all`` to give a full reset before a fresh build.
+        """
+        for path in (HERE / "ddtrace.egg-info", HERE / "dist", HERE / ".eggs"):
+            if path.exists():
+                shutil.rmtree(path, True)
+        for egg in HERE.glob("*.egg"):
+            if egg.is_file():
+                egg.unlink(missing_ok=True)
+            elif egg.is_dir():
+                shutil.rmtree(egg, True)
 
     def run(self):
-        CleanLibraries.remove_rust()
+        CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
+        if self.all:
+            CleanLibraries.remove_build_artifacts()
         CleanCommand.run(self)
 
 
