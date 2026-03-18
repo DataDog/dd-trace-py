@@ -9,7 +9,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module as with_traced_module_sync
@@ -86,16 +86,13 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     url: URL = URL(get_argument_value(args, kwargs, 1, "url"))
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
+    service: str = url.host if config.aiohttp_client.split_by_domain else ext_service(pin, config.aiohttp_client)
 
     with tracer.trace(
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
-        service=ext_service(pin, config.aiohttp_client),
     ) as span:
-        if config.aiohttp_client.split_by_domain:
-            span.service = url.host
-
-        maybe_set_service_source_tag(span, config.aiohttp)
+        set_service_and_source(span, service, config.aiohttp)
 
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)
