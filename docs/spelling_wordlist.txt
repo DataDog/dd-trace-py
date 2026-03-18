@@ -252,6 +252,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pyenv
 PyFrameObject
