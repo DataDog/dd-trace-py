@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a8954300000000",
-      "_dd.svc.src": "rq_worker",
+      "_dd.svc_src": "rq_worker",
       "component": "rq",
       "job.func_name": "__call__",
       "job.id": "f99211f9-2e3d-4a34-a266-5e64b928d1eb",
@@ -42,7 +42,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a8954300000000",
-      "_dd.svc.src": "rq",
+      "_dd.svc_src": "rq",
       "component": "rq",
       "job.id": "abc",
       "language": "python",
@@ -70,7 +70,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a8954300000000",
-      "_dd.svc.src": "rq_worker",
+      "_dd.svc_src": "rq_worker",
       "component": "rq",
       "job.id": "f99211f9-2e3d-4a34-a266-5e64b928d1eb",
       "job.origin": "q",
@@ -98,7 +98,7 @@
        "type": "",
        "error": 1,
        "meta": {
-         "_dd.svc.src": "rq",
+         "_dd.svc_src": "rq",
          "component": "rq",
          "error.message": "__call__() got an unexpected keyword argument 'key'",
          "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq_click712/lib/python3.9/site-packages/rq/job.py\", line 1278, in perform\n    self._result = self._execute()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq_click712/lib/python3.9/site-packages/rq/job.py\", line 1315, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
