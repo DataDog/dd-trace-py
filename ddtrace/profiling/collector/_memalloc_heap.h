@@ -61,7 +61,7 @@ class heap_tracker_t
      * Marked [[gnu::always_inline]] so the counter-increment + threshold-check
      * compiles into every caller — no cross-TU call on the 99.99% non-sampling path. */
     [[nodiscard]] [[gnu::always_inline]] inline bool should_sample_no_cpython(size_t size,
-                                                                               uint64_t* allocated_memory_val);
+                                                                              uint64_t* allocated_memory_val);
 
     /* Track a sampled allocation. The traceback is linked into the intrusive list.
      * user_ptr is the pointer returned to Python (real_ptr + MEMALLOC_HEADER_SIZE).
