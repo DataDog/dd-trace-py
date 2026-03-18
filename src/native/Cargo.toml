@@ -21,26 +21,26 @@ libc = { version = "0.2", optional = true }
 rand = "0.9"
 serde = "1.0"
 serde_json = "1.0"
-datadog-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3", version = "1.0.0", features = ["pyo3"] }
-datadog-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
-datadog-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3", optional = true }
-libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
+datadog-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b", version = "1.0.0", features = ["pyo3"] }
+datadog-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
+datadog-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
+libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b", optional = true }
+libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v27.0.0" }
-libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3", optional = true, features = [
+libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
-libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3" }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b" }
 pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.27", optional = true }
 
 [build-dependencies]
 pyo3-build-config = "0.27"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "4e6675bcad58bb774ca6601c63418aed293ddbc3", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "ba89323748db39edccb81974b85cec0c88a1670b", features = [
     "cbindgen",
 ] }
 
