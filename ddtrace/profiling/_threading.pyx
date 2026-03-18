@@ -47,13 +47,14 @@ cpdef tuple get_thread_info(thread_id):
     """Return (thread_name, thread_native_id) with a single thread lookup."""
     cdef object pt
     cdef object thread
-    try:
-        pt = periodic_threads[thread_id]
+    pt = periodic_threads.get(thread_id, None)
+    if pt is not None:
         return pt.name, thread_id
-    except KeyError:
-        pass
 
     thread = get_thread_by_id(thread_id)
     if thread is not None:
-        return thread.name, thread.native_id
+        try:
+            return thread.name, thread.native_id
+        except AttributeError:
+            return thread.name, thread_id
     return None, thread_id
