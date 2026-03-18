@@ -83,7 +83,7 @@ def _(asyncio: ModuleType) -> None:
 
     def _get_running_loop() -> typing.Optional["aio.AbstractEventLoop"]:
         try:
-            return asyncio.get_running_loop()
+            return typing.cast("aio.AbstractEventLoop", asyncio.get_running_loop())
         except RuntimeError:
             return None
 
@@ -160,7 +160,7 @@ def _(asyncio: ModuleType) -> None:
 
             if parent is not None:
                 fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                futures: set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                futures: set["aio.Future[typing.Any]"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
                 for future in futures:
                     stack.link_tasks(parent, future)
 
