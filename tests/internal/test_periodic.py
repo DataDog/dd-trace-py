@@ -362,20 +362,25 @@ def _get_native_thread_name():
 
 
 def test_periodic_thread_stop_without_join_forksafe():
-    """Dropping a PeriodicThread that was stop()'d without join() in a forked child
-    must not crash, even when the OS (Linux/glibc) recycles the old pthread descriptor
-    for a new thread between the stop() call and the dealloc in the child.
+    """
+    Dropping a PeriodicThread that was stop()'d without join() in a forked child
+    must not crash, even when the OS (Linux/glibc) recycles the old pthread
+    descriptor for a new thread between the stop() call and the dealloc in the
+    child.
 
-    Scenario (mirrors repro.py):
+    Scenario:
       1. Start a PeriodicThread, call stop() — *without* join().
-      2. Wait briefly so the OS thread exits and glibc marks the pthread_t reusable.
+      2. Wait briefly so the OS thread exits and glibc marks the pthread_t
+         reusable.
       3. Fork.
-      4. In the child: spin up many short-lived threads to encourage glibc to recycle
-         the old pthread_t, then drop the last Python reference (triggering dealloc).
+      4. In the child: spin up many short-lived threads to encourage glibc to
+         recycle the old pthread_t, then drop the last Python reference
+         (triggering dealloc).
       5. Assert the child exited cleanly (not killed by a signal).
 
-    Before the fix, PeriodicThread_dealloc called join() or detach() on the stale
-    handle, which on Linux causes SIGSEGV when the pthread descriptor has been reused.
+    Before the fix, PeriodicThread_dealloc called join() or detach() on the
+    stale handle, which on Linux causes SIGSEGV when the pthread descriptor has
+    been reused.
     """
     import gc
     import signal
