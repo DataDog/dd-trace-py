@@ -720,33 +720,34 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     import json
-    def get_pydantic_evaluator_result(result: PydanticEvaluatorOutput) -> EvaluatorResult:
-        _eval_result = cast(PydanticEvaluatorOutput, result)
+    
+    def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
+        eval_result_list = list(_eval_result.values())
         eval_result = EvaluatorResult(
             value=None,
             reasoning=None,
             assessment=None,
         )
-        if isinstance(_eval_result, PydanticEvaluationScalar):
-            eval_result.value = _eval_result
-            if isinstance(_eval_result, bool):
-                eval_result.assessment = "pass" if _eval_result else "fail"
-        elif isinstance(_eval_result, PydanticEvaluationReason):
-            eval_result.value = _eval_result.value
-            eval_result.reasoning = _eval_result.reason
-            if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
-                eval_result.assessment = "pass" if _eval_result.value else "fail"
-        elif isinstance(_eval_result, Mapping) and len(_eval_result) == 1:
-            first_item = next(iter(_eval_result.values()))
-            eval_result.value = first_item.value
-            eval_result.reasoning = first_item.reason
-            if isinstance(first_item.value, bool):
-                eval_result.assessment = "pass" if first_item.value else "fail"
-            eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
-        elif isinstance(_eval_result, Mapping) and len(_eval_result) == 2:
-            # this is to identify the pass/fail assessment for LLMJudge evaluators
-            first_item = next(iter(_eval_result.values()))
-            second_item = list(_eval_result.values())[1]
+        if len(eval_result_list) == 1:
+            first_item = eval_result_list[0]
+            if hasattr(first_item, 'value'):
+                first_item_value = first_item.value
+            else:
+                first_item_value = first_item
+            if hasattr(first_item, 'reason'):
+                reasoning = first_item.reason
+            else:
+                reasoning = None
+            if isinstance(first_item_value, bool):
+                assessment = "pass" if first_item_value else "fail"
+            else:
+                assessment = None
+            eval_result.value = first_item_value
+            eval_result.reasoning = reasoning
+            eval_result.assessment = assessment
+        elif len(eval_result_list) == 2:
+            first_item = eval_result_list[0]
+            second_item = eval_result_list[1]
             if hasattr(first_item, 'value'):
                 first_item_value = first_item.value
             else:
@@ -773,7 +774,30 @@ if PydanticEvaluator is not None:
                 eval_result.assessment = assessment
             else:
                 eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
-            eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+        else:
+            eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+        eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+        return eval_result
+
+    
+    def get_pydantic_evaluator_result(result: PydanticEvaluatorOutput) -> EvaluatorResult:
+        _eval_result = cast(PydanticEvaluatorOutput, result)
+        eval_result = EvaluatorResult(
+            value=None,
+            reasoning=None,
+            assessment=None,
+        )
+        if isinstance(_eval_result, PydanticEvaluationScalar):
+            eval_result.value = _eval_result
+            if isinstance(_eval_result, bool):
+                eval_result.assessment = "pass" if _eval_result else "fail"
+        elif isinstance(_eval_result, PydanticEvaluationReason):
+            eval_result.value = _eval_result.value
+            eval_result.reasoning = _eval_result.reason
+            if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
+                eval_result.assessment = "pass" if _eval_result.value else "fail"
+        elif isinstance(_eval_result, Mapping):
+            eval_result = get_mapping_result(_eval_result)
         else:
             eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             eval_result.metadata = {'raw_response': json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
