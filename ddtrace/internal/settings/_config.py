@@ -10,7 +10,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import gitmetadata
 from ddtrace.constants import _SERVICE_SOURCE
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
