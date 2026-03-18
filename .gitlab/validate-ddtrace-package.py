@@ -57,7 +57,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
 
 def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
-    package_name = f"ddtrace{flavor}"
+    package_name = f"ddtrace{flavor.replace('-', '_')}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
