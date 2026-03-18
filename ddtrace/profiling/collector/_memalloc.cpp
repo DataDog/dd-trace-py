@@ -43,7 +43,7 @@ memalloc_free(void* ctx, void* ptr)
 {
     PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
 
-    if (ptr == NULL)
+    if (MEMALLOC_UNLIKELY(ptr == NULL))
         return;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
@@ -54,7 +54,7 @@ memalloc_free(void* ctx, void* ptr)
 
     /* Check if this allocation has a prepended header (sampled allocation).
      * This is a simple 8-byte read + compare — much cheaper than a hashmap lookup. */
-    if (memalloc_heap_is_sampled(ptr)) {
+    if (MEMALLOC_UNLIKELY(memalloc_heap_is_sampled(ptr))) {
         /* Extract the metadata pointer from the header */
         const memalloc_header_t* header =
           reinterpret_cast<const memalloc_header_t*>(static_cast<const char*>(ptr) - MEMALLOC_HEADER_SIZE);
@@ -62,7 +62,7 @@ memalloc_free(void* ctx, void* ptr)
 
         /* Untrack from the intrusive list and return traceback to pool.
          * metadata may be null if tracking failed (e.g., reentry guard). */
-        if (metadata) {
+        if (MEMALLOC_LIKELY(metadata)) {
             memalloc_heap_untrack_from_header_no_cpython(metadata);
         }
 
@@ -88,7 +88,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     size_t total_size = nelem * elsize;
 
-    if (!memalloc_enabled) {
+    if (MEMALLOC_UNLIKELY(!memalloc_enabled)) {
         /* Profiler is stopped but hooks are still installed — pass through */
         if (use_calloc)
             return memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
@@ -101,7 +101,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     uint64_t allocated_memory_val = 0;
     bool sampled = memalloc_heap_should_sample_no_cpython(total_size, &allocated_memory_val);
 
-    if (sampled) {
+    if (MEMALLOC_UNLIKELY(sampled)) {
         /* Sampled: allocate size + header, return user_ptr = real_ptr + 16 */
         size_t alloc_size = total_size + MEMALLOC_HEADER_SIZE;
 
@@ -111,7 +111,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
             ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, alloc_size);
         }
 
-        if (!ptr)
+        if (MEMALLOC_UNLIKELY(!ptr))
             return NULL;
 
         void* user_ptr = static_cast<char*>(ptr) + MEMALLOC_HEADER_SIZE;
@@ -157,12 +157,12 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
 
-    if (ptr == NULL) {
+    if (MEMALLOC_UNLIKELY(ptr == NULL)) {
         /* realloc(NULL, size) is equivalent to malloc(size) */
         return memalloc_alloc(0, ctx, 1, new_size);
     }
 
-    if (new_size == 0) {
+    if (MEMALLOC_UNLIKELY(new_size == 0)) {
         /* realloc(ptr, 0) is equivalent to free(ptr) */
         memalloc_free(ctx, ptr);
         return NULL;
@@ -170,8 +170,8 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 
     bool old_sampled = memalloc_heap_is_sampled(ptr);
 
-    if (!old_sampled) {
-        if (!memalloc_enabled) {
+    if (MEMALLOC_LIKELY(!old_sampled)) {
+        if (MEMALLOC_UNLIKELY(!memalloc_enabled)) {
             /* Profiler stopped and allocation wasn't sampled — pure pass-through */
             return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
         }
@@ -182,7 +182,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
         uint64_t allocated_memory_val = 0;
         bool new_sampled = memalloc_heap_should_sample_no_cpython(new_size, &allocated_memory_val);
 
-        if (!new_sampled) {
+        if (MEMALLOC_LIKELY(!new_sampled)) {
             /* non-sampled → non-sampled (common case): delegate to the underlying
              * realloc directly.  We don't know old_size for non-sampled
              * allocations, so using our own malloc+memcpy+free would risk
@@ -195,7 +195,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
          * should_sample_no_cpython and double-count the size. */
         size_t alloc_size = new_size + MEMALLOC_HEADER_SIZE;
         void* real_ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, alloc_size);
-        if (!real_ptr) {
+        if (MEMALLOC_UNLIKELY(!real_ptr)) {
             return NULL;
         }
         void* new_ptr = static_cast<char*>(real_ptr) + MEMALLOC_HEADER_SIZE;
@@ -240,7 +240,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 
     /* Allocate new block via our alloc (which handles sampling decision) */
     void* new_ptr = memalloc_alloc(0, ctx, 1, new_size);
-    if (!new_ptr) {
+    if (MEMALLOC_UNLIKELY(!new_ptr)) {
         return NULL;
     }
 
