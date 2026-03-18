@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -32,6 +33,9 @@ typedef struct
 static memalloc_context_t global_memalloc_ctx;
 
 static bool memalloc_enabled = false;
+/* Once hooks are installed, they stay installed for the process lifetime.
+ * This flag prevents re-installing hooks on start/stop/start cycles. */
+static bool memalloc_hooks_installed = false;
 static std::once_flag memalloc_fork_handler_once_flag;
 
 static void
@@ -43,17 +47,38 @@ memalloc_free(void* ctx, void* ptr)
         return;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
-    /* Abort in test builds if we're re-entering from the malloc hook.
-     * In production we can't abort or skip untrack (skipping would leak
-     * heap tracker entries), so we just let it proceed — direct struct
-     * access frame walking avoids calling CPython APIs that could free and is thus safe. */
     if (_MEMALLOC_ON_THREAD) {
         _memalloc_abort_free_reentry();
     }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
 
-    memalloc_heap_untrack_no_cpython(ptr);
-    alloc->free(alloc->ctx, ptr);
+    /* Check if this allocation has a prepended header (sampled allocation).
+     * This is a simple 8-byte read + compare — much cheaper than a hashmap lookup. */
+    if (memalloc_heap_is_sampled(ptr)) {
+        /* Extract the metadata pointer from the header */
+        const memalloc_header_t* header =
+          reinterpret_cast<const memalloc_header_t*>(static_cast<const char*>(ptr) - MEMALLOC_HEADER_SIZE);
+        void* metadata = header->metadata_ptr;
+
+        /* Untrack from the intrusive list and return traceback to pool.
+         * metadata may be null if tracking failed (e.g., reentry guard). */
+        if (metadata) {
+            memalloc_heap_untrack_from_header_no_cpython(metadata);
+        }
+
+        /* Clear the signature BEFORE freeing to prevent false positives.
+         * After free, the memory may be reused. If a later non-sampled
+         * allocation ends up at an address where the old signature lingers,
+         * is_sampled() would false-positive and cause a wrong free. */
+        void* real_ptr = static_cast<char*>(ptr) - MEMALLOC_HEADER_SIZE;
+        memalloc_header_t* free_header = static_cast<memalloc_header_t*>(real_ptr);
+        free_header->signature = 0;
+
+        alloc->free(alloc->ctx, real_ptr);
+    } else {
+        /* Non-sampled allocation: pass through directly */
+        alloc->free(alloc->ctx, ptr);
+    }
 }
 
 static void*
@@ -61,17 +86,58 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 {
     void* ptr;
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    size_t total_size = nelem * elsize;
 
-    if (use_calloc)
-        ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
-    else
-        ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
-
-    if (ptr) {
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+    if (!memalloc_enabled) {
+        /* Profiler is stopped but hooks are still installed — pass through */
+        if (use_calloc)
+            return memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
+        else
+            return memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, total_size);
     }
 
-    return ptr;
+    /* Check sampling decision BEFORE allocating so we know whether to
+     * request extra space for the header. */
+    uint64_t allocated_memory_val = 0;
+    bool sampled = memalloc_heap_should_sample_no_cpython(total_size, &allocated_memory_val);
+
+    if (sampled) {
+        /* Sampled: allocate size + header, return user_ptr = real_ptr + 16 */
+        size_t alloc_size = total_size + MEMALLOC_HEADER_SIZE;
+
+        if (use_calloc) {
+            ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, 1, alloc_size);
+        } else {
+            ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, alloc_size);
+        }
+
+        if (!ptr)
+            return NULL;
+
+        void* user_ptr = static_cast<char*>(ptr) + MEMALLOC_HEADER_SIZE;
+
+        /* Write signature into the header BEFORE tracking, so that if tracking
+         * fails (e.g., due to reentry guard), free() still knows this allocation
+         * has a header and will free real_ptr instead of user_ptr.
+         * Set metadata_ptr to null initially; track will update it on success. */
+        memalloc_header_t* header = static_cast<memalloc_header_t*>(ptr);
+        header->signature = MEMALLOC_SIGNATURE;
+        header->metadata_ptr = nullptr;
+
+        /* Track the allocation — updates metadata_ptr in the header on success */
+        memalloc_heap_track_invokes_cpython(
+          memalloc_ctx->max_nframe, user_ptr, total_size, allocated_memory_val, memalloc_ctx->domain);
+
+        return user_ptr;
+    } else {
+        /* Not sampled: allocate normally, no header */
+        if (use_calloc)
+            ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
+        else
+            ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, total_size);
+
+        return ptr;
+    }
 }
 
 static void*
@@ -90,16 +156,62 @@ static void*
 memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
-    void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
-    // The GIL is held here since we're using PYMEM_DOMAIN_OBJ.
-    // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
-    // We may need to add synchronization here in the future to avoid races between realloc and untrack.
-    if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+
+    if (ptr == NULL) {
+        /* realloc(NULL, size) is equivalent to malloc(size) */
+        return memalloc_alloc(0, ctx, 1, new_size);
     }
 
-    return ptr2;
+    if (new_size == 0) {
+        /* realloc(ptr, 0) is equivalent to free(ptr) */
+        memalloc_free(ctx, ptr);
+        return NULL;
+    }
+
+    bool old_sampled = memalloc_heap_is_sampled(ptr);
+
+    if (!memalloc_enabled && !old_sampled) {
+        /* Profiler stopped and allocation wasn't sampled — pure pass-through */
+        return memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+    }
+
+    /* Use malloc+memcpy+free for all cases involving sampled allocations.
+     * We can't use the underlying realloc when the header presence changes
+     * (sampled→non-sampled or vice versa) because the data offset differs.
+     * Even for sampled→sampled, malloc+memcpy+free is simpler and correct. */
+
+    size_t old_size;
+    if (old_sampled) {
+        const memalloc_header_t* header =
+          reinterpret_cast<const memalloc_header_t*>(static_cast<const char*>(ptr) - MEMALLOC_HEADER_SIZE);
+        traceback_t* old_tb = static_cast<traceback_t*>(header->metadata_ptr);
+        if (old_tb) {
+            old_size = old_tb->alloc_size;
+        } else {
+            /* Tracking failed — we don't know the old size. Use new_size. */
+            old_size = new_size;
+        }
+    } else {
+        /* For non-sampled allocations we don't know the old size.
+         * Use new_size as upper bound for the copy (may read past old allocation
+         * but only within the same malloc chunk, which is safe). */
+        old_size = new_size;
+    }
+
+    /* Allocate new block via our alloc (which handles sampling decision) */
+    void* new_ptr = memalloc_alloc(0, ctx, 1, new_size);
+    if (!new_ptr) {
+        return NULL;
+    }
+
+    /* Copy data from old to new */
+    size_t copy_size = old_size < new_size ? old_size : new_size;
+    memcpy(new_ptr, ptr, copy_size);
+
+    /* Free old block via our free (which handles header cleanup) */
+    memalloc_free(ctx, ptr);
+
+    return new_ptr;
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
@@ -122,36 +234,21 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     }
 
     // Ensure profile_state is initialized before creating Sample objects
-    // This initializes the Sample::profile_state which is required for Sample objects to work correctly
-    // ddup_start() uses std::call_once, so it's safe to call multiple times
-    // ddup_start also registers fork handlers for various components, so if
-    // any of memalloc's states refer to states that are reset after fork,
-    // memalloc also has to clear its state after fork via below fork handler.
     ddup_start();
 
-    // Register fork handler
-    // Mainly to clear the heap tracker state before running any Python code,
-    // otherwise it can lead to undefined behaviors and/or crashes, ref:
-    // incident-48649.
-    // We use std::call_once as registered fork handlers persist after fork, and
-    // we want to ensure that the fork handlers are registered only once per
-    // process, even when the memory profiler is restarted after fork.
+    // Register fork handler (once per process)
     std::call_once(memalloc_fork_handler_once_flag,
                    []() { pthread_atfork(nullptr, nullptr, memalloc_heap_postfork_child); });
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
-        /* NB: we don't bother checking whether val is actually a valid integer.
-         * Doesn't really matter as long as it's consistent */
         srand(atoi(val));
     }
 
     long max_nframe;
     long long int heap_sample_size;
 
-    /* Store short ints in ints so we're sure they fit */
     if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size)) {
-        // Don't set an error string, ParseTuple will set it to a TypeError already.
         return nullptr;
     }
 
@@ -172,19 +269,27 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    PyMemAllocatorEx alloc;
+    /* Install hooks if not already installed. Hooks are permanent once installed
+     * because sampled allocations have prepended headers — if we restored the
+     * original allocator, free(user_ptr) would pass real_ptr+16 to the original
+     * allocator, causing a crash. */
+    if (!memalloc_hooks_installed) {
+        PyMemAllocatorEx alloc;
 
-    alloc.malloc = memalloc_malloc;
-    alloc.calloc = memalloc_calloc;
-    alloc.realloc = memalloc_realloc;
-    alloc.free = memalloc_free;
+        alloc.malloc = memalloc_malloc;
+        alloc.calloc = memalloc_calloc;
+        alloc.realloc = memalloc_realloc;
+        alloc.free = memalloc_free;
 
-    alloc.ctx = &global_memalloc_ctx;
+        alloc.ctx = &global_memalloc_ctx;
 
-    global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
+        global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
-    PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
-    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
+        PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+        PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
+
+        memalloc_hooks_installed = true;
+    }
 
     memalloc_enabled = true;
 
@@ -206,11 +311,11 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    /* First, uninstall our wrappers. There may still be calls to our wrapper in progress,
-     * if they happened to release the GIL.
-     * NB: We're assuming here that this is not called concurrently with iter_events
-     * or memalloc_heap. The higher-level collector deals with this. */
-    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+    /* Do NOT restore the original allocator — hooks must stay installed
+     * because live sampled allocations have prepended headers. Free/realloc
+     * always check the signature, which is a single 8-byte read + compare.
+     * Disabling memalloc_enabled causes alloc to pass through without
+     * adding headers or sampling. */
 
     memalloc_heap_tracker_deinit_no_cpython();
 
