@@ -182,6 +182,8 @@ def main() -> None:
     # Phase 3: Parse Actual Wheels
     print("[Phase 3] Parsing Actual Wheels")
     actual_set, parse_errors, valid_count = parse_actual_wheels(wheels_dir)
+    for a in actual_set:
+        print(a)
 
     if parse_errors:
         print(f"✗ Failed to parse {len(parse_errors)} wheel(s):")
