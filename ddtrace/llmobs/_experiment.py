@@ -747,12 +747,14 @@ if PydanticEvaluator is not None:
             # this is to identify the pass/fail assessment for LLMJudge evaluators
             first_item = next(iter(_eval_result.values()))
             second_item = list(_eval_result.values())[1]
-            if hasattr(first_item, 'value') and hasattr(second_item, 'value'):
+            if hasattr(first_item, 'value'):
                 first_item_value = first_item.value
+            else:
+                first_item_value = first_item
+            if hasattr(second_item, 'value'):
                 second_item_value = second_item.value
             else:
-                first_item_value = None
-                second_item_value = None
+                second_item_value = second_item
             if isinstance(first_item_value, bool):
                 assessment = "pass" if first_item_value else "fail"
                 value = second_item_value
@@ -766,7 +768,7 @@ if PydanticEvaluator is not None:
                 eval_result.value = value
                 eval_result.assessment = assessment
                 eval_result.reasoning = second_item.reason
-            elif first_item_value == second_item_value and first_item_value != None:
+            elif first_item_value == second_item_value:
                 eval_result.value = value
                 eval_result.assessment = assessment
             else:
