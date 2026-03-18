@@ -58,15 +58,20 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
 
 class BaseAnthropicStreamHandler:
     def finalize_stream(self, exception=None):
-        """Build the response from chunks, set it on the context, then close the context."""
+        """Build the response from chunks, then dispatch the deferred ended event.
+
+        The TracingSubscriber's _on_context_ended will finish the span automatically.
+        """
         ctx = self.options["ctx"]
         try:
             resp_message = _construct_message(self.chunks)
             ctx.event.response = resp_message
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
-        exc_info = (type(exception), exception, exception.__traceback__) if exception else (None, None, None)
-        ctx.finish(exc_info)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):

@@ -1,4 +1,3 @@
-import sys
 from typing import Any
 from typing import Callable
 
@@ -48,22 +47,15 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
         instance=instance,
     )
 
-    # AIDEV-NOTE: Manually enter/finish the context so that streaming can keep it
-    # open until the stream is exhausted. The stream handler closes the context
-    # in finalize_stream(), which fires on_ended and finishes the span.
-    ctx = core.context_with_event(event, enter=True)
-    try:
+    # AIDEV-NOTE: For streaming, dispatch_end_event=False defers the ended event
+    # until the stream handler calls ctx.dispatch_ended_event() in finalize_stream().
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
         resp = func(*args, **kwargs)
-    except Exception:
-        ctx.finish(sys.exc_info())
-        raise
-
-    if is_streaming_operation(resp):
-        return handle_streamed_response(integration, resp, args, kwargs, ctx)
-
-    event.response = resp
-    ctx.finish()
-    return resp
+        if is_streaming_operation(resp):
+            return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
@@ -80,20 +72,13 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
         instance=instance,
     )
 
-    # Manually handle context. Same comment as sync version above.
-    ctx = core.context_with_event(event, enter=True)
-    try:
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
         resp = await func(*args, **kwargs)
-    except Exception:
-        ctx.finish(sys.exc_info())
-        raise
-
-    if is_streaming_operation(resp):
-        return handle_streamed_response(integration, resp, args, kwargs, ctx)
-
-    event.response = resp
-    ctx.finish()
-    return resp
+        if is_streaming_operation(resp):
+            return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        event.response = resp
+        ctx.dispatch_ended_event()
+        return resp
 
 
 def patch() -> None:

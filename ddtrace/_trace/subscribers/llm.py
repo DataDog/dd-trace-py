@@ -47,6 +47,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             instance=event.instance,
         )
 
+        if event.is_chat is not None:
+            span._set_ctx_item("_dd_is_chat", event.is_chat)
+
         base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
@@ -62,8 +65,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
     ) -> None:
         """Set LLMObs tags on the span.
 
-        Fires for both streaming and non-streaming paths. For streaming,
-        the stream handler closes the context after exhausting the iterator.
+        Fires for both streaming and non-streaming paths. For streaming
+        with deferred dispatch, this fires when the stream handler calls
+        dispatch_ended_event().
         """
         event: LlmRequestEvent = ctx.event
         event.llmobs_integration.llmobs_set_tags(
@@ -71,5 +75,5 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             args=[],
             kwargs=event.request_kwargs,
             response=event.response,
-            operation=ctx.get_item("operation", ""),
+            operation=event.operation,
         )

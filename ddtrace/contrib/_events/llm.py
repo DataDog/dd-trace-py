@@ -33,6 +33,8 @@ class LlmRequestEvent(TracingEvent):
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)
     response: Optional[Any] = event_field(default=None)
+    is_chat: Optional[bool] = event_field(default=None)
+    operation: str = event_field(default="")
 
     def __post_init__(self) -> None:
         self.span_name = f"{self.component}.request"
