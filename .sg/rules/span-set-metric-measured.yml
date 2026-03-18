@@ -1,0 +1,11 @@
+id: span-set-metric-measured
+message: "Use `span._set_attribute(_SPAN_MEASURED_KEY, $VALUE)` instead of `set_metric(_SPAN_MEASURED_KEY, $VALUE)`"
+severity: warning
+language: python
+rule:
+  pattern: $X.set_metric(_SPAN_MEASURED_KEY, $VALUE)
+fix: $X._set_attribute(_SPAN_MEASURED_KEY, $VALUE)
+note: |
+  `set_metric(_SPAN_MEASURED_KEY, value)` routes through `set_metric` which does extra work.
+  Use `span._set_attribute(_SPAN_MEASURED_KEY, 1)` to mark a span as measured, or
+  `span._set_attribute(_SPAN_MEASURED_KEY, 0)` to mark it as not measured.

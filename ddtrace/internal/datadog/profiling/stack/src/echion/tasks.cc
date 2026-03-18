@@ -150,7 +150,8 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
     constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
     constexpr std::string_view wrapper = "wrapper";
     auto filename = echion.string_table().lookup(frame.filename)->get();
-    auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+    auto is_uvloop = filename.size() >= uvloop_init_py.size() &&
+                     filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
     return is_uvloop && (frame_name == wrapper);
 #endif
 }
