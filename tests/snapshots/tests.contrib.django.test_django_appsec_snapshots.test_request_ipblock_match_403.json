@@ -18,6 +18,7 @@
       "_dd.p.tid": "65c1342000000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
+      "_dd.svc.src": "django",
       "actor.ip": "8.8.4.4",
       "appsec.blocked": "true",
       "appsec.event": "true",
