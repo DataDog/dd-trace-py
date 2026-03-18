@@ -4,7 +4,6 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use libdd_common::Endpoint;
 use libdd_crashtracker::{
     register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
@@ -90,20 +89,24 @@ impl CrashtrackerConfigurationPy {
         unix_socket_path: Option<String>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
-        let endpoint = endpoint.map(Endpoint::from_slice);
+
+        let mut builder = CrashtrackerConfiguration::builder()
+            .additional_files(additional_files)
+            .create_alt_stack(create_alt_stack)
+            .use_alt_stack(use_alt_stack)
+            .resolve_frames(resolve_frames)
+            .timeout(Duration::from_millis(timeout_ms))
+            .demangle_names(true);
+
+        if let Some(ep) = endpoint {
+            builder = builder.endpoint_url(ep);
+        }
+        if let Some(usp) = unix_socket_path {
+            builder = builder.unix_socket_path(usp);
+        }
 
         Ok(Self {
-            config: Some(CrashtrackerConfiguration::new(
-                additional_files,
-                create_alt_stack,
-                use_alt_stack,
-                endpoint,
-                resolve_frames,
-                libdd_crashtracker::default_signals(),
-                Some(Duration::from_millis(timeout_ms)),
-                unix_socket_path,
-                true, /* demangle_names */
-            )?),
+            config: Some(builder.build()?),
         })
     }
 }

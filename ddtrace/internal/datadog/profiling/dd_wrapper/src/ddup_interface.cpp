@@ -12,7 +12,6 @@
 #include <string_view>
 #include <unordered_map>
 
-
 // Configuration
 void
 ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction

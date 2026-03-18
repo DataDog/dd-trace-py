@@ -9,7 +9,7 @@
 
 extern "C"
 {
-  #include "datadog/profiling.h"
+#include "datadog/profiling.h"
 }
 
 namespace Datadog {
