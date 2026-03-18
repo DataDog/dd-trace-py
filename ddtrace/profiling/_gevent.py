@@ -192,7 +192,14 @@ class Greenlet(_Greenlet):
         target_id: int = thread.get_ident(self)
         origin_id: int = thread.get_ident(gevent.getcurrent())
 
-        link_greenlets(target_id, origin_id)
+        # Only link if the target is still tracked.  In gevent's cooperative
+        # model, any yield between spawn() and join() gives the Hub a chance
+        # to run the greenlet to completion and fire rawlink(untrack_greenlet).
+        # Calling link_greenlets on an already-untracked greenlet inserts stale
+        # entries into _greenlet_parent_map / _parent_greenlet_count that are
+        # never cleaned up, leaking memory and freezing the parent's profiled frame.
+        if target_id in _tracked_greenlets:
+            link_greenlets(target_id, origin_id)
 
         super().join(*args, **kwargs)
 
@@ -216,7 +223,13 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
         current_greenlet = gevent.hub.get_hub()
     current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
-        link_greenlets(thread.get_ident(g), current_greenlet_id)
+        # Only link if the target is still tracked.  Any yield before joinall()
+        # gives the Hub a chance to run the greenlet to completion, firing its
+        # rawlink(untrack_greenlet) callback.  Linking an already-untracked
+        # greenlet creates stale entries that are never cleaned up.
+        target_id = thread.get_ident(g)
+        if target_id in _tracked_greenlets:
+            link_greenlets(target_id, current_greenlet_id)
     return _gevent_joinall(greenlets, *args, **kwargs)
 
 
@@ -225,7 +238,8 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         try:
             objects = args[0]
         except IndexError:
-            objects = kwargs.get("args", [])
+            # gevent.wait/iwait first parameter is named "objects", not "args"
+            objects = kwargs.get("objects", []) or []
 
         if greenlets := [_ for _ in objects if isinstance(_, (greenlet, gevent.Greenlet))]:
             current_greenlet = gevent.getcurrent()
@@ -233,7 +247,12 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
                 current_greenlet = gevent.hub.get_hub()
             current_greenlet_id: int = thread.get_ident(current_greenlet)
             for g in greenlets:
-                link_greenlets(thread.get_ident(g), current_greenlet_id)
+                # Only link if the target is still tracked; any yield before
+                # wait() can allow the Hub to complete and untrack the greenlet,
+                # and linking an already-untracked greenlet leaks stale entries.
+                target_id = thread.get_ident(g)
+                if target_id in _tracked_greenlets:
+                    link_greenlets(target_id, current_greenlet_id)
 
         return original(*args, **kwargs)
 
