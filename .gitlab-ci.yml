@@ -18,7 +18,7 @@ variables:
   SYSTEM_TESTS_REF: "fa6ea09f53deb4facfc0b6b649728dc301bed6b7"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v102938553-b90e54c-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
