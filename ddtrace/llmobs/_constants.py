@@ -172,6 +172,7 @@ class LLMOBS_STRUCT:
     PROMPT: Final = "prompt"
     METRICS: Final = "metrics"
     METADATA: Final = "metadata"
+    METADATA_DD: Final = "_dd"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     TOOL_DEFINITIONS: Final = "tool_definitions"

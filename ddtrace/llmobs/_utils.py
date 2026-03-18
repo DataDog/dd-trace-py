@@ -479,7 +479,8 @@ def _annotate_llmobs_span_data(
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
         if agent_manifest is not None:
-            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
