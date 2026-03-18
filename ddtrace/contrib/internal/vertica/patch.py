@@ -240,8 +240,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
                 if conf.get("measured", False):
-                    # PERF: avoid setting via Span.set_tag
-                    span.set_metric(_SPAN_MEASURED_KEY, 1)
+                    span._set_attribute(_SPAN_MEASURED_KEY, 1)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:
