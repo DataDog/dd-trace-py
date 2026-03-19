@@ -22,9 +22,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._metrics import FlagEvalHook
 from ddtrace.internal.openfeature._metrics import FlagEvalMetrics
-from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -126,14 +126,14 @@ class DataDogProvider(AbstractProvider):
         """Returns provider metadata."""
         return self._metadata
 
-    def get_provider_hooks(self) -> typing.List[typing.Any]:
+    def get_provider_hooks(self) -> list[typing.Any]:
         """
         Returns provider-level hooks.
 
         The flag evaluation hook is registered here to track metrics for
         every flag evaluation via the finally_after hook stage.
         """
-        hooks: typing.List[typing.Any] = []
+        hooks: list[typing.Any] = []
         if self._flag_eval_hook is not None:
             hooks.append(self._flag_eval_hook)
         return hooks
@@ -327,7 +327,7 @@ class DataDogProvider(AbstractProvider):
                 )
 
             # Build flag_metadata with allocation_key if present
-            flag_metadata: typing.Dict[str, typing.Any] = {}
+            flag_metadata: dict[str, typing.Any] = {}
             if details.allocation_key:
                 flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
 

@@ -8,7 +8,6 @@ feature_flag.evaluations OTel metrics on every flag evaluation.
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import Reason
@@ -21,10 +20,9 @@ from ddtrace.internal.openfeature._metrics import ATTR_ERROR_TYPE
 from ddtrace.internal.openfeature._metrics import ATTR_FLAG_KEY
 from ddtrace.internal.openfeature._metrics import ATTR_REASON
 from ddtrace.internal.openfeature._metrics import ATTR_VARIANT
+from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._metrics import FlagEvalHook
 from ddtrace.internal.openfeature._metrics import FlagEvalMetrics
-from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._metrics import METRIC_NAME
 from ddtrace.internal.openfeature._metrics import _error_code_to_tag
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
@@ -59,10 +57,6 @@ class TestErrorCodeMapping:
         assert _error_code_to_tag(ErrorCode.TARGETING_KEY_MISSING) == "general"
         assert _error_code_to_tag(ErrorCode.INVALID_CONTEXT) == "general"
 
-    def test_none_maps_to_general(self):
-        """None error code maps to 'general'."""
-        assert _error_code_to_tag(None) == "general"
-
 
 class TestFlagEvalMetrics:
     """Test FlagEvalMetrics class."""
@@ -72,7 +66,7 @@ class TestFlagEvalMetrics:
         with patch.dict("sys.modules", {"opentelemetry": None, "opentelemetry.metrics": None}):
             # Force re-import by creating new instance
             # The import will fail and metrics should be disabled
-            metrics = FlagEvalMetrics()
+            _ = FlagEvalMetrics()
             # When OTel import fails, _enabled should be False
             # Note: In real scenario, the import might succeed or fail
             # This test verifies graceful handling
@@ -272,23 +266,6 @@ class TestFlagEvalHook:
 
         call_kwargs = mock_metrics.record.call_args[1]
         assert call_kwargs["allocation_key"] is None
-
-    def test_finally_after_with_none_metrics(self):
-        """finally_after should handle None metrics gracefully."""
-        hook = FlagEvalHook(None)
-
-        hook_context = MagicMock(spec=HookContext)
-        hook_context.flag_key = "test-flag"
-
-        details = FlagEvaluationDetails(
-            flag_key="test-flag",
-            value=True,
-            variant="on",
-            reason=Reason.STATIC,
-        )
-
-        # Should not raise
-        hook.finally_after(hook_context, details, {})
 
 
 class TestProviderHooksIntegration:

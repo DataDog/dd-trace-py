@@ -37,7 +37,7 @@ ATTR_ALLOCATION_KEY = "feature_flag.result.allocation_key"
 METADATA_ALLOCATION_KEY = "allocation_key"
 
 
-def _error_code_to_tag(error_code: typing.Optional[ErrorCode]) -> str:
+def _error_code_to_tag(error_code: ErrorCode) -> str:
     """
     Map OpenFeature ErrorCode values to low-cardinality metric tag values.
 
@@ -47,9 +47,6 @@ def _error_code_to_tag(error_code: typing.Optional[ErrorCode]) -> str:
     Returns:
         A string tag value for the error.type attribute
     """
-    if error_code is None:
-        return "general"
-
     if error_code == ErrorCode.FLAG_NOT_FOUND:
         return "flag_not_found"
     elif error_code == ErrorCode.TYPE_MISMATCH:
@@ -180,9 +177,6 @@ class FlagEvalHook(Hook):
             details: The evaluation details including value, variant, reason, and errors
             hints: Optional hints passed to the hook (unused)
         """
-        if self._metrics is None:
-            return
-
         # Extract allocation_key from flag_metadata if present
         allocation_key: typing.Optional[str] = None
         if details.flag_metadata:
