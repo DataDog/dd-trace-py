@@ -199,20 +199,20 @@ def override_global_config(values):
     for key, value in values.items():
         if key in openfeature_config_keys:
             setattr(ffe_config, key, value)
+
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
-    from ddtrace.appsec._processor import AppSecSpanProcessor
-
-    AppSecSpanProcessor.disable()
     if asm_config._asm_enabled:
+        from ddtrace.appsec._listeners import disable_appsec
         from ddtrace.appsec._listeners import load_appsec
 
+        disable_appsec()
         load_appsec()
     else:
-        if asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+        from ddtrace.appsec._listeners import disable_appsec
 
-            APIManager.disable()
+        disable_appsec()
+
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 

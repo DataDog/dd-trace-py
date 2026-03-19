@@ -17,6 +17,8 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
         "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
         "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+        "_default_service_producer": PRODUCER_SERVICE,
+        "_default_service_worker": WORKER_SERVICE,
     },
 )
 

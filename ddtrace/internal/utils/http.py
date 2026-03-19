@@ -387,10 +387,12 @@ def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str,
 
     def parse_message(msg):
         if msg.is_multipart():
-            res = {
-                part.get_param("name", failobj=part.get_filename(), header="content-disposition"): parse_message(part)
-                for part in msg.get_payload()
-            }
+            res: dict[str, list] = {}
+            for part in msg.get_payload():
+                key = part.get_param("name", failobj=part.get_filename(), header="content-disposition")
+                value = parse_message(part)
+                res.setdefault(key, []).append(value)
+            res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
             content_type = msg.get("Content-Type")
             if content_type in ("application/json", "text/json"):

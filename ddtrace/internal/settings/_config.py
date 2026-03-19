@@ -201,6 +201,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "google_cloud_pubsub",
     }
 )
 
