@@ -106,6 +106,6 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s._set_attribute(db.SYSTEM, redisx.APP)
         s._set_attribute(_SPAN_MEASURED_KEY, 1)
         s._set_attribute(redisx.RAWCMD, resource)
-        s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
+        s._set_attribute(redisx.PIPELINE_LEN, len(instance.command_stack))
 
         return func(*args, **kwargs)
