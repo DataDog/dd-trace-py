@@ -477,7 +477,7 @@ jobs:
       ref: main
       scenarios_groups: tracer-release
       _system_tests_dev_mode: true
-      push_to_test_optimization: false
+      push_to_test_optimization: true
 
   finished:
     name: system-tests finished

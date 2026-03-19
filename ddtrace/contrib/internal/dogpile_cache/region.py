@@ -24,8 +24,7 @@ def _wrap_get_create(func, instance, args, kwargs):
         span_type=SpanTypes.CACHE,
     ) as span:
         span._set_attribute(COMPONENT, "dogpile_cache")
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tag("key", key)
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)
@@ -47,8 +46,7 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         span_type="cache",
     ) as span:
         span._set_attribute(COMPONENT, "dogpile_cache")
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tag("keys", keys)
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)

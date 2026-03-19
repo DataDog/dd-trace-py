@@ -58,7 +58,7 @@ def create_checkout_span():
 def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
     set_address_tags(span, sock_info.address)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def process_server_operation_result(span, operation, result):

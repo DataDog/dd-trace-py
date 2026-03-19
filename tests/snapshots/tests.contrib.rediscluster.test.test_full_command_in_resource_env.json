@@ -35,7 +35,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.svc.src": "rediscluster",
+         "_dd.svc_src": "rediscluster",
          "component": "rediscluster",
          "db.system": "redis",
          "redis.raw_command": "GET put_key_in_resource",
