@@ -204,6 +204,13 @@ push_stacktrace_to_sample_remote_copy(Datadog::Sample& sample, uint16_t max_nfra
             break;
         }
 
+#ifdef _PY312_AND_LATER
+        if (frame.owner != FRAME_OWNED_BY_THREAD && frame.owner != FRAME_OWNED_BY_GENERATOR) {
+            current_frame = frame.previous;
+            continue;
+        }
+#endif
+
         PyCodeObject* code_addr = NULL;
 #ifdef _PY314_AND_LATER
         code_addr = (PyCodeObject*)((uintptr_t)frame.f_executable.bits & ~(uintptr_t)7);
