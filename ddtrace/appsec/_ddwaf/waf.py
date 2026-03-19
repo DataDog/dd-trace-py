@@ -18,13 +18,13 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._metrics import report_error
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 LOGGER = get_logger(__name__)
@@ -72,7 +72,7 @@ class DDWaf:
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
-        appsec_metrics.ddwaf_version = version()
+        asm_config._ddwaf_version = version()
         self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0

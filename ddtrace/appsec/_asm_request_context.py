@@ -12,7 +12,6 @@ from typing import Union
 from urllib import parse
 
 from ddtrace._trace.span import Span
-from ddtrace.appsec import _metrics as appsec_metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
@@ -274,7 +273,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span._set_attribute(APPSEC.WAF_VERSION, appsec_metrics.ddwaf_version)
+    entry_span._set_attribute(APPSEC.WAF_VERSION, asm_config._ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
