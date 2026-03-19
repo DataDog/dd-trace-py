@@ -191,21 +191,9 @@ def _before_fork() -> None:
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
-    # Use a timeout so that a thread blocked in periodic() (e.g. on network I/O)
-    # does not deadlock the fork indefinitely.  The handle was already detached
-    # by _before_fork() above, so the OS join is skipped regardless; we are
-    # only waiting on the _stopped event here.
-    _FORK_JOIN_TIMEOUT = 5.0
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
-        t_start = monotonic_ns()
-        thread.join(timeout=_FORK_JOIN_TIMEOUT)
-        if (monotonic_ns() - t_start) >= int(_FORK_JOIN_TIMEOUT * 1e9) - int(1e8):
-            log.warning(
-                "Thread %s did not stop within %.1f seconds before fork; proceeding anyway",
-                thread.name,
-                _FORK_JOIN_TIMEOUT,
-            )
+        thread.join()
 
     # Detach threads that stopped naturally before the fork. In the parent their
     # OS thread handles are guaranteed valid (a joinable thread's descriptor is
