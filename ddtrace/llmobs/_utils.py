@@ -492,8 +492,13 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
         if config is not None:
             llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
+        # Add I/O messages to messages field only for LLM spans, otherwise add to value field
+        is_llm = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND) == "llm"
         if input_messages is not None:
-            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+            if is_llm:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+            else:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
         if input_value is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
         if input_documents is not None:
@@ -502,7 +507,10 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = cast(Prompt, prompt)
             span._set_ctx_item(INPUT_PROMPT, prompt)
         if output_messages is not None:
-            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+            if is_llm:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+            else:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
         if output_value is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
         if output_documents is not None:

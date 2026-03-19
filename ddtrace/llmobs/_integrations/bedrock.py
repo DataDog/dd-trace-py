@@ -18,7 +18,6 @@ from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -131,8 +130,6 @@ class BedrockIntegration(BaseLLMIntegration):
             tags={INTEGRATION_TAG_KEY: "bedrock"},
             tool_definitions=tool_definitions if tool_definitions else None,
         )
-
-        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:

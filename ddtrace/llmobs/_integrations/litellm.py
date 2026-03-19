@@ -12,7 +12,6 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -74,9 +73,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
-        # update input and output value for non-LLM spans
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
-        update_proxy_workflow_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
         _annotate_llmobs_span_data(

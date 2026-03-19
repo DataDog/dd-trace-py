@@ -12,7 +12,6 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
@@ -82,7 +81,6 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics=metrics,
             tool_definitions=tool_definitions,
         )
-        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
         self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None

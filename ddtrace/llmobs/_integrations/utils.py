@@ -27,8 +27,6 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
-from ddtrace.llmobs._utils import get_llmobs_input_messages
-from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -1078,15 +1076,6 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
         message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
     return message
-
-
-def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
-    """Helper to update the input and output value for workflow spans."""
-    if span_kind != "workflow":
-        return
-    input_messages = get_llmobs_input_messages(span)
-    output_messages = get_llmobs_output_messages(span)
-    _annotate_llmobs_span_data(span, input_value=input_messages, output_value=output_messages)
 
 
 class OaiSpanAdapter:

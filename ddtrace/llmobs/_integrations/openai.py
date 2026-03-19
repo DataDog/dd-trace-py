@@ -16,7 +16,6 @@ from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -110,7 +109,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_response(span, kwargs, response, self)
         elif operation == "tool":
             self._llmobs_set_tags_from_tool(span, kwargs, response)
-        update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         _annotate_llmobs_span_data(
             span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
