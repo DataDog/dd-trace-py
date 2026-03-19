@@ -1319,7 +1319,7 @@ setup(
         ),
     },
     exclude_package_data={
-        "": ["CMakeLists.txt", "*.pyi", "*.md", "*.sh", "*.cmake", "*.pxd"],
+        "": ["CMakeLists.txt", "*.md", "*.sh", "*.cmake", "*.pxd"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
