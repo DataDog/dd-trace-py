@@ -89,27 +89,44 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
     return process_tags, process_tags_list
 
 
-def compute_base_hash(container_tags_hash):
+def _initialize_process_tags() -> None:
+    global process_tags
+    global process_tags_list
+    process_tags, process_tags_list = generate_process_tags()  # type: ignore
+
+
+def _recompute_base_hash() -> None:
     if not process_tags_config.enabled:
         return
 
-    global base_hash, base_hash_bytes, process_tags
+    global base_hash
+    global base_hash_bytes
     if "process_tags" not in globals():
-        process_tags, process_tags_list = generate_process_tags()
+        _initialize_process_tags()
 
-    b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
+    # if process tags are enabled, they cannot be None, that is why we add type: ignore
+    b = bytes(process_tags, encoding="utf-8") + bytes(_container_tags_hash, encoding="utf-8")  # type: ignore
     base_hash = fnv1_64(b)
     base_hash_bytes = struct.pack("<Q", base_hash)
 
 
+def compute_base_hash(container_tags_hash):
+    if not process_tags_config.enabled:
+        return
+
+    global _container_tags_hash
+    _container_tags_hash = container_tags_hash
+    _recompute_base_hash()
+
+
 base_hash, base_hash_bytes = None, b""
+_container_tags_hash = ""
 
 
 def __getattr__(name: str) -> Any:
     if "process_tags" in name:
-        global process_tags
-        global process_tags_list
-        process_tags, process_tags_list = generate_process_tags()  # type: ignore
+        _initialize_process_tags()
+        _recompute_base_hash()
         if name == "process_tags":
             return process_tags  # type: ignore
         elif name == "process_tags_list":
