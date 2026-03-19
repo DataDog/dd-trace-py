@@ -571,6 +571,8 @@ ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     (),
 )
 
+asm_config._ddwaf_version = ddwaf_get_version().decode()
+
 
 ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(
     ("ddwaf_set_log_cb", ddwaf),

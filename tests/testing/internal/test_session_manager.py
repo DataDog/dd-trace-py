@@ -266,3 +266,16 @@ class TestSessionManagerEnvVarOverrides:
                 monkeypatch.setenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", env_var_value)
             session_manager = SessionManager(self.session)
             assert session_manager.settings.coverage_enabled is expected_setting
+
+
+class TestSessionManagerGitHandling:
+    def test_upload_git_data_skips_when_git_missing(self) -> None:
+        # Create a session_manager avoid running __init__ bc of side-effects
+        session_manager = SessionManager.__new__(SessionManager)
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
+            patch("ddtrace.testing.internal.session_manager.log.warning") as mock_warning,
+        ):
+            session_manager.upload_git_data()
+
+        mock_warning.assert_any_call("Error calling git binary, skipping metadata upload")

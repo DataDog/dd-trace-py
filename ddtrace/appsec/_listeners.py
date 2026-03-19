@@ -24,6 +24,7 @@ def _abort_appsec(failure_msg: str) -> None:
     asm_config._asm_libddwaf_available = False
     asm_config._asm_rc_enabled = False
     asm_config._load_modules = False
+    asm_config._ddwaf_version = "error"
 
     from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 
