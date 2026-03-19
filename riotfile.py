@@ -1436,7 +1436,6 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_FAST_BUILD": "1",
                 "PYDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
             },
