@@ -1,0 +1,13 @@
+id: span-set-tag-status-code
+message: "Use `span._set_attribute($KEY, $VALUE)` instead of `span.set_tag($KEY, $VALUE)` for http.STATUS_CODE"
+severity: warning
+language: python
+rule:
+  pattern: $X.set_tag($KEY, $VALUE)
+constraints:
+  KEY:
+    regex: '^(http\.STATUS_CODE|"http\.status_code")$'
+fix: $X._set_attribute($KEY, $VALUE)
+note: |
+  `set_tag(http.STATUS_CODE, value)` has a special case that coerces value to str().
+  This coercion is legacy; internal callers should use `_set_attribute` directly.

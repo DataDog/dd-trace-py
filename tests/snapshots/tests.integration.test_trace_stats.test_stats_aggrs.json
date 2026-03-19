@@ -65,7 +65,6 @@
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6670642000000000",
-      "http.status_code": "200",
       "language": "python",
       "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
     },
@@ -73,6 +72,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 4319
     },
     "duration": 999999999,

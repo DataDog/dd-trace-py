@@ -1,0 +1,41 @@
+id: span-set-tag-status-code
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s.set_tag(http.STATUS_CODE, 200)
+  : fixed: |
+      s = tracer.trace("op")
+      s._set_attribute(http.STATUS_CODE, 200)
+    labels:
+    - source: s.set_tag(http.STATUS_CODE, 200)
+      style: primary
+      start: 23
+      end: 55
+  span.set_tag("http.status_code", status_code):
+    fixed: span._set_attribute("http.status_code", status_code)
+    labels:
+    - source: span.set_tag("http.status_code", status_code)
+      style: primary
+      start: 0
+      end: 45
+  span.set_tag(http.STATUS_CODE, 200):
+    fixed: span._set_attribute(http.STATUS_CODE, 200)
+    labels:
+    - source: span.set_tag(http.STATUS_CODE, 200)
+      style: primary
+      start: 0
+      end: 35
+  span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500)):
+    fixed: span._set_attribute(http.STATUS_CODE, getattr(e, "status_code", 500))
+    labels:
+    - source: span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
+      style: primary
+      start: 0
+      end: 62
+  span.set_tag(http.STATUS_CODE, status):
+    fixed: span._set_attribute(http.STATUS_CODE, status)
+    labels:
+    - source: span.set_tag(http.STATUS_CODE, status)
+      style: primary
+      start: 0
+      end: 38

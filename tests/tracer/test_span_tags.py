@@ -19,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
+from ddtrace.ext import http
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -583,3 +584,26 @@ def test_set_metric_visible_via_get_attribute():
     s = Span(name="test.span")
     s._set_attribute("key", 3.14)
     assert s._get_attribute("key") == 3.14
+
+
+# ---------------------------------------------------------------------------
+# Public API backward-compatibility: set_tag(http.STATUS_CODE, ...) must
+# coerce the value to str and store it in _meta (not _metrics).
+# ---------------------------------------------------------------------------
+
+
+def test_set_tag_http_status_code_coerces_to_str():
+    # Public API: set_tag must still coerce int values to str for
+    # http.STATUS_CODE to maintain backward compatibility.
+    s = Span(name="test.span")
+    s.set_tag(http.STATUS_CODE, 200)  # ast-grep-ignore: span-set-tag-status-code
+    assert s._meta.get(http.STATUS_CODE) == "200"
+    assert http.STATUS_CODE not in s._metrics
+
+
+def test_set_tag_http_status_code_str_value():
+    # String values must also be stored as str.
+    s = Span(name="test.span")
+    s.set_tag(http.STATUS_CODE, "404")  # ast-grep-ignore: span-set-tag-status-code
+    assert s._meta.get(http.STATUS_CODE) == "404"
+    assert http.STATUS_CODE not in s._metrics

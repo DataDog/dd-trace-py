@@ -247,7 +247,7 @@ def _set_inferred_proxy_tags(span, status_code):
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
-            inferred_span.set_tag("http.status_code", status_code)
+            inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
             if ERROR_MSG in span._meta.keys():
