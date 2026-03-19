@@ -14,6 +14,22 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
+    /* Intrusive doubly-linked list pointers for heap tracker.
+     * Used instead of a hashmap to allow O(1) insert/remove and
+     * signature-based free-path lookup. */
+    traceback_t* list_next = nullptr;
+    traceback_t* list_prev = nullptr;
+
+    /* Pointer returned to Python (real_ptr + MEMALLOC_HEADER_SIZE).
+     * Stored so postfork_child can clear the signature in the header
+     * without needing to walk Python's allocator. */
+    void* user_ptr = nullptr;
+
+    /* Original allocation size requested by Python (excluding header).
+     * Needed by realloc to know how many bytes to copy when transitioning
+     * between sampled/non-sampled states. */
+    size_t alloc_size = 0;
+
     /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
 
