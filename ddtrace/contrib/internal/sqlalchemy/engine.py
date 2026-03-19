@@ -156,4 +156,6 @@ def _set_tags_from_cursor(span, vendor, cursor):
                 if host is not None:
                     span._set_attribute(netx.TARGET_HOST, host)
                     span._set_attribute(netx.SERVER_ADDRESS, host)
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                port = d.get("port")
+                if port is not None:
+                    span._set_attribute(netx.TARGET_PORT, int(port))

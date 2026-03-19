@@ -37,11 +37,11 @@ def execute_span_start(instance, span, conf, *args, **kwargs):
 
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def fetch_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
