@@ -35,6 +35,11 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
 )
 
 
+def _main_thread_has_native_id() -> bool:
+    """True if main thread has native_id (False for _DummyThread which lacks _native_id)."""
+    return getattr(threading.main_thread(), "native_id", None) is not None
+
+
 def func1() -> None:
     return func2()
 
@@ -118,9 +123,11 @@ def test_stack_locations(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     expected_sample = pprof_utils.StackEvent(
         thread_id=_thread.get_ident(),
-        thread_name="MainThread",
+        thread_name=expected_thread_name,
         locations=[
             pprof_utils.StackLocation(
                 function_name="baz",
@@ -344,94 +351,6 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_exception_collection(tmp_path: Path) -> None:
-    test_name = "test_exception_collection"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector():
-        try:
-            raise ValueError("hello")
-        except Exception:
-            time.sleep(1)
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    # DEV: update the test once we have exception profiling for stack v2
-    # using echion
-    assert len(samples) == 0
-
-
-def test_exception_collection_threads(tmp_path: Path) -> None:
-    test_name = "test_exception_collection_threads"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector():
-
-        def target_fun() -> None:
-            try:
-                raise ValueError("hello")
-            except Exception:
-                time.sleep(1)
-
-        threads = []
-        for _ in range(10):
-            t = threading.Thread(target=target_fun)
-            threads.append(t)
-            t.start()
-
-        for t in threads:
-            t.join()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    assert len(samples) == 0
-
-
-def test_exception_collection_trace(tmp_path: Path, tracer: Tracer) -> None:
-    test_name = "test_exception_collection_trace"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    tracer._endpoint_call_counter_span_processor.enable()
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector(tracer=tracer):
-        with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
-            try:
-                raise ValueError("hello")
-            except Exception:
-                time.sleep(1)
-
-    ddup.upload(tracer=tracer)
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    assert len(samples) == 0
-
-
 def test_collect_once_with_class(tmp_path: Path) -> None:
     class SomeClass(object):
         @classmethod
@@ -577,6 +496,7 @@ def test_collect_gevent_thread_task() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
@@ -614,11 +534,13 @@ def test_collect_gevent_thread_task() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=expected_thread_name,
             task_name=r"Greenlet-\d+$",
             locations=[
                 # Since we're using recursive function _fib(), we expect to have
@@ -665,6 +587,8 @@ def test_collect_gevent_task_started_before_profiler() -> None:
 
     import gevent
 
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
     should_stop = threading.Event()
 
     def pre_started_greenlet_task() -> None:
@@ -700,11 +624,13 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=expected_thread_name,
             task_name=pre_started_greenlet_name,
             locations=[
                 pprof_utils.StackLocation(

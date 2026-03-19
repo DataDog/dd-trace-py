@@ -79,8 +79,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 constexpr std::string_view asyncio_events_py = "asyncio/events.py";
                 constexpr std::string_view _run = "_run";
                 auto filename = echion.string_table().lookup(frame.filename)->get();
-                auto is_asyncio = filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
-                is_boundary_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+                auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
+                                  filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+                is_boundary_frame = is_asyncio && (frame_name.size() >= _run.size() &&
+                                                   frame_name.rfind(_run) == frame_name.size() - _run.size());
 #endif
             }
 

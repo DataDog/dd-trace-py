@@ -32,7 +32,9 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, expected_name=[]):
-    from ddtrace.appsec._ddwaf import version
+    from ddtrace.appsec._ddwaf.waf import version as get_waf_version
+
+    version = get_waf_version()
 
     metric_update = 0
     # Since the appsec.enabled metric is emitted on each telemetry worker interval, it can cause random errors in
@@ -76,7 +78,7 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    from ddtrace.appsec._ddwaf import version
+    from ddtrace.appsec._ddwaf.waf import version
 
     distributions_metrics = metrics_result[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][TELEMETRY_NAMESPACE.APPSEC.value]
 
@@ -87,7 +89,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
             assert isinstance(metric["points"][0], float)
             assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
             assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
-            assert f"waf_version:{version}" in metric["tags"]
+            assert f"waf_version:{version()}" in metric["tags"]
             assert any("event_rules_version" in t for t in metric["tags"])
         else:
             pytest.fail("Unexpected distributions_metrics {}".format(metric["metric"]))
@@ -166,7 +168,7 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_init(telemetry_writer):
-    from ddtrace.appsec._ddwaf import version
+    from ddtrace.appsec._ddwaf.waf import version
 
     with override_global_config(
         dict(
@@ -184,7 +186,7 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
             list_metrics_logs[0]["message"] == "appsec.waf.error::init::rules::"
             """{"missing key 'conditions'": ['crs-913-110'], "missing key 'tags'": ['crs-942-100']}"""
         )
-        assert "waf_version:{}".format(version) in list_metrics_logs[0]["tags"]
+        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
@@ -216,7 +218,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):
-    from ddtrace.appsec._ddwaf import version
+    from ddtrace.appsec._ddwaf.waf import version
 
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
@@ -225,7 +227,7 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == invalid_error
-        assert "waf_version:{}".format(version) in list_metrics_logs[0]["tags"]
+        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
 unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_run
@@ -239,7 +241,7 @@ def _wrapped_run(*args, **kwargs):
 @mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
-    from ddtrace.appsec._ddwaf import version
+    from ddtrace.appsec._ddwaf.waf import version
 
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
@@ -256,7 +258,7 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
             assert len(error_metrics[0]["tags"]) == 3
-            assert f"waf_version:{version}" in error_metrics[0]["tags"]
+            assert f"waf_version:{version()}" in error_metrics[0]["tags"]
             assert "waf_error:-3" in error_metrics[0]["tags"]
             assert any(tag.startswith("event_rules_version:") for tag in error_metrics[0]["tags"])
 

@@ -248,23 +248,30 @@ class TestEncoders(TestCase):
         [(payload_bytes, n_traces)] = encoded_traces
         data = json.loads(payload_bytes.decode("utf-8"))
 
+        assert n_traces == 1
         assert data == {
-            "spans": [
+            "traces": [
                 {
-                    "trace_id": "1234567890abcdef",
-                    "parent_id": "0000000000000000",
-                    "span_id": "1234567890abcdef",
-                    "service": "svc",
-                    "resource": "/r",
-                    "name": "span1",
-                    "error": 1,
-                    "start": 1771941568700091000,
-                    "duration": 1000000000,
-                    "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
-                    "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
-                    "type": "web",
-                    "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
-                    "meta_struct": {"payload": {"key": "value"}},
+                    "spans": [
+                        {
+                            "trace_id": "1234567890abcdef",
+                            "parent_id": "0000000000000000",
+                            "span_id": "1234567890abcdef",
+                            "service": "svc",
+                            "resource": "/r",
+                            "name": "span1",
+                            "error": 1,
+                            "start": 1771941568700091000,
+                            "duration": 1000000000,
+                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                            "type": "web",
+                            "span_links": [
+                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
+                            ],
+                            "meta_struct": {"payload": {"key": "value"}},
+                        }
+                    ]
                 }
             ]
         }
@@ -362,7 +369,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0]._set_tag_str("some_tag", rand_string)
+    trace[0]._set_attribute("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -374,7 +381,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
@@ -591,9 +598,9 @@ def test_span_link_v04_encoding():
                     "link.name": "link_name",
                     "link.kind": "link_kind",
                     "someval": 1,
-                    "drop_me": "bye",
                     "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -604,10 +611,6 @@ def test_span_link_v04_encoding():
         extra_attributes={"some": "extra"},
     )
     assert span._links
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_6, *others] = [link for link in span._links if link.span_id == 6]
-    assert not others
-    link_6._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -671,8 +674,6 @@ def test_span_link_v04_encoding():
 def test_span_event_encoding_msgpack():
     import os
 
-    import mock
-
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
     from tests.tracer.test_encoders import decode
@@ -711,8 +712,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
-        span._add_event("We are going to the moon")
+    span._add_event("We are going to the moon", timestamp=2234567890123456)
 
     # Get test parameters from environment variables
     version = os.getenv("DD_TRACE_API_VERSION")
@@ -772,9 +772,9 @@ def test_span_link_v05_encoding():
                     "moon": "ears",
                     "link.name": "link_name",
                     "link.kind": "link_kind",
-                    "drop_me": "bye",
                     "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -785,10 +785,6 @@ def test_span_link_v05_encoding():
     )
 
     assert len(span._links) == 3
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
-    assert not others
-    link_bignum._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()

@@ -26,14 +26,13 @@ format_command_args = stringify_cache_args
 def _set_span_tags(
     span, pin, config_integration, args: Optional[list], instance, query: Optional[list], is_cluster: bool = False
 ):
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span._set_tag_str(COMPONENT, config_integration.integration_name)
-    span._set_tag_str(db.SYSTEM, valkeyx.APP)
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(COMPONENT, config_integration.integration_name)
+    span._set_attribute(db.SYSTEM, valkeyx.APP)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if query is not None:
         span_name = schematize_cache_operation(valkeyx.RAWCMD, cache_provider=valkeyx.APP)  # type: ignore[operator]
-        span._set_tag_str(span_name, query)
+        span._set_attribute(span_name, query)
     if pin.tags:
         span.set_tags(pin.tags)
     # some valkey clients do not have a connection_pool attribute (ex. aiovalkey v1.3)

@@ -90,17 +90,16 @@ class TracedCursor(wrapt.ObjectProxy):
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
-                # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
-            s._set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -297,10 +296,10 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            s._set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

@@ -1,0 +1,30 @@
+"""
+This integration instruments the `google-cloud-pubsub <https://github.com/googleapis/python-pubsub>`_
+library to trace Cloud Pub/Sub publishing.
+
+Enabling
+~~~~~~~~
+
+The google_cloud_pubsub integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+
+Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
+
+    from ddtrace import patch
+    patch(google_cloud_pubsub=True)
+    from google.cloud import pubsub_v1
+    ...
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.google_cloud_pubsub["distributed_tracing_enabled"]
+
+   Whether to enable distributed tracing between Pub/Sub messages.
+
+   This option can also be set with the ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED``
+   environment variable.
+
+   Default: ``True``
+
+"""

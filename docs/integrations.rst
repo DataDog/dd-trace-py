@@ -95,6 +95,13 @@ Azure Functions
 .. automodule:: ddtrace.contrib.internal.azure_functions
 
 
+.. _azure_durable_functions:
+
+Azure Durable Functions
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.azure_durable_functions
+
+
 .. _botocore:
 
 botocore
@@ -248,6 +255,13 @@ google-adk
 google-genai
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.google_genai
+
+
+.. _google_cloud_pubsub:
+
+google-cloud-pubsub
+^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.google_cloud_pubsub
 
 
 .. _graphql:
