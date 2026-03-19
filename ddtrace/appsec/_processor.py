@@ -19,8 +19,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
-from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
+from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
@@ -107,12 +107,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
     @property
     def enabled(self) -> bool:
-        return isinstance(self._ddwaf, WAF)
+        return isinstance(self._ddwaf, DDWaf)
 
     def __post_init__(self) -> None:
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-        self._ddwaf: Union[WAF, _DDWafNotInitialized, None] = _DDWAF_NOT_INITIALIZED
+        self._ddwaf: Union[DDWaf, _DDWafNotInitialized, None] = _DDWAF_NOT_INITIALIZED
         self._rules: Optional[bytes] = None
         try:
             with open(self.rule_filename, "br") as f:
@@ -140,13 +140,6 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and isinstance(self._ddwaf, _DDWafNotInitialized):
-                from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
-
-                DDWaf = waf_module()
-                if DDWaf is None:
-                    log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
-                    self._ddwaf = None
-                    return
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
@@ -159,7 +152,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._update_required()
 
     def _update_required(self) -> None:
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
         self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
@@ -174,7 +167,7 @@ class AppSecSpanProcessor(SpanProcessor):
     ) -> bool:
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return False
         result = False
         if asm_config._asm_static_rule_file is not None:
@@ -209,29 +202,29 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
 
         if span.span_type not in asm_config._asm_processed_span_types:
             return
 
         if span.span_type == SpanTypes.SERVERLESS:
-            span.set_metric(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
+            span._set_attribute(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
             skip_event = core.find_item("appsec_skip_next_lambda_event")
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
                 log.debug(
                     "appsec: ignoring unsupported lambda event",
                 )
-                span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
+                span._set_attribute(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
 
         if is_inferred_span(span):
-            span.set_metric(APPSEC.ENABLED, 1.0)
+            span._set_attribute(APPSEC.ENABLED, 1.0)
             return
 
         entry_span = span._service_entry_span
-        entry_span.set_metric(APPSEC.ENABLED, 1.0)
+        entry_span._set_attribute(APPSEC.ENABLED, 1.0)
         entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 
         ctx = self._ddwaf._at_request_start()
@@ -281,7 +274,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return None
 
         if _asm_request_context.get_blocked():
@@ -363,7 +356,7 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, value in waf_results.meta_tags.items():
             entry_span._set_attribute(key, value)
         for key, value in waf_results.metrics.items():
-            entry_span.set_metric(key, value)
+            entry_span._set_attribute(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
@@ -411,7 +404,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if not isinstance(self._ddwaf, WAF):
+        if not isinstance(self._ddwaf, DDWaf):
             return
         if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()

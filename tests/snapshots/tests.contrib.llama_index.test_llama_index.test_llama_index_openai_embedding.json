@@ -2,7 +2,7 @@
   {
     "name": "llama_index.request",
     "service": "tests.contrib.llama_index",
-    "resource": "OpenAIEmbedding.get_query_embedding",
+    "resource": "text-embedding-ada-002",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

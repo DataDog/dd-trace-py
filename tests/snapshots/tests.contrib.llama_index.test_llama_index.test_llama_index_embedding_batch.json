@@ -2,7 +2,7 @@
   {
     "name": "llama_index.request",
     "service": "tests.contrib.llama_index",
-    "resource": "MockEmbedding.get_text_embedding_batch",
+    "resource": "mock-embed",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

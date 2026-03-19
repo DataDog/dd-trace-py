@@ -2,7 +2,7 @@
   {
     "name": "llama_index.request",
     "service": "tests.contrib.llama_index",
-    "resource": "OpenAI.apredict",
+    "resource": "gpt-4o-mini",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -29,7 +29,7 @@
      {
        "name": "llama_index.request",
        "service": "tests.contrib.llama_index",
-       "resource": "OpenAI.achat",
+       "resource": "gpt-4o-mini",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,

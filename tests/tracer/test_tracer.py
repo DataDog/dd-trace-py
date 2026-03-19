@@ -362,7 +362,7 @@ class TracerTestCases(TracerTestCase):
                     next(signals)
                 except StopIteration as e:
                     assert e.value == 10
-                    span.set_metric("num_signals", e.value)
+                    span._set_attribute("num_signals", e.value)
                     break
 
         self.assert_span_count(2)
@@ -1087,7 +1087,7 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
-    from ddtrace.constants import MANUAL_KEEP_KEY
+    from ddtrace.constants import USER_KEEP
     from ddtrace.trace import tracer
 
     # Create two unfinished spans
@@ -1098,12 +1098,12 @@ def test_unfinished_span_warning_log():
     span1.parent_id = 0
     span1.span_id = 456
     span1.start = 1234567890  # Fri Feb 13 2009 23:31:30 GMT (realistic Unix timestamp)
-    span1.set_tag(MANUAL_KEEP_KEY)
+    span1._override_sampling_decision(USER_KEEP)
     span2.trace_id = 123
     span2.parent_id = 456
     span2.span_id = 666
     span2.start = 1987654321  # Wed Oct 17 2033 11:32:01 GMT (future but realistic)
-    span2.set_tag(MANUAL_KEEP_KEY)
+    span2._override_sampling_decision(USER_KEEP)
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
@@ -1450,14 +1450,14 @@ def test_ctx_distributed(tracer, test_spans):
 def test_manual_keep(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
-        s.set_tag(MANUAL_KEEP_KEY)
+        s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
-            s.set_tag(MANUAL_KEEP_KEY)
+            s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
@@ -1466,8 +1466,8 @@ def test_manual_keep_then_drop(tracer, test_spans):
     # Test changing the value before finish.
     with tracer.trace("asdf") as root:
         with tracer.trace("child") as child:
-            child.set_tag(MANUAL_KEEP_KEY)
-        root.set_tag(MANUAL_DROP_KEY)
+            child.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
+        root.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
@@ -1475,14 +1475,14 @@ def test_manual_keep_then_drop(tracer, test_spans):
 def test_manual_drop(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
-        s.set_tag(MANUAL_DROP_KEY)
+        s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
-            s.set_tag(MANUAL_DROP_KEY)
+            s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 

@@ -49,8 +49,13 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
 
     # AIDEV-NOTE: For streaming, dispatch_end_event=False defers the ended event
     # until the stream handler calls ctx.dispatch_ended_event() in finalize_stream().
+    # For errors, we must manually dispatch so the span finishes with error info.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        resp = func(*args, **kwargs)
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         event.response = resp
@@ -73,7 +78,11 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        resp = await func(*args, **kwargs)
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         event.response = resp

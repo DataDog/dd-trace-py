@@ -105,7 +105,7 @@ def test_global_tags(llama_index, request_vcr, test_spans):
 
     assert response.message.content, "Expected non-empty response content from instrumented call"
     span = test_spans.pop_traces()[0][0]
-    assert span.resource == "OpenAI.chat"
+    assert span.resource == "gpt-4o-mini"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"

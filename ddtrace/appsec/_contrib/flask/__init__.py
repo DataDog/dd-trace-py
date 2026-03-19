@@ -81,7 +81,7 @@ def _on_request_span_modifier(
             elif content_type in ("application/xml", "text/xml"):
                 req_body = xmltodict.parse(request.get_data())
             elif hasattr(request, "form"):
-                req_body = request.form.to_dict()
+                req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}
             else:
                 # no raw body
                 req_body = None

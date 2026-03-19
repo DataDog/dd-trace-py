@@ -97,6 +97,26 @@ like this::
 
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
+
+For async integrations, ``context.ended`` may need to be emitted later, for example, from a callback,
+after the ``with`` block exits. For example::
+
+    with core.context_with_data("integration.operation", _dispatch_end_event=False) as ctx:
+
+        try:
+            future = await async_func(*args, **kwargs)
+        except BaseException as e:
+            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+            raise
+
+        def done_callback(f):
+            try:
+                ctx.dispatch_ended_event()
+            except Exception as e:
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+
+        future.add_done_callback(done_callback)
+        return future
 """
 
 import logging
@@ -190,10 +210,8 @@ class ExecutionContext(Generic[EventType]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        # For async flows, callers may need to exit the context without dispatching
-        # context.ended yet (for example, to defer span finishing).
         if self._dispatch_end_event and not self._end_event_dispatched:
-            # we use dispatch directly to remove a function indirection on the hot path
+            # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
             dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
         try:
@@ -213,18 +231,16 @@ class ExecutionContext(Generic[EventType]):
             else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
         )
 
-    def finish(
-        self,
-        exc_info: tuple[Optional[type], Optional[BaseException], Optional[types.TracebackType]] = (None, None, None),
-    ) -> bool:
-        return self.__exit__(*exc_info)
-
     def dispatch_ended_event(
         self,
         exc_type: Optional[type] = None,
         exc_value: Optional[BaseException] = None,
         traceback: Optional[types.TracebackType] = None,
     ) -> None:
+        """For async flows, caller may need to dispatch context.ended after exiting
+        the context. This methods allows to dispatch context.ended manually for a context
+        that already exited.
+        """
         if self._end_event_dispatched:
             return
         dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
@@ -344,22 +360,12 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(
-    event: "EventType",
-    parent=None,
-    context_name_override: Optional[str] = None,
-    enter: bool = False,
-    dispatch_end_event: bool = True,
+    event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
-    context = _CONTEXT_CLASS(
-        identifier,
-        parent=(parent or _CURRENT_CONTEXT.get()),
-        event=event,
-        dispatch_end_event=dispatch_end_event,
+    return _CONTEXT_CLASS(
+        identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event, dispatch_end_event=dispatch_end_event
     )
-    if enter:
-        context.__enter__()
-    return context
 
 
 def add_suppress_exception(exc_type: type) -> None:

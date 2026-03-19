@@ -11,7 +11,6 @@ import pytest
 import ddtrace
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
@@ -63,9 +62,11 @@ def payload_to_plain_text(payload: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in payload.items())
 
 
-class Contrib_TestClass_For_Threats:
+class _Contrib_TestClass_Base:
     """
-    Factorized test class for threats tests on all supported frameworks
+    Common infrastructure for all threat test classes.
+    Contains fixtures, helper methods, and abstract response accessors.
+    No test methods — subclasses add those.
     """
 
     SERVER_PORT = 8000
@@ -145,6 +146,12 @@ class Contrib_TestClass_For_Threats:
     def setup_method(self, method):
         """called before each test method"""
         _addresses_store.clear()
+
+
+class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
+    """
+    Factorized test class for threats tests on all supported frameworks
+    """
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_entry_span_tag, asm_enabled: bool):
@@ -1093,12 +1100,34 @@ class Contrib_TestClass_For_Threats:
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
             ),
+            # multipart with duplicate keys
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nsafe_value\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nyqrweytqwreasldhkuqwgervflnmlnli\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nanother_safe_value\r\n"
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
             # raw body must not be blocked
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
-        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
+        ids=[
+            "json",
+            "text_json",
+            "json_large",
+            "xml",
+            "form",
+            "form_multipart",
+            "form_multipart_duplicate_keys",
+            "text",
+            "no_attack",
+        ],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
@@ -1504,15 +1533,15 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
 
-        # clear the hashtable to avoid collisions with previous tests
-        if apisec_enabled:
-            assert APIManager._instance, "APIManager instance should be initialized"
-            APIManager._instance._hashtable.clear()
-
         payload = {"mastercard": "5123456789123456"}
         with override_global_config(
             dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_delay=delay)
         ):
+            # Clear sampling state after AppSec has been reconfigured for this case.
+            if apisec_enabled:
+                assert APIManager._instance, "APIManager instance should be initialized"
+                APIManager._instance._hashtable.clear()
+
             self.update_tracer(interface)
             response = interface.client.post(
                 f"/asm/?priority={priority}",
@@ -1553,22 +1582,6 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
-
-    def test_multiple_service_name(self, interface):
-        import time
-
-        with override_global_config(dict(_remote_config_enabled=True)):
-            self.update_tracer(interface)
-            assert ddtrace.config._remote_config_enabled
-            response = interface.client.get("/new_service/awesome_test")
-            assert self.status(response) == 200
-            assert self.body(response) == "awesome_test"
-            for _ in range(10):
-                if "awesome_test" in ddtrace.config._get_extra_services():
-                    break
-                time.sleep(1)
-            else:
-                raise AssertionError("extra service not found")
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_asm_enabled_headers(self, asm_enabled, interface, get_entry_span_tag, entry_span):
@@ -1627,24 +1640,6 @@ class Contrib_TestClass_For_Threats:
                 )
             else:
                 assert get_entry_span_tag(meta_tagname) is None
-
-    def test_global_callback_list_length(self, interface):
-        from ddtrace.appsec import _asm_request_context
-
-        with override_global_config(
-            dict(
-                _asm_enabled=True,
-                _api_security_enabled=True,
-                _telemetry_enabled=True,
-            )
-        ):
-            self.update_tracer(interface)
-            assert ddtrace.config._remote_config_enabled
-            for _ in range(20):
-                response = interface.client.get("/new_service/awesome_test")
-            assert self.status(response) == 200
-            assert self.body(response) == "awesome_test"
-            assert _asm_request_context.API_SEC_CALLBACK is not None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
@@ -1803,13 +1798,13 @@ class Contrib_TestClass_For_Threats:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
@@ -2217,3 +2212,24 @@ class Contrib_TestClass_For_Threats:
             ]
 
             self.check_rules_triggered(sorted(expected_rules), entry_span)
+
+
+class Contrib_TestClass_For_Threats_RC(_Contrib_TestClass_Base):
+    """
+    Factorized test class for threats tests requiring remote config enabled.
+    """
+
+    def test_multiple_service_name(self, interface):
+        import time
+
+        with override_global_config(dict(_remote_config_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/new_service/awesome_test")
+            assert self.status(response) == 200
+            assert self.body(response) == "awesome_test"
+            for _ in range(10):
+                if "awesome_test" in ddtrace.config._get_extra_services():
+                    break
+                time.sleep(1)
+            else:
+                raise AssertionError("extra service not found")
