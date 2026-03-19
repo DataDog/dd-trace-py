@@ -243,6 +243,20 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_aggregated_leak_testing",
+            pys=["3.10", "3.11", "3.12"],
+            command="pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+            env={
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
+            },
+            pkgs={
+                "anyio": latest,
+                "pydantic": latest,
+                "pydantic-settings": latest,
+            },
+        ),
+        Venv(
             name="appsec_integrations_django",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
