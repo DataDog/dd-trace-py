@@ -148,7 +148,6 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
             self._ddwaf = None
-            asm_config._ddwaf_version = "error"
 
         self._update_required()
 

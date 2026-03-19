@@ -6,7 +6,6 @@ from typing import Sequence
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
@@ -24,7 +23,6 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.internal.settings.asm import config as asm_config
 
 
 LOGGER = get_logger(__name__)
@@ -72,7 +70,6 @@ class DDWaf:
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
-        asm_config._ddwaf_version = version()
         self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
@@ -207,7 +204,3 @@ class DDWaf:
     def __del__(self) -> None:
         if hasattr(self, "_default_ruleset"):
             ddwaf_object_free(self._default_ruleset)
-
-
-def version() -> str:
-    return ddwaf_get_version().decode("UTF-8")
