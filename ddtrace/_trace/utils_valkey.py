@@ -39,11 +39,11 @@ def _set_span_tags(
     if not is_cluster and hasattr(instance, "connection_pool"):
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
     if args is not None:
-        span.set_metric(valkeyx.ARGS_LEN, len(args))
+        span._set_attribute(valkeyx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
-                span.set_metric(valkeyx.PIPELINE_LEN, len(getattr(instance, attr)))
+                span._set_attribute(valkeyx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 @contextmanager
