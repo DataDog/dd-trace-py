@@ -117,11 +117,7 @@ def test_manually_report_error():
         except ValueError as e:
             ctx.dispatch_ended_event(type(e), e, e.__traceback__)
 
-            ended_ctx, ended_exc_info = ended[0]
-            assert ended_ctx is ctx
-            assert ended_exc_info[0] is ValueError
-            assert isinstance(ended_exc_info[1], ValueError)
-            assert ended_exc_info[1].args == ("OH NO!",)
+            assert ended == [(ctx, (type(e), e, e.__traceback__))]
 
 
 def test_manually_dispatching_end_event_is_idempotent():
@@ -144,19 +140,22 @@ def test_manual_dispatch_before_context_exit_prevents_auto_double_dispatch():
     """Manual dispatch inside an auto-dispatch context should only emit once."""
     context_id = "context_id"
     ended = []
+    ctx: Optional[core.ExecutionContext] = None
 
     def on_context_ended(ctx, exc_info):
         ended.append((ctx, exc_info))
 
     core.on("context.ended.%s" % context_id, on_context_ended)
 
-    with core.context_with_data(context_id) as ctx:
-        pass
-    ctx.dispatch_ended_event()
+    with pytest.raises(ValueError) as raised:
+        with core.context_with_data(context_id) as ctx:
+            raise ValueError("__exit__")
 
-    assert len(ended) == 1
-    ended_ctx, _ = ended[0]
-    assert ended_ctx is ctx
+    assert ctx is not None
+    manual_error = ValueError("manual")
+    ctx.dispatch_ended_event(ValueError, manual_error, None)
+
+    assert ended == [(ctx, (ValueError, raised.value, raised.value.__traceback__))]
 
 
 def test_manual_dispatch_from_async_done_callback_after_context_exit():

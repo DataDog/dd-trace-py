@@ -210,11 +210,6 @@ class ExecutionContext(Generic[EventType]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        """For async flows, callers may need to exit the context without dispatching
-        context.ended yet (for example, to defer span finishing).
-        We still want to reset the contextvar since this context should no longer
-        be the currently active context.
-        """
         if self._dispatch_end_event and not self._end_event_dispatched:
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
             dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
