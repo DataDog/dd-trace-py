@@ -2,7 +2,6 @@
 
 import os
 import sys
-from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +15,7 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
+@pytest.mark.subprocess()
 def test_joinall_links_to_calling_greenlet_not_hub() -> None:
     """joinall must link joined greenlets to the *calling* Greenlet, not the Hub.
 
@@ -24,6 +24,8 @@ def test_joinall_links_to_calling_greenlet_not_hub() -> None:
     parent was always replaced with the Hub regardless of which greenlet called
     joinall.
     """
+    from unittest.mock import patch
+
     import gevent
     from gevent import thread
 
@@ -65,6 +67,7 @@ def test_joinall_links_to_calling_greenlet_not_hub() -> None:
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
+@pytest.mark.subprocess()
 def test_wait_wrapper_links_via_keyword_objects_arg() -> None:
     """wait_wrapper must detect greenlets passed as the ``objects`` keyword argument.
 
@@ -72,6 +75,8 @@ def test_wait_wrapper_links_via_keyword_objects_arg() -> None:
     ``kwargs.get("objects", [])``, so calling ``gevent.wait(objects=[...])``
     silently skipped all greenlet linking.
     """
+    from unittest.mock import patch
+
     import gevent
     from gevent import thread
 
@@ -99,8 +104,11 @@ def test_wait_wrapper_links_via_keyword_objects_arg() -> None:
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
+@pytest.mark.subprocess()
 def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
     """wait_wrapper must link to the *calling* Greenlet, not the Hub."""
+    from unittest.mock import patch
+
     import gevent
     from gevent import thread
 
