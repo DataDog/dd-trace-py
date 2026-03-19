@@ -38,6 +38,9 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
 # are invisible, so the caller's frame is at index 0, not 3.
 cdef int _CALLER_FRAME_INDEX = 0
 
+# Sentinel for getattr(..., default) when probing attributes on dir(value) in _find_name.
+_MISSING = object()
+
 
 cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
@@ -302,12 +305,8 @@ class _ProfiledLock:
                 return name
             if config.lock.name_inspect_dir:
                 for attribute in dir(value):
-                    try:
-                        if not attribute.startswith("__") and getattr(value, attribute) is self:
-                            return attribute
-                    except AttributeError:
-                        # Accessing unset attributes in __slots__ raises AttributeError.
-                        pass
+                    if not attribute.startswith("__") and getattr(value, attribute, _MISSING) is self:
+                        return attribute
         return None
 
     def _update_name(self) -> None:
