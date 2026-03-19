@@ -13,10 +13,10 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
-UNKNOWN_VERSION = "unknown"
+UNKNOWN_VERSION: str = "unknown"
 
-bool_str = ("false", "true")
-blocked_str = ("irrelevant", "success")
+BOOL_STR: tuple[str, str] = ("false", "true")
+BLOCKED_STR: tuple[str, str] = ("irrelevant", "success")
 
 logger = ddlogger.get_logger(__name__)
 
@@ -84,7 +84,7 @@ def set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
     )
 
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags + (("success", bool_str[success]),)
+        TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags + (("success", BOOL_STR[success]),)
     )
 
 
@@ -96,7 +96,7 @@ def set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
     )
 
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags + (("success", bool_str[success]),)
+        TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags + (("success", BOOL_STR[success]),)
     )
     if not success:
         telemetry.telemetry_writer.add_count_metric(
@@ -104,7 +104,7 @@ def set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
         )
 
 
-_TYPES_AND_TAGS = {
+_TYPES_AND_TAGS: dict[str, tuple[tuple[str, str], ...]] = {
     _constants.EXPLOIT_PREVENTION.TYPE.CMDI: (("rule_type", "command_injection"), ("rule_variant", "exec")),
     _constants.EXPLOIT_PREVENTION.TYPE.SHI: (("rule_type", "command_injection"), ("rule_variant", "shell")),
     _constants.EXPLOIT_PREVENTION.TYPE.LFI: (("rule_type", "lfi"),),
@@ -114,9 +114,9 @@ _TYPES_AND_TAGS = {
     _constants.EXPLOIT_PREVENTION.TYPE.SQLI: (("rule_type", "sql_injection"),),
 }
 
-TAGS_STRING_LENGTH = (("truncation_reason", "1"),)
-TAGS_CONTAINER_SIZE = (("truncation_reason", "2"),)
-TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
+TAGS_STRING_LENGTH: tuple[tuple[str, str], ...] = (("truncation_reason", "1"),)
+TAGS_CONTAINER_SIZE: tuple[tuple[str, str], ...] = (("truncation_reason", "2"),)
+TAGS_CONTAINER_DEPTH: tuple[tuple[str, str], ...] = (("truncation_reason", "4"),)
 
 
 @_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":waf:truncations")
@@ -172,12 +172,12 @@ def set_waf_request_metrics(result: Telemetry_result) -> None:
     tags_request = (
         ("event_rules_version", result.version or UNKNOWN_VERSION),
         ("waf_version", asm_config._ddwaf_version),
-        ("rule_triggered", bool_str[result.triggered]),
-        ("request_blocked", bool_str[result.blocked]),
-        ("waf_timeout", bool_str[bool(result.timeout)]),
-        ("input_truncated", bool_str[input_truncated]),
-        ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
-        ("rate_limited", bool_str[result.rate_limited]),
+        ("rule_triggered", BOOL_STR[result.triggered]),
+        ("request_blocked", BOOL_STR[result.blocked]),
+        ("waf_timeout", BOOL_STR[bool(result.timeout)]),
+        ("input_truncated", BOOL_STR[input_truncated]),
+        ("waf_error", BOOL_STR[result.error < 0]),  # waf_error is a boolean in waf.requests
+        ("rate_limited", BOOL_STR[result.rate_limited]),
     )
 
     telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request)
@@ -191,7 +191,7 @@ def set_waf_request_metrics(result: Telemetry_result) -> None:
                         ("event_rules_version", result.version or UNKNOWN_VERSION),
                     )
                     if t == "match":
-                        tags = tags + (("block", blocked_str[rasp.blocked]),)
+                        tags = tags + (("block", BLOCKED_STR[rasp.blocked]),)
                     telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, n, value, tags=tags)
 
 
