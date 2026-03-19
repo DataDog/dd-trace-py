@@ -250,8 +250,10 @@ class DataDogProvider(AbstractProvider):
 
         Follows OpenFeature spec:
         - Returns flag value with reason and variant on success
-        - Returns default value with DEFAULT reason when flag not found
-        - Returns error with error_code and error_message on errors
+        - Returns default value with DEFAULT reason when no configuration is available
+        - Returns default value with ERROR reason and FLAG_NOT_FOUND error_code when
+          flag is not found in the configuration
+        - Returns error with error_code and error_message on other errors
         """
         # If provider is not enabled, return default value
         if not self._enabled:

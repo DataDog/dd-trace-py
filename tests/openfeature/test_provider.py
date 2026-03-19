@@ -77,8 +77,8 @@ class TestBooleanFlagResolution:
         assert result.error_code is None
         assert result.error_message is None
 
-    def test_resolve_boolean_flag_not_found(self, provider):
-        """Should return default value when flag not found."""
+    def test_resolve_boolean_flag_no_config(self, provider):
+        """Should return default value with DEFAULT reason when no config is available."""
         _set_ffe_config(None)
 
         result = provider.resolve_boolean_details("non-existent-flag", False)
@@ -87,6 +87,20 @@ class TestBooleanFlagResolution:
         assert result.reason == Reason.DEFAULT
         assert result.variant is None
         assert result.error_code is None
+
+    def test_resolve_boolean_flag_not_found_in_config(self, provider):
+        """Should return ERROR with FLAG_NOT_FOUND when flag not in existing config."""
+        # Create a config with a different flag
+        config = create_config(create_boolean_flag("existing-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        # Request a flag that doesn't exist in the config
+        result = provider.resolve_boolean_details("non-existent-flag", False)
+
+        assert result.value is False
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.FLAG_NOT_FOUND
+        assert result.variant is None
 
     def test_resolve_boolean_flag_disabled(self, provider):
         """Should return default value when flag is disabled."""
@@ -126,8 +140,8 @@ class TestStringFlagResolution:
         assert result.variant == "variant-a"
         assert result.error_code is None
 
-    def test_resolve_string_flag_not_found(self, provider):
-        """Should return default value when flag not found."""
+    def test_resolve_string_flag_no_config(self, provider):
+        """Should return default value with DEFAULT reason when no config is available."""
         _set_ffe_config(None)
 
         result = provider.resolve_string_details("non-existent-flag", "default")
@@ -177,8 +191,8 @@ class TestFloatFlagResolution:
         assert result.reason == Reason.STATIC
         assert result.variant == "var-3.14159"
 
-    def test_resolve_float_flag_not_found(self, provider):
-        """Should return default value when flag not found."""
+    def test_resolve_float_flag_no_config(self, provider):
+        """Should return default value with DEFAULT reason when no config is available."""
         _set_ffe_config(None)
 
         result = provider.resolve_float_details("non-existent-flag", 1.0)
@@ -214,8 +228,8 @@ class TestObjectFlagResolution:
         assert result.reason == Reason.STATIC
         assert result.variant == "var-object"
 
-    def test_resolve_object_flag_not_found(self, provider):
-        """Should return default value when flag not found."""
+    def test_resolve_object_flag_no_config(self, provider):
+        """Should return default value with DEFAULT reason when no config is available."""
         _set_ffe_config(None)
 
         default = {"default": True}
