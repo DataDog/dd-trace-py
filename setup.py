@@ -1313,11 +1313,14 @@ setup(
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        # CMakeLists.txt was previously included here for _taint_tracking but is a build artifact not needed at runtime
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
+    },
+    exclude_package_data={
+        "": ["CMakeLists.txt", "*.pyi", "*.md", "*.sh", "*.cmake", "*.pxd"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
