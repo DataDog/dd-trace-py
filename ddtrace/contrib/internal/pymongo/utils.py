@@ -3,8 +3,8 @@ import json
 from typing import Iterable
 
 # 3p
-import pymongo
 from bson import json_util
+import pymongo
 from pymongo.message import _GetMore
 from pymongo.message import _Query
 
