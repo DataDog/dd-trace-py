@@ -1,4 +1,6 @@
 import functools
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace.appsec import _constants
@@ -31,14 +33,16 @@ for _, tag in WARNING_TAGS:
     ddlogger.set_tag_rate_limit(tag, ddlogger.HOUR)
 
 
-def _safe_metric(warning_tag: str, more_info: str, reraise: bool = False):
+def _safe_metric(
+    warning_tag: str, more_info: str, reraise: bool = False
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
     """Decorator that wraps a metric-reporting function with standardized error handling."""
 
-    def decorator(func):
+    def decorator(func: Callable[..., None]) -> Callable[..., None]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> None:
             try:
-                return func(*args, **kwargs)
+                func(*args, **kwargs)
             except Exception:
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": more_info}
                 logger.warning(warning_tag, extra=extra, exc_info=True)
