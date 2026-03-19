@@ -97,6 +97,13 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+    } else if (new_size == 0 && ptr != NULL) {
+        // realloc(ptr, 0) is implementation-defined: some allocators (including
+        // glibc) free ptr and return NULL.  In that case ptr is gone and must be
+        // untracked so allocs_m doesn't keep a dangling/stale entry forever.
+        // When new_size > 0 and ptr2 == NULL the allocation failed; ptr is
+        // still valid and must stay tracked, so we only act on new_size == 0.
+        memalloc_heap_untrack_no_cpython(ptr);
     }
 
     return ptr2;

@@ -16,13 +16,12 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._metrics import report_error
+from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
@@ -40,7 +39,7 @@ DDWAF_MATCH = 1
 ASM_DD_DEFAULT = "ASM_DD/default"
 
 
-class DDWaf(WAF):
+class DDWaf:
     empty_observator = _observator()
 
     def __init__(

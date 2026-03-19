@@ -37,6 +37,11 @@ except ImportError:
     BaseMetric = None
     BaseConversationalMetric = None
 
+try:
+    from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+except ImportError:
+    PydanticEvaluator = None
+
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -49,6 +54,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
@@ -532,6 +538,9 @@ else:
         ],
         BaseAsyncEvaluator,
     ]
+if PydanticEvaluator is not None:
+    EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
+    AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
@@ -580,6 +589,17 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
     return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
 
+def _is_pydantic_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic evaluator (inherits from PydanticEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic evaluator, False otherwise
+    """
+    if PydanticEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticEvaluator)
+
+
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
 
@@ -599,12 +619,13 @@ def _is_function_evaluator(evaluator: Any) -> bool:
         not isinstance(evaluator, BaseEvaluator)
         and not isinstance(evaluator, BaseSummaryEvaluator)
         and not _is_deep_eval_evaluator(evaluator)
+        and not _is_pydantic_evaluator(evaluator)
     )
 
 
 if BaseMetric is not None and BaseConversationalMetric is not None:
 
-    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The deep eval evaluator to run
@@ -677,7 +698,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
 
 else:
 
-    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking.
 
         :param evaluator: The deep eval evaluator to run
@@ -686,6 +707,196 @@ else:
         return evaluator
 
     def _deep_eval_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+
+if PydanticEvaluator is not None:
+    from collections.abc import Mapping
+    import json
+
+    from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
+    from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
+    from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+
+    def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
+        eval_result_list = list(_eval_result.values())
+        eval_result = EvaluatorResult(
+            value=None,
+            reasoning=None,
+            assessment=None,
+        )
+        if len(eval_result_list) == 1:
+            first_item = eval_result_list[0]
+            if hasattr(first_item, "value"):
+                first_item_value = first_item.value
+            else:
+                first_item_value = first_item
+            if hasattr(first_item, "reason"):
+                reasoning = first_item.reason
+            else:
+                reasoning = None
+            if isinstance(first_item_value, bool):
+                assessment = "pass" if first_item_value else "fail"
+            else:
+                assessment = None
+            eval_result.value = first_item_value
+            eval_result.reasoning = reasoning
+            eval_result.assessment = assessment
+        elif len(eval_result_list) == 2:
+            first_item = eval_result_list[0]
+            second_item = eval_result_list[1]
+            if hasattr(first_item, "value"):
+                first_item_value = first_item.value
+            else:
+                first_item_value = first_item
+            if hasattr(second_item, "value"):
+                second_item_value = second_item.value
+            else:
+                second_item_value = second_item
+            if isinstance(first_item_value, bool):
+                assessment = "pass" if first_item_value else "fail"
+                value = second_item_value
+            elif isinstance(second_item_value, bool):
+                assessment = "pass" if second_item_value else "fail"
+                value = first_item_value
+            else:
+                assessment = None
+                value = None
+            if (
+                hasattr(first_item, "reason")
+                and hasattr(second_item, "reason")
+                and first_item.reason == second_item.reason
+            ):
+                eval_result.value = value
+                eval_result.assessment = assessment
+                eval_result.reasoning = second_item.reason
+            elif first_item_value == second_item_value:
+                eval_result.value = value
+                eval_result.assessment = assessment
+            else:
+                eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+        else:
+            eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+        eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+        return eval_result
+
+    def get_pydantic_evaluator_result(
+        result: PydanticEvaluatorOutput,
+    ) -> EvaluatorResult:
+        _eval_result = cast(PydanticEvaluatorOutput, result)
+        eval_result = EvaluatorResult(
+            value=None,
+            reasoning=None,
+            assessment=None,
+        )
+        if isinstance(_eval_result, PydanticEvaluationScalar):
+            eval_result.value = _eval_result
+            if isinstance(_eval_result, bool):
+                eval_result.assessment = "pass" if _eval_result else "fail"
+        elif isinstance(_eval_result, PydanticEvaluationReason):
+            eval_result.value = _eval_result.value
+            eval_result.reasoning = _eval_result.reason
+            if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
+                eval_result.assessment = "pass" if _eval_result.value else "fail"
+        elif isinstance(_eval_result, Mapping):
+            eval_result = get_mapping_result(_eval_result)
+        else:
+            eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
+            eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
+        return eval_result
+
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+            duration: Optional[float] = None,
+        ) -> EvaluatorResult:
+            evalContext = PydanticEvaluatorContext(
+                name="",
+                inputs=input_data,
+                expected_output=expected_output,
+                output=output_data,
+                duration=duration,
+                metadata=None,
+                _span_tree=None,
+                attributes=None,
+                metrics=None,
+            )
+
+            if asyncio.iscoroutinefunction(evaluator.evaluate):
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    result = asyncio.run(evaluator.evaluate(evalContext))
+                else:
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        _result = pool.submit(asyncio.run, evaluator.evaluate(evalContext))
+                        result = _result.result()
+            else:
+                result = evaluator.evaluate(evalContext)
+            eval_result = get_pydantic_evaluator_result(result)
+            return eval_result
+
+        eval_name = evaluator.get_default_evaluation_name()
+        if idx > 1:
+            wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
+        else:
+            wrapped_evaluator.__name__ = eval_name
+        return wrapped_evaluator
+
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        async def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
+            evalContext = PydanticEvaluatorContext(
+                name="",
+                inputs=input_data,
+                expected_output=expected_output,
+                output=output_data,
+                duration=duration,
+                metadata=None,
+                _span_tree=None,
+                attributes=None,
+                metrics=None,
+            )
+
+            result = await evaluator.evaluate_async(evalContext)
+            eval_result = get_pydantic_evaluator_result(result)
+            return eval_result
+
+        eval_name = evaluator.get_default_evaluation_name()
+        if idx > 1:
+            wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
+        else:
+            wrapped_evaluator.__name__ = eval_name
+        return wrapped_evaluator
+
+else:
+
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
@@ -705,11 +916,18 @@ class DatasetRecordRaw(_DatasetRecordRawOptional):
     metadata: dict[str, Any]
 
 
+class _TagOperations(TypedDict, total=False):
+    add: list[str]
+    remove: list[str]
+    replace: list[str]
+
+
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
     tags: list[str]
+    tag_operations: _TagOperations
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
@@ -819,6 +1037,7 @@ class Dataset:
         self._new_records_by_record_id = {}
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
+        self._pending_tag_operations: dict[str, _TagOperations] = {}
 
     def push(
         self,
@@ -876,6 +1095,10 @@ class Dataset:
             self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
+            # Inject accumulated tag operations into update records before sending
+            for record_id, tag_ops in self._pending_tag_operations.items():
+                if record_id in self._updated_record_ids_to_new_fields:
+                    self._updated_record_ids_to_new_fields[record_id]["tag_operations"] = tag_ops
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             (
                 new_version,
@@ -914,27 +1137,37 @@ class Dataset:
             self._version = self._latest_version
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
+        self._pending_tag_operations = {}
         return data_changed
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
-        if all(k not in record for k in ("input_data", "expected_output", "metadata")):
+        if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "
-                "input_data, expected_output, or metadata to update"
+                "input_data, expected_output, metadata, or tags to update"
             )
+        # If tags are provided, delegate to replace_tags for that record
+        tags = record.get("tags", None) if "tags" in record else None
+        if tags is not None:
+            self.replace_tags(index, tags)
+
         record_id = self._records[index]["record_id"]
-        self._updated_record_ids_to_new_fields[record_id] = {
-            **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
-            **record,
-            "record_id": record_id,
-        }
-        self._records[index] = {
-            **self._records[index],
-            **record,
-            "record_id": record_id,
-        }
+        # Only update non-tag fields if there are any
+        if any(k in record for k in ("input_data", "expected_output", "metadata")):
+            self._updated_record_ids_to_new_fields[record_id] = {
+                **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
+                **record,
+                "record_id": record_id,
+            }
+            self._records[index] = {
+                **self._records[index],
+                **record,
+                "record_id": record_id,
+            }
 
     def append(self, record: DatasetRecordRaw) -> None:
+        if record.get("tags"):
+            validate_tags_list(record["tags"])
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
@@ -946,6 +1179,122 @@ class Dataset:
     def extend(self, records: list[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
+
+    def add_tags(self, index: int, tags: list[str]) -> None:
+        """Add tags to an existing record. Tags are merged with any existing tags on the record."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            existing = set(record.get("tags") or [])
+            existing.update(tags)
+            record["tags"] = sorted(existing)
+            return
+
+        self._accumulate_tag_operations(record_id, "add", tags)
+        # Update in-memory state for read consistency
+        existing = set(record.get("tags") or [])
+        existing.update(tags)
+        record["tags"] = sorted(existing)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def remove_tags(self, index: int, tags: list[str]) -> None:
+        """Remove tags from an existing record."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            existing = set(record.get("tags") or [])
+            existing -= set(tags)
+            record["tags"] = sorted(existing)
+            return
+
+        self._accumulate_tag_operations(record_id, "remove", tags)
+        # Update in-memory state for read consistency
+        existing = set(record.get("tags") or [])
+        existing -= set(tags)
+        record["tags"] = sorted(existing)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def replace_tags(self, index: int, tags: list[str]) -> None:
+        """Replace all tags on an existing record with the given tags."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            record["tags"] = list(tags)
+            return
+
+        self._accumulate_tag_operations(record_id, "replace", tags)
+        # Update in-memory state for read consistency
+        record["tags"] = list(tags)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def _accumulate_tag_operations(self, record_id: str, operation: str, tags: list[str]) -> None:
+        """Accumulate tag operations for a record before push.
+
+        Handles merging logic:
+        - replace overrides all prior add/remove operations
+        - After a replace, subsequent add/remove fold into the replace list
+        - Without replace, add and remove accumulate independently with cancellation
+        """
+        ops = self._pending_tag_operations.get(record_id, _TagOperations())
+
+        if operation == "replace":
+            # Replace overrides everything
+            ops = _TagOperations(replace=list(tags))
+        elif operation == "add":
+            if "replace" in ops:
+                # After a replace, fold adds into the replace list
+                existing = set(ops["replace"])
+                existing.update(tags)
+                ops["replace"] = sorted(existing)
+            else:
+                add_set = set(ops.get("add", []))
+                remove_set = set(ops.get("remove", []))
+                for tag in tags:
+                    if tag in remove_set:
+                        remove_set.discard(tag)
+                    else:
+                        add_set.add(tag)
+                ops = _TagOperations()
+                if add_set:
+                    ops["add"] = sorted(add_set)
+                if remove_set:
+                    ops["remove"] = sorted(remove_set)
+        elif operation == "remove":
+            if "replace" in ops:
+                # After a replace, fold removes into the replace list
+                existing = set(ops["replace"])
+                existing -= set(tags)
+                ops["replace"] = sorted(existing)
+            else:
+                add_set = set(ops.get("add", []))
+                remove_set = set(ops.get("remove", []))
+                for tag in tags:
+                    if tag in add_set:
+                        add_set.discard(tag)
+                    else:
+                        remove_set.add(tag)
+                ops = _TagOperations()
+                if add_set:
+                    ops["add"] = sorted(add_set)
+                if remove_set:
+                    ops["remove"] = sorted(remove_set)
+
+        self._pending_tag_operations[record_id] = ops
 
     def delete(self, index: int) -> None:
         record_id = self._records[index]["record_id"]
@@ -959,6 +1308,9 @@ class Dataset:
 
         if record_id in self._updated_record_ids_to_new_fields:
             del self._updated_record_ids_to_new_fields[record_id]
+
+        if record_id in self._pending_tag_operations:
+            del self._pending_tag_operations[record_id]
 
         if record_id in self._new_records_by_record_id:
             del self._new_records_by_record_id[record_id]
@@ -982,7 +1334,11 @@ class Dataset:
 
     def _estimate_delta_size(self) -> int:
         """rough estimate (in bytes) of the size of the next batch update call if it happens"""
-        size = len(safe_json(self._new_records_by_record_id)) + len(safe_json(self._updated_record_ids_to_new_fields))
+        size = (
+            len(safe_json(self._new_records_by_record_id))
+            + len(safe_json(self._updated_record_ids_to_new_fields))
+            + len(safe_json(self._pending_tag_operations))
+        )
         logger.debug("estimated delta size %d", size)
         return size
 
@@ -1039,6 +1395,10 @@ class Dataset:
                     column_tuples.add(("metadata", metadata_col))
             else:
                 logger.warning("unexpected metadata format %s", type(metadata))
+
+            tags = record.get("tags", [])
+            flat_record[("tags", "")] = tags
+            column_tuples.add(("tags", ""))
 
             data_rows.append(flat_record)
 
@@ -1695,7 +2055,13 @@ class Experiment:
 
         semaphore = asyncio.Semaphore(jobs)
         coros = [
-            self._process_record(idx_record, run, semaphore, max_retries=max_retries, retry_delay=retry_delay)
+            self._process_record(
+                idx_record,
+                run,
+                semaphore,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+            )
             for idx_record in enumerate(subset_dataset)
         ]
         results = await asyncio.gather(*coros, return_exceptions=True)

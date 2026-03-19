@@ -1,0 +1,17 @@
+id: span-set-metric-measured
+valid:
+  # Direct _set_attribute is the correct pattern
+  - span._set_attribute(_SPAN_MEASURED_KEY, 1)
+  - span._set_attribute(_SPAN_MEASURED_KEY, 0)
+  # set_metric with other keys is fine
+  - span.set_metric("some.other.metric", 42)
+  - span.set_metric(SOME_OTHER_KEY, value)
+  # set_tag with _SPAN_MEASURED_KEY is handled by a different rule
+  - span.set_tag(_SPAN_MEASURED_KEY)
+
+invalid:
+  - span.set_metric(_SPAN_MEASURED_KEY, 1)
+  - span.set_metric(_SPAN_MEASURED_KEY, 0)
+  - |
+    s = tracer.trace("op")
+    s.set_metric(_SPAN_MEASURED_KEY, 1)
