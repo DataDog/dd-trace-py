@@ -77,9 +77,9 @@ def _create_event(
     is_chat: Optional[bool],
     operation: str,
 ) -> LlmRequestEvent:
-    # Resource is the thing being talked to: model name for LLM/embedding calls,
-    # instance class name for agents/queries/retrievers.
-    resource = model if model else instance.__class__.__name__
+    # Resource: model name for LLM calls (low cardinality), class name for
+    # operations like query/retrieval/embedding/agent to avoid high cardinality.
+    resource = model if (model and is_chat is not None) else instance.__class__.__name__
     return LlmRequestEvent(
         component="llama_index",
         service=int_service(None, _integration.integration_config),
