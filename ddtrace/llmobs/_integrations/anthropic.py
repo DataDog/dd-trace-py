@@ -167,8 +167,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         if isinstance(content, str):
             return content
         elif isinstance(content, dict):
-            sorted_dict = dict(sorted(content.items()))
-            return safe_json(sorted_dict)
+            return safe_json(content)
         elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
@@ -210,8 +209,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_message["tool_calls"] = [tool_call_info]
                 if "tool_result" in _get_attr(completion, "type", None):
                     result = _get_attr(completion, "content", {})
-                    if hasattr(result, "to_dict"):
-                        result = result.to_dict()
+                    if hasattr(result, "model_dump") and callable(result.model_dump):
+                        result = result.model_dump()
                     formatted_result = self._format_tool_result_content(result)
                     tool_result_info = ToolResult(
                         result=formatted_result,
