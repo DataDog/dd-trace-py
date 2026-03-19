@@ -19,7 +19,6 @@
 #include <mutex>
 #include <pthread.h>
 #include <thread>
-#include <unordered_set>
 #include <vector>
 
 using namespace Datadog;
@@ -196,42 +195,47 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Build a sorted snapshot of thread IDs for round-robin sub-sampling.
-        // Locking thread_info_map once here lets us compute the sub-sampling window
-        // before entering for_each_thread (which also locks per-thread).
-        std::vector<uintptr_t> thread_ids;
+        // Select thread IDs to sample this cycle via round-robin, into a stack-allocated
+        // buffer. sorted_thread_ids_ is maintained incrementally by register/unregister_thread,
+        // so no per-cycle sort or heap allocation is needed.
+        // max_threads_per_cycle is bounded by the validator to [1, g_max_threads_per_cycle_limit],
+        // so this fixed-size buffer is always safe.
+        constexpr size_t k_max_threads_buf = 128; // must match validator upper bound in profiling.py
+        uintptr_t ids_to_sample[k_max_threads_buf];
+        size_t n_to_sample = 0;
         {
             const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
-            thread_ids.reserve(echion->thread_info_map().size());
-            for (const auto& [id, _] : echion->thread_info_map()) {
-                thread_ids.push_back(id);
-            }
-        }
-        std::sort(thread_ids.begin(), thread_ids.end());
-
-        // Select which thread IDs to sample this cycle via round-robin.
-        // Advancing the cursor by N each cycle ensures all threads are covered over time.
-        std::unordered_set<uintptr_t> ids_to_sample;
-        if (!thread_ids.empty()) {
-            size_t n = std::min(max_threads_per_cycle, thread_ids.size());
-            auto it = std::upper_bound(thread_ids.begin(), thread_ids.end(), thread_subsample_cursor);
-            for (size_t i = 0; i < n; ++i) {
-                if (it == thread_ids.end()) {
-                    it = thread_ids.begin(); // wrap around
+            if (!sorted_thread_ids_.empty()) {
+                size_t n = std::min(max_threads_per_cycle, sorted_thread_ids_.size());
+                auto it = std::upper_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), thread_subsample_cursor);
+                for (size_t i = 0; i < n; ++i) {
+                    if (it == sorted_thread_ids_.end()) {
+                        it = sorted_thread_ids_.begin(); // wrap around
+                    }
+                    ids_to_sample[n_to_sample++] = *it;
+                    if (i == n - 1) {
+                        thread_subsample_cursor = *it; // advance cursor to last selected ID
+                    }
+                    ++it;
                 }
-                ids_to_sample.insert(*it);
-                if (i == n - 1) {
-                    thread_subsample_cursor = *it; // advance cursor to last selected ID
-                }
-                ++it;
             }
         }
 
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                if (!ids_to_sample.empty() && ids_to_sample.find(thread.thread_id) == ids_to_sample.end()) {
-                    return;
+                // Linear scan over ids_to_sample: O(N) where N <= 8 by default,
+                // faster than hash lookup for small N.
+                // If n_to_sample == 0 (no threads registered yet), sample all.
+                if (n_to_sample > 0) {
+                    bool found = false;
+                    for (size_t i = 0; i < n_to_sample; ++i) {
+                        if (ids_to_sample[i] == thread.thread_id) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) return;
                 }
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
@@ -333,6 +337,8 @@ Sampler::postfork_child()
 
     // Clear all entries, we have extracted everything we care about.
     thread_info_map.clear();
+    sorted_thread_ids_.clear();
+    thread_subsample_cursor = 0;
 
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
@@ -341,6 +347,7 @@ Sampler::postfork_child()
     auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, name.c_str());
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
+        sorted_thread_ids_.push_back(current_thread_id);
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
                   << ") " << name << std::endl;
@@ -408,6 +415,8 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
             echion->thread_info_map().emplace(id, std::move(*maybe_thread_info));
+            auto pos = std::lower_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), id);
+            sorted_thread_ids_.insert(pos, id);
         } else {
             if (!has_errored) {
                 has_errored = true;
@@ -419,6 +428,7 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
             it->second = std::move(*maybe_thread_info);
+            // ID already present in sorted_thread_ids_; no change needed.
         } else {
             if (!has_errored) {
                 has_errored = true;
@@ -435,6 +445,10 @@ Sampler::unregister_thread(uint64_t id)
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
     echion->thread_info_map().erase(id);
+    auto pos = std::lower_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), id);
+    if (pos != sorted_thread_ids_.end() && *pos == id) {
+        sorted_thread_ids_.erase(pos);
+    }
 }
 
 bool

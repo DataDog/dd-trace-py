@@ -55,6 +55,10 @@ class Sampler
     // cycling through all threads round-robin over time.
     size_t max_threads_per_cycle = g_default_max_threads_per_cycle;
     uintptr_t thread_subsample_cursor = 0;
+    // Sorted list of registered thread IDs, maintained incrementally in
+    // register_thread/unregister_thread (protected by thread_info_map_lock).
+    // Avoids sorting on every sampling cycle.
+    std::vector<uintptr_t> sorted_thread_ids_;
 
     void atfork_child();
     friend void stack_atfork_child();
