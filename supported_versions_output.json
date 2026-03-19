@@ -431,21 +431,21 @@
     {
         "dependency": "llama-index",
         "integration": "llama_index",
-        "minimum_tracer_supported": "0.14.18",
+        "minimum_tracer_supported": "0.11.23",
         "max_tracer_supported": "0.14.18",
         "auto-instrumented": true
     },
     {
         "dependency": "llama-index-core",
         "integration": "llama_index",
-        "minimum_tracer_supported": "0.14.18",
+        "minimum_tracer_supported": "0.11.23",
         "max_tracer_supported": "0.14.18",
         "auto-instrumented": true
     },
     {
         "dependency": "llama_index",
         "integration": "llama_index",
-        "minimum_tracer_supported": "0.14.18",
+        "minimum_tracer_supported": "0.11.23",
         "max_tracer_supported": "0.14.18",
         "auto-instrumented": true
     },

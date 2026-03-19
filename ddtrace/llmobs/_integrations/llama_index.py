@@ -46,7 +46,11 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        """Extract prompt/response tags from a LlamaIndex call and set them as LLMObs context items."""
+        """Route to the appropriate tag-setter based on the operation type.
+
+        ``kwargs`` contains the request kwargs built by the corresponding
+        ``build_*_request_kwargs`` helper (e.g. messages, prompt, model, query_str).
+        """
         if operation == "query":
             self._llmobs_set_query_tags(span, kwargs, response)
             return
@@ -71,7 +75,11 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for query engine (workflow) spans."""
+        """Set LLMObs tags for query engine (workflow) spans.
+
+        Expected ``kwargs`` keys: ``query_str``.
+        Response is a LlamaIndex ``Response`` object with ``.response`` text.
+        """
         input_value = kwargs.get("query_str", "")
 
         output_value = ""
@@ -93,7 +101,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for agent (workflow) spans."""
+        """Set LLMObs tags for agent (workflow) spans.
+
+        Expected ``kwargs`` keys: ``input``.
+        """
         input_value = kwargs.get("input", "")
 
         span._set_ctx_items(
@@ -109,7 +120,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for tool call spans."""
+        """Set LLMObs tags for tool call spans.
+
+        Expected ``kwargs`` keys: ``tool_name``.
+        """
         tool_name = kwargs.get("tool_name", "")
 
         span._set_ctx_items(
@@ -125,7 +139,11 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for embedding spans."""
+        """Set LLMObs tags for embedding spans.
+
+        Expected ``kwargs`` keys: ``query`` (or ``[N texts]`` summary for batch).
+        Model name is read from the span tag set by ``_set_base_span_tags``.
+        """
         input_value = kwargs.get("query", "")
 
         span._set_ctx_items(
@@ -143,7 +161,11 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for retriever (retrieval) spans."""
+        """Set LLMObs tags for retriever (retrieval) spans.
+
+        Expected ``kwargs`` keys: ``query_str``.
+        Response is a list of ``NodeWithScore`` objects with ``.text`` and ``.score``.
+        """
         input_value = kwargs.get("query_str", "")
 
         output_value = ""
@@ -176,7 +198,13 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
-        """Set LLMObs tags for LLM (chat/completion) spans."""
+        """Set LLMObs tags for LLM (chat/completion) spans.
+
+        Expected ``kwargs`` keys: ``messages`` (chat) or ``prompt`` (completion),
+        plus optional ``max_tokens`` and ``temperature``.
+        Chat vs. completion is determined by the ``_dd_is_chat`` context item
+        set by the tracing subscriber.
+        """
         parameters = {}
         if kwargs.get("max_tokens") is not None:
             parameters["max_tokens"] = kwargs["max_tokens"]
@@ -234,10 +262,16 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         return input_messages
 
     def _extract_completion_input_messages(self, kwargs: dict[str, Any]) -> list[Message]:
+        """Extract input from a completion/predict request as a single user message."""
         prompt = kwargs.get("prompt", "")
         return [Message(content=str(prompt), role="user")]
 
     def _extract_chat_output_messages(self, response: Any) -> list[Message]:
+        """Extract the assistant message from a ChatResponse.
+
+        Returns a single-element list. Falls back to empty content if the
+        response has no ``message`` attribute (e.g. on error).
+        """
         message = _get_attr(response, "message", None)
         if message is None:
             return [Message(content="")]
@@ -251,7 +285,12 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         return [Message(content=str(content), role=str(role))]
 
     def _extract_completion_output_messages(self, response: Any) -> list[Message]:
-        # predict() returns a plain string; CompletionResponse has .text
+        """Extract output text from a CompletionResponse or plain string.
+
+        ``predict()`` returns a plain string while ``complete()`` returns a
+        CompletionResponse with ``.text``.  Falls back to ``str(response)``
+        when no ``.text`` attribute is found.
+        """
         text = _get_attr(response, "text", None)
         if text is None:
             text = str(response) if response else ""
@@ -268,7 +307,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         if raw is None:
             return metrics
 
-        # AIDEV-NOTE: Different providers structure usage differently in the raw response.
+        # Different providers structure usage differently in the raw response.
         # OpenAI: raw.usage.prompt_tokens / completion_tokens / total_tokens
         # Or: raw["usage"]["prompt_tokens"] etc.
         usage = None

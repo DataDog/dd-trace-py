@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -8,8 +9,10 @@ from ddtrace.llmobs._integrations import LlamaIndexIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.trace import Span
 
+
+if TYPE_CHECKING:
+    from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
@@ -22,7 +25,7 @@ class _BaseLlamaIndexStreamHandler:
     """
 
     integration: LlamaIndexIntegration
-    primary_span: Span
+    primary_span: "Span"
     request_args: tuple
     request_kwargs: dict[str, Any]
     chunks: list[Any]
@@ -66,7 +69,7 @@ def handle_streamed_response(
 ) -> Any:
     """Wrap a sync or async LlamaIndex stream for tracing."""
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
-    if hasattr(resp, "__anext__"):
+    if hasattr(resp, "__aiter__"):
         handler = LlamaIndexAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     else:
         handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
@@ -79,9 +82,8 @@ def _construct_response(streamed_chunks: list[Any], is_chat: bool = True) -> Opt
 
     For chat streams, each chunk is a ChatResponse with message.content and raw.
     For completion streams, each chunk is a CompletionResponse with text and raw.
-    The last chunk typically has the full accumulated content and usage info.
+    LlamaIndex streams accumulate — the last chunk has the full content and usage info.
     """
     if not streamed_chunks:
         return None
-    # LlamaIndex streams accumulate - the last chunk has the full content
     return streamed_chunks[-1]

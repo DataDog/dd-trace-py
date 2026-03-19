@@ -27,8 +27,7 @@ log = get_logger(__name__)
 
 
 def _llama_core():
-    # AIDEV-NOTE: Cannot import llama_index.core at module level — Pydantic V2 import
-    # machinery conflicts with ddtrace-run's import hook.
+    """Lazy accessor for llama_index.core (cannot be imported at module level due to Pydantic V2)."""
     return sys.modules.get("llama_index.core") or __import__("llama_index.core", fromlist=["core"])
 
 
@@ -42,16 +41,15 @@ def _supported_versions() -> dict[str, str]:
 
 config._add("llama_index", {})
 
-
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()
 _integration = None
 _DD_WRAPPED = "__dd_wrapped__"
 
 
-# AIDEV-NOTE: We use functools.wraps-based monkey-patching instead of wrapt because
-# LlamaIndex classes inherit from Pydantic V2 BaseModel, which conflicts with wrapt's
-# BoundFunctionWrapper descriptors causing TypeError during model instantiation.
+# We use functools.wraps-based monkey-patching instead of wrapt because LlamaIndex
+# classes inherit from Pydantic V2 BaseModel, which conflicts with wrapt's
+# BoundFunctionWrapper descriptors (TypeError during model instantiation).
 
 
 def _make_wrapper(wrapper_fn, original_fn):
@@ -75,9 +73,9 @@ def _create_event(
     instance: Any,
     func: Callable[..., Any],
     request_kwargs: dict[str, Any],
-    model: Optional[str] = None,
-    is_chat: Optional[bool] = None,
-    operation: str = "",
+    model: Optional[str],
+    is_chat: Optional[bool],
+    operation: str,
 ) -> LlmRequestEvent:
     return LlmRequestEvent(
         component="llama_index",
@@ -100,17 +98,16 @@ def _create_event(
 # ---------------------------------------------------------------------------
 
 
-def _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream=False):
+def _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream):
     """Trace a sync LLM/embedding call (chat, complete, predict, stream, embedding variants)."""
-    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat)
-    # AIDEV-NOTE: dispatch_end_event=False defers the ended event for streaming.
-    # Non-streaming calls dispatch_ended_event() immediately; streaming defers
-    # to the stream handler's finalize_stream().
+    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat, operation="")
+    # dispatch_end_event=False defers span finishing: non-streaming calls dispatch
+    # immediately, streaming defers to the stream handler's finalize_stream().
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
+        except Exception as e:
+            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
             raise
         if always_stream or isinstance(resp, Generator):
             return handle_streamed_response(_integration, resp, args, request_kwargs, ctx, is_chat=is_chat)
@@ -119,14 +116,14 @@ def _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, al
         return resp
 
 
-async def _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream=False):
+async def _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream):
     """Trace an async LLM/embedding call (achat, acomplete, apredict, astream, aembedding variants)."""
-    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat)
+    event = _create_event(instance, func, request_kwargs, model=model, is_chat=is_chat, operation="")
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
+        except Exception as e:
+            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
             raise
         if always_stream or inspect.isasyncgen(resp):
             return handle_streamed_response(_integration, resp, args, request_kwargs, ctx, is_chat=is_chat)
@@ -137,12 +134,12 @@ async def _traced_llm_async(func, instance, args, kwargs, request_kwargs, model,
 
 def _traced_operation(func, instance, args, kwargs, request_kwargs, operation):
     """Trace a sync non-model operation (query, retrieve, agent)."""
-    event = _create_event(instance, func, request_kwargs, operation=operation)
+    event = _create_event(instance, func, request_kwargs, model=None, is_chat=None, operation=operation)
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
+        except Exception as e:
+            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
             raise
         event.response = resp
         ctx.dispatch_ended_event()
@@ -151,12 +148,12 @@ def _traced_operation(func, instance, args, kwargs, request_kwargs, operation):
 
 async def _traced_operation_async(func, instance, args, kwargs, request_kwargs, operation):
     """Trace an async non-model operation (aquery, aretrieve, agent)."""
-    event = _create_event(instance, func, request_kwargs, operation=operation)
+    event = _create_event(instance, func, request_kwargs, model=None, is_chat=None, operation=operation)
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
-            ctx.dispatch_ended_event(*sys.exc_info())
+        except Exception as e:
+            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
             raise
         event.response = resp
         ctx.dispatch_ended_event()
@@ -168,7 +165,7 @@ async def _traced_operation_async(func, instance, args, kwargs, request_kwargs, 
 # ---------------------------------------------------------------------------
 
 
-def _llm_wrapper(build_kwargs_fn, is_chat, always_stream=False):
+def _llm_wrapper(build_kwargs_fn, is_chat, always_stream):
     def wrapper(func, instance, args, kwargs):
         request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
         return _traced_llm(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream)
@@ -176,7 +173,7 @@ def _llm_wrapper(build_kwargs_fn, is_chat, always_stream=False):
     return wrapper
 
 
-def _llm_wrapper_async(build_kwargs_fn, is_chat, always_stream=False):
+def _llm_wrapper_async(build_kwargs_fn, is_chat, always_stream):
     async def wrapper(func, instance, args, kwargs):
         request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
         return await _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, is_chat, always_stream)
@@ -203,16 +200,16 @@ def _operation_wrapper_async(build_kwargs_fn, operation):
 # ---------------------------------------------------------------------------
 
 _LLM_WRAPPERS = {
-    "chat": _llm_wrapper(build_chat_request_kwargs, is_chat=True),
-    "complete": _llm_wrapper(build_complete_request_kwargs, is_chat=False),
+    "chat": _llm_wrapper(build_chat_request_kwargs, is_chat=True, always_stream=False),
+    "complete": _llm_wrapper(build_complete_request_kwargs, is_chat=False, always_stream=False),
     "stream_chat": _llm_wrapper(build_chat_request_kwargs, is_chat=True, always_stream=True),
     "stream_complete": _llm_wrapper(build_complete_request_kwargs, is_chat=False, always_stream=True),
-    "predict": _llm_wrapper(build_predict_request_kwargs, is_chat=False),
-    "achat": _llm_wrapper_async(build_chat_request_kwargs, is_chat=True),
-    "acomplete": _llm_wrapper_async(build_complete_request_kwargs, is_chat=False),
+    "predict": _llm_wrapper(build_predict_request_kwargs, is_chat=False, always_stream=False),
+    "achat": _llm_wrapper_async(build_chat_request_kwargs, is_chat=True, always_stream=False),
+    "acomplete": _llm_wrapper_async(build_complete_request_kwargs, is_chat=False, always_stream=False),
     "astream_chat": _llm_wrapper_async(build_chat_request_kwargs, is_chat=True, always_stream=True),
     "astream_complete": _llm_wrapper_async(build_complete_request_kwargs, is_chat=False, always_stream=True),
-    "apredict": _llm_wrapper_async(build_predict_request_kwargs, is_chat=False),
+    "apredict": _llm_wrapper_async(build_predict_request_kwargs, is_chat=False, always_stream=False),
 }
 
 _QUERY_ENGINE_WRAPPERS = {
@@ -226,10 +223,14 @@ _RETRIEVER_WRAPPERS = {
 }
 
 _EMBEDDING_WRAPPERS = {
-    "get_query_embedding": _llm_wrapper(build_query_embedding_request_kwargs, is_chat=None),
-    "get_text_embedding_batch": _llm_wrapper(build_text_embedding_batch_request_kwargs, is_chat=None),
-    "aget_query_embedding": _llm_wrapper_async(build_query_embedding_request_kwargs, is_chat=None),
-    "aget_text_embedding_batch": _llm_wrapper_async(build_text_embedding_batch_request_kwargs, is_chat=None),
+    "get_query_embedding": _llm_wrapper(build_query_embedding_request_kwargs, is_chat=None, always_stream=False),
+    "get_text_embedding_batch": _llm_wrapper(
+        build_text_embedding_batch_request_kwargs, is_chat=None, always_stream=False
+    ),
+    "aget_query_embedding": _llm_wrapper_async(build_query_embedding_request_kwargs, is_chat=None, always_stream=False),
+    "aget_text_embedding_batch": _llm_wrapper_async(
+        build_text_embedding_batch_request_kwargs, is_chat=None, always_stream=False
+    ),
 }
 
 _AGENT_WRAPPERS = {
@@ -287,7 +288,7 @@ def patch():
     core_mod._datadog_integration = integration
     _integration = integration
 
-    # AIDEV-NOTE: Subclass wrapping is required because LlamaIndex LLM methods are abstract on
+    # Subclass wrapping is required because LlamaIndex LLM methods are abstract on
     # BaseLLM — concrete subclasses (OpenAI, etc.) override them entirely.
     base = core_mod.base
     targets = [
