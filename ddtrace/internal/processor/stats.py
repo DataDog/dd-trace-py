@@ -6,6 +6,8 @@ from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.settings._config import config
@@ -30,10 +32,109 @@ except ImportError:
 
 log = get_logger(__name__)
 
+# AIDEV-NOTE: Trilean values for is_trace_root, matching Go reference implementation.
+# TRUE (1) means parentID == 0 (i.e., the span is the trace root).
+# FALSE (2) means parentID != 0.
+_TRILEAN_TRUE = 1
+_TRILEAN_FALSE = 2
+
+# AIDEV-NOTE: Span kinds that qualify a span for stats computation even if
+# it is not top-level or explicitly measured. This matches the Go reference.
+_STATS_ELIGIBLE_SPAN_KINDS = frozenset(
+    {
+        SpanKind.SERVER,
+        SpanKind.CLIENT,
+        SpanKind.PRODUCER,
+        SpanKind.CONSUMER,
+    }
+)
+
+# AIDEV-NOTE: Only client, producer, and consumer spans contribute peer tags
+# to stats aggregation, matching Go reference implementation.
+_PEER_TAG_SPAN_KINDS = frozenset(
+    {
+        SpanKind.CLIENT,
+        SpanKind.PRODUCER,
+        SpanKind.CONSUMER,
+    }
+)
+
+# AIDEV-NOTE: Default peer tag keys used for stats aggregation. These are the
+# fallback set when the agent /info endpoint does not provide peer_tags_keys.
+# Matches the Go reference implementation's defaultPeerTags.
+DEFAULT_PEER_TAG_KEYS = (
+    "_dd.base_service",
+    "peer.hostname",
+    "peer.service",
+    "db.name",
+    "db.instance",
+    "db.system",
+    "messaging.destination",
+    "messaging.destination.name",
+    "messaging.kafka.bootstrap.servers",
+    "network.destination.name",
+    "rpc.service",
+    "server.address",
+    "server.port",
+    "topic",
+    "topicname",
+)
+
+# AIDEV-NOTE: gRPC status code tag keys checked in priority order,
+# matching Go reference implementation.
+_GRPC_STATUS_CODE_KEYS = (
+    "rpc.grpc.status_code",
+    "grpc.code",
+    "rpc.grpc.status.code",
+    "grpc.status.code",
+)
+
 
 def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
     return span._metrics.get(_SPAN_MEASURED_KEY) == 1
+
+
+def _has_eligible_span_kind(span: Span) -> bool:
+    """Return whether the span has a span.kind that qualifies it for stats."""
+    kind = span.get_tag(SPAN_KIND)
+    return kind in _STATS_ELIGIBLE_SPAN_KINDS if kind else False
+
+
+def _get_grpc_status_code(span: Span) -> int:
+    """Extract gRPC status code from span tags.
+
+    Checks multiple tag keys in priority order matching Go reference.
+    Returns 0 if no gRPC status code is found.
+    """
+    for key in _GRPC_STATUS_CODE_KEYS:
+        val = span.get_tag(key)
+        if val is not None:
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                continue
+    return 0
+
+
+def _get_peer_tags(span: Span, peer_tag_keys: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
+    """Extract peer tags from a span for stats aggregation.
+
+    Only applicable for client/producer/consumer span kinds.
+    Returns a sorted tuple of (key, value) pairs for hashability.
+
+    For internal+service-override spans, _dd.base_service is used.
+    """
+    kind = span.get_tag(SPAN_KIND)
+    if kind not in _PEER_TAG_SPAN_KINDS:
+        return ()
+
+    tags = []
+    for key in peer_tag_keys:
+        val = span.get_tag(key)
+        if val:
+            tags.append((key, val))
+    return tuple(sorted(tags))
 
 
 """
@@ -42,6 +143,9 @@ best as possible). This enables the compression of stat points.
 
 Aggregation can be done using primary and secondary attributes from the span
 stored in a tuple which is hashable in Python.
+
+AIDEV-NOTE: Extended to include span_kind, is_trace_root (Trilean),
+peer_tags, and grpc_status_code to match Go reference implementation.
 """
 SpanAggrKey = tuple[
     str,  # name
@@ -52,6 +156,10 @@ SpanAggrKey = tuple[
     bool,  # synthetics request
     str,  # http method
     str,  # http endpoint
+    str,  # span_kind
+    int,  # is_trace_root (Trilean: 1=TRUE, 2=FALSE)
+    tuple[tuple[str, str], ...],  # peer_tags (sorted key-value pairs)
+    int,  # grpc_status_code
 ]
 
 
@@ -71,8 +179,12 @@ class SpanAggrStats(object):
         self.err_distribution = DDSketch()
 
 
-def _span_aggr_key(span: Span) -> SpanAggrKey:
-    """Return a hashable key that can be used to aggregate similar spans."""
+def _span_aggr_key(span: Span, peer_tag_keys: tuple[str, ...] = DEFAULT_PEER_TAG_KEYS) -> SpanAggrKey:
+    """Return a hashable key that can be used to aggregate similar spans.
+
+    AIDEV-NOTE: Extended to include span_kind, is_trace_root, peer_tags,
+    and grpc_status_code dimensions matching the Go reference implementation.
+    """
     service = span.service or ""
     resource = span.resource or ""
     _type = span.span_type or ""
@@ -80,7 +192,26 @@ def _span_aggr_key(span: Span) -> SpanAggrKey:
     method = span.get_tag("http.method") or ""
     endpoint = span.get_tag("http.endpoint") or span.get_tag("http.route") or ""
     synthetics = span.context.dd_origin == "synthetics"
-    return (span.name, service, resource, _type, int(status_code), synthetics, method, endpoint)
+    span_kind = span.get_tag(SPAN_KIND) or ""
+    # AIDEV-NOTE: In Python, root spans have parent_id=None (not 0 like Go).
+    # Both None and 0 indicate trace root.
+    is_trace_root = _TRILEAN_TRUE if not span.parent_id else _TRILEAN_FALSE
+    peer_tags = _get_peer_tags(span, peer_tag_keys)
+    grpc_status_code = _get_grpc_status_code(span)
+    return (
+        span.name,
+        service,
+        resource,
+        _type,
+        int(status_code),
+        synthetics,
+        method,
+        endpoint,
+        span_kind,
+        is_trace_root,
+        peer_tags,
+        grpc_status_code,
+    )
 
 
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
@@ -92,11 +223,15 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         interval: Optional[float] = None,
         timeout: float = 1.0,
         retry_attempts: int = 3,
+        peer_tag_keys: Optional[tuple[str, ...]] = None,
     ):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._enabled: bool = True
+        # AIDEV-NOTE: peer_tag_keys can be provided from agent /info endpoint
+        # or defaults to DEFAULT_PEER_TAG_KEYS matching Go reference.
+        self._peer_tag_keys: tuple[str, ...] = peer_tag_keys if peer_tag_keys is not None else DEFAULT_PEER_TAG_KEYS
         # DDSketch is not included in slim builds
         if DDSketch is None:
             self._enabled: bool = False  # type: ignore[no-redef]
@@ -134,7 +269,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        if not (is_top_level := span._is_top_level) and not _is_measured(span):
+        # AIDEV-NOTE: Span eligibility now includes span.kind in {server, client, producer, consumer}
+        # in addition to top-level and measured, matching Go reference implementation.
+        is_top_level = span._is_top_level
+        if not is_top_level and not _is_measured(span) and not _has_eligible_span_kind(span):
             return
 
         with self._lock:
@@ -142,7 +280,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             assert span.duration_ns is not None
             span_end_ns = span.start_ns + span.duration_ns
             bucket_time_ns = span_end_ns - (span_end_ns % self._bucket_size_ns)
-            aggr_key = _span_aggr_key(span)
+            aggr_key = _span_aggr_key(span, self._peer_tag_keys)
             stats = self._buckets[bucket_time_ns][aggr_key]
 
             stats.hits += 1
@@ -167,7 +305,21 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             serialized_bucket_keys.append(bucket_time_ns)
 
             for aggr_key, stat_aggr in bucket.items():
-                name, service, resource, _type, http_status, synthetics, http_method, http_endpoint = aggr_key
+                # AIDEV-NOTE: Destructure extended SpanAggrKey with new dimensions
+                (
+                    name,
+                    service,
+                    resource,
+                    _type,
+                    http_status,
+                    synthetics,
+                    http_method,
+                    http_endpoint,
+                    span_kind,
+                    is_trace_root,
+                    peer_tags,
+                    grpc_status_code,
+                ) = aggr_key
                 serialized_bucket = {
                     "Name": compat.ensure_text(name),
                     "Resource": compat.ensure_text(resource),
@@ -181,11 +333,19 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                     "Errors": stat_aggr.errors,
                     "OkSummary": stat_aggr.ok_distribution.to_proto(),
                     "ErrorSummary": stat_aggr.err_distribution.to_proto(),
+                    "SpanKind": span_kind,
+                    "IsTraceRoot": is_trace_root,
                 }
                 if service:
                     serialized_bucket["Service"] = compat.ensure_text(service)
                 if _type:
                     serialized_bucket["Type"] = compat.ensure_text(_type)
+                if peer_tags:
+                    serialized_bucket["PeerTags"] = [
+                        compat.ensure_text(k) + ":" + compat.ensure_text(v) for k, v in peer_tags
+                    ]
+                if grpc_status_code:
+                    serialized_bucket["GRPCStatusCode"] = grpc_status_code
                 bucket_aggr_stats.append(serialized_bucket)
             serialized_buckets.append(
                 {
