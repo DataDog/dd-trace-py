@@ -1930,10 +1930,13 @@ class LLMObs(Service):
             from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
             if remoteconfig_poller._worker is not None:
-                remoteconfig_poller._worker.awake()  # Force immediate RC poll so flag data is available without waiting for the next polling interval (~20-30s)
+                # Force immediate RC poll so flag data is available without
+                # waiting for the next polling interval (~20-30s)
+                remoteconfig_poller._worker.awake()
+
+            from openfeature import api as of_api
 
             from ddtrace.openfeature import DataDogProvider
-            from openfeature import api as of_api
 
             of_api.set_provider(DataDogProvider())
 
