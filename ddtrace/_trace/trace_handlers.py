@@ -125,7 +125,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
     span_kwargs = {}
-    for parameter_name in {"span_type", "resource", "child_of", "activate"}:
+    for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
         parameter_value = ctx.get_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
