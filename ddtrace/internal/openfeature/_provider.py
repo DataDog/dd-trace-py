@@ -287,7 +287,7 @@ class DataDogProvider(AbstractProvider):
                 # Map native error code to OpenFeature error code
                 openfeature_error_code = self._map_error_code_to_openfeature(details.error_code)
 
-                # Flag not found - return default with DEFAULT reason
+                # Flag not found - return default with ERROR reason and error_code
                 if details.error_code == ffe.ErrorCode.FlagNotFound:
                     # Only report exposure if do_log is explicitly True
                     if details.do_log:
@@ -299,8 +299,9 @@ class DataDogProvider(AbstractProvider):
                         )
                     return FlagResolutionDetails(
                         value=default_value,
-                        reason=Reason.DEFAULT,
-                        variant=None,
+                        reason=Reason.ERROR,
+                        error_code=openfeature_error_code,
+                        error_message="Flag not found",
                     )
 
                 # Other errors - return default with ERROR reason
