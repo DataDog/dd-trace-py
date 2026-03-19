@@ -3338,6 +3338,7 @@ venv = Venv(
             pkgs={
                 "vcrpy": latest,
                 "openai": latest,
+                "openfeature-sdk": latest,
                 "google-cloud-aiplatform": latest,
                 "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
