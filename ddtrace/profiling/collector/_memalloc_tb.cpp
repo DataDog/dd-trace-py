@@ -230,7 +230,8 @@ push_stacktrace_to_sample_remote_copy(Datadog::Sample& sample, uint16_t max_nfra
             std::string_view name_sv = "<remote-python-frame>";
             std::string_view filename_sv = "<remote>";
             if (!memalloc_copy_type(code_addr, code)) {
-                lineno = code.co_firstlineno;
+                int lasti = memalloc_compute_lasti_from_remote_frame(&frame, code_addr);
+                lineno = memalloc_lineno_from_offset(lasti, &code);
                 PyObject* code_name_addr = NULL;
 #ifdef _PY311_AND_LATER
                 code_name_addr = code.co_qualname ? code.co_qualname : code.co_name;

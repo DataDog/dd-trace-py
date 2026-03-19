@@ -174,47 +174,19 @@ memalloc_read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize
 }
 #endif // _PY311_AND_LATER
 
-/* Return the current line number for the frame by parsing the line table
- * directly, without calling PyCode_Addr2Line().
+/* Resolve line number from a pre-computed instruction offset (lasti) and a
+ * code object whose co_linetable / co_lnotab pointer is dereferenceable.
  *
- * We avoid PyCode_Addr2Line because CPython does not guarantee it is
- * allocation-free, and we are called from inside the allocator hook where
- * any allocation or free would cause reentrant undefined behaviour.
- *
- * Instead we parse co_linetable (3.10+) or co_lnotab (3.9) inline.
- * The only CPython APIs used are PyBytes_AS_STRING / PyBytes_GET_SIZE,
- * which are macros expanding to struct field reads on PyBytesObject
- * (ob_sval / ob_size) — guaranteed not to allocate.
- *
- * The parsing logic is ported from the stack profiler's
- * Frame::infer_location() (ddtrace/internal/datadog/profiling/stack/
- * src/echion/frame.cc) which handles all supported CPython versions.
+ * Allocation safety: only performs pointer arithmetic and byte reads from
+ * already-owned objects. Does not allocate, decref, or touch Python exception
+ * state. Safe to call from inside allocator hooks.
  *
  * AIDEV-TODO: Unify this version-specific line table parsing with the stack
  * profiler's Frame::infer_location() implementation so both profilers share a
- * single source of truth for CPython location decoding.
- *
- * Allocation safety: this function only performs pointer arithmetic and byte
- * reads from already-owned objects. It does not allocate, decref, or touch
- * Python exception state. */
+ * single source of truth for CPython location decoding. */
 static inline int
-memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
+memalloc_lineno_from_offset(int lasti, PyCodeObject* code)
 {
-    int lasti;
-
-#ifdef _PY313_AND_LATER
-    /* Python 3.13+: instr_ptr points to the NEXT instruction.
-     * Result is in _Py_CODEUNIT units. */
-    lasti = (int)(frame->instr_ptr - 1 - _PyCode_CODE(code));
-#elif defined(_PY311_AND_LATER)
-    /* Python 3.11-3.12: prev_instr points to the last executed instruction.
-     * Result is in _Py_CODEUNIT units. */
-    lasti = (int)(frame->prev_instr - _PyCode_CODE(code));
-#else
-    /* Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
-    lasti = frame->f_lasti;
-#endif // _PY313_AND_LATER
-
     if (lasti < 0) {
         return code->co_firstlineno;
     }
@@ -300,6 +272,42 @@ memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
 #endif // _PY311_AND_LATER
 
     return lineno > 0 ? static_cast<int>(lineno) : 0;
+}
+
+/* Return the current line number for the frame by computing the instruction
+ * offset from the frame and code object, then parsing the line table.
+ * Requires both frame and code to be live (not local copies). */
+static inline int
+memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
+{
+    int lasti;
+
+#ifdef _PY313_AND_LATER
+    lasti = (int)(frame->instr_ptr - 1 - _PyCode_CODE(code));
+#elif defined(_PY311_AND_LATER)
+    lasti = (int)(frame->prev_instr - _PyCode_CODE(code));
+#else
+    lasti = frame->f_lasti;
+#endif // _PY313_AND_LATER
+
+    return memalloc_lineno_from_offset(lasti, code);
+}
+
+/* Compute lasti from a locally-copied frame and the real code object address,
+ * without dereferencing the code pointer (uses offsetof instead of
+ * _PyCode_CODE). This mirrors echion's Frame::get() approach. */
+static inline int
+memalloc_compute_lasti_from_remote_frame(memalloc_frame_t* frame, PyCodeObject* code_addr)
+{
+#ifdef _PY313_AND_LATER
+    return static_cast<int>(frame->instr_ptr - 1 - reinterpret_cast<_Py_CODEUNIT*>(code_addr))
+         - static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
+#elif defined(_PY311_AND_LATER)
+    return static_cast<int>(frame->prev_instr - reinterpret_cast<_Py_CODEUNIT*>(code_addr))
+         - static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
+#else
+    return frame->f_lasti;
+#endif // _PY313_AND_LATER
 }
 
 /* Return the best available function name for a code object.
