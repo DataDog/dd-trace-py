@@ -937,6 +937,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if hasattr(self, "_fork_hook") and self._fork_hook:
             forksafe.unregister_before_fork(self._fork_hook)
 
+    @staticmethod
+    def _parse_otlp_headers() -> list:
+        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs."""
+        raw = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or os.environ.get(
+            "OTEL_EXPORTER_OTLP_HEADERS", ""
+        )
+        headers = []
+        for item in raw.split(","):
+            item = item.strip()
+            if "=" in item:
+                key, _, value = item.partition("=")
+                headers.append((key.strip(), value.strip()))
+        return headers
+
     def _create_exporter(self) -> native.TraceExporter:
         """
         Create a new TraceExporter with the current configuration.
@@ -965,6 +979,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_app_version(config.version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
+            otlp_headers = self._parse_otlp_headers()
+            if otlp_headers:
+                builder.set_otlp_headers(otlp_headers)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:

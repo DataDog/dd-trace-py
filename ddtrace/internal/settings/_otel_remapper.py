@@ -63,6 +63,9 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
     if otel_value == "none":
         return "False"
+    if otel_value == "otlp":
+        # OTLP export is handled natively by ddtrace; tracing remains enabled.
+        return "True"
     return None
 
 
