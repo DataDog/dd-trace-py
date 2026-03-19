@@ -1,5 +1,8 @@
 #include <cassert>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <random>
 #include <vector>
@@ -13,23 +16,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
-
-/* Use Abseil's flat_hash_map for tracking sampled allocations.
- * flat_hash_map provides excellent performance with low memory overhead,
- * using the Swiss Tables algorithm from Abseil.
- *
- * We use a conditional compilation to fall back to std::unordered_map
- * when Abseil is not available (e.g., in Debug builds).
- */
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
-#include "absl/container/flat_hash_map.h"
-template<typename K, typename V>
-using HeapMapType = absl::flat_hash_map<K, V>;
-#else
-#include <unordered_map>
-template<typename K, typename V>
-using HeapMapType = std::unordered_map<K, V>;
-#endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 
 /*
    How heap profiler sampling works:
@@ -95,23 +81,21 @@ class heap_tracker_t
     heap_tracker_t(const heap_tracker_t&) = delete;
     heap_tracker_t& operator=(const heap_tracker_t&) = delete;
 
-    /* Remove an allocation at the given address, if we are tracking it. This
-     * function accesses the heap tracker data structures. It must be called with the
-     * GIL held and must not make any C Python API calls. The traceback is deleted
-     * internally if found. */
-    void untrack_no_cpython(void* ptr);
-
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
      * to the current allocated_memory value. */
     bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
 
-    /* Track an allocation that we decided to sample. This updates shared state and
-     * must be called with the GIL held and without making any C Python API calls.
-     * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
+    /* Track a sampled allocation. The traceback is linked into the intrusive list.
+     * user_ptr is the pointer returned to Python (real_ptr + MEMALLOC_HEADER_SIZE).
+     * The header at user_ptr - MEMALLOC_HEADER_SIZE is written with the signature
+     * and metadata pointer. Must be called with the GIL held. */
+    void add_sample_no_cpython(void* user_ptr, size_t alloc_size, std::unique_ptr<traceback_t> tb);
+
+    /* Untrack a sampled allocation given the traceback_t* from its header.
+     * Removes from the intrusive list and returns to pool. */
+    void untrack_from_header_no_cpython(traceback_t* tb);
 
     void export_heap_no_cpython();
 
@@ -127,12 +111,21 @@ class heap_tracker_t
     /* Reset the heap tracker state after fork in child process */
     void postfork_child();
 
+    /* Walk the intrusive list, clear all signatures in headers, and delete
+     * all traceback_t objects. Used by deinit before destroying the tracker. */
+    void clear_all_no_cpython();
+
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* This function is called from heap_tracker_t::postfork_child() as part of
        the fork handler to reset the sampling state. */
     void reset_sampling_state_no_cpython();
+
+    /* Link a traceback into the intrusive list */
+    void list_link_no_cpython(traceback_t* tb);
+    /* Unlink a traceback from the intrusive list */
+    void list_unlink_no_cpython(traceback_t* tb);
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -146,10 +139,13 @@ class heap_tracker_t
     std::minstd_rand rng;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
-    /* Tracked allocations - using unique_ptr for automatic memory management */
-    HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
+
+    /* Intrusive doubly-linked list of tracked allocations (replaces hashmap).
+     * allocs_head points to the first node; each node has list_next/list_prev. */
+    traceback_t* allocs_head = nullptr;
+    size_t allocs_count = 0;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -188,6 +184,12 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     /* Clear buffers before returning to pool to prevent memory leaks */
     tb->sample.clear();
 
+    /* Reset list pointers and metadata */
+    tb->list_next = nullptr;
+    tb->list_prev = nullptr;
+    tb->user_ptr = nullptr;
+    tb->alloc_size = 0;
+
     /* Try to return the traceback to the pool */
     if (pool.size() < POOL_CAPACITY) {
         pool.push_back(std::move(tb));
@@ -209,6 +211,35 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
     return static_cast<uint32_t>(dist(rng));
 }
 
+// Intrusive list operations
+void
+heap_tracker_t::list_link_no_cpython(traceback_t* tb)
+{
+    tb->list_prev = nullptr;
+    tb->list_next = allocs_head;
+    if (allocs_head) {
+        allocs_head->list_prev = tb;
+    }
+    allocs_head = tb;
+    allocs_count++;
+}
+
+void
+heap_tracker_t::list_unlink_no_cpython(traceback_t* tb)
+{
+    if (tb->list_prev) {
+        tb->list_prev->list_next = tb->list_next;
+    } else {
+        allocs_head = tb->list_next;
+    }
+    if (tb->list_next) {
+        tb->list_next->list_prev = tb->list_prev;
+    }
+    tb->list_next = nullptr;
+    tb->list_prev = nullptr;
+    allocs_count--;
+}
+
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
@@ -217,17 +248,6 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , allocated_memory(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
-}
-
-void
-heap_tracker_t::untrack_no_cpython(void* ptr)
-{
-    memalloc_gil_debug_guard_t guard(gil_guard);
-
-    auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
-        pool_put_no_cpython(std::move(node.mapped()));
-    }
 }
 
 bool
@@ -242,7 +262,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
+    if (allocs_count > TRACEBACK_ARRAY_MAX_COUNT) {
         /* TODO(nick) this is vestigial from the original array-based
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
@@ -255,18 +275,38 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
+heap_tracker_t::add_sample_no_cpython(void* user_ptr, size_t alloc_size, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
-    (void)it; // Unused, but needed for structured binding
+    /* Write the header at user_ptr - MEMALLOC_HEADER_SIZE */
+    memalloc_header_t* header =
+      reinterpret_cast<memalloc_header_t*>(static_cast<char*>(user_ptr) - MEMALLOC_HEADER_SIZE);
+    header->signature = MEMALLOC_SIGNATURE;
+    header->metadata_ptr = tb.get();
 
-    /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
-    assert(inserted && "add_sample: found existing entry for key that should have been removed");
+    /* Store user_ptr and alloc_size in the traceback for realloc and postfork */
+    tb->user_ptr = user_ptr;
+    tb->alloc_size = alloc_size;
+
+    /* Link into intrusive list */
+    traceback_t* raw_tb = tb.release(); // Transfer ownership to the list
+    list_link_no_cpython(raw_tb);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
+}
+
+void
+heap_tracker_t::untrack_from_header_no_cpython(traceback_t* tb)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    /* Unlink from intrusive list */
+    list_unlink_no_cpython(tb);
+
+    /* Return to pool (wrapping in unique_ptr for pool_put) */
+    pool_put_no_cpython(std::unique_ptr<traceback_t>(tb));
 }
 
 void
@@ -274,13 +314,12 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and export them */
-    for (const auto& [ptr, tb] : allocs_m) {
-        (void)ptr; // Suppress unused variable warning
+    /* Iterate over live samples via the intrusive list and export them */
+    for (traceback_t* tb = allocs_head; tb != nullptr; tb = tb->list_next) {
         tb->sample.export_sample();
     }
 
-    Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
+    Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_count);
 }
 
 void
@@ -304,12 +343,51 @@ heap_tracker_t::postfork_child()
     // Profile::postfork_child()
     pool.clear();
 
-    // Allocations map may contain data from the parent process, and also
-    // traceback_t objects may reference invalid Profile state.
-    allocs_m.clear();
+    // Walk the intrusive list: null out metadata pointers and delete traceback_t objects.
+    // IMPORTANT: Keep signatures intact so the child's free() still knows these
+    // allocations have prepended headers and will free real_ptr (not user_ptr).
+    traceback_t* tb = allocs_head;
+    while (tb) {
+        traceback_t* next = tb->list_next;
+
+        if (tb->user_ptr) {
+            memalloc_header_t* header =
+              reinterpret_cast<memalloc_header_t*>(static_cast<char*>(tb->user_ptr) - MEMALLOC_HEADER_SIZE);
+            header->metadata_ptr = nullptr;
+        }
+
+        delete tb;
+        tb = next;
+    }
+    allocs_head = nullptr;
+    allocs_count = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
+}
+
+void
+heap_tracker_t::clear_all_no_cpython()
+{
+    traceback_t* tb = allocs_head;
+    while (tb) {
+        traceback_t* next = tb->list_next;
+
+        if (tb->user_ptr) {
+            /* IMPORTANT: Keep the signature intact so that free() still knows
+             * this allocation has a prepended header and will free real_ptr
+             * (user_ptr - 16) instead of user_ptr. Only null the metadata_ptr
+             * to prevent use-after-free on the traceback_t. */
+            memalloc_header_t* header =
+              reinterpret_cast<memalloc_header_t*>(static_cast<char*>(tb->user_ptr) - MEMALLOC_HEADER_SIZE);
+            header->metadata_ptr = nullptr;
+        }
+
+        delete tb;
+        tb = next;
+    }
+    allocs_head = nullptr;
+    allocs_count = 0;
 }
 
 // Static member definition
@@ -331,6 +409,15 @@ memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 void
 memalloc_heap_tracker_deinit_no_cpython(void)
 {
+    if (!heap_tracker_t::instance) {
+        return;
+    }
+
+    /* Walk the list and clear all signatures before destroying the tracker.
+     * This is needed because sampled allocations may still be live after stop(),
+     * and their headers must not contain dangling metadata pointers. */
+    heap_tracker_t::instance->clear_all_no_cpython();
+
     // Delete the instance and set to nullptr. We set to nullptr first so that
     // if the destructor releases the GIL, we can use nullptr as a sentinel.
     heap_tracker_t* old_instance = heap_tracker_t::instance;
@@ -338,24 +425,48 @@ memalloc_heap_tracker_deinit_no_cpython(void)
     delete old_instance;
 }
 
-void
-memalloc_heap_untrack_no_cpython(void* ptr)
+bool
+memalloc_heap_is_sampled(void* user_ptr)
 {
-    if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->untrack_no_cpython(ptr);
+    if (!user_ptr) {
+        return false;
     }
+    const memalloc_header_t* header =
+      reinterpret_cast<const memalloc_header_t*>(static_cast<const char*>(user_ptr) - MEMALLOC_HEADER_SIZE);
+    return header->signature == MEMALLOC_SIGNATURE;
 }
 
-/* Track a memory allocation in the heap profiler. */
 void
-memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+memalloc_heap_untrack_from_header_no_cpython(void* metadata_ptr)
+{
+    if (!heap_tracker_t::instance || !metadata_ptr) {
+        return;
+    }
+    heap_tracker_t::instance->untrack_from_header_no_cpython(static_cast<traceback_t*>(metadata_ptr));
+}
+
+bool
+memalloc_heap_should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
+{
+    if (!heap_tracker_t::instance) {
+        return false;
+    }
+    return heap_tracker_t::instance->should_sample_no_cpython(size, allocated_memory_val);
+}
+
+/* Track a memory allocation in the heap profiler.
+ * Called AFTER should_sample returned true and the allocation (with header space)
+ * has been performed. user_ptr points to the user-visible region (real_ptr + 16).
+ * allocated_memory_val is the weight from should_sample. */
+void
+memalloc_heap_track_invokes_cpython(uint16_t max_nframe,
+                                    void* user_ptr,
+                                    size_t size,
+                                    uint64_t allocated_memory_val,
+                                    PyMemAllocatorDomain domain)
 {
     (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
-        return;
-    }
-    uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
         return;
     }
 
@@ -415,7 +526,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
+        heap_tracker_t::instance->add_sample_no_cpython(user_ptr, size, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
