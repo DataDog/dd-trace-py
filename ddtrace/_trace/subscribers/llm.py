@@ -47,9 +47,6 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             instance=event.instance,
         )
 
-        if event.is_chat is not None:
-            span._set_ctx_item("_dd_is_chat", event.is_chat)
-
         base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
