@@ -61,23 +61,16 @@ _PEER_TAG_SPAN_KINDS = frozenset(
 
 # AIDEV-NOTE: Default peer tag keys used for stats aggregation. These are the
 # fallback set when the agent /info endpoint does not provide peer_tags_keys.
-# Matches the Go reference implementation's defaultPeerTags.
+# Matches the Go agent's /info response default peer tag keys exactly.
 DEFAULT_PEER_TAG_KEYS = (
     "_dd.base_service",
-    "peer.hostname",
     "peer.service",
-    "db.name",
+    "peer.hostname",
+    "out.host",
     "db.instance",
     "db.system",
     "messaging.destination",
-    "messaging.destination.name",
-    "messaging.kafka.bootstrap.servers",
     "network.destination.name",
-    "rpc.service",
-    "server.address",
-    "server.port",
-    "topic",
-    "topicname",
 )
 
 # AIDEV-NOTE: gRPC status code tag keys checked in priority order,
@@ -126,6 +119,13 @@ def _get_peer_tags(span: Span, peer_tag_keys: tuple[str, ...]) -> tuple[tuple[st
     For internal+service-override spans, _dd.base_service is used.
     """
     kind = span.get_tag(SPAN_KIND)
+    # AIDEV-NOTE: Internal spans with _dd.base_service (service override) should
+    # include _dd.base_service as a peer tag, matching Go agent behavior.
+    if kind == SpanKind.INTERNAL:
+        base_svc = span.get_tag("_dd.base_service")
+        if base_svc:
+            return (("_dd.base_service", base_svc),)
+        return ()
     if kind not in _PEER_TAG_SPAN_KINDS:
         return ()
 
@@ -345,7 +345,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                         compat.ensure_text(k) + ":" + compat.ensure_text(v) for k, v in peer_tags
                     ]
                 if grpc_status_code:
-                    serialized_bucket["GRPCStatusCode"] = grpc_status_code
+                    # AIDEV-NOTE: Protobuf definition specifies GRPC_status_code
+                    # as string type. Serialize as string to match Go agent.
+                    serialized_bucket["GRPCStatusCode"] = str(grpc_status_code)
                 bucket_aggr_stats.append(serialized_bucket)
             serialized_buckets.append(
                 {

@@ -128,9 +128,9 @@ class TestGetPeerTags:
     def test_consumer_span_extracts_peer_tags(self):
         span = Span("op")
         span.set_tag(SPAN_KIND, SpanKind.CONSUMER)
-        span.set_tag("topic", "events")
+        span.set_tag("messaging.destination", "events")
         result = _get_peer_tags(span, DEFAULT_PEER_TAG_KEYS)
-        assert ("topic", "events") in result
+        assert ("messaging.destination", "events") in result
 
     def test_server_span_returns_empty(self):
         span = Span("op")
@@ -139,12 +139,21 @@ class TestGetPeerTags:
         result = _get_peer_tags(span, DEFAULT_PEER_TAG_KEYS)
         assert result == ()
 
-    def test_internal_span_returns_empty(self):
+    def test_internal_span_without_base_service_returns_empty(self):
         span = Span("op")
         span.set_tag(SPAN_KIND, SpanKind.INTERNAL)
         span.set_tag("peer.service", "my-db")
         result = _get_peer_tags(span, DEFAULT_PEER_TAG_KEYS)
         assert result == ()
+
+    def test_internal_span_with_base_service_returns_base_service(self):
+        """Internal spans with _dd.base_service (service override) should include it as a peer tag."""
+        span = Span("op")
+        span.set_tag(SPAN_KIND, SpanKind.INTERNAL)
+        span.set_tag("_dd.base_service", "original-svc")
+        span.set_tag("peer.service", "my-db")
+        result = _get_peer_tags(span, DEFAULT_PEER_TAG_KEYS)
+        assert result == (("_dd.base_service", "original-svc"),)
 
     def test_no_span_kind_returns_empty(self):
         span = Span("op")
@@ -176,8 +185,8 @@ class TestGetPeerTags:
     def test_tags_sorted_for_consistency(self):
         span = Span("op")
         span.set_tag(SPAN_KIND, SpanKind.CLIENT)
-        span.set_tag("server.address", "host1")
-        span.set_tag("db.name", "mydb")
+        span.set_tag("peer.hostname", "host1")
+        span.set_tag("db.instance", "primary")
         span.set_tag("peer.service", "svc")
         result = _get_peer_tags(span, DEFAULT_PEER_TAG_KEYS)
         keys = [k for k, _ in result]
@@ -383,7 +392,7 @@ class TestSerialization:
         span = Span("op", service="svc")
         span.set_tag(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag("peer.service", "remote-svc")
-        span.set_tag("db.name", "mydb")
+        span.set_tag("db.instance", "primary")
         span.start_ns = 0
         span.finish()
         proc.on_span_finish(span)
@@ -391,7 +400,7 @@ class TestSerialization:
         buckets = proc._serialize_buckets()
         stat = buckets[0]["Stats"][0]
         assert "PeerTags" in stat
-        assert "db.name:mydb" in stat["PeerTags"]
+        assert "db.instance:primary" in stat["PeerTags"]
         assert "peer.service:remote-svc" in stat["PeerTags"]
 
     def test_serialized_bucket_no_peer_tags_when_empty(self):
@@ -406,7 +415,7 @@ class TestSerialization:
         stat = buckets[0]["Stats"][0]
         assert "PeerTags" not in stat
 
-    def test_serialized_bucket_includes_grpc_status_code(self):
+    def test_serialized_bucket_includes_grpc_status_code_as_string(self):
         proc = self._make_processor()
         span = Span("op", service="svc")
         span.set_tag("grpc.status.code", "14")
@@ -416,7 +425,8 @@ class TestSerialization:
 
         buckets = proc._serialize_buckets()
         stat = buckets[0]["Stats"][0]
-        assert stat["GRPCStatusCode"] == 14
+        # GRPC_status_code is a string in the protobuf definition
+        assert stat["GRPCStatusCode"] == "14"
 
     def test_serialized_bucket_no_grpc_status_code_when_zero(self):
         proc = self._make_processor()
