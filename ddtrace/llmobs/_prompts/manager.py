@@ -77,8 +77,10 @@ class PromptManager:
         ff_prompt = self._fetch_from_ff(prompt_id, label)
         if ff_prompt is not None:
             telemetry.record_prompt_source("ff")
+            log.debug("Prompt %s resolved via FF", prompt_id)
             return ff_prompt
 
+        log.debug("FF miss for prompt %s, falling back to HTTP", prompt_id)
         return self._get_prompt_http(prompt_id, label, fallback)
 
     def _get_prompt_http(
