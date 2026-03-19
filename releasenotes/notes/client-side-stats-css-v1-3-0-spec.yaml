@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Align client-side stats computation with the CSS v1.3.0 spec.
+    Adds missing aggregation dimensions (peer tags, gRPC status codes,
+    ``is_trace_root``, and span-kind-based eligibility) and switches the
+    stats endpoint to use ``POST /v0.6/stats``, matching Go agent behavior.
