@@ -399,7 +399,7 @@ def set_service_and_source(
         span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
     # NB "not service" here makes svc_src make sense in cases of service inheritance
     elif not service or service == int_config.get(default_service_key):
-        span.set_tag(_SERVICE_SOURCE, int_config.integration_name)
+        span.set_tag(_SERVICE_SOURCE, getattr(int_config, "integration_name", "m"))
     if service:
         span.service = service
 
