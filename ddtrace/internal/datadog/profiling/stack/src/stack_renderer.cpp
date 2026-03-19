@@ -130,6 +130,26 @@ StackRenderer::render_frame(Frame& frame)
 
     auto line = frame.line;
 
+    // DEV: Echion pushes a dummy frame containing task name, and its line
+    // number is set to 0.
+    if (line == 0) {
+        if (!pushed_task_name) {
+            std::string_view name_str;
+            auto maybe_name_str = string_table.lookup(frame.name);
+            if (maybe_name_str) {
+                name_str = maybe_name_str->get();
+            } else {
+                name_str = missing_name;
+            }
+
+            sample->push_task_name(name_str);
+            pushed_task_name = true;
+        }
+        // And return early to avoid pushing task name as a frame
+        // TODO: We may want to do that for clarity, actually. Let's reconvene.
+        return;
+    }
+
     string_id name_id;
     auto maybe_name_id = string_id_cache.find(frame.name);
     if (maybe_name_id == string_id_cache.end()) {
@@ -149,26 +169,6 @@ StackRenderer::render_frame(Frame& frame)
         string_id_cache.insert({ frame.name, name_id });
     } else {
         name_id = maybe_name_id->second;
-    }
-
-    // DEV: Echion pushes a dummy frame containing task name, and its line
-    // number is set to 0.
-    if (line == 0) {
-        if (!pushed_task_name) {
-            std::string_view name_str;
-            auto maybe_name_str = string_table.lookup(frame.name);
-            if (maybe_name_str) {
-                name_str = maybe_name_str->get();
-            } else {
-                name_str = missing_name;
-            }
-
-            sample->push_task_name(name_str);
-            pushed_task_name = true;
-        }
-        // And return early to avoid pushing task name as a frame
-        // TODO: We may want to do that for clarity, actually. Let's reconvene.
-        return;
     }
 
     string_id filename_id;
