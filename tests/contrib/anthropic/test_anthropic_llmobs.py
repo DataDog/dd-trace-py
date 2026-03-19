@@ -959,7 +959,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "get_weather",
                                 "arguments": {"location": "San Francisco, CA"},
-                                "tool_id": "",
+                                "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "type": "tool_use",
                             }
                         ],
@@ -1066,7 +1066,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "get_weather",
                                 "arguments": {"location": "San Francisco, CA"},
-                                "tool_id": "",
+                                "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "type": "tool_use",
                             }
                         ],

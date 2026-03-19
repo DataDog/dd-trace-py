@@ -167,7 +167,8 @@ class AnthropicIntegration(BaseLLMIntegration):
         if isinstance(content, str):
             return content
         elif isinstance(content, dict):
-            return safe_json(content)
+            sorted_dict = dict(sorted(content.items()))
+            return safe_json(sorted_dict)
         elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
