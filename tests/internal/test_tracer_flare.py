@@ -517,7 +517,7 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.revert_configs()
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=lambda err: all("ddtrace logs will be routed to" in line for line in err.splitlines() if line))
 def test_multiple_process_success():
     """
     Validate that the tracer flare will generate for multiple processes
@@ -603,7 +603,7 @@ def test_multiple_process_success():
     assert not shared_dir.exists(), f"Expected shared dir to be cleaned up: {shared_dir}"
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=lambda err: all("ddtrace logs will be routed to" in line for line in err.splitlines() if line))
 def test_multiple_process_partial_failure():
     """
     Validate that even if the tracer flare fails for one process, we should
