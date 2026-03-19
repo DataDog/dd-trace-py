@@ -15,9 +15,12 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <algorithm>
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <unordered_set>
+#include <vector>
 
 using namespace Datadog;
 
@@ -193,9 +196,43 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
+        // Build a sorted snapshot of thread IDs for round-robin sub-sampling.
+        // Locking thread_info_map once here lets us compute the sub-sampling window
+        // before entering for_each_thread (which also locks per-thread).
+        std::vector<uintptr_t> thread_ids;
+        {
+            const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+            thread_ids.reserve(echion->thread_info_map().size());
+            for (const auto& [id, _] : echion->thread_info_map()) {
+                thread_ids.push_back(id);
+            }
+        }
+        std::sort(thread_ids.begin(), thread_ids.end());
+
+        // Select which thread IDs to sample this cycle via round-robin.
+        // Advancing the cursor by N each cycle ensures all threads are covered over time.
+        std::unordered_set<uintptr_t> ids_to_sample;
+        if (!thread_ids.empty()) {
+            size_t n = std::min(max_threads_per_cycle, thread_ids.size());
+            auto it = std::upper_bound(thread_ids.begin(), thread_ids.end(), thread_subsample_cursor);
+            for (size_t i = 0; i < n; ++i) {
+                if (it == thread_ids.end()) {
+                    it = thread_ids.begin(); // wrap around
+                }
+                ids_to_sample.insert(*it);
+                if (i == n - 1) {
+                    thread_subsample_cursor = *it; // advance cursor to last selected ID
+                }
+                ++it;
+            }
+        }
+
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                if (!ids_to_sample.empty() && ids_to_sample.find(thread.thread_id) == ids_to_sample.end()) {
+                    return;
+                }
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();

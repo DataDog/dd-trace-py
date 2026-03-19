@@ -51,6 +51,11 @@ class Sampler
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     void adapt_sampling_interval();
 
+    // Thread sub-sampling: sample at most max_threads_per_cycle threads per cycle,
+    // cycling through all threads round-robin over time.
+    size_t max_threads_per_cycle = g_default_max_threads_per_cycle;
+    uintptr_t thread_subsample_cursor = 0;
+
     void atfork_child();
     friend void stack_atfork_child();
 
@@ -87,6 +92,7 @@ class Sampler
     {
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
+    void set_max_threads_per_cycle(size_t value) { max_threads_per_cycle = std::max(value, static_cast<size_t>(1)); }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

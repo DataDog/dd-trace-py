@@ -306,10 +306,20 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_max_interval = DDConfig.v(
         int,
         "adaptive_sampling.max_interval_us",
-        default=1_000_000,
+        default=100_000,
         validator=validators.range(100, 1_000_000),
         help_type="Integer",
         help="Maximum sampling interval in microseconds for adaptive sampling.",
+        private=True,
+    )
+
+    max_threads_per_cycle = DDConfig.v(
+        int,
+        "max_threads_per_cycle",
+        default=8,
+        validator=validators.range(1, 128),
+        help_type="Integer",
+        help="Maximum number of threads to sample per cycle. Threads are cycled round-robin so all threads are covered over time.",
         private=True,
     )
 
