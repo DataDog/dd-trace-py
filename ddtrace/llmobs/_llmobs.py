@@ -2085,9 +2085,8 @@ class LLMObs(Service):
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
             llmobs_trace_id = generate_128bit_trace_id()
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
-        # Write to local root span's meta so it's serialized to APM and visible to the backend otel gen_ai span
-        # processor. All spans in the local trace share the same _local_root object reference.
-        # Only set if not already present to avoid sibling LLMObs roots overwriting each other's trace IDs.
+        # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
+        # to this LLMObs trace. First-write-wins to handle sibling LLMObs roots under one APM span.
         if span._local_root.get_tag("llmobs_trace_id") is None:
             span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
