@@ -14,6 +14,7 @@ import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._metrics import report_api_security
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.ext import http
@@ -92,10 +93,6 @@ class APIManager(Service):
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
         self.simplified_endpoint_computer = SimplifiedEndpointComputer()
-
-        import ddtrace.appsec._metrics as _metrics
-
-        self._metrics = _metrics
 
     def _stop_service(self) -> None:
         _asm_request_context.API_SEC_CALLBACK = None
@@ -179,7 +176,7 @@ class APIManager(Service):
                 priority = max(priorities)
             should_collect = self._should_collect_schema(env, priority)
             if should_collect is None:
-                self._metrics._report_api_security(False, 0, env.framework)
+                report_api_security(False, 0, env.framework)
                 return
             if not should_collect:
                 return
@@ -221,7 +218,7 @@ class APIManager(Service):
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}
                 log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
         env.api_security_reported = nb_schemas
-        self._metrics._report_api_security(True, nb_schemas, env.framework)
+        report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
         if nb_schemas > 0 and not asm_config._apm_tracing_enabled:

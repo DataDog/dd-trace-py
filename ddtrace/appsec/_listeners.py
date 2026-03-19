@@ -1,25 +1,68 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
 
 _APPSEC_TO_BE_LOADED = True
+log = get_logger(__name__)
 
 
-def _asm_switch_state() -> None:
-    if asm_config._asm_enabled:
+def _abort_appsec(failure_msg: str) -> None:
+    """Disable AppSec and prevent it from being enabled through remote configuration
+
+    This is called in case of non-recoverable AppSec load-time failure, such as a libddwaf loading error.
+    """
+    from ddtrace.trace import tracer
+
+    log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
+
+    asm_config._asm_enabled = False
+    asm_config._asm_can_be_enabled = False
+    asm_config._asm_libddwaf_available = False
+    asm_config._asm_rc_enabled = False
+    asm_config._load_modules = False
+    asm_config._ddwaf_version = "error"
+
+    from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
+
+    disable_appsec_rc()
+
+    tracer.configure(appsec_enabled=False)
+
+
+def disable_appsec(reconfigure_tracer: bool = False) -> None:
+    try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
+    except Exception as e:
+        _abort_appsec(str(e))
+        return
 
-        AppSecSpanProcessor.enable()
-    elif "ddtrace.appsec._processor" in sys.modules:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+    AppSecSpanProcessor.disable()
 
-        AppSecSpanProcessor.disable()
+    if asm_config._api_security_active:
+        from ddtrace.appsec._api_security.api_manager import APIManager
+
+        APIManager.disable()
+
+    if reconfigure_tracer:
+        tracer.configure(appsec_enabled=False)
+    else:
+        asm_config._asm_enabled = False
+
+    return
 
 
-def load_appsec() -> None:
+def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     """Lazily load the appsec module listeners."""
+    try:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+    except Exception as e:
+        _abort_appsec(str(e))
+        return False
+
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
@@ -48,14 +91,21 @@ def load_appsec() -> None:
 
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
 
-        AppSecSpanProcessor.enable()
-        if asm_config._api_security_enabled and not asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-            APIManager.enable()
+    AppSecSpanProcessor.enable()
+    if asm_config._api_security_enabled and not asm_config._api_security_active:
+        from ddtrace.appsec._api_security.api_manager import APIManager
+
+        APIManager.enable()
+
+    if reconfigure_tracer:
+        tracer.configure(appsec_enabled=True, appsec_enabled_origin=origin)
+    else:
+        asm_config._asm_enabled = True
+
+    return True
 
 
 def load_common_appsec_modules() -> None:
@@ -68,5 +118,13 @@ def load_common_appsec_modules() -> None:
         patch_common_modules()
 
 
+# Test only helpers
 # for tests that needs to load the appsec module later
 core.on("test.config.override", load_common_appsec_modules)
+
+
+def _asm_switch_state() -> None:
+    if asm_config._asm_enabled:
+        load_appsec()
+    elif "ddtrace.appsec._processor" in sys.modules:
+        disable_appsec()

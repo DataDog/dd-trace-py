@@ -86,7 +86,7 @@ class PublisherSubscriberConnector:
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
             self.data.value = data
-            log.debug("[%s][P: %s] write message of length %s", os.getpid(), os.getppid(), data_len)
+            log.debug("[%s][P: %s] Write message of length %s", os.getpid(), os.getppid(), data_len)
             self.checksum = last_checksum
 
     @staticmethod

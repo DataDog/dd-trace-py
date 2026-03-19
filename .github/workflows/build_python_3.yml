@@ -32,10 +32,8 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
         run: |
           MATRIX_INCLUDE=$(
-            {
-              cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}'
-            } | jq -sc
+            cibuildwheel --print-build-identifiers --platform windows --archs ARM64 | jq -cR '{only: ., os: "windows-11-arm"}' \
+            | jq -sc
           )
           echo $MATRIX_INCLUDE
           echo "include=${MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
@@ -51,7 +49,7 @@ jobs:
     env:
       CIBW_SKIP: ${{ inputs.cibw_skip }}
       CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-      CIBW_BEFORE_ALL_WINDOWS: ${{ matrix.os == 'windows-latest' && 'rustup target add i686-pc-windows-msvc' || (matrix.os == 'windows-11-arm' && 'rustup target add aarch64-pc-windows-msvc') }}
+      CIBW_BEFORE_ALL_WINDOWS: "rustup target add aarch64-pc-windows-msvc"
       # cibuildwheel repair will copy anything's under /output directory from the
       # build container to the host machine. This is a bit hacky way, but seems
       # to be the only way getting debug symbols out from the container while
