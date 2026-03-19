@@ -165,7 +165,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
         suite_config: The suite configuration dict from suitespec
 
     Returns:
-        The calculated parallelism value (1 to 20), or None if venvs_per_job not configured
+        The calculated parallelism value (1 to 25), or None if venvs_per_job not configured
     """
     # Only for riot suites
     if suite_config.get("runner") != "riot":
@@ -206,7 +206,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     calculated = math.ceil(venv_count / venvs_per_job)
 
     # Cap at 20 to avoid over-parallelization
-    MAX_PARALLELISM = 20
+    MAX_PARALLELISM = 25
     calculated = min(calculated, MAX_PARALLELISM)
 
     LOGGER.debug(
@@ -438,6 +438,11 @@ def gen_pre_checks() -> None:
         name="Typing",
         command="hatch run lint:typing",
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+    )
+    check(
+        name="Spelling",
+        command="hatch run lint:spelling",
+        paths={"*"},
     )
     check(
         name="Security",

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracer: This introduces API endpoint discovery support for Tornado applications.
+    HTTP endpoints are now automatically collected at application startup and reported via telemetry,
+    bringing Tornado in line with Flask, FastAPI, and Django.

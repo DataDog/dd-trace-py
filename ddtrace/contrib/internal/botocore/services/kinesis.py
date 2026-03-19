@@ -152,6 +152,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 activate=True,
                 func_run=is_getrecords_call,
                 start_ns=start_ns,
+                integration_config=config.botocore,
             ) as ctx,
             ctx.span,
         ):

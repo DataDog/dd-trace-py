@@ -1,7 +1,8 @@
 import json
+import typing  # noqa:F401
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
 from ddtrace.internal.threads import RLock
@@ -167,53 +168,75 @@ class JSONEncoderV2(JSONEncoder):
 
 class AgentlessTraceJSONEncoder(BufferedEncoder):
     """
-    Buffered encoder for the agentless JSON span intake. Buffers traces and
-    produces payloads in the {"spans": [...]} format for HTTPWriter.
+    Buffered encoder for the agentless JSON trace intake. Buffers multiple traces and
+    produces a single payload in the {"traces": [[...], ...]} format for HTTPWriter.
     """
 
     content_type = "application/json"
+    _PREFIX = b'{"traces":['
+    _SUFFIX = b"]}"
+    _SEPARATOR = b","
 
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._payloads: list[tuple[Optional[bytes], int]] = []
-        self._size = 0
         self._lock = RLock()
+        self._reset()
+
+    def _reset(self) -> None:
+        self._buffer = bytearray(self._PREFIX)
+        self._count = 0
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._payloads)
+            return self._count
 
     @property
     def size(self) -> int:
         with self._lock:
-            return self._size
+            return len(self._buffer) + len(self._SUFFIX)
 
     def put(self, item) -> None:
+        item = typing.cast(list["Span"], item)
+
+        if not item:
+            return
+
         with self._lock:
-            spans = []
-            for span in item:
-                spans.append(self._item_to_dict(span))
-
-            encoded = _json_dumps_bytes({"spans": spans})
-
-            item_size = len(encoded)
+            # First span in the list: set compute_stats in meta so intake can compute stats.
+            # Root and top-level are normally set by the Agent; set them here for trace views.
+            item[0]._meta["_dd.compute_stats"] = "1"
+            encoded_trace = _json_dumps_bytes({"spans": [self._item_to_dict(span) for span in item]})
+            item_size = len(encoded_trace)
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)
-            elif item_size + self._size > self.max_size:
-                raise BufferFull(item_size + self._size)
 
-            self._size += item_size
-            self._payloads.append((encoded, 1))
+            # Projected size: current buffer + separator (if not first) + new trace + suffix
+            added = item_size + (1 if self._count > 0 else 0)
+            if len(self._buffer) + added + len(self._SUFFIX) > self.max_size:
+                raise BufferFull(len(self._buffer) + added + len(self._SUFFIX))
+
+            if self._count > 0:
+                self._buffer += self._SEPARATOR
+            self._buffer += encoded_trace
+            self._count += 1
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
-            payloads = self._payloads
-            self._payloads = []
-            self._size = 0
-            return payloads
+            if self._count == 0:
+                return []
+            self._buffer += self._SUFFIX
+            payload = self._buffer
+            count = self._count
+            self._reset()
+        return [(payload, count)]
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
+        if not item.parent_id:
+            item._metrics["_trace_root"] = 1
+        if item._is_top_level:
+            item._metrics["_top_level"] = 1
+
         span_dict = JSONEncoderV2._convert_span(item)
         span_dict["meta_struct"] = item._meta_struct
         # Intake Requires ids to be in lowercase

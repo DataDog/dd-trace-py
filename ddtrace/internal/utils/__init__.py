@@ -71,8 +71,12 @@ def set_argument_value(
 
 
 def _get_metas_to_propagate(context: Any) -> list[tuple[str, str]]:
-    # Using list comprehension for improved performance and memory efficiency
-    return [(k, v) for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.")]
+    if context is None:
+        return []
+    # Snapshot items to avoid "dictionary changed size during iteration" when
+    # context._meta is mutated by another thread (e.g. tracer.sample()). See #16523.
+    items = list(context._meta.items())
+    return [(k, v) for k, v in items if isinstance(k, str) and k.startswith("_dd.p.")]
 
 
 class Block_config(Protocol):

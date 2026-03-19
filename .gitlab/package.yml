@@ -108,6 +108,7 @@ variables:
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
@@ -115,6 +116,19 @@ variables:
       find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
+
+"build linux serverless":
+  extends: "build linux"
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
 
 "build macos":
   extends: .build_base
@@ -287,6 +301,24 @@ download_dependency_wheels:
       if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
+
+# Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
+# Runs automatically on releases/RCs, available as manual trigger for other pipelines.
+"upload debug symbols to backend":
+  stage: release
+  extends: .testrunner
+  needs:
+    - job: "build linux"
+      artifacts: true
+  rules:
+    # Automatically run on releases/RCs
+    - if: !reference [.is_release]
+      when: on_success
+    # Manual trigger for any other pipeline
+    - when: manual
+      allow_failure: true
+  script:
+    - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":

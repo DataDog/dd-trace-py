@@ -29,10 +29,14 @@ class TestApiSecurityManager:
             manager = APIManager()
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
-            manager._metrics = MagicMock()
             manager._should_collect_schema = MagicMock(return_value=True)
 
             yield manager
+
+    @pytest.fixture
+    def mock_report_api_security(self):
+        with patch("ddtrace.appsec._api_security.api_manager.report_api_security") as mock_report:
+            yield mock_report
 
     @pytest.fixture
     def mock_environment(self) -> ASM_Environment:
@@ -47,6 +51,7 @@ class TestApiSecurityManager:
         env.waf_addresses = {}
         env.waf_callable = MagicMock()
         env.blocked = None
+        env.framework = "test"
         return env
 
     def test_schema_callback_no_span(self, api_manager, mock_environment, tracer):
@@ -95,7 +100,9 @@ class TestApiSecurityManager:
         mock_environment.waf_callable.assert_not_called()
 
     @pytest.mark.parametrize("sampling_priority", [USER_KEEP, AUTO_KEEP])
-    def test_schema_callback_sampling_priority_keep(self, api_manager, mock_environment, sampling_priority):
+    def test_schema_callback_sampling_priority_keep(
+        self, api_manager, mock_environment, sampling_priority, mock_report_api_security
+    ):
         """Test that _schema_callback properly processes schemas when sampling priority indicates keep.
         Expects schema collection to occur and metadata to be added to the root span.
         """
@@ -115,7 +122,7 @@ class TestApiSecurityManager:
 
         api_manager._should_collect_schema.assert_called_once()
         mock_environment.waf_callable.assert_called_once()
-        api_manager._metrics._report_api_security.assert_called_with(True, 1)
+        mock_report_api_security.assert_called_with(True, 1, "test")
 
         assert len(entry_span._meta) == 1
         assert "_dd.appsec.s.req.body" in entry_span._meta
@@ -153,7 +160,7 @@ class TestApiSecurityManager:
                 else:
                     mock_keep.assert_not_called()
 
-    def test_schema_callback_with_valid_waf_addresses(self, api_manager, mock_environment):
+    def test_schema_callback_with_valid_waf_addresses(self, api_manager, mock_environment, mock_report_api_security):
         """Test successful schema collection with valid WAF addresses for both request and response.
         Expects schemas to be processed and added to span metadata, with correct metrics reporting.
         """
@@ -212,9 +219,9 @@ class TestApiSecurityManager:
         ]:
             assert meta in entry_span._meta
 
-        api_manager._metrics._report_api_security.assert_called_with(True, 7)
+        mock_report_api_security.assert_called_with(True, 7, "test")
 
-    def test_schema_callback_oversized_schema(self, api_manager, mock_environment):
+    def test_schema_callback_oversized_schema(self, api_manager, mock_environment, mock_report_api_security):
         """Test that _schema_callback handles oversized schemas correctly.
         Expects that an exception is caught when schema size exceeds limits and no schemas are reported.
         """
@@ -233,9 +240,11 @@ class TestApiSecurityManager:
             mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
             assert len(entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            mock_report_api_security.assert_called_with(True, 0, "test")
 
-    def test_schema_callback_parse_response_body_disabled(self, api_manager, mock_environment, caplog):
+    def test_schema_callback_parse_response_body_disabled(
+        self, api_manager, mock_environment, caplog, mock_report_api_security
+    ):
         """Test that _schema_callback respects the api_security_parse_response_body configuration.
         Expects that when disabled, response body is not included in WAF payload and response schema is not collected.
         """
@@ -253,7 +262,7 @@ class TestApiSecurityManager:
             assert "RESPONSE_BODY" not in call_args
 
             assert len(mock_environment.entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            mock_report_api_security.assert_called_with(True, 0, "test")
 
     def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
         """Test that _should_collect_schema falls back to endpoint tags when route is missing."""
@@ -268,7 +277,6 @@ class TestApiSecurityManager:
             manager = APIManager()
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
-            manager._metrics = MagicMock()
 
             mock_environment.entry_span.get_tag = lambda name: "/span-endpoint" if name == http.ENDPOINT else None
             mock_environment.waf_addresses = {
@@ -295,7 +303,6 @@ class TestApiSecurityManager:
             manager = APIManager()
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
-            manager._metrics = MagicMock()
 
             def get_tag(name):
                 return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
@@ -326,7 +333,6 @@ class TestApiSecurityManager:
             manager = APIManager()
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
-            manager._metrics = MagicMock()
 
             def get_tag(name):
                 return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
