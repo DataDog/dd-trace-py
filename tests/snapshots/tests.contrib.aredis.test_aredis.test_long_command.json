@@ -12,7 +12,7 @@
       "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a5eb2200000000",
-      "_dd.svc.src": "aredis",
+      "_dd.svc_src": "aredis",
       "component": "aredis",
       "db.system": "redis",
       "language": "python",
