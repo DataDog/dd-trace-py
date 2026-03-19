@@ -529,7 +529,6 @@ def test_multiple_process_success():
     import time
 
     from ddtrace.internal.flare.flare import Flare
-    from ddtrace.internal.native._native import native_flare  # type: ignore
 
     TRACE_AGENT_URL = "http://localhost:9126"
     FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
@@ -575,18 +574,14 @@ def test_multiple_process_success():
     num_processes = 3
 
     for i in range(num_processes):
-        p = multiprocessing.Process(
-            target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, shared_dir, errors)
-        )
+        p = multiprocessing.Process(target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
     for p in processes:
         p.join()
 
     for i in range(num_processes):
-        p = multiprocessing.Process(
-            target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, shared_dir, errors)
-        )
+        p = multiprocessing.Process(target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
     for p in processes:
@@ -617,9 +612,6 @@ def test_multiple_process_partial_failure():
     import multiprocessing
     import pathlib
     import tempfile
-
-    from ddtrace.internal.flare.flare import Flare
-    from ddtrace.internal.native._native import native_flare  # type: ignore
 
     TRACE_AGENT_URL = "http://localhost:9126"
     FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
