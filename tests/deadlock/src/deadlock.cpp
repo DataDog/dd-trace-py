@@ -471,6 +471,21 @@ struct WatchdogState
     bool enable_gdb = false;
     /* Optional test node-id for the dump header (e.g. "tests/foo::test_bar") */
     char test_name[512] = {};
+    /* Joinable watchdog thread – never detached so we can join on disarm/exit.
+     * AIDEV-NOTE: Storing the thread here (rather than detaching it) prevents
+     * undefined behaviour in ~condition_variable() which would otherwise be
+     * destroyed while the thread is still blocked on cv.wait_until(). */
+    std::thread watchdog_thread;
+
+    ~WatchdogState()
+    {
+        /* Wake the thread (if running) so it exits cleanly before the cv and
+         * mutex members are destroyed. */
+        armed.store(false);
+        cv.notify_all();
+        if (watchdog_thread.joinable())
+            watchdog_thread.join();
+    }
 };
 
 static WatchdogState g_wd; /* NOLINT(cppcoreguidelines-avoid-non-const-global-variables) */
@@ -495,10 +510,19 @@ watchdog_thread_fn(int timeout_secs, bool enable_gdb)
     std::unique_lock<std::mutex> lock(g_wd.mtx);
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_secs);
 
-    /* Block until disarmed (cv notified) or timeout */
-    auto status = g_wd.cv.wait_until(lock, deadline);
+    /* Block until disarmed or timeout.
+     *
+     * AIDEV-NOTE: We use the predicate form of wait_until so that a disarm()
+     * call that fires *before* this thread enters the wait (a real race when
+     * arm()/disarm() are called in rapid succession) is not lost: the predicate
+     * is evaluated immediately on entry and the wait is skipped if already
+     * satisfied.  Without the predicate, notify_all() fired before wait_until()
+     * is reached would be silently dropped, causing join() in disarm() to block
+     * until the full timeout expires.
+     */
+    bool disarmed = g_wd.cv.wait_until(lock, deadline, [] { return !g_wd.armed.load(); });
 
-    if (status == std::cv_status::timeout && g_wd.armed.load()) {
+    if (!disarmed) {
         /* Timeout fired while still armed -- test is stuck */
         wfd(STDERR_FILENO, "\n!!! DEADLOCK WATCHDOG FIRED: timeout=");
         wfd_long(STDERR_FILENO, timeout_secs);
@@ -553,12 +577,16 @@ py_arm(PyObject* /* self */, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
-    /* Disarm any currently running watchdog */
+    /* Disarm any currently running watchdog and join its thread first. */
     {
         std::lock_guard<std::mutex> lock(g_wd.mtx);
         g_wd.armed.store(false);
     }
     g_wd.cv.notify_all();
+    /* Join outside the mutex: the thread reacquires the mutex after waking,
+     * so we must not hold it here or we deadlock. */
+    if (g_wd.watchdog_thread.joinable())
+        g_wd.watchdog_thread.join();
 
     /* Configure and arm the new watchdog */
     {
@@ -574,10 +602,8 @@ py_arm(PyObject* /* self */, PyObject* args, PyObject* kwargs)
         g_wd.armed.store(true);
     }
 
-    /* Launch the watchdog thread detached; it exits when disarmed or after
-     * dumping stacks on timeout. */
-    std::thread t(watchdog_thread_fn, timeout, enable_gdb != 0);
-    t.detach();
+    /* Launch the watchdog thread (joinable, stored in g_wd.watchdog_thread). */
+    g_wd.watchdog_thread = std::thread(watchdog_thread_fn, timeout, enable_gdb != 0);
 
     Py_RETURN_NONE;
 }
@@ -590,6 +616,9 @@ py_disarm(PyObject* /* self */, PyObject* /* args */)
         g_wd.armed.store(false);
     }
     g_wd.cv.notify_all();
+    /* Join outside the mutex so the thread can reacquire it to exit. */
+    if (g_wd.watchdog_thread.joinable())
+        g_wd.watchdog_thread.join();
     Py_RETURN_NONE;
 }
 

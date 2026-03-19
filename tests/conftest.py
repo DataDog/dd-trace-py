@@ -19,6 +19,7 @@ import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 from tempfile import gettempdir
+import textwrap
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -229,6 +230,29 @@ def test_spans(tracer):
 
 
 _DEADLOCK_TIMEOUT: int = int(os.environ.get("DD_TEST_DEADLOCK_TIMEOUT", "300"))
+
+# Parsed once at import time; test_name is injected at runtime via _DD_TEST_NODE_ID env var.
+_DEADLOCK_SUBPROCESS_PREFIX: "ast.Module | None" = None
+if _DEADLOCK_AVAILABLE and _DEADLOCK_TIMEOUT > 0:
+    _DEADLOCK_SUBPROCESS_PREFIX = ast.parse(
+        textwrap.dedent(
+            f"""\
+            try:
+                import atexit as _atexit
+                import os as _os
+                from tests.deadlock import arm as _dd_arm
+                from tests.deadlock import disarm as _dd_disarm
+                _t = max(1, int(_os.environ.get("_DD_DEADLOCK_SUBPROCESS_TIMEOUT", {_DEADLOCK_TIMEOUT!r})) - 5)
+                _dd_arm(timeout=_t, test_name=_os.environ.get("_DD_TEST_NODE_ID"))
+                _atexit.register(_dd_disarm)
+            except Exception:
+                pass
+            """
+        ),
+        "<deadlock_watchdog>",
+        "exec",
+    )
+    ast.fix_missing_locations(_DEADLOCK_SUBPROCESS_PREFIX)
 
 
 @pytest.fixture(autouse=True)
@@ -459,8 +483,14 @@ def run_function_from_file(item, params=None):
     os.makedirs(custom_temp_dir, exist_ok=True)
 
     try:
+        if _DEADLOCK_SUBPROCESS_PREFIX is not None:
+            env["_DD_TEST_NODE_ID"] = item.nodeid
+
         with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+            tree = FunctionDefFinder(func).find(file)
+            if _DEADLOCK_SUBPROCESS_PREFIX is not None:
+                tree.body = _DEADLOCK_SUBPROCESS_PREFIX.body + tree.body
+            dump_code_to_file(compile(tree, file, "exec"), fp.file)
 
             # If running a module with -m, we change directory to the module's
             # folder and run the module directly.

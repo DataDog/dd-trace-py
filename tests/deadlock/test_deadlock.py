@@ -230,3 +230,42 @@ def test_dump_frame_format():
 
     arm(timeout=1, test_name="test_dump_frame_format")
     time.sleep(10)
+
+
+# ===========================================================================
+# Subprocess injection tests – verify conftest.py injects the watchdog
+# ===========================================================================
+
+
+@_native_only
+@pytest.mark.subprocess()
+def test_subprocess_marker_injects_watchdog_env():
+    """run_function_from_file must set _DD_TEST_NODE_ID in the subprocess env.
+
+    This verifies that the conftest.py injection mechanism ran and forwarded
+    the test node ID to the subprocess without the test body calling arm()
+    itself.
+    """
+    import os
+
+    assert "_DD_TEST_NODE_ID" in os.environ, "_DD_TEST_NODE_ID not injected into subprocess env"
+    assert "test_subprocess_marker_injects_watchdog_env" in os.environ["_DD_TEST_NODE_ID"]
+
+
+@_native_only
+@_unix_only
+@pytest.mark.subprocess(
+    status=-signal.SIGABRT,
+    err=lambda s: "DEADLOCK WATCHDOG FIRED" in s,
+    env={"_DD_DEADLOCK_SUBPROCESS_TIMEOUT": "1"},
+)
+def test_subprocess_marker_injects_watchdog_fires():
+    """The injected watchdog must fire in a subprocess test that hangs.
+
+    The test body does NOT call arm() itself; it relies entirely on the
+    watchdog injected by run_function_from_file.  The timeout is set to 1 s
+    via _DD_DEADLOCK_SUBPROCESS_TIMEOUT so the watchdog fires quickly.
+    """
+    import time
+
+    time.sleep(60)  # injected watchdog fires after 1 s, kills us before we wake up
