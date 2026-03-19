@@ -437,22 +437,25 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
     complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
-    llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 5
-    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+    # Match LLMObs events to APM spans by span_id to avoid assuming a fixed ordering
+    # for the two parallel branches (chain1 LLM call vs itemgetter), whose start_ns
+    # ordering is non-deterministic due to thread scheduling in RunnableParallel.
+    events_by_span_id = {e["span_id"]: e for e in llmobs_events}
+    assert events_by_span_id[str(trace[0].span_id)] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
         output_value=mock.ANY,
         span_links=True,
     )
-    assert llmobs_events[1] == _expected_langchain_llmobs_chain_span(
+    assert events_by_span_id[str(trace[1].span_id)] == _expected_langchain_llmobs_chain_span(
         trace[1],
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
         output_value=mock.ANY,
         span_links=True,
     )
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+    assert events_by_span_id[str(trace[2].span_id)] == _expected_llmobs_non_llm_span_event(
         trace[2],
         span_kind="task",
         input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}),
@@ -460,7 +463,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         span_links=True,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
-    assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
+    assert events_by_span_id[str(trace[3].span_id)] == _expected_langchain_llmobs_llm_span(
         trace[3],
         mock_token_metrics=True,
         span_links=True,
@@ -473,7 +476,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
             "_dd_query_variable_keys": ["question"],
         },
     )
-    assert llmobs_events[4] == _expected_langchain_llmobs_llm_span(
+    assert events_by_span_id[str(trace[4].span_id)] == _expected_langchain_llmobs_llm_span(
         trace[4],
         mock_token_metrics=True,
         span_links=True,

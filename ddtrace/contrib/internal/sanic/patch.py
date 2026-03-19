@@ -253,7 +253,7 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
         pattern = route.pattern
 
     span.resource = "{} {}".format(request.method, pattern)
-    span._set_tag_str("sanic.route.name", route.name)
+    span._set_attribute("sanic.route.name", route.name)
 
 
 async def sanic_http_lifecycle_response(request, response):

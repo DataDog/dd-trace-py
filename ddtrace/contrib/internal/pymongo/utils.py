@@ -9,7 +9,6 @@ from pymongo.message import _Query
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -43,26 +42,23 @@ def is_query(op):
     return hasattr(op, "spec")
 
 
-def create_checkout_span(pin):
+def create_checkout_span():
     """Create a span for socket checkout. Shared between sync and async."""
     span = tracer.trace(
         f"pymongo.{_CHECKOUT_FN_NAME}",
-        service=trace_utils.ext_service(pin, config.pymongo),
+        service=trace_utils.ext_service(None, config.pymongo),
         span_type=SpanTypes.MONGODB,
     )
-    span._set_tag_str(COMPONENT, config.pymongo.integration_name)
-    span._set_tag_str(db.SYSTEM, mongox.SERVICE)
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(COMPONENT, config.pymongo.integration_name)
+    span._set_attribute(db.SYSTEM, mongox.SERVICE)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     return span
 
 
 def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
     set_address_tags(span, sock_info.address)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-    pin = Pin.get_from(instance)
-    if pin:
-        pin.onto(sock_info)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def process_server_operation_result(span, operation, result):
@@ -90,7 +86,7 @@ def process_server_message_result(span, operation, result):
                 else:
                     data = _unpack_response(response=result.data)
                     if VERSION < (3, 2, 0) and data.get("number_returned", None):
-                        span.set_metric(db.ROWCOUNT, data.get("number_returned"))
+                        span._set_attribute(db.ROWCOUNT, data.get("number_returned"))
                     elif (3, 2, 0) <= VERSION < (3, 6, 0):
                         docs = data.get("data", None)
                         set_query_rowcount(docs=docs, span=span)
@@ -119,8 +115,8 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     """Set address tags on span. Shared between sync and async."""
     if address:
-        span._set_tag_str(netx.TARGET_HOST, address[0])
-        span._set_tag_str(netx.SERVER_ADDRESS, address[0])
+        span._set_attribute(netx.TARGET_HOST, address[0])
+        span._set_attribute(netx.SERVER_ADDRESS, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 
@@ -149,7 +145,7 @@ def set_query_rowcount(docs, span):
             pass
     if cursor and isinstance(cursor, dict):
         rowcount = sum(len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key)
-        span.set_metric(db.ROWCOUNT, rowcount)
+        span._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def dbm_dispatch(span, args, kwargs):

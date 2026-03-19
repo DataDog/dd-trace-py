@@ -93,8 +93,13 @@ main() {
             done
             if [[ $hook_exit_code != 0 ]]
             then
-              echo "A $hook_type script yielded negative exit code $hook_exit_code"
-              exit $hook_exit_code
+              if [[ $hook_type == "pre-commit" ]]
+              then
+                echo "A $hook_type script exited with non-zero code $hook_exit_code — aborting commit."
+                exit $hook_exit_code
+              else
+                echo "A $hook_type script exited with non-zero code $hook_exit_code (non-blocking, continuing)."
+              fi
             fi
         fi
     fi

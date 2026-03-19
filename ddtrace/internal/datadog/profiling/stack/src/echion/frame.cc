@@ -25,7 +25,7 @@ read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 
     int val = table[++*i] & 63;
     int shift = 0;
-    while (table[*i] & 64 && *i < guard) {
+    while (*i < guard && table[*i] & 64) {
         shift += 6;
         val |= (table[++*i] & 63) << shift;
     }
@@ -71,7 +71,7 @@ Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
 
 // ----------------------------------------------------------------------------
 Result<void>
-Frame::infer_location(PyCodeObject* code_obj, int lasti)
+Frame::infer_location(PyCodeObject* code_obj, int instr_offset)
 {
     unsigned int lineno = code_obj->co_firstlineno;
     Py_ssize_t len = 0;
@@ -135,7 +135,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
                 this->line = lineno;
         }
 
-        if (bc > lasti)
+        if (bc > instr_offset)
             break;
     }
 
@@ -145,7 +145,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
         return ErrorKind::LocationError;
     }
 
-    lasti <<= 1;
+    instr_offset <<= 1;
     for (int i = 0, bc = 0; i < len; i++) {
         int sdelta = table[i++];
         if (sdelta == 0xff)
@@ -160,7 +160,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
             lineno -= 0x100;
 
         lineno += ldelta;
-        if (bc > lasti)
+        if (bc > instr_offset)
             break;
     }
 
@@ -172,7 +172,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
     for (int i = 0, bc = 0; i < len; i++) {
         bc += table[i++];
-        if (bc > lasti)
+        if (bc > instr_offset)
             break;
 
         if (table[i] >= 0x80)
@@ -261,8 +261,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
+    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
+    // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
-    int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
+    int instr_offset = static_cast<int>(frame_addr->instr_ptr - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     const int lasti = instr_offset - code_offset;
     auto maybe_frame = Frame::get(echion, code_obj, lasti);
@@ -276,11 +278,12 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
+    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
+    // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     const int lasti =
-      (static_cast<int>(
-        (frame_addr->instr_ptr - 1 -
-         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
-      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+      (static_cast<int>((frame_addr->instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(
+                                                   (reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
+      static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
     auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
@@ -369,6 +372,9 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 
     auto new_frame = std::move(*maybe_new_frame);
     new_frame->cache_key = frame_key;
+    new_frame->code_object = reinterpret_cast<uintptr_t>(code_addr);
+    new_frame->lasti = lasti;
+    new_frame->first_lineno = firstlineno;
     auto& f = *new_frame;
     echion.frame_cache().store(frame_key, std::move(new_frame));
     return std::ref(f);

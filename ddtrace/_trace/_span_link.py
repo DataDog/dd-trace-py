@@ -87,12 +87,6 @@ class SpanLink(SpanLinkData):
     def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
-    def _drop_attribute(self, key):
-        if key not in self.attributes:
-            raise KeyError(f"Invalid key: {key}")
-        del self.attributes[key]
-        self._dropped_attributes += 1
-
     def to_dict(self):
         d = {
             "trace_id": f"{self.trace_id:032x}",

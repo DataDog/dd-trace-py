@@ -7,10 +7,10 @@ from typing import TypeVar
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.span import Span
-from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
@@ -20,10 +20,36 @@ from ddtrace.trace import tracer
 TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 
 
+def _finish_span(
+    ctx: core.ExecutionContext[TracingEventType],
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    """
+    Finish the span in the context.
+    If no span is present, do nothing.
+
+    Reimplementing finish span here prevents circular import. Once every integration
+    adopted events API, trace_handlers _finish_span should be completely removed.
+    """
+    span = ctx.span
+    if not span:
+        return
+
+    integration_config = ctx.get_item("integration_config")
+    maybe_set_service_source_tag(span, integration_config or dict())
+
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_type and exc_value and exc_traceback:
+        span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
+    span.finish()
+
+
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """Adaptation of _start_span from trace_handlers to use the event directly
     Once every integration adopted events API, trace_handlers _start_span
-    should be completly removed.
+    should be completely removed.
 
     Args:
         ctx: ExecutionContext containing the event
@@ -65,8 +91,9 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
 
     if event.measured:
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
+    maybe_set_service_source_tag(span, integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:

@@ -21,6 +21,7 @@ from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
@@ -299,3 +300,28 @@ class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
     @property
     def lock_class(self) -> type[asyncio.Condition]:
         return asyncio.Condition
+
+
+class TestAsyncGenericLockProfiling:
+    """Generic asyncio lock profiling tests that run once with asyncio.Lock.
+
+    Mirrors TestGenericLockProfiling in test_threading.py. Tests here verify
+    _LockAllocatorWrapper behavior that is shared across all asyncio lock types.
+    """
+
+    @property
+    def collector_class(self) -> type[AsyncioLockCollector]:
+        return AsyncioLockCollector
+
+    @property
+    def lock_class(self) -> type[asyncio.Lock]:
+        return asyncio.Lock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]

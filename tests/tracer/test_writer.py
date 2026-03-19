@@ -118,7 +118,7 @@ class AgentWriterTests(BaseTestCase):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
+                    span._set_attribute(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -523,7 +523,7 @@ class NativeWriterTests(AgentWriterTests):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
+                    span._set_attribute(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -758,6 +758,35 @@ def test_agentless_trace_writer_uses_post():
     assert writer._encoder.content_type == "application/json"
 
 
+def test_agentless_trace_writer_buffer_size_capped_at_max():
+    """AgentlessTraceWriter caps buffer_size at MAX_BUFFER_SIZE (15 MB) regardless of config."""
+    max_size = AgentlessTraceWriter.MAX_BUFFER_SIZE
+
+    # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer._encoder.max_size == max_size
+
+    # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
+    small = max_size // 2
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=small,
+    )
+    assert writer._encoder.max_size == small
+
+    # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=max_size * 2,
+    )
+    assert writer._encoder.max_size == max_size
+
+
 def test_agentless_trace_writer_encode_traces():
     writer = AgentlessTraceWriter(
         intake_url="https://public-trace-http-intake.logs.datadoghq.com",
@@ -990,6 +1019,75 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         with pytest.raises((socket.timeout, IoError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
+
+
+def test_periodic_thread_uds_callback_unblocks_with_timeout():
+    import os
+    import socket
+    import tempfile
+    import threading
+
+    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+    sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
+    sock_path = os.path.join(sock_dir, "blackhole.sock")
+    server_ready = threading.Event()
+    server_stop = threading.Event()
+    callback_started = threading.Event()
+    callback_done = threading.Event()
+
+    def _blackhole_server():
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn = None
+        try:
+            srv.bind(sock_path)
+            srv.listen(1)
+            server_ready.set()
+            conn, _ = srv.accept()
+            # Keep the connection open and never send a response so the client
+            # can only make progress via its socket timeout.
+            while not server_stop.wait(0.05):
+                pass
+        finally:
+            if conn is not None:
+                conn.close()
+            srv.close()
+
+    def _callback():
+        callback_started.set()
+        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        try:
+            conn.request("GET", "/")
+            conn.getresponse().read()
+        except Exception:
+            # Timeout (or an equivalent network error path) is expected.
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            callback_done.set()
+
+    server_thread = threading.Thread(target=_blackhole_server, daemon=True)
+    server_thread.start()
+    assert server_ready.wait(timeout=2)
+
+    worker = PeriodicThread(interval=60.0, target=_callback, name="repro:UDSForkTimeout", no_wait_at_start=True)
+    worker.start()
+    assert callback_started.wait(timeout=2)
+
+    try:
+        assert callback_done.wait(timeout=5)
+    finally:
+        server_stop.set()
+        worker.stop()
+        worker.join(timeout=1.0)
+        server_thread.join(timeout=1.0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+        os.rmdir(sock_dir)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
@@ -1446,20 +1544,26 @@ def test_agentless_writer_enabled():
 
         writer.flush_queue()
 
-    # Each trace is sent as a separate payload
-    assert mock_put.call_count == 2
-    all_payloads = [json.loads(call[0][0]) for call in mock_put.call_args_list]
+    # Both traces are batched into a single payload
+    assert mock_put.call_count == 1
+    payload = json.loads(mock_put.call_args_list[0][0][0])
 
-    # Find the payload for each trace by matching trace_id across all spans
+    assert "traces" in payload
+    assert len(payload["traces"]) == 2
+
+    # Find each trace by matching trace_id across all spans
     trace1_id = "{:016x}".format(root1._trace_id_64bits)
     trace2_id = "{:016x}".format(root2._trace_id_64bits)
-    trace1_payload = next(p for p in all_payloads if all(s["trace_id"] == trace1_id for s in p["spans"]))
-    trace2_payload = next(p for p in all_payloads if all(s["trace_id"] == trace2_id for s in p["spans"]))
+    trace1_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"])
+    )
+    trace2_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"])
+    )
 
     # trace1: root1, child1, child2
-    assert "spans" in trace1_payload
-    assert len(trace1_payload["spans"]) == 3
-    trace1_spans = {s["name"]: s for s in trace1_payload["spans"]}
+    assert len(trace1_spans_list) == 3
+    trace1_spans = {s["name"]: s for s in trace1_spans_list}
     assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
     assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
     assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
@@ -1469,11 +1573,10 @@ def test_agentless_writer_enabled():
     assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
 
     # trace2: root2 only
-    assert "spans" in trace2_payload
-    assert len(trace2_payload["spans"]) == 1
-    assert trace2_payload["spans"][0]["name"] == "root2"
-    assert trace2_payload["spans"][0]["span_id"] == "{:016x}".format(root2.span_id)
-    assert trace2_payload["spans"][0]["parent_id"] == "0000000000000000"
+    assert len(trace2_spans_list) == 1
+    assert trace2_spans_list[0]["name"] == "root2"
+    assert trace2_spans_list[0]["span_id"] == "{:016x}".format(root2.span_id)
+    assert trace2_spans_list[0]["parent_id"] == "0000000000000000"
 
     headers = mock_put.call_args_list[0][0][1]
     assert headers["Content-Type"] == "application/json"
@@ -1510,8 +1613,8 @@ def test_agentless_writer_serialize_span_fields():
         with tracer.trace("root1", resource="resource1", service="service1") as span:
             span.set_tag("tag1", "value1")
             span.set_tag("tag2", "value2")
-            span.set_metric("metric1", 1.0)
-            span.set_metric("metric2", 2.0)
+            span._set_attribute("metric1", 1.0)
+            span._set_attribute("metric2", 2.0)
             span.set_link(trace_id=3, span_id=4)
             span.error = 1
             span._set_struct_tag("payload", {"key": "value"})
@@ -1521,9 +1624,10 @@ def test_agentless_writer_serialize_span_fields():
     payload_json_bytes = mock_put.call_args_list[0][0][0]
     payload_json = json.loads(payload_json_bytes.decode("utf-8"))
 
-    assert "spans" in payload_json
-    assert len(payload_json["spans"]) == 1
-    span_json = payload_json["spans"][0]
+    assert "traces" in payload_json
+    assert len(payload_json["traces"]) == 1
+    assert len(payload_json["traces"][0]["spans"]) == 1
+    span_json = payload_json["traces"][0]["spans"][0]
 
     assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
     assert span_json["parent_id"] == "0000000000000000"

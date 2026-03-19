@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
@@ -106,11 +107,14 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct: Optional[DDWafRulesType] = None,
-        observator: _observator = _observator(),  # noqa : B008
+        observator: Optional[_observator] = None,
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length: int = DDWAF_MAX_STRING_LENGTH,
     ) -> None:
+        if observator is None:
+            observator = _observator()
+
         def truncate_string(string: bytes) -> bytes:
             if len(string) > max_string_length:
                 observator.set_string_length(len(string))
@@ -209,7 +213,7 @@ class ddwaf_object(ctypes.Structure):
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.struct)
 
 
@@ -273,7 +277,7 @@ class ddwaf_config(ctypes.Structure):
         max_string_length: int = 0,
         key_regex: bytes = b"",
         value_regex: bytes = b"",
-        free_fn=ddwaf_object_free,
+        free_fn: Callable[[ddwaf_object], None] = ddwaf_object_free,
     ) -> None:
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
@@ -311,7 +315,7 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
 )
 
 
-def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
+def py_ddwaf_init(ruleset_map: ddwaf_object, config: ddwaf_config, info: ddwaf_object) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info), ddwaf_destroy)
 
 
@@ -566,6 +570,8 @@ ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     ("ddwaf_get_version", ddwaf),
     (),
 )
+
+asm_config._ddwaf_version = ddwaf_get_version().decode()
 
 
 ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(

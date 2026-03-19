@@ -112,6 +112,8 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
+SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -127,10 +129,11 @@ def interpose_sccache():
     if not SCCACHE_COMPILE:
         return
 
-    # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
+    # Check for sccache.  We don't do multi-step failover (e.g., if the path is set, but the binary is invalid)
+    # Honor both SCCACHE_PATH and SCCACHE env vars for compatibility with docs
+    _sccache_path = os.getenv("SCCACHE_PATH") or os.getenv("SCCACHE") or shutil.which("sccache")
     if _sccache_path is None:
-        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
+        print("WARNING: sccache not found in SCCACHE_PATH, SCCACHE, or PATH, skipping sccache interposition")
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
@@ -273,10 +276,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = []
+rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-    rust_features.append("crashtracker")
     rust_features.append("profiling")
+    if not SERVERLESS_BUILD:
+        rust_features.append("crashtracker")
+if not SERVERLESS_BUILD:
+    rust_features.append("ffe")
 
 
 class PatchedDistribution(Distribution):
@@ -1189,10 +1195,14 @@ if not IS_PYSTON:
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        memalloc_cmake_args = []
+        if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
+            memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
+                cmake_args=memalloc_cmake_args,
                 optional=False,
             )
         )
@@ -1257,6 +1267,26 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._exception",
+                sources=["ddtrace/profiling/collector/_exception.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._fast_poisson",
+                sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._sampler",
+                sources=["ddtrace/profiling/collector/_sampler.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._lock",
+                sources=["ddtrace/profiling/collector/_lock.pyx"],
+                language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
@@ -1270,6 +1300,11 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
         cache=True,
     )
 
+PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
+if PACKAGE_NAME != "ddtrace":
+    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
+print(f"INFO: building package '{PACKAGE_NAME}'")
+
 interpose_sccache()
 setup(
     name="ddtrace",
@@ -1278,11 +1313,13 @@ setup(
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
+    },
+    exclude_package_data={
+        "": ["CMakeLists.txt", "*.md", "*.sh", "*.cmake", "*.pxd"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -1294,7 +1331,12 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
+    setup_requires=[
+        "cython",
+        "cmake>=3.24.2,<3.28",
+        "setuptools-rust<2",
+        "patchelf>=0.17.0.0; sys_platform == 'linux'",
+    ],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )
