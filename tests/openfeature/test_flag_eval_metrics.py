@@ -15,15 +15,15 @@ from openfeature.hook import HookContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._metrics import ATTR_ALLOCATION_KEY
-from ddtrace.internal.openfeature._metrics import ATTR_ERROR_TYPE
-from ddtrace.internal.openfeature._metrics import ATTR_FLAG_KEY
-from ddtrace.internal.openfeature._metrics import ATTR_REASON
-from ddtrace.internal.openfeature._metrics import ATTR_VARIANT
-from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._metrics import FlagEvalHook
-from ddtrace.internal.openfeature._metrics import FlagEvalMetrics
-from ddtrace.internal.openfeature._metrics import _error_code_to_tag
+from ddtrace.internal.openfeature._flageval_metrics import ATTR_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_metrics import ATTR_ERROR_TYPE
+from ddtrace.internal.openfeature._flageval_metrics import ATTR_FLAG_KEY
+from ddtrace.internal.openfeature._flageval_metrics import ATTR_REASON
+from ddtrace.internal.openfeature._flageval_metrics import ATTR_VARIANT
+from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
+from ddtrace.internal.openfeature._flageval_metrics import _error_code_to_tag
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
@@ -188,6 +188,95 @@ class TestFlagEvalMetrics:
 
         assert metrics._enabled is False
         assert metrics._counter is None
+
+    def test_record_disabled_reason(self):
+        """Record should handle DISABLED reason correctly."""
+        mock_counter = MagicMock()
+
+        metrics = FlagEvalMetrics()
+        metrics._enabled = True
+        metrics._counter = mock_counter
+
+        metrics.record(
+            flag_key="disabled-flag",
+            variant="",
+            reason="DISABLED",
+        )
+
+        mock_counter.add.assert_called_once()
+        call_args = mock_counter.add.call_args
+        attrs = call_args[1]["attributes"]
+        assert attrs[ATTR_FLAG_KEY] == "disabled-flag"
+        assert attrs[ATTR_VARIANT] == ""
+        assert attrs[ATTR_REASON] == "disabled"
+        assert ATTR_ERROR_TYPE not in attrs
+
+    def test_record_multiple_evaluations(self):
+        """Multiple evaluations should call add() multiple times."""
+        mock_counter = MagicMock()
+
+        metrics = FlagEvalMetrics()
+        metrics._enabled = True
+        metrics._counter = mock_counter
+
+        # Record 5 evaluations of the same flag
+        for _ in range(5):
+            metrics.record(
+                flag_key="my-flag",
+                variant="variant-a",
+                reason="TARGETING_MATCH",
+            )
+
+        # Verify add() was called 5 times
+        assert mock_counter.add.call_count == 5
+
+    def test_record_different_flags(self):
+        """Different flags should be recorded with different attributes."""
+        mock_counter = MagicMock()
+
+        metrics = FlagEvalMetrics()
+        metrics._enabled = True
+        metrics._counter = mock_counter
+
+        metrics.record(flag_key="flag-a", variant="on", reason="TARGETING_MATCH")
+        metrics.record(flag_key="flag-b", variant="off", reason="DEFAULT")
+
+        assert mock_counter.add.call_count == 2
+
+        # Verify each call has the correct flag_key
+        calls = mock_counter.add.call_args_list
+        flag_keys = {call[1]["attributes"][ATTR_FLAG_KEY] for call in calls}
+        assert flag_keys == {"flag-a", "flag-b"}
+
+    def test_record_all_error_types(self):
+        """All error types should be recorded correctly."""
+        mock_counter = MagicMock()
+
+        metrics = FlagEvalMetrics()
+        metrics._enabled = True
+        metrics._counter = mock_counter
+
+        error_cases = [
+            (ErrorCode.FLAG_NOT_FOUND, "flag_not_found"),
+            (ErrorCode.TYPE_MISMATCH, "type_mismatch"),
+            (ErrorCode.PARSE_ERROR, "parse_error"),
+            (ErrorCode.GENERAL, "general"),
+        ]
+
+        for error_code, expected_tag in error_cases:
+            metrics.record(
+                flag_key="test-flag",
+                variant="",
+                reason="ERROR",
+                error_code=error_code,
+            )
+
+        assert mock_counter.add.call_count == len(error_cases)
+
+        # Verify each call has the correct error.type
+        calls = mock_counter.add.call_args_list
+        error_types = {call[1]["attributes"][ATTR_ERROR_TYPE] for call in calls}
+        assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}
 
 
 class TestFlagEvalHook:
@@ -356,3 +445,31 @@ class TestMetricsWithRealOTel:
         result = provider.resolve_boolean_details("non-existent", False)
         assert result.value is False
         assert result.reason == Reason.DEFAULT
+
+    def test_disabled_flag_records_disabled_reason(self, provider):
+        """Disabled flag should record DISABLED reason in metrics."""
+        config = create_config(create_boolean_flag("disabled-flag", enabled=False, default_value=True))
+        process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("disabled-flag", False)
+
+        assert result.value is False  # Returns default when disabled
+        assert result.reason == Reason.DISABLED
+
+    def test_type_conversion_error_records_type_mismatch(self, provider):
+        """Type mismatch should record error.type=type_mismatch in metrics.
+
+        This test verifies that when a flag returns a different type than requested
+        (e.g., requesting boolean from a string flag), the TYPE_MISMATCH error is
+        properly recorded. This proves the hook catches type conversion errors.
+        """
+        # Create a string flag
+        config = create_config(create_string_flag("string-flag", "hello", enabled=True))
+        process_ffe_configuration(config)
+
+        # Request it as a boolean - should result in TYPE_MISMATCH
+        result = provider.resolve_boolean_details("string-flag", False)
+
+        assert result.value is False  # Returns default on error
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.TYPE_MISMATCH

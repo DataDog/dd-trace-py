@@ -3,8 +3,6 @@ Flag evaluation metrics for Feature Flagging and Experimentation (FFE).
 
 This module implements OpenTelemetry metrics tracking for feature flag evaluations,
 emitting a `feature_flag.evaluations` counter metric on every flag evaluation.
-
-Reference: Go implementation at dd-trace-go/openfeature/flageval_metrics.go
 """
 
 import typing

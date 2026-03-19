@@ -22,9 +22,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
-from ddtrace.internal.openfeature._metrics import METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._metrics import FlagEvalHook
-from ddtrace.internal.openfeature._metrics import FlagEvalMetrics
+from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature.writer import get_exposure_writer
