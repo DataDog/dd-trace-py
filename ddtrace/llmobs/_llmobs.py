@@ -1927,6 +1927,16 @@ class LLMObs(Service):
 
             enable_featureflags_rc()
 
+            from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+            if remoteconfig_poller._worker is not None:
+                remoteconfig_poller._worker.awake()  # Force immediate RC poll so flag data is available without waiting for the next polling interval (~20-30s)
+
+            from ddtrace.openfeature import DataDogProvider
+            from openfeature import api as of_api
+
+            of_api.set_provider(DataDogProvider())
+
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
         cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
