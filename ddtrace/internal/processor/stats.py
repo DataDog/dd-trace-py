@@ -173,8 +173,14 @@ class SpanAggrStats(object):
         self.top_level_hits = 0
         self.errors = 0
         self.duration = 0
-        # Match the relative accuracy of the sketch implementation used in the backend
-        # which is 0.775%.
+        # AIDEV-NOTE: DDSketch uses libdatadog's default relative accuracy of 1/128 (~0.78%).
+        # The client-side stats spec recommends 1% (0.01) relative accuracy with 2048 max bins.
+        # The current 0.78% accuracy is MORE precise than the 1% spec requirement, so it exceeds
+        # the spec and is fully compatible. The DDSketch Rust wrapper (DDSketch::default()) does
+        # not currently accept a relative_accuracy parameter. Changing it would require modifying
+        # the native Rust binding and could break backward compatibility with existing stats
+        # pipelines that expect the default sketch configuration. Left as-is since 0.78% is
+        # strictly better than the 1% requirement.
         self.ok_distribution = DDSketch()
         self.err_distribution = DDSketch()
 
@@ -366,7 +372,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     def _flush_stats(self, payload: bytes) -> None:
         try:
             conn = agent.get_connection(self._agent_url, self._timeout)
-            conn.request("PUT", self._endpoint, payload, self._headers)
+            # AIDEV-NOTE: The /v0.6/stats endpoint requires POST per the stats spec.
+            conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
