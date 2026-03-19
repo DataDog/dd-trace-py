@@ -63,6 +63,9 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "duration": 75417,
           "start": 1771927542635675167
         }]]
