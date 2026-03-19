@@ -1702,7 +1702,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v28.0.1#647c8ff924070d4e79494ec852d312ff0301fd8a"
+source = "git+https://github.com/DataDog/libdatadog?rev=v27.0.0#72e56a3dcf9189a92db1f177c4c9d844725079f7"
 dependencies = [
  "chrono",
  "tracing",

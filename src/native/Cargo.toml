@@ -28,7 +28,7 @@ datadog-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v
 libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true }
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true}
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
-libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
+libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v27.0.0" }
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true, features = [
     "cbindgen",
