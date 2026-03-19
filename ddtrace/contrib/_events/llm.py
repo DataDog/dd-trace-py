@@ -31,8 +31,8 @@ class LlmRequestEvent(TracingEvent):
     llmobs_integration: "BaseLLMIntegration" = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
-    instance: Optional[Any] = event_field(default=None)
-    response: Optional[Any] = event_field(default=None)
+    instance_name: str = event_field(default=None)
+    response: Optional[str] = event_field(default=None)
     is_chat: Optional[bool] = event_field(default=None)
     operation: str = event_field(default="")
 
