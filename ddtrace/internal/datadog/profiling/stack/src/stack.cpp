@@ -228,6 +228,35 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_target_overhead(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double target_overhead;
+
+    if (!PyArg_ParseTuple(args, "d", &target_overhead)) {
+        return NULL;
+    }
+
+    // Convert from percentage (0-100) to fraction (0-1)
+    Sampler::get().set_target_overhead(target_overhead / 100.0);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_interval_us;
+
+    if (!PyArg_ParseTuple(args, "I", &max_interval_us)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_sampling_period(max_interval_us);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
 {
     uintptr_t thread_id;
@@ -658,6 +687,11 @@ static PyMethodDef stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_target_overhead", stack_set_target_overhead, METH_VARARGS, "Set target overhead for adaptive sampling" },
+    { "set_max_sampling_period",
+      stack_set_max_sampling_period,
+      METH_VARARGS,
+      "Set max sampling period for adaptive sampling" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Native call monitoring
     { "start_native_monitoring",
