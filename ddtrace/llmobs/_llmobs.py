@@ -2089,9 +2089,9 @@ class LLMObs(Service):
         # processor. All spans in the local trace share the same _local_root object reference,
         # so this single write makes the trace ID available on the root span in every payload.
         # Only set if not already present to avoid sibling LLMObs roots overwriting each other's trace IDs.
-        if "llmobs_trace_id" not in span._local_root._meta:
-            span._local_root._meta["llmobs_trace_id"] = format_trace_id(llmobs_trace_id)  # type: ignore[arg-type]
-            span._local_root._meta["llmobs_parent_id"] = str(span.span_id)
+        if span._local_root.get_tag("llmobs_trace_id") is None:
+            span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
+            span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
 
     def _start_span(

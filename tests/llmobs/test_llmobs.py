@@ -647,15 +647,17 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
 
 
 def test_llmobs_trace_id_written_to_local_root_meta(llmobs, llmobs_events):
-    """Test that llmobs_trace_id is written to the local root span's _meta for the backend processor."""
+    """Test that llmobs_trace_id is written to the local root span's tags for the backend processor."""
     with llmobs._instance.tracer.trace("fastapi.request") as root:
         with llmobs.workflow("chat-workflow") as wf:
             pass
 
-    # The local root (fastapi.request) should have llmobs_trace_id in _meta
-    assert "llmobs_trace_id" in root._meta
+    # The local root (fastapi.request) should have llmobs_trace_id set as a tag
+    assert root.get_tag("llmobs_trace_id") is not None
     # It should match the workflow span's llmobs_trace_id
-    assert root._meta["llmobs_trace_id"] == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
+    # llmobs_parent_id should be the workflow span's span_id
+    assert root.get_tag("llmobs_parent_id") == str(wf.span_id)
 
 
 def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_events):
@@ -668,11 +670,11 @@ def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_e
             child.finish()
 
     # Root should have llmobs_trace_id
-    assert "llmobs_trace_id" in root._meta
+    assert root.get_tag("llmobs_trace_id") is not None
     # The child span shares the same local root
     assert child._local_root is root
     # So the processor will find llmobs_trace_id on the root span in the same payload
-    assert root._meta["llmobs_trace_id"] == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf._get_ctx_item(const.LLMOBS_TRACE_ID))
 
 
 def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_events):
@@ -684,8 +686,8 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_eve
             pass
 
     # The local root should have the first child's trace ID (first-wins)
-    assert "llmobs_trace_id" in root._meta
-    assert root._meta["llmobs_trace_id"] == format_trace_id(first._get_ctx_item(const.LLMOBS_TRACE_ID))
+    assert root.get_tag("llmobs_trace_id") is not None
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(first._get_ctx_item(const.LLMOBS_TRACE_ID))
     # The two workflows should have different trace IDs
     assert first._get_ctx_item(const.LLMOBS_TRACE_ID) != second._get_ctx_item(const.LLMOBS_TRACE_ID)
 
