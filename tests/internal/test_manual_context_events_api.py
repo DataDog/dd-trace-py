@@ -13,46 +13,25 @@ class TestManualContextEventsApi(unittest.TestCase):
         core._reset_context()
 
     def test_manually_dispatching_end_event(self):
-        """Manual dispatch emits one ended event with empty error info."""
+        """Started auto-dispatches while ended can be manually dispatched."""
         context_id = "context_id"
-        ended = []
+        called = []
+
+        def on_context_started(ctx):
+            called.append(("started", ctx))
 
         def on_context_ended(ctx, exc_info):
-            ended.append((ctx, exc_info))
+            called.append(("ended", ctx, exc_info))
 
+        core.on("context.started.%s" % context_id, on_context_started)
         core.on("context.ended.%s" % context_id, on_context_ended)
         with core.context_with_data(context_id, dispatch_end_event=False) as ctx:
             pass
 
-        assert ended == []
+        assert called == [("started", ctx)]
 
         ctx.dispatch_ended_event()
-        assert len(ended) == 1
-        ended_ctx, ended_exc_info = ended[0]
-        assert ended_ctx is ctx
-        assert ended_exc_info == (None, None, None)
-
-    def test_async_manual_dispatch_end_event_from_different_task(self):
-        """Dispatch ended event one second later from async code."""
-        context_id = "async.suppressed.context"
-        ended = []
-
-        core.on("context.ended.%s" % context_id, lambda ended_ctx, exc_info: ended.append(ended_ctx.identifier))
-
-        with core.context_with_data(context_id, dispatch_end_event=False) as ctx:
-            assert core.current is ctx
-
-        assert core.current.identifier == core.ROOT_CONTEXT_ID
-        assert ended == []
-
-        async def _dispatch_later():
-            await asyncio.sleep(1)
-            ctx.dispatch_ended_event()
-
-        asyncio.run(_dispatch_later())
-
-        assert core.current.identifier == core.ROOT_CONTEXT_ID
-        assert ended == [context_id]
+        assert called == [("started", ctx), ("ended", ctx, (None, None, None))]
 
     def test_nested_context_normal_parent_suppressed_child_dispatch_control(self):
         """Normal parent auto-ends while suppressed child ends only when dispatched."""
@@ -169,5 +148,89 @@ class TestManualContextEventsApi(unittest.TestCase):
         ctx.dispatch_ended_event()
 
         assert len(ended) == 1
-        ended_ctx, ended_exc_info = ended[0]
+        ended_ctx, _ = ended[0]
         assert ended_ctx is ctx
+
+    def test_manual_dispatch_from_async_done_callback_after_context_exit(self):
+        """This test mocks what is happening in aiokafka integration where
+        span.finish() is called in a callback that will be executed after context
+        exit.
+        """
+
+        context_id = "context_id"
+        called = []
+
+        def on_context_started(ctx):
+            called.append(("started", ctx))
+
+        def on_context_ended(ctx, exc_info):
+            called.append(("ended", ctx, exc_info))
+
+        core.on("context.started.%s" % context_id, on_context_started)
+        core.on("context.ended.%s" % context_id, on_context_ended)
+
+        async def _run():
+            future: Optional[asyncio.Future] = None
+            with core.context_with_data(context_id, dispatch_end_event=False) as ctx:
+                future = asyncio.get_running_loop().create_future()
+
+                def done_callback(f):
+                    ctx.dispatch_ended_event()
+
+                future.add_done_callback(done_callback)
+
+            assert called == [("started", ctx)]
+
+            assert future is not None
+            future.set_result("ok")
+            await asyncio.sleep(0)
+            assert called == [("started", ctx), ("ended", ctx, (None, None, None))]
+
+        asyncio.run(_run())
+
+    def test_manual_dispatch_when_stream_is_exhausted(self):
+        """This test mocks what is happening in MLObs integration which exits the context
+        before finishing the span. It is finished later when all the messages are
+        consumed.
+        """
+        context_id = "context_id"
+        called = []
+
+        def on_context_started(ctx):
+            called.append(("started", ctx))
+
+        def on_context_ended(ctx, exc_info):
+            called.append(("ended", ctx, exc_info))
+
+        core.on("context.started.%s" % context_id, on_context_started)
+        core.on("context.ended.%s" % context_id, on_context_ended)
+
+        async def _run():
+            stream = None
+            with core.context_with_data(context_id, dispatch_end_event=False) as ctx:
+
+                async def _stream():
+                    yield "chunk-1"
+                    yield "chunk-2"
+
+                source_stream = _stream()
+
+                async def _wrapped_stream():
+                    try:
+                        async for item in source_stream:
+                            yield item
+                        ctx.dispatch_ended_event()
+                    except Exception as e:
+                        ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+                        raise
+
+                stream = _wrapped_stream()
+
+            # stream is consumed after context exit.
+            assert called == [("started", ctx)]
+            assert stream is not None
+            chunks = [chunk async for chunk in stream]
+            assert chunks == ["chunk-1", "chunk-2"]
+            assert called == [("started", ctx), ("ended", ctx, (None, None, None))]
+
+        asyncio.run(_run())
