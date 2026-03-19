@@ -729,7 +729,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         list(db.items.find({"_id": oid}))
 
         spans = self.get_user_spans()
-        find_spans = [s for s in spans if s.name == "pymongo.cmd" and "find" in s.resource and s.get_tag("mongodb.query")]
+        find_spans = [
+            s for s in spans if s.name == "pymongo.cmd" and "find" in s.resource and s.get_tag("mongodb.query")
+        ]
         assert len(find_spans) == 1
         return find_spans[0], oid
 
