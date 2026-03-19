@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -82,7 +83,10 @@ class Sampler
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
-    void set_max_sampling_period(microsecond_t max_interval_us) { max_sampling_period_us = max_interval_us; }
+    void set_max_sampling_period(microsecond_t max_interval_us)
+    {
+        max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
+    }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

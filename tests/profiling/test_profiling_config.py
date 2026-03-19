@@ -39,8 +39,8 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
     def test_adaptive_sampling_max_interval_validation(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Max interval must be at least 1us
-        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "0")
+        # Max interval must be at least 100us
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "99")
         with pytest.raises(ValueError):
             ProfilingConfig()
 
