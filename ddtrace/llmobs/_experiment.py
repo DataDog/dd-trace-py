@@ -39,8 +39,10 @@ except ImportError:
 
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+    from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
 except ImportError:
     PydanticEvaluator = None
+    PydanticReportEvaluator = None
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
@@ -599,6 +601,14 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, PydanticEvaluator)
 
+def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator). 
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic report evaluator, False otherwise
+    """
+    if PydanticReportEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticReportEvaluator)
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -719,6 +729,10 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
+    from pydantic_evals.evaluators import ReportEvaluatorOutput as PydanticReportEvaluatorOutput
+    from pydantic_evals.evaluators.report import ReportReason as PydanticReportEvaluationReason
+    from pydantic_evals.evaluators.report import ReportScalar as PydanticReportEvaluationScalar
 
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
@@ -853,6 +867,34 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
         else:
             wrapped_evaluator.__name__ = eval_name
+        return wrapped_evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> SummaryEvaluatorResult:
+            evalContext = PydanticReportEvaluatorContext(
+                name="",
+                cases=[],
+                failures=[],
+                analyses=[],
+                report_evaluator_failures=[],
+                experiment_metadata=None,
+                trace_id=None,
+                span_id=None
+            )
+            result = evaluator.evaluate(evalContext)
+            eval_result = get_pydantic_report_evaluator_result(result)
+            return eval_result
+
+        wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:

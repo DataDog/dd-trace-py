@@ -126,6 +126,7 @@ from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
@@ -1632,6 +1633,8 @@ class LLMObs(Service):
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
         return Experiment(
             name,
