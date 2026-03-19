@@ -62,8 +62,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if args:
         # DEV: join is the fastest way of concatenating strings that is compatible

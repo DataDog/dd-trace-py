@@ -100,6 +100,51 @@ class TestLLMObsAnthropic:
         # Then: input is parsed as empty dict instead of raising TypeError
         assert result["content"][-1]["input"] == {}
 
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_beta_tools_stream_input_json_delta_without_content_block_start(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
+    ):
+        """Regression test: beta API features (e.g. tool_search_tool_regex) can emit input_json_delta
+        chunks without a preceding content_block_start of type tool_use. This previously caused a
+        KeyError on the 'input' key, preventing the LLMObs span from being submitted.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream_no_content_block_start.yaml"):
+            stream = llm.beta.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=[
+                    *tools,
+                    {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                ],
+                betas=["tool-search-tool-regex-20251119"],
+                stream=True,
+            )
+            consume_stream(stream)
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-3-opus-20240229",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {"content": "Let me check the weather.", "role": "assistant"},
+                ],
+                metadata={"max_tokens": 200},
+                token_metrics={"input_tokens": 599, "output_tokens": 50, "total_tokens": 649},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=[
+                    *EXPECTED_TOOL_DEFINITIONS,
+                    {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                ],
+            )
+        )
+
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_stream_with_thinking(

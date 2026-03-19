@@ -11,22 +11,23 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69a5ec6700000000",
+      "_dd.svc_src": "asyncpg",
       "component": "asyncpg",
       "db.system": "postgresql",
       "error.message": "Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 94, in _traced_connect\n    conn = _TracedConnection(await func(*args, **kwargs), pin)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connection.py\", line 1980, in connect\n    return await connect_utils._connect(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 677, in _connect\n    raise last_error\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 661, in _connect\n    con = await _connect_addr(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 634, in _connect_addr\n    tr, pr = await compat.wait_for(connector, timeout=timeout)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/compat.py\", line 103, in wait_for\n    return await asyncio.wait_for(fut, timeout)\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/asyncio/tasks.py\", line 479, in wait_for\n    return fut.result()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_asyncpg~0220/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 544, in _create_ssl_connection\n    tr, pr = await loop.create_connection(\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/asyncio/base_events.py\", line 1073, in create_connection\n    raise OSError('Multiple exceptions: {}'.format(\nOSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/asyncpg/patch.py\", line 106, in _traced_connect\n    raw_conn = await func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connection.py\", line 1981, in connect\n    return await connect_utils._connect(\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 748, in _connect\n    raise last_error\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 732, in _connect\n    con = await _connect_addr(\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 632, in _connect_addr\n    return await __connect_addr(params, timeout, True, *args)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 676, in __connect_addr\n    tr, pr = await compat.wait_for(connector, timeout=timeout)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/compat.py\", line 103, in wait_for\n    return await asyncio.wait_for(fut, timeout)\n  File \"/home/bits/.pyenv/versions/3.9.23/lib/python3.9/asyncio/tasks.py\", line 479, in wait_for\n    return fut.result()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio~0211_pytest-randomly_asyncpg~0230/lib/python3.9/site-packages/asyncpg/connect_utils.py\", line 542, in _create_ssl_connection\n    tr, pr = await loop.create_connection(\n  File \"/home/bits/.pyenv/versions/3.9.23/lib/python3.9/asyncio/base_events.py\", line 1073, in create_connection\n    raise OSError('Multiple exceptions: {}'.format(\nOSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)\n",
       "error.type": "builtins.OSError",
       "language": "python",
-      "runtime-id": "ed7e8c2b2f2941df82375dfe28f4da8c",
+      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 25714
+      "_sampling_priority_v1": 1.0,
+      "process_id": 28476.0
     },
-    "duration": 4931917,
-    "start": 1692706986460845964
+    "duration": 13329709,
+    "start": 1772481639550424803
   }]]

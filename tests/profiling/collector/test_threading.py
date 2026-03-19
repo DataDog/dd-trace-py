@@ -13,7 +13,7 @@ from typing import Union
 from typing import cast
 import uuid
 
-import mock
+import mock  # type: ignore[import-untyped]
 import pytest
 
 from ddtrace import ext
@@ -592,17 +592,19 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        lock._update_name = mock.Mock(  # type: ignore[attr-defined]
+            side_effect=AssertionError("Unexpected frame in stack: 'fubar'")
+        )
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise RuntimeError
-        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise Exception
-        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
@@ -627,7 +629,7 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
         bsem.release()
 
         # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
+        wrapped_bsem = bsem.__wrapped__  # type: ignore[attr-defined]
         assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
@@ -1335,11 +1337,11 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             foo_func = foo
             test_bar_class = TestBar
 
-            _test_global_bar_instance = TestBar(self.lock_class)
+            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
             # Use the locks
             foo()
-            _test_global_bar_instance.bar()
+            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1484,7 +1486,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         with self.collector_class(capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             with pytest.raises(AttributeError):
-                _ = lock.this_attribute_does_not_exist  # type: ignore[attr-defined]
+                _ = lock.this_attribute_does_not_exist  # type: ignore[union-attr]
 
     def test_lock_slots_enforced(self) -> None:
         """Test that __slots__ is defined on _ProfiledLock for memory efficiency."""
@@ -1704,7 +1706,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
+            class CustomLock(self.lock_class):  # type: ignore[name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -1810,13 +1812,17 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
 
             # Create a semaphore-like lock - it should NOT be internal
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
             # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
+            assert not sem.is_internal, (  # type: ignore[union-attr]
+                f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
+            )
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+            internal_lock: LockTypeInst = (
+                sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
+            )
             assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
             assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
                 "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
@@ -1831,7 +1837,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
         with self.collector_class(capture_pct=0):
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
 
             # Test that blocking acquire succeeds
             result1 = sem.acquire(blocking=True)

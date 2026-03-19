@@ -101,10 +101,6 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-      - ARCH_TAG: "amd64"
-        PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: *X86_64_IMAGES
-        DD_SLIM_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -112,7 +108,7 @@ variables:
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
-    - export DD_SLIM_BUILD="${DD_SLIM_BUILD:-0}"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
@@ -120,6 +116,19 @@ variables:
       find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
+
+"build linux serverless":
+  extends: "build linux"
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
 
 "build macos":
   extends: .build_base
@@ -223,7 +232,26 @@ variables:
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
-"download windows wheels":
+"build windows":
+  stage: package
+  tags: ["windows-v2:2022"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["amd64", "x86"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "6"
+    CARGO_BUILD_JOBS: "6"
+  script:
+    - bash .gitlab/scripts/build-wheel-windows.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "debugwheelhouse/*.log"
+
+# Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
+# from the amd64 Windows runners available in GitLab).
+"download win_arm64 wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -332,6 +360,23 @@ download_dependency_wheels:
     reports:
       dotenv: package_version.env
 
+# Aggregates all Windows wheel artifacts
+# DEV: "ddtrace package" has a limit of 50 jobs it can depend on
+"collect windows wheels":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs:
+    - job: "build windows"
+      artifacts: true
+    - job: "download win_arm64 wheels"
+      artifacts: true
+  script:
+    - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+
 # Aggregate and validate all built wheels
 "ddtrace package":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
@@ -341,7 +386,7 @@ download_dependency_wheels:
     - "build linux"
     - "build macos"
     - "build sdist"
-    - "download windows wheels"
+    - "collect windows wheels"
     - "package version"
   script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow

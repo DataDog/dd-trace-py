@@ -10,6 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module
@@ -95,6 +96,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     is_pool_context = "connection_class" in kwargs
 
     with tracer.trace("postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)) as span:
+        maybe_set_service_source_tag(span, config.asyncpg)
         span._set_attribute(COMPONENT, config.asyncpg.integration_name)
         span._set_attribute(db.SYSTEM, DBMS_NAME)
 
@@ -132,8 +134,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)
 
         # dispatch DBM
