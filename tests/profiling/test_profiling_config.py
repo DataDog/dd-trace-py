@@ -10,7 +10,8 @@ class TestAdaptiveSamplingConfig:
         config = ProfilingConfig()
         assert config.stack.adaptive_sampling is True
         assert config.stack.adaptive_sampling_target_overhead == 1.0
-        assert config.stack.adaptive_sampling_max_interval == 1_000_000
+        assert config.stack.adaptive_sampling_max_interval == 100_000
+        assert config.stack.max_threads_per_cycle == 8
 
     def test_adaptive_sampling_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
@@ -46,5 +47,21 @@ class TestAdaptiveSamplingConfig:
 
         # Max interval must be less than 1s
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "2000000")
+        with pytest.raises(ValueError):
+            ProfilingConfig()
+
+    def test_max_threads_per_cycle(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_STACK_MAX_THREADS_PER_CYCLE", "16")
+        config = ProfilingConfig()
+        assert config.stack.max_threads_per_cycle == 16
+
+    def test_max_threads_per_cycle_validation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Must be at least 1
+        monkeypatch.setenv("_DD_PROFILING_STACK_MAX_THREADS_PER_CYCLE", "0")
+        with pytest.raises(ValueError):
+            ProfilingConfig()
+
+        # Must be at most 128
+        monkeypatch.setenv("_DD_PROFILING_STACK_MAX_THREADS_PER_CYCLE", "129")
         with pytest.raises(ValueError):
             ProfilingConfig()
