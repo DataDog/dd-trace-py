@@ -128,7 +128,7 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_forksafe_awakeable_periodic_service():
     import os
     from threading import Event
