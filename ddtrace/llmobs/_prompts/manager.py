@@ -1,6 +1,7 @@
 import atexit
 import json
 import threading
+import time
 from typing import Optional
 from typing import Union
 from urllib.parse import quote
@@ -35,6 +36,7 @@ class PromptManager:
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
+        ff_prompt_serving: bool = True,
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
@@ -46,6 +48,8 @@ class PromptManager:
 
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
+
+        self._ff_prompt_serving = ff_prompt_serving
 
         self._refresh_threads: dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
@@ -59,6 +63,33 @@ class PromptManager:
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry."""
+        if self._ff_prompt_serving:
+            return self._get_prompt_ff(prompt_id, label, fallback)
+        return self._get_prompt_http(prompt_id, label, fallback)
+
+    def _get_prompt_ff(
+        self,
+        prompt_id: str,
+        label: Optional[str] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """Retrieve a prompt template via feature flag evaluation."""
+        ff_prompt = self._fetch_from_ff(prompt_id, label)
+        if ff_prompt is not None:
+            telemetry.record_prompt_source("ff")
+            log.debug("Prompt %s resolved via FF", prompt_id)
+            return ff_prompt
+
+        log.debug("FF miss for prompt %s, falling back to HTTP", prompt_id)
+        return self._get_prompt_http(prompt_id, label, fallback)
+
+    def _get_prompt_http(
+        self,
+        prompt_id: str,
+        label: Optional[str] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """Retrieve a prompt template from cache or registry."""
         key = cache_key(prompt_id, label)
 
         if self._cache_enabled:
@@ -112,6 +143,10 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
+        if self._ff_prompt_serving:
+            result = self._fetch_from_ff(prompt_id, label)
+            if result is not None:
+                return result
         key = cache_key(prompt_id, label)
         prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
         return prompt
@@ -176,6 +211,47 @@ class PromptManager:
             with self._refresh_lock:
                 self._refresh_threads.pop(key, None)
             log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
+
+    def _fetch_from_ff(self, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
+        """Evaluate a prompt flag via the local OpenFeature provider.
+
+        Returns None on any failure (flag not found, parse error, provider not ready).
+        """
+        start_ns = time.time_ns()
+        try:
+            from openfeature import api as of_api
+            from openfeature.evaluation_context import EvaluationContext
+
+            client = of_api.get_client()
+            flag_key = "llmobs.prompt.{}".format(prompt_id)
+
+            context = None
+            if label:
+                context = EvaluationContext(attributes={"prompt_label": label})
+
+            details = client.get_object_details(flag_key, {}, context)
+
+            if details.variant is None:
+                telemetry.record_prompt_ff_error("not_found")
+                return None
+
+            value = details.value
+            if not isinstance(value, dict):
+                telemetry.record_prompt_ff_error("parse_error")
+                return None
+
+            from ddtrace.llmobs._prompts.ff_parser import parse_ff_prompt_payload
+
+            prompt = parse_ff_prompt_payload(value)
+            if prompt is not None:
+                telemetry.record_prompt_ff_eval_time((time.time_ns() - start_ns) / 1e6)
+            else:
+                telemetry.record_prompt_ff_error("parse_error")
+            return prompt
+        except Exception:
+            telemetry.record_prompt_ff_error("exception")
+            log.debug("FF prompt evaluation failed for prompt_id=%s", prompt_id, exc_info=True)
+            return None
 
     def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Refresh a prompt in the background."""

@@ -8,8 +8,10 @@ import pytest
 
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._prompts.ff_parser import parse_ff_prompt_payload
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs._prompts.utils import cache_key
 from tests.utils import override_global_config
 
 
@@ -44,6 +46,16 @@ DEV_PROMPT_RESPONSE = {
     "template": "DEBUG: Hello {name}!",
 }
 
+FF_MANAGED_PROMPT = ManagedPrompt(
+    id="greeting",
+    version="ff-v1",
+    label="production",
+    source="registry",
+    template="Hello {{name}} from FF!",
+    _uuid="ff-uuid-123",
+    _version_uuid="ff-version-uuid-456",
+)
+
 
 def _reset_prompt_state():
     """Reset LLMObs prompt manager state."""
@@ -52,6 +64,9 @@ def _reset_prompt_state():
     LLMObs.clear_prompt_cache(hot=True, warm=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+
+    ffe_config.experimental_flagging_provider_enabled = False
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +74,7 @@ def reset_llmobs():
     """Reset LLMObs state for each test."""
     _reset_prompt_state()
 
-    with override_global_config(dict(_dd_api_key="test-key")):
+    with override_global_config(dict(_dd_api_key="test-key", _llmobs_agentless_enabled=True)):
         yield
 
     _reset_prompt_state()
@@ -94,6 +109,15 @@ def mock_api(status: int = 200, body: Optional[Union[dict, str]] = None):
     """Create a mock API returning the given response."""
     conn = MockHTTPConnection(MockHTTPResponse(status, body))
     return patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn)
+
+
+def _make_manager(ff_prompt_serving=False, file_cache_enabled=False):
+    return PromptManager(
+        api_key="test-key",
+        base_url="https://api.datadoghq.com",
+        file_cache_enabled=file_cache_enabled,
+        ff_prompt_serving=ff_prompt_serving,
+    )
 
 
 def assert_prompt_matches_response(prompt, response, expected_source):
@@ -353,3 +377,123 @@ class TestPrompts:
                 manager._trigger_background_refresh("greeting:production", "greeting", "production")
 
         assert refresh_mock.call_count == 2
+
+    def test_ff_returns_prompt(self):
+        manager = _make_manager(ff_prompt_serving=True)
+        http_called = False
+
+        def tracking_conn(*a, **k):
+            nonlocal http_called
+            http_called = True
+            return MockHTTPConnection(MockHTTPResponse(500, "Should not be called"))
+
+        with patch.object(manager, "_fetch_from_ff", return_value=FF_MANAGED_PROMPT):
+            with patch("ddtrace.llmobs._prompts.manager.get_connection", tracking_conn):
+                prompt = manager.get_prompt("greeting", label="production")
+
+        assert prompt is FF_MANAGED_PROMPT
+        assert not http_called
+
+    def test_ff_fallback_when_flag_not_found(self):
+        manager = _make_manager(ff_prompt_serving=True)
+        http_called = False
+
+        def tracking_conn(*a, **k):
+            nonlocal http_called
+            http_called = True
+            return MockHTTPConnection(MockHTTPResponse(200, TEXT_PROMPT_RESPONSE))
+
+        with patch.object(manager, "_fetch_from_ff", return_value=None):
+            with patch("ddtrace.llmobs._prompts.manager.get_connection", tracking_conn):
+                prompt = manager.get_prompt("greeting", label="production", fallback="Fallback: {name}")
+
+        assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
+        assert prompt.format(name="Bob") == "Hello Bob!"
+        assert http_called
+
+    def test_ff_raises_when_no_fallback(self):
+        manager = _make_manager(ff_prompt_serving=True)
+
+        with patch.object(manager, "_fetch_from_ff", return_value=None):
+            with mock_api(500, "registry unavailable"):
+                with pytest.raises(ValueError) as exc_info:
+                    manager.get_prompt("greeting", label="production")
+
+        assert "registry unavailable" in str(exc_info.value)
+        assert "feature flag evaluation returned no result" not in str(exc_info.value)
+
+    def test_ff_does_not_use_cache(self):
+        manager = _make_manager(ff_prompt_serving=True)
+        manager._hot_cache.set(
+            cache_key("greeting", "production"),
+            ManagedPrompt.from_fallback("greeting", "Cached: {name}"),
+        )
+
+        with patch.object(manager, "_fetch_from_ff", return_value=FF_MANAGED_PROMPT) as fetch_from_ff:
+            prompt = manager.get_prompt("greeting", label="production")
+
+        assert prompt is FF_MANAGED_PROMPT
+        fetch_from_ff.assert_called_once_with("greeting", "production")
+
+    def test_enable_with_agent_initializes_prompt_manager_lazily(self):
+        with override_global_config(dict(_dd_api_key="test-key", _llmobs_ml_app="test-app")):
+            with patch("ddtrace.internal.openfeature._remoteconfiguration.enable_featureflags_rc") as mock_enable_rc:
+                with patch.object(PromptManager, "get_prompt", return_value=FF_MANAGED_PROMPT):
+                    LLMObs.enable(agentless_enabled=False)
+                    mock_enable_rc.assert_not_called()
+                    LLMObs.get_prompt("greeting")
+                mock_enable_rc.assert_called_once()
+
+            from ddtrace.internal.settings.openfeature import config as ffe_config
+
+            assert ffe_config.experimental_flagging_provider_enabled is True
+
+    def test_ff_parse_valid_text_template(self):
+        payload = {
+            "prompt_id": "greeting",
+            "prompt_uuid": "uuid-1",
+            "prompt_version_uuid": "uuid-2",
+            "version": "v1",
+            "label": "production",
+            "template": "Hello {{name}}!",
+        }
+        prompt = parse_ff_prompt_payload(payload)
+        assert prompt is not None
+        assert prompt.id == "greeting"
+        assert prompt.version == "v1"
+        assert prompt.label == "production"
+        assert prompt.source == "registry"
+        assert prompt.template == "Hello {{name}}!"
+        assert prompt._uuid == "uuid-1"
+        assert prompt._version_uuid == "uuid-2"
+
+    def test_ff_parse_valid_chat_template(self):
+        payload = {
+            "prompt_id": "assistant",
+            "prompt_uuid": "uuid-1",
+            "prompt_version_uuid": "uuid-2",
+            "version": "v2",
+            "label": "production",
+            "chat_template": [
+                {"role": "system", "content": "You help."},
+                {"role": "user", "content": "{{q}}"},
+            ],
+        }
+        prompt = parse_ff_prompt_payload(payload)
+        assert prompt is not None
+        assert prompt.id == "assistant"
+        assert isinstance(prompt.template, list)
+        assert len(prompt.template) == 2
+        assert prompt.template[0]["role"] == "system"
+        assert prompt.template[1]["content"] == "{{q}}"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            pytest.param({"version": "1", "template": "hi"}, id="missing_prompt_id"),
+            pytest.param({"prompt_id": "x", "template": "hi"}, id="missing_version"),
+            pytest.param({"prompt_id": "x", "version": "1"}, id="missing_template"),
+        ],
+    )
+    def test_ff_parse_missing_required_fields(self, payload):
+        assert parse_ff_prompt_payload(payload) is None

@@ -1948,9 +1948,30 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-
         if not api_key:
             raise ValueError("DD_API_KEY is required for the Prompt Registry")
+
+        ff_prompt_serving = not config._llmobs_agentless_enabled
+        if ff_prompt_serving:
+            from ddtrace.internal.settings.openfeature import config as ffe_config
+
+            ffe_config.experimental_flagging_provider_enabled = True
+            from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+
+            enable_featureflags_rc()
+
+            from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+            if remoteconfig_poller._worker is not None:
+                # Force immediate RC poll so flag data is available without
+                # waiting for the next polling interval (~20-30s)
+                remoteconfig_poller._worker.awake()
+
+            from openfeature import api as of_api
+
+            from ddtrace.openfeature import DataDogProvider
+
+            of_api.set_provider(DataDogProvider())
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -1965,6 +1986,7 @@ class LLMObs(Service):
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            ff_prompt_serving=ff_prompt_serving,
         )
 
     @classmethod
