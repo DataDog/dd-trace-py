@@ -11,7 +11,6 @@ import pytest
 import ddtrace
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
@@ -1534,15 +1533,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
 
-        # clear the hashtable to avoid collisions with previous tests
-        if apisec_enabled:
-            assert APIManager._instance, "APIManager instance should be initialized"
-            APIManager._instance._hashtable.clear()
-
         payload = {"mastercard": "5123456789123456"}
         with override_global_config(
             dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_delay=delay)
         ):
+            # Clear sampling state after AppSec has been reconfigured for this case.
+            if apisec_enabled:
+                assert APIManager._instance, "APIManager instance should be initialized"
+                APIManager._instance._hashtable.clear()
+
             self.update_tracer(interface)
             response = interface.client.post(
                 f"/asm/?priority={priority}",
@@ -1799,13 +1798,13 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)

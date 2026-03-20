@@ -16,7 +16,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69a5f87f00000000",
       "_dd.runtime_family": "python",
-      "_dd.svc.src": "flask",
+      "_dd.svc_src": "flask",
       "component": "flask",
       "flask.endpoint": "checkuser",
       "flask.url_rule": "/checkuser/<user_id>",

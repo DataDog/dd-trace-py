@@ -85,8 +85,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -101,8 +100,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric(db.ROWCOUNT, self.rowcount)
-                s.set_metric("db.rownumber", self.rownumber)
+                s._set_attribute(db.ROWCOUNT, self.rowcount)
+                if self.rownumber is not None:
+                    s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
         result = await self._trace_method(

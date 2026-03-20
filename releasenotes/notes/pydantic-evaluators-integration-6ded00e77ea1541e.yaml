@@ -1,0 +1,34 @@
+features:
+  - |
+    LLM Observability: Adds support for Pydantic AI evaluations in LLM Observability Experiments by allowing users to pass a pydantic evaluation (which inherents from ``Evaluator``) in an LLM Obs Experiment.
+
+    Example:
+    
+        from pydantic_evals.evaluators import EqualsExpected
+
+        from ddtrace.llmobs import LLMObs
+
+        dataset = LLMObs.create_dataset(
+            dataset_name="<DATASET_NAME>",
+            description="<DATASET_DESCRIPTION>",
+            records=[RECORD_1, RECORD_2, RECORD_3, ...]
+        )
+
+        def my_task(input_data, config):
+            return input_data["output"]
+
+        def my_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+            return evaluators_results["Correctness"].count(True)
+
+        equals_expected = EqualsExpected()
+
+        experiment = LLMObs.experiment(
+            name="<EXPERIMENT_NAME>",
+            task=my_task, 
+            dataset=dataset,
+            evaluators=[equals_expected],
+            summary_evaluators=[my_summary_evaluator], # optional, used to summarize the experiment results
+            description="<EXPERIMENT_DESCRIPTION>."
+        )
+
+        result = experiment.run()
