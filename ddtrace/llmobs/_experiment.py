@@ -730,12 +730,9 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
-    from pydantic_evals.evaluators import EvaluationReport as PydanticEvaluationReport
-    from pydantic_evals.evaluators import ReportCase as PydanticReportCase
-    from pydantic_evals.evaluators import ReportEvaluatorOutput as PydanticReportEvaluatorOutput
-    from pydantic_evals.evaluators.report import ReportReason as PydanticReportEvaluationReason
-    from pydantic_evals.evaluators.report import ReportScalar as PydanticReportEvaluationScalar
-
+    from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
+    from pydantic_evals.reporting import ReportCase as PydanticReportCase
+    
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
         eval_result = EvaluatorResult(
@@ -822,16 +819,6 @@ if PydanticEvaluator is not None:
             eval_result.value = json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)
             eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
         return eval_result
-
-    def get_pydantic_report_evaluator_result(
-        result: PydanticReportEvaluatorOutput,
-    ) -> SummaryEvaluatorResult:
-        _eval_result = cast(PydanticReportEvaluatorOutput, result)
-        eval_result = SummaryEvaluatorResult(
-            value=None,
-            reasoning=None,
-            assessment=None,
-        )
 
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
