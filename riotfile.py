@@ -251,10 +251,11 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
             },
             pkgs={
-                "pytest-asyncio": latest,
                 "anyio": latest,
                 "pydantic": latest,
                 "pydantic-settings": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
             },
         ),
         Venv(
