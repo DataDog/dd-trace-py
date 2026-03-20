@@ -68,6 +68,51 @@ class TestLLMObsAnthropic:
         message = {"content": []}
         assert _on_content_block_stop_chunk(chunk=None, message=message) == message
 
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_beta_tools_stream_input_json_delta_without_content_block_start(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
+    ):
+        """Regression test: beta API features (e.g. tool_search_tool_regex) can emit input_json_delta
+        chunks without a preceding content_block_start of type tool_use. This previously caused a
+        KeyError on the 'input' key, preventing the LLMObs span from being submitted.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream_no_content_block_start.yaml"):
+            stream = llm.beta.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=[
+                    *tools,
+                    {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                ],
+                betas=["tool-search-tool-regex-20251119"],
+                stream=True,
+            )
+            consume_stream(stream)
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-3-opus-20240229",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {"content": "Let me check the weather.", "role": "assistant"},
+                ],
+                metadata={"max_tokens": 200},
+                token_metrics={"input_tokens": 599, "output_tokens": 50, "total_tokens": 649},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=[
+                    *EXPECTED_TOOL_DEFINITIONS,
+                    {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                ],
+            )
+        )
+
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_stream_with_thinking(
@@ -270,6 +315,8 @@ class TestLLMObsAnthropic:
                     "total_tokens": 58,
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
@@ -975,6 +1022,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2173,
                             "cache_write_input_tokens": 2055,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 2055,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -1005,11 +1054,70 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2166,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 2055,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
                 ),
             ]
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 66), reason="1h cache TTL not available until 0.66.0, skipping.")
+    def test_completion_prompt_caching_1h_ttl(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Test that prompt caching metrics with 1h TTL are properly captured."""
+        llm = anthropic.Anthropic()
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            },
+        ]
+        with request_vcr.use_cassette("anthropic_completion_cache_write_1h_ttl.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=100,
+                system=large_system_prompt,
+                temperature=0.1,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[
+                    {
+                        "content": large_system_prompt[0]["text"],
+                        "role": "system",
+                    },
+                    {
+                        "content": "What are the key principles for designing scalable systems?",
+                        "role": "user",
+                    },
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "temperature": 0.1,
+                    "max_tokens": 100.0,
+                },
+                token_metrics={
+                    "input_tokens": 2073,
+                    "output_tokens": 100,
+                    "total_tokens": 2173,
+                    "cache_write_input_tokens": 2056,
+                    "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 2056,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
         )
 
     def test_completion_stream_prompt_caching(
@@ -1076,6 +1184,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1149,
                             "cache_write_input_tokens": 1031,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 1031,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -1106,6 +1216,8 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1142,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 1031,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )

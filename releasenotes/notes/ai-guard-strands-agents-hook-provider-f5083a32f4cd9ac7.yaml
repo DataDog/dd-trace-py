@@ -1,16 +1,5 @@
 ---
 features:
   - |
-    ASM: This introduces AI Guard support for the AWS Strands Agents SDK.
-    The new ``AIGuardStrandsHookProvider`` evaluates prompts, model responses, and tool calls
-    against Datadog AI Guard security policies at four agent lifecycle points
-    (``BeforeModelCallEvent``, ``AfterModelCallEvent``, ``BeforeToolCallEvent``, ``AfterToolCallEvent``).
-    To use it, pass the hook provider when creating an agent::
-
-        from strands import Agent
-        from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
-
-        agent = Agent(model=model, hooks=[AIGuardStrandsHookProvider()])
-
-    The ``strands-agents`` package is optional. When it is not installed,
-    ``AIGuardStrandsHookProvider`` is replaced by a no-op stub that logs a warning.
+    AI Guard: This introduces AI Guard support for ``Strands Agents<https://strandsagents.com/>``. The Plugin API requires 
+    ``strands-agents>=1.29.0``; the HookProvider works with any version that exposes the hooks system.

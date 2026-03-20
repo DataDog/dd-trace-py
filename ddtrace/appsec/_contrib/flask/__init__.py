@@ -81,7 +81,7 @@ def _on_request_span_modifier(
             elif content_type in ("application/xml", "text/xml"):
                 req_body = xmltodict.parse(request.get_data())
             elif hasattr(request, "form"):
-                req_body = request.form.to_dict()
+                req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}
             else:
                 # no raw body
                 req_body = None
@@ -98,7 +98,7 @@ def _on_request_span_modifier(
 
 
 def _on_flask_blocked_request(span):
-    span._set_tag_str(http.STATUS_CODE, "403")
+    span._set_attribute(http.STATUS_CODE, "403")
     request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
@@ -106,12 +106,12 @@ def _on_flask_blocked_request(span):
         if base_url and query_string:
             _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
         if query_string and core.find_item("flask_config").trace_query_string:
-            span._set_tag_str(http.QUERY_STRING, query_string)
+            span._set_attribute(http.QUERY_STRING, query_string)
         if request.method is not None:
-            span._set_tag_str(http.METHOD, request.method)
+            span._set_attribute(http.METHOD, request.method)
         user_agent = _get_request_header_user_agent(request.headers)
         if user_agent:
-            span._set_tag_str(http.USER_AGENT, user_agent)
+            span._set_attribute(http.USER_AGENT, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
@@ -205,21 +205,21 @@ def _wsgi_make_block_content(ctx, construct_url):
         resp_headers = [("content-type", ctype)]
     status = block_config.status_code
     try:
-        req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
-            req_span._set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_tag_str(http.STATUS_CODE, str(status))
+            req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span._set_attribute(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            req_span._set_tag_str(http.QUERY_STRING, query_string)
+            req_span._set_attribute(http.QUERY_STRING, query_string)
         method = environ.get("REQUEST_METHOD")
         if method:
-            req_span._set_tag_str(http.METHOD, method)
+            req_span._set_attribute(http.METHOD, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span._set_tag_str(http.USER_AGENT, user_agent)
+            req_span._set_attribute(http.USER_AGENT, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))

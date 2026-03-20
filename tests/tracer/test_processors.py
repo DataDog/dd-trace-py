@@ -15,7 +15,6 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
@@ -643,7 +642,7 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing(trace
     tracer.flush()
 
     # The trace is updated to be a keep, but we already span sampled child
-    root.set_tag(MANUAL_KEEP_KEY)
+    root._override_sampling_decision(USER_KEEP)
     root.finish()
     assert_span_sampling_decision_tags(child, None, None, None)
     assert child.context.sampling_priority == USER_KEEP

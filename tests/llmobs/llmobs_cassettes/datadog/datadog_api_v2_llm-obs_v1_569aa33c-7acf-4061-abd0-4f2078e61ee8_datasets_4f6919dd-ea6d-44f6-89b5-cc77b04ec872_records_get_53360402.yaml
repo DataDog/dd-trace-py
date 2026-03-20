@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/4f6919dd-ea6d-44f6-89b5-cc77b04ec872/records
+  response:
+    body:
+      string: '{"data":[{"id":"15bcb0ba-bffa-4daa-9691-d7d8ffe18231","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"canonical_id":"daa54d43-ab8e-44bb-a4bc-f4e5e8948190","created_at":"2026-02-27T16:35:19.028264Z","dataset_id":"4f6919dd-ea6d-44f6-89b5-cc77b04ec872","expected_output":"","input":{"prompt":"hello"},"metadata":{},"tags":["env:staging"],"updated_at":"2026-02-27T16:35:19.028264Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '441'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 27 Feb 2026 16:35:21 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

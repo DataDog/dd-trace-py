@@ -14,6 +14,7 @@ from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
+from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsPlugin
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
 from tests.appsec.ai_guard.strands_hooks.conftest import after_model_event
@@ -21,6 +22,7 @@ from tests.appsec.ai_guard.strands_hooks.conftest import after_tool_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_model_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_tool_event
 from tests.appsec.ai_guard.strands_hooks.conftest import make_hook
+from tests.appsec.ai_guard.strands_hooks.conftest import make_plugin
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 
 
@@ -222,7 +224,7 @@ class TestConvertStrandsMessages:
 
 
 # ---------------------------------------------------------------------------
-# _on_before_model_call (via BeforeModelCallEvent)
+# _on_before_model_call_base (via BeforeModelCallEvent)
 # ---------------------------------------------------------------------------
 
 
@@ -234,7 +236,7 @@ class TestBeforeModelCall:
             messages=[{"role": "user", "content": [{"text": "Hello"}]}],
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -248,7 +250,7 @@ class TestBeforeModelCall:
         )
 
         with pytest.raises(AIGuardAbortError):
-            ai_guard_strands_hook._on_before_model_call(event)
+            ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -260,7 +262,7 @@ class TestBeforeModelCall:
             system_prompt="You are helpful",
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -268,7 +270,7 @@ class TestBeforeModelCall:
     def test_empty_messages(self, mock_execute_request, ai_guard_strands_hook):
         event = before_model_event(messages=[])
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_execute_request.assert_not_called()
 
@@ -283,7 +285,7 @@ class TestBeforeModelCall:
             ],
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -305,7 +307,7 @@ class TestBeforeModelCall:
             ],
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         payload = mock_execute_request.call_args[0][1]
         sent_messages = payload["data"]["attributes"]["messages"]
@@ -315,7 +317,7 @@ class TestBeforeModelCall:
 
 
 # ---------------------------------------------------------------------------
-# _on_after_model_call (via AfterModelCallEvent)
+# _on_after_model_call_base (via AfterModelCallEvent)
 # ---------------------------------------------------------------------------
 
 
@@ -327,7 +329,7 @@ class TestAfterModelCall:
             response_message={"role": "assistant", "content": [{"text": "Here is the answer."}]},
         )
 
-        ai_guard_strands_hook._on_after_model_call(event)
+        ai_guard_strands_hook._on_after_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -341,7 +343,7 @@ class TestAfterModelCall:
         )
 
         with pytest.raises(AIGuardAbortError):
-            ai_guard_strands_hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -349,7 +351,7 @@ class TestAfterModelCall:
     def test_no_stop_response(self, mock_execute_request, ai_guard_strands_hook):
         event = after_model_event(response_message=None)
 
-        ai_guard_strands_hook._on_after_model_call(event)
+        ai_guard_strands_hook._on_after_model_call_base(event)
 
         mock_execute_request.assert_not_called()
 
@@ -363,7 +365,7 @@ class TestAfterModelCall:
             },
         )
 
-        ai_guard_strands_hook._on_after_model_call(event)
+        ai_guard_strands_hook._on_after_model_call_base(event)
 
         mock_execute_request.assert_not_called()
 
@@ -381,7 +383,7 @@ class TestAfterModelCall:
             },
         )
 
-        ai_guard_strands_hook._on_after_model_call(event)
+        ai_guard_strands_hook._on_after_model_call_base(event)
 
         mock_execute_request.assert_called_once()
         payload = mock_execute_request.call_args[0][1]
@@ -393,7 +395,7 @@ class TestAfterModelCall:
 
 
 # ---------------------------------------------------------------------------
-# _on_before_tool_call (via BeforeToolCallEvent)
+# _on_before_tool_call_base (via BeforeToolCallEvent)
 # ---------------------------------------------------------------------------
 
 
@@ -406,7 +408,7 @@ class TestBeforeToolCall:
             messages=[{"role": "user", "content": [{"text": "Calculate 2+2"}]}],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -420,7 +422,7 @@ class TestBeforeToolCall:
             messages=[{"role": "user", "content": [{"text": "Delete everything"}]}],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'shell_exec' has been canceled for security reasons"
         mock_execute_request.assert_called_once()
@@ -437,7 +439,7 @@ class TestBeforeToolCall:
         )
 
         with pytest.raises(AIGuardAbortError):
-            hook._on_before_tool_call(event)
+            hook._on_before_tool_call_base(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_tool_call_appended_to_history(self, mock_execute_request, ai_guard_strands_hook):
@@ -447,7 +449,7 @@ class TestBeforeToolCall:
             messages=[{"role": "user", "content": [{"text": "Search for foo"}]}],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         call_args = mock_execute_request.call_args
         payload = call_args[0][1]
@@ -461,7 +463,7 @@ class TestBeforeToolCall:
 
 
 # ---------------------------------------------------------------------------
-# _on_after_tool_call (via AfterToolCallEvent)
+# _on_after_tool_call_base (via AfterToolCallEvent)
 # ---------------------------------------------------------------------------
 
 
@@ -475,7 +477,7 @@ class TestAfterToolCall:
             messages=[{"role": "user", "content": [{"text": "Calculate 2+2"}]}],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -491,7 +493,7 @@ class TestAfterToolCall:
             messages=[{"role": "user", "content": [{"text": "Search"}]}],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         mock_execute_request.assert_called_once()
         assert event.result["content"][0]["text"] == (
@@ -511,7 +513,7 @@ class TestAfterToolCall:
         )
 
         with pytest.raises(AIGuardAbortError):
-            hook._on_after_tool_call(event)
+            hook._on_after_tool_call_base(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_tool_result_included_in_payload(self, mock_execute_request, ai_guard_strands_hook):
@@ -522,7 +524,7 @@ class TestAfterToolCall:
             messages=[{"role": "user", "content": [{"text": "Search for foo"}]}],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         payload = mock_execute_request.call_args[0][1]
         sent_messages = payload["data"]["attributes"]["messages"]
@@ -550,7 +552,7 @@ class TestAfterToolCall:
             messages=[],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         mock_execute_request.assert_called_once()
 
@@ -565,7 +567,7 @@ class TestAfterToolCall:
             messages=[],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         assert event.result["content"] == [
             {"text": "[DATADOG AI GUARD] 'search' has been canceled for security reasons"}
@@ -573,7 +575,7 @@ class TestAfterToolCall:
 
 
 # ---------------------------------------------------------------------------
-# register_hooks
+# HookProvider: register_hooks (legacy API)
 # ---------------------------------------------------------------------------
 
 
@@ -618,6 +620,116 @@ class TestRegisterHooks:
 
 
 # ---------------------------------------------------------------------------
+# Plugin: @hook decorator discovery
+# ---------------------------------------------------------------------------
+
+
+class TestPluginHookDiscovery:
+    """Verify that the Plugin subclass exposes hooks via @hook decorators."""
+
+    def test_plugin_has_name(self):
+        assert AIGuardStrandsPlugin.name == "ai-guard"
+
+    def test_plugin_has_hook_methods(self):
+        assert hasattr(AIGuardStrandsPlugin, "on_before_model_call")
+        assert hasattr(AIGuardStrandsPlugin, "on_after_model_call")
+        assert hasattr(AIGuardStrandsPlugin, "on_before_tool_call")
+        assert hasattr(AIGuardStrandsPlugin, "on_after_tool_call")
+
+    def test_plugin_hook_methods_are_decorated(self):
+        """Each hook method should be marked by the @hook decorator."""
+        for method_name in ("on_before_model_call", "on_after_model_call", "on_before_tool_call", "on_after_tool_call"):
+            method = getattr(AIGuardStrandsPlugin, method_name)
+            assert getattr(method, "_hook_event_types", None) is not None, (
+                f"{method_name} should be decorated with @hook"
+            )
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_before_model_call(self, mock_execute_request, ai_guard_strands_plugin):
+        """Plugin @hook method delegates to the shared base logic."""
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = before_model_event(
+            messages=[{"role": "user", "content": [{"text": "Hello"}]}],
+        )
+
+        ai_guard_strands_plugin.on_before_model_call(event)
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_after_model_call(self, mock_execute_request, ai_guard_strands_plugin):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = after_model_event(
+            response_message={"role": "assistant", "content": [{"text": "Answer"}]},
+        )
+
+        ai_guard_strands_plugin.on_after_model_call(event)
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_before_tool_call(self, mock_execute_request, ai_guard_strands_plugin):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = before_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+            messages=[],
+        )
+
+        ai_guard_strands_plugin.on_before_tool_call(event)
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_after_tool_call(self, mock_execute_request, ai_guard_strands_plugin):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+            tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
+            messages=[],
+        )
+
+        ai_guard_strands_plugin.on_after_tool_call(event)
+
+        mock_execute_request.assert_called_once()
+
+    @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_before_model_call_block_raises(self, mock_execute_request, ai_guard_strands_plugin, decision):
+        mock_execute_request.return_value = mock_evaluate_response(decision)
+        event = before_model_event(
+            messages=[{"role": "user", "content": [{"text": "malicious"}]}],
+        )
+
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_strands_plugin.on_before_model_call(event)
+
+    @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_on_before_tool_call_block_cancels(self, mock_execute_request, ai_guard_strands_plugin, decision):
+        mock_execute_request.return_value = mock_evaluate_response(decision)
+        event = before_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "shell_exec", "input": {"cmd": "rm -rf /"}},
+            messages=[],
+        )
+
+        ai_guard_strands_plugin.on_before_tool_call(event)
+
+        assert event.cancel_tool == "[DATADOG AI GUARD] 'shell_exec' has been canceled for security reasons"
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_raise_error_on_tool_calls(self, mock_execute_request):
+        mock_execute_request.return_value = mock_evaluate_response("DENY")
+        plugin = make_plugin(raise_error_on_tool_calls=True)
+        event = before_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "shell_exec", "input": {}},
+            messages=[],
+        )
+
+        with pytest.raises(AIGuardAbortError):
+            plugin.on_before_tool_call(event)
+
+
+# ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
 
@@ -631,7 +743,7 @@ class TestErrorHandling:
         )
 
         # Should not raise
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_after_model_call_raises_on_block(self, mock_execute_request, ai_guard_strands_hook):
@@ -641,7 +753,7 @@ class TestErrorHandling:
         event = after_model_event(response_message=response_message)
 
         with pytest.raises(AIGuardAbortError):
-            ai_guard_strands_hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call_base(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_before_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
@@ -652,7 +764,7 @@ class TestErrorHandling:
         )
 
         # Should not raise
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_after_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
@@ -664,7 +776,7 @@ class TestErrorHandling:
         )
 
         # Should not raise
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
 
 # ---------------------------------------------------------------------------
@@ -681,3 +793,12 @@ class TestConstructorParameters:
         hook = make_hook(detailed_error=True, raise_error_on_tool_calls=True)
         assert hook._detailed_error is True
         assert hook._raise_error_on_tool_calls is True
+
+    def test_plugin_default_parameters(self, ai_guard_strands_plugin):
+        assert ai_guard_strands_plugin._detailed_error is False
+        assert ai_guard_strands_plugin._raise_error_on_tool_calls is False
+
+    def test_plugin_custom_parameters(self):
+        plugin = make_plugin(detailed_error=True, raise_error_on_tool_calls=True)
+        assert plugin._detailed_error is True
+        assert plugin._raise_error_on_tool_calls is True
