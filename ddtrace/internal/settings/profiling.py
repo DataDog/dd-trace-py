@@ -295,11 +295,11 @@ class ProfilingConfigStack(DDConfig):
 
     adaptive_sampling_target_overhead = DDConfig.v(
         float,
-        "adaptive_sampling.target_overhead",
+        "adaptive_sampling.target_overhead_pct",
         default=1.0,
         validator=validators.range(1, 100),
         help_type="Float",
-        help="Target CPU overhead percentage for adaptive sampling. Must be between 0 and 100.",
+        help="Target CPU overhead percentage for adaptive sampling. Must be between 1 and 100.",
         private=True,
     )
 

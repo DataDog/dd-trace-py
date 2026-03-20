@@ -688,7 +688,10 @@ static PyMethodDef stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
-    { "set_target_overhead", stack_set_target_overhead, METH_VARARGS, "Set target overhead for adaptive sampling" },
+    { "set_target_overhead",
+      stack_set_target_overhead,
+      METH_VARARGS,
+      "Set target overhead for adaptive sampling (e.g. 10 for 10% of the app's own CPU time)" },
     { "set_max_sampling_period",
       stack_set_max_sampling_period,
       METH_VARARGS,
