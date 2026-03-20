@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <unordered_set>
 
 // Platform-specific includes for thread naming
 #if defined(__linux__)
@@ -30,6 +31,9 @@
 #define py_is_finalizing _Py_IsFinalizing
 #endif
 
+// Forward declaration: PeriodicThread is defined later in this file.
+typedef struct periodic_thread PeriodicThread;
+
 struct module_state
 {
     // At-exit barrier to avoid making Python VM calls during or after shutdown.
@@ -39,6 +43,15 @@ struct module_state
 
     // Mapping of active periodic thread IDs to their PeriodicThread objects.
     PyObject* periodic_threads{ nullptr };
+
+    // Raw (non-owning) pointers to PeriodicThread objects that have stopped
+    // naturally (removed themselves from periodic_threads) but whose Python
+    // objects have not yet been deallocated. _detach_stopped_threads() iterates
+    // this set in the parent's pre-fork hook to detach their handles before the
+    // fork, so the child inherits non-joinable handles and dealloc never needs
+    // to make any OS call on them.
+    // All accesses are under the GIL so no additional locking is needed.
+    std::unordered_set<PeriodicThread*>* stopped_threads{ nullptr };
 
     inline bool is_finalizing() const noexcept
     {
@@ -533,8 +546,16 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
                 PeriodicThread__on_shutdown(self);
 
-            // Remove the thread from the mapping of active threads
+            // Remove the thread from the mapping of active threads.
             PyDict_DelItem(state->periodic_threads, self->ident);
+
+            // Track naturally-stopped threads so the pre-fork parent hook
+            // (_detach_stopped_threads) can detach their handles before the
+            // fork. Threads stopped via _before_fork() have _skip_shutdown ==
+            // true; those are handled by _after_fork() and must NOT be added
+            // here.
+            if (!self->_skip_shutdown && state->stopped_threads != nullptr)
+                state->stopped_threads->insert(self);
         }
 
         // Notify the join method that the thread has stopped
@@ -646,27 +667,79 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
-    // In the child process the parent's thread no longer exists. Detach before
-    // destroying the std::thread object so its destructor does not call
-    // std::terminate() on a still-joinable handle.
-    if (self->_thread != nullptr && self->_thread->joinable())
-        self->_thread->detach();
-    self->_thread = nullptr;
+    // The parent process passes force=True to this method to override
+    // __autorestart__ and always restart the thread. The parent must restore
+    // every thread that was running before the fork, regardless of the
+    // autorestart preference (which only governs the child). The default
+    // force=False preserves the existing child-side behaviour: threads with
+    // __autorestart__ = False are cleaned up but not restarted.
+    int force = 0;
+    static const char* kwlist[] = { "force", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", (char**)kwlist, &force))
+        return NULL;
 
+    // Check the __autorestart__ attribute (class or instance). Subclasses and
+    // instances can set __autorestart__ = False to opt out of automatic
+    // restart after fork in the child. When force=True (parent path) this
+    // check is skipped and the thread is always restarted.
+    bool should_restart = static_cast<bool>(force);
+    if (!should_restart) {
+        PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
+        if (autorestart != NULL) {
+            should_restart = (PyObject_IsTrue(autorestart) == 1);
+            Py_DECREF(autorestart);
+        } else {
+            PyErr_Clear();
+        }
+    }
+
+    // Always reset fork-specific state regardless of restart decision.
     self->_stopping = false;
     self->_skip_shutdown = false;
-
-    // During prefork, stop() sets _request to wake the thread promptly so it
-    // can exit before fork. That wakeup should not trigger a synthetic
-    // periodic() run right after restart.
+    // During prefork, _before_fork() sets REQUEST_REASON_FORK_STOP to wake
+    // the thread promptly. Clear it so it does not trigger a spurious
+    // periodic() call after restart (or linger in the no-restart case).
     self->_request->clear(REQUEST_REASON_FORK_STOP);
-    self->_started->clear();
-    self->_stopped->clear();
-    self->_served->clear();
 
-    PeriodicThread_start(self, NULL);
+    // _before_fork() detaches every handle in the parent before the fork, so
+    // joinable() is always false here. No OS call needed on the inherited handle.
+
+    if (should_restart) {
+        self->_thread = nullptr;
+
+        self->_started->clear();
+        self->_stopped->clear();
+        self->_served->clear();
+
+        PeriodicThread_start(self, NULL);
+    } else {
+        // No restart: the common cleanup above is sufficient for fork-specific
+        // state. Two additional invariants are preserved intentionally:
+        //
+        // AIDEV-NOTE: We do NOT null _thread. The handle is non-joinable at
+        // this point (_before_fork() detaches all running-thread handles in
+        // the parent before the fork). Keeping it non-null allows stop() — which guards on
+        // _thread == nullptr — to be called without raising "Thread not
+        // started".
+        //
+        // AIDEV-NOTE: We do NOT clear _stopped. It was set when the thread
+        // exited in the parent; leaving it set means join() returns immediately
+        // rather than blocking indefinitely.
+
+        // Remove the stale parent-process ident from periodic_threads so
+        // this thread is not picked up by subsequent fork cycles. The thread
+        // removes itself on exit, so the entry may already be gone — ignore
+        // the KeyError in that case.
+        if (self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL) {
+            if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
+                PyErr_Clear();
+        }
+        Py_DECREF(self->ident);
+        Py_INCREF(Py_None);
+        self->ident = Py_None;
+    }
 
     Py_RETURN_NONE;
 }
@@ -690,6 +763,20 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
         self->_request->set(REQUEST_REASON_FORK_STOP);
     }
 
+    // Detach the handle here, in the parent, while the OS thread descriptor is
+    // guaranteed valid. The thread is still running but will stop promptly
+    // (FORK_STOP was just published). std::thread::detach() on a live thread is
+    // well-defined: the thread continues to run to completion and its resources
+    // are reclaimed automatically. Detaching before the fork — rather than in
+    // _after_fork() in the child — guarantees that the child inherits a
+    // non-joinable handle and never needs to make any OS call on it, avoiding
+    // SIGSEGV if the descriptor is recycled between fork() and _after_fork().
+    // The Python-level join() that follows still works correctly: it waits on
+    // _stopped (which the thread sets before exiting), and skips the OS join
+    // since joinable() is already false.
+    if (self->_thread != nullptr && self->_thread->joinable())
+        self->_thread->detach();
+
     Py_RETURN_NONE;
 }
 
@@ -711,10 +798,12 @@ PeriodicThread_dealloc(PeriodicThread* self)
     if (self->_thread != NULL && self->_thread->get_id() == std::this_thread::get_id())
         return;
 
-    // Unmap the PeriodicThread
+    // Unmap the PeriodicThread from periodic_threads and stopped_threads.
     if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL &&
         PyDict_Contains(self->_state->periodic_threads, self->ident))
         PyDict_DelItem(self->_state->periodic_threads, self->ident);
+    if (self->_state != nullptr && self->_state->stopped_threads != nullptr)
+        self->_state->stopped_threads->erase(self);
 
     Py_XDECREF(self->name);
     Py_XDECREF(self->_target);
@@ -723,14 +812,17 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->ident);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
-    // If join() was never called, the std::thread is still joinable. The
-    // GILGuard destructor has already released the GIL (that release is what
-    // allowed this thread to acquire it and reach dealloc), so join() will not
-    // block on GIL contention — it just waits for the OS thread to finish its
-    // final stack unwind.
-    if (self->_thread != nullptr && self->_thread->joinable())
-        self->_thread->join();
-    self->_thread = nullptr;
+    // _after_fork() detaches threads that were running at fork time;
+    // _detach_stopped_threads() detaches threads that had already stopped
+    // before the fork (called in the parent's pre-fork hook). In both cases
+    // joinable() is false when dealloc runs in the child, so the guard below
+    // is a no-op there. In the parent, if stop() was called without join(),
+    // detach() releases the OS handle without blocking.
+    if (self->_thread != nullptr) {
+        if (self->_thread->joinable())
+            self->_thread->detach();
+        self->_thread = nullptr;
+    }
 
     self->_started = nullptr;
     self->_stopped = nullptr;
@@ -749,7 +841,10 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "stop", (PyCFunction)PeriodicThread_stop, METH_NOARGS, "Stop the thread" },
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
-    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
+    { "_after_fork",
+      (PyCFunction)(void*)PeriodicThread__after_fork,
+      METH_VARARGS | METH_KEYWORDS,
+      "Refresh the thread after fork" },
     { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
@@ -852,12 +947,52 @@ _threads_clear(PyObject* module)
 static void
 _threads_free(void* module)
 {
+    module_state* state = (module_state*)PyModule_GetState((PyObject*)module);
+    if (state != nullptr) {
+        delete state->stopped_threads;
+        state->stopped_threads = nullptr;
+    }
     _threads_clear((PyObject*)module);
+}
+
+// ----------------------------------------------------------------------------
+// Called in the parent process before fork to detach the _thread handle of
+// every PeriodicThread that stopped naturally (not via _before_fork()). Such
+// threads are not in periodic_threads so _after_fork() is never called for
+// them. Detaching in the parent — where OS thread descriptors of joinable
+// terminated threads are guaranteed valid — makes joinable() false before the
+// fork, so the child inherits non-joinable handles and dealloc never needs to
+// make any OS call on them.
+static PyObject*
+_threads_detach_stopped(PyObject* module, PyObject* Py_UNUSED(args))
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+    if (state == nullptr || state->stopped_threads == nullptr)
+        Py_RETURN_NONE;
+
+    for (PeriodicThread* t : *state->stopped_threads) {
+        // Called in the parent before fork. A joinable thread's OS descriptor
+        // is not recycled until it is explicitly joined or detached, so these
+        // handles are guaranteed to be valid here. Detaching makes joinable()
+        // false before the child is created; the child then inherits
+        // non-joinable handles and dealloc never needs to make any OS call on
+        // them. We do NOT null _thread here so that join() still works in the
+        // parent after the fork returns.
+        if (t->_thread != nullptr && t->_thread->joinable())
+            t->_thread->detach();
+    }
+    state->stopped_threads->clear();
+
+    Py_RETURN_NONE;
 }
 
 // ----------------------------------------------------------------------------
 static PyMethodDef _threads_methods[] = {
     { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { "_detach_stopped_threads",
+      _threads_detach_stopped,
+      METH_NOARGS,
+      "Detach naturally-stopped thread handles in the parent before fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
@@ -896,6 +1031,8 @@ PyInit__threads(void)
         state->periodic_threads = PyDict_New();
         if (state->periodic_threads == NULL)
             goto error;
+
+        state->stopped_threads = new std::unordered_set<PeriodicThread*>();
 
         // Register the atexit hook — the sole writer of module_state::at_exit.
         {
