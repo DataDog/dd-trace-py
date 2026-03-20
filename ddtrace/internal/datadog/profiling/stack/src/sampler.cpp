@@ -239,6 +239,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 sample_count = max_threads_per_sample;
             }
 
+            // Apply inverse-probability weighting: each sampled thread represents n/k threads,
+            // so scale wall_time_us up to preserve correct absolute wall-time totals.
+            const size_t n_total = thread_candidates.size();
+            const microsecond_t effective_wall_time_us =
+              (sample_count < n_total)
+                ? wall_time_us * static_cast<microsecond_t>(n_total) / static_cast<microsecond_t>(sample_count)
+                : wall_time_us;
+
             size_t fallback_idx = sample_count;
             for (size_t i = 0; i < sample_count; i++) {
                 const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
@@ -259,7 +267,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         continue;
                     }
                 }
-                auto success = it->second->sample(*echion, &thread_candidates[i].tstate_copy, wall_time_us);
+                auto success = it->second->sample(*echion, &thread_candidates[i].tstate_copy, effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
