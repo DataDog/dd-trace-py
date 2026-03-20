@@ -232,7 +232,26 @@ variables:
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
-"download windows wheels":
+"build windows":
+  stage: package
+  tags: ["windows-v2:2022"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["amd64", "x86"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "6"
+    CARGO_BUILD_JOBS: "6"
+  script:
+    - bash .gitlab/scripts/build-wheel-windows.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "debugwheelhouse/*.log"
+
+# Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
+# from the amd64 Windows runners available in GitLab).
+"download win_arm64 wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -341,6 +360,23 @@ download_dependency_wheels:
     reports:
       dotenv: package_version.env
 
+# Aggregates all Windows wheel artifacts
+# DEV: "ddtrace package" has a limit of 50 jobs it can depend on
+"collect windows wheels":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs:
+    - job: "build windows"
+      artifacts: true
+    - job: "download win_arm64 wheels"
+      artifacts: true
+  script:
+    - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+
 # Aggregate and validate all built wheels
 "ddtrace package":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
@@ -350,7 +386,7 @@ download_dependency_wheels:
     - "build linux"
     - "build macos"
     - "build sdist"
-    - "download windows wheels"
+    - "collect windows wheels"
     - "package version"
   script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
