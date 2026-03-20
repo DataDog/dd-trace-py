@@ -147,7 +147,7 @@ def test_query_string_tracing(tracer, test_spans):
         assert request_span.resource == "GET /"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
-        assert request_span.get_tag("http.status_code") == "200"
+        assert request_span.get_metric("http.status_code") == 200
         assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
         assert request_span.get_tag("component") == "wsgi"
         assert request_span.get_tag("span.kind") == "server"

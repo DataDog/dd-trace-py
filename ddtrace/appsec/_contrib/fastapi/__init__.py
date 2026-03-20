@@ -92,7 +92,7 @@ def _asgi_make_block_content(ctx, url):
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
             req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_attribute(http.STATUS_CODE, str(status))
+        req_span._set_attribute(http.STATUS_CODE, status)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware.integration_config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:

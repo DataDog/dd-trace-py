@@ -2964,7 +2964,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("region") == "us-east-1"
             assert span.get_tag("aws.agent") == "botocore"
-            assert span.get_tag("http.status_code") == "200"
+            assert span.get_metric("http.status_code") == 200
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
@@ -2988,7 +2988,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.region") == "us-east-1"
             assert span.get_tag("region") == "us-east-1"
             assert span.get_tag("aws.agent") == "botocore"
-            assert span.get_tag("http.status_code") == "200"
+            assert span.get_metric("http.status_code") == 200
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 

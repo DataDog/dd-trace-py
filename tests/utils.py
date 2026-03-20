@@ -77,9 +77,8 @@ def assert_is_not_measured(span):
 
 def assert_span_http_status_code(span, code):
     """Assert on the span's 'http.status_code' tag"""
-    tag = span.get_tag(http.STATUS_CODE)
-    code = str(code)
-    assert tag == code, "%r != %r" % (tag, code)
+    attr = span._get_numeric_attribute(http.STATUS_CODE)
+    assert attr == int(code), "%r != %r" % (attr, code)
 
 
 @contextlib.contextmanager

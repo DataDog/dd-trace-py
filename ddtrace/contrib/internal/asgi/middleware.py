@@ -112,7 +112,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_attribute(http.STATUS_CODE, "500")
+    span._set_attribute(http.STATUS_CODE, 500)
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:

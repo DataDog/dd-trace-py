@@ -104,7 +104,7 @@ def test_200(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/200"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
@@ -124,7 +124,7 @@ def test_200_query_string(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/?foo=bar"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("http.query.string") == "foo=bar"
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
@@ -144,7 +144,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/?foo=bar&x=y"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
@@ -163,7 +163,7 @@ def test_201(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/201"
-    assert request_span.get_tag("http.status_code") == "201"
+    assert request_span.get_metric("http.status_code") == 201
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
@@ -182,7 +182,7 @@ def test_404(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/404"
-    assert request_span.get_tag("http.status_code") == "404"
+    assert request_span.get_metric("http.status_code") == 404
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -198,7 +198,7 @@ def test_500error(client, tracer, test_spans):
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/500"
-    assert request_span.get_tag("http.status_code") == "500"
+    assert request_span.get_metric("http.status_code") == 500
     assert request_span.get_tag(ERROR_MSG) == "Server error"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "starlette"
@@ -223,7 +223,7 @@ def test_distributed_tracing(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
     assert request_span.get_tag("component") == "starlette"
@@ -277,7 +277,7 @@ def test_streaming_response(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/stream"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -296,7 +296,7 @@ def test_file_response(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -315,7 +315,7 @@ def test_invalid_path_param(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/test"
-    assert request_span.get_tag("http.status_code") == "404"
+    assert request_span.get_metric("http.status_code") == 404
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -334,7 +334,7 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -353,7 +353,7 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1/info"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -372,7 +372,7 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1/name"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_metric("http.status_code") == 200
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -389,7 +389,7 @@ def test_table_query(client, tracer, test_spans):
     assert starlette_span.error == 0
     assert starlette_span.get_tag("http.method") == "POST"
     assert starlette_span.get_tag("http.url") == "http://testserver/notes"
-    assert starlette_span.get_tag("http.status_code") == "200"
+    assert starlette_span.get_metric("http.status_code") == 200
     assert starlette_span.get_tag("component") == "starlette"
     assert starlette_span.get_tag("span.kind") == "server"
 
@@ -416,7 +416,7 @@ def test_table_query(client, tracer, test_spans):
     assert starlette_span.error == 0
     assert starlette_span.get_tag("http.method") == "GET"
     assert starlette_span.get_tag("http.url") == "http://testserver/notes"
-    assert starlette_span.get_tag("http.status_code") == "200"
+    assert starlette_span.get_metric("http.status_code") == 200
     assert starlette_span.get_tag("component") == "starlette"
     assert starlette_span.get_tag("span.kind") == "server"
 

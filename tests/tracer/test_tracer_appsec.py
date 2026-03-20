@@ -180,13 +180,13 @@ def test_set_http_meta(
         assert http.URL not in span.get_tags()
 
     if status_code is not None:
-        assert span.get_tag(http.STATUS_CODE) == str(status_code)
+        assert span.get_metric(http.STATUS_CODE) == int(status_code)
         if 500 <= int(status_code) < 600:
             assert span.error == 1
         else:
             assert span.error == 0
     else:
-        assert http.STATUS_CODE not in span.get_tags()
+        assert http.STATUS_CODE not in span._get_attributes()
 
     if status_msg is not None:
         assert span.get_tag(http.STATUS_MSG) == str(status_msg)

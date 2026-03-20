@@ -98,7 +98,7 @@ def _on_request_span_modifier(
 
 
 def _on_flask_blocked_request(span):
-    span._set_attribute(http.STATUS_CODE, "403")
+    span._set_attribute(http.STATUS_CODE, 403)
     request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
@@ -208,7 +208,7 @@ def _wsgi_make_block_content(ctx, construct_url):
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
             req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_attribute(http.STATUS_CODE, str(status))
+        req_span._set_attribute(http.STATUS_CODE, status)
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)

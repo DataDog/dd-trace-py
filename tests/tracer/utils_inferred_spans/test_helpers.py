@@ -52,12 +52,12 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
 
     # assert api gateway http meta
     assert aws_gateway_span.get_tag("http.method") == method
-    assert int(aws_gateway_span.get_tag("http.status_code")) == int(status_code)
+    assert int(aws_gateway_span.get_metric("http.status_code")) == int(status_code)
     assert aws_gateway_span.get_tag("http.url") == url
 
     # Assert that the http method and status code match
     assert aws_gateway_span.get_tag("http.method") == web_span.get_tag("http.method")
-    assert aws_gateway_span.get_tag("http.status_code") == web_span.get_tag("http.status_code")
+    assert aws_gateway_span.get_metric("http.status_code") == web_span.get_metric("http.status_code")
 
     # Assert errors (or lack of them) are correctly passed on
     assert aws_gateway_span.error == web_span.error
