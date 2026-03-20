@@ -68,7 +68,6 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
     from ddtrace.appsec._contrib.flask import listen as flask_listen
-    from ddtrace.appsec._contrib.httpx import listen as httpx_listen
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
@@ -82,7 +81,8 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         flask_listen()
         django_listen()
         fastapi_listen()
-        httpx_listen()
+        import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+
         stripe_listen()
         tornado_listen()
 
