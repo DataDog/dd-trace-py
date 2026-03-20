@@ -44,7 +44,6 @@ class BenchmarkSpec:
 @dataclass
 class JobSpec:
     name: str
-    runner: str
     stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
@@ -63,7 +62,7 @@ class JobSpec:
 
     def __str__(self) -> str:
         lines = []
-        base = f".test_base_{self.runner}"
+        base = ".test_base_riot"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -75,13 +74,11 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Set needs based on runner type
+        # Riot jobs need build_base_venvs artifacts
         lines.append("  needs:")
         lines.append("    - prechecks")
-        if self.runner == "riot":
-            # Riot jobs need build_base_venvs artifacts
-            lines.append("    - job: build_base_venvs")
-            lines.append("      artifacts: true")
+        lines.append("    - job: build_base_venvs")
+        lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -106,8 +103,7 @@ class JobSpec:
         lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            if self.runner == "riot" and wait_for:
-                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
@@ -116,19 +112,13 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        if self.runner == "riot":
-            env["PIP_CACHE_KEY"] = (
-                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-            )
-            lines.append("  cache:")
-            lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
-        else:
-            lines.append("  cache:")
-            lines.append("    key: v1-${CI_JOB_NAME}-pip-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["PIP_CACHE_KEY"] = (
+            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+        )
+        lines.append("  cache:")
+        lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
+        lines.append("    paths:")
+        lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -158,7 +148,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     """Calculate parallelism based on venvs_per_job configuration.
 
     Packs N venvs per parallel job, scaling automatically with venv count changes.
-    Only applies to riot runner suites with venvs_per_job configured.
+    Only applies to suites with venvs_per_job configured.
 
     Args:
         suite_name: The name of the test suite
@@ -167,10 +157,6 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     Returns:
         The calculated parallelism value (1 to 25), or None if venvs_per_job not configured
     """
-    # Only for riot suites
-    if suite_config.get("runner") != "riot":
-        return None
-
     # Check if venvs_per_job is configured
     venvs_per_job = suite_config.get("venvs_per_job")
     if venvs_per_job is None:
@@ -375,8 +361,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
-            # Calculate dynamic parallelism for riot suites without explicit value
-            if jobspec.parallelism is None and suite_config.get("runner") == "riot":
+            # Calculate dynamic parallelism for suites without explicit value
+            if jobspec.parallelism is None:
                 calculated = calculate_dynamic_parallelism(suite, suite_config)
                 if calculated is not None:
                     jobspec.parallelism = calculated
