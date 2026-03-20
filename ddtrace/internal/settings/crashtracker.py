@@ -1,3 +1,4 @@
+import sys
 import typing as t
 
 from ddtrace.internal.settings._core import DDConfig
@@ -5,7 +6,9 @@ from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
-resolver_default = "full"
+# Out-of-process symbolication (receiver mode) works on Linux only.
+# On other platforms, fall back to in-process symbolication.
+resolver_default = "safe" if sys.platform == "linux" else "full"
 
 
 def _derive_stacktrace_resolver(config: "CrashtrackingConfig") -> t.Optional[str]:

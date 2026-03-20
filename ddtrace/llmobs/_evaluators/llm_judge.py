@@ -160,7 +160,8 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
     except ImportError:
         raise ImportError("openai package required: pip install openai")
 
-    client = OpenAI(api_key=api_key)
+    extra_options = {k: v for k, v in client_options.items() if k != "api_key"}
+    client = OpenAI(api_key=api_key, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -209,7 +210,9 @@ def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None)
     except ImportError:
         raise ImportError("openai package required: pip install openai")
 
-    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
+    _known_keys = {"api_key", "azure_endpoint", "api_version", "azure_deployment"}
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version, **extra_options)
     deployment_name = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
     def call(
@@ -250,7 +253,8 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     except ImportError:
         raise ImportError("anthropic package required: pip install anthropic")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    extra_options = {k: v for k, v in client_options.items() if k != "api_key"}
+    client = anthropic.Anthropic(api_key=api_key, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -350,7 +354,9 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
         or "us-central1"
     )
 
-    vertexai.init(project=project, location=location, credentials=credentials)
+    _known_keys = {"credentials", "project", "location"}
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    vertexai.init(project=project, location=location, credentials=credentials, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -414,6 +420,7 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
     except ImportError:
         raise ImportError("boto3 package required: pip install boto3")
 
+    _known_keys = {"region_name", "profile_name", "aws_access_key_id", "aws_secret_access_key", "aws_session_token"}
     session_kwargs: dict[str, Any] = {"region_name": region_name}
     profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
     if profile_name:
@@ -427,6 +434,8 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
     aws_session_token = client_options.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
     if aws_session_token:
         session_kwargs["aws_session_token"] = aws_session_token
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    session_kwargs.update(extra_options)
 
     session = boto3.Session(**session_kwargs)
     client = session.client("bedrock-runtime")
@@ -556,14 +565,20 @@ class LLMJudge(BaseEvaluator):
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys vary
-                by provider:
+            client_options: Provider-specific configuration options. Common keys are
+                listed below; any additional keys are forwarded directly to the
+                underlying client constructor (e.g., ``OpenAI()``, ``anthropic.Anthropic()``,
+                ``AzureOpenAI()``, ``vertexai.init()``, ``boto3.Session()``).
 
                 **OpenAI:**
                     - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+                    - Any other key is passed to the ``OpenAI()`` constructor
+                      (e.g., ``base_url``, ``organization``, ``timeout``, ``http_client``).
 
                 **Anthropic:**
                     - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+                    - Any other key is passed to the ``anthropic.Anthropic()`` constructor
+                      (e.g., ``base_url``, ``timeout``, ``max_retries``).
 
                 **Azure OpenAI:**
                     - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
@@ -572,6 +587,8 @@ class LLMJudge(BaseEvaluator):
                       Falls back to ``AZURE_OPENAI_API_VERSION``.
                     - ``azure_deployment``: Deployment name. Falls back to
                       ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
+                    - Any other key is passed to the ``AzureOpenAI()`` constructor
+                      (e.g., ``organization``, ``timeout``, ``http_client``).
 
                 **Vertex AI:**
                     - ``project``: Google Cloud project ID. Falls back to
@@ -582,6 +599,8 @@ class LLMJudge(BaseEvaluator):
                     - ``credentials``: Optional service account credentials object.
                       Falls back to Application Default Credentials (ADC), which
                       respects the ``GOOGLE_APPLICATION_CREDENTIALS`` env var.
+                    - Any other key is passed to ``vertexai.init()``
+                      (e.g., ``api_endpoint``, ``api_transport``).
 
                 **Bedrock:**
                     - ``aws_access_key_id``: AWS access key. Falls back to
@@ -593,6 +612,8 @@ class LLMJudge(BaseEvaluator):
                     - ``region_name``: AWS region (default: "us-east-1"). Falls back to
                       ``AWS_REGION`` or ``AWS_DEFAULT_REGION``.
                     - ``profile_name``: AWS profile name. Falls back to ``AWS_PROFILE``.
+                    - Any other key is passed to ``boto3.Session()``
+                      (e.g., ``botocore_session``).
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.

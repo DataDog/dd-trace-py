@@ -26,6 +26,7 @@ variables:
     - pip install -r ci/requirements/ci.txt
     - python -m twine check --strict pywheels/*
   script:
+    - rm -rf pywheels/ddtrace_serverless*
     - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*
   artifacts:
     paths:

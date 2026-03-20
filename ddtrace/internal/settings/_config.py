@@ -199,6 +199,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "google_cloud_pubsub",
     }
 )
 
@@ -667,6 +668,8 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
+        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
@@ -680,9 +683,6 @@ class Config(object):
         )
         self._trace_resource_renaming_always_simplified_endpoint = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
-        )
-        self._process_tags_enabled = _get_config(
-            "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", default=False, modifier=asbool
         )
 
         # Long-running span interval configurations
