@@ -293,6 +293,36 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    adaptive_sampling_target_overhead = DDConfig.v(
+        float,
+        "adaptive_sampling.target_overhead",
+        default=1.0,
+        validator=validators.range(1, 100),
+        help_type="Float",
+        help="Target CPU overhead percentage for adaptive sampling. Must be between 0 and 100.",
+        private=True,
+    )
+
+    adaptive_sampling_max_interval = DDConfig.v(
+        int,
+        "adaptive_sampling.max_interval_us",
+        default=100_000,
+        validator=validators.range(100, 1_000_000),
+        help_type="Integer",
+        help="Maximum sampling interval in microseconds for adaptive sampling.",
+        private=True,
+    )
+
+    max_threads_per_cycle = DDConfig.v(
+        int,
+        "max_threads_per_cycle",
+        default=8,
+        validator=validators.range(1, 128),
+        help_type="Integer",
+        help="Maximum number of threads to sample per cycle. Threads are cycled round-robin so all threads are covered over time.",
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",

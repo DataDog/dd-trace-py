@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <vector>
 
 #include "constants.hpp"
 
@@ -46,7 +48,18 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
+    double target_overhead = g_target_overhead;
+    microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     void adapt_sampling_interval();
+
+    // Thread sub-sampling: sample at most max_threads_per_cycle threads per cycle,
+    // cycling through all threads round-robin over time.
+    size_t max_threads_per_cycle = g_default_max_threads_per_cycle;
+    uintptr_t thread_subsample_cursor = 0;
+    // Sorted list of registered thread IDs, maintained incrementally in
+    // register_thread/unregister_thread (protected by thread_info_map_lock).
+    // Avoids sorting on every sampling cycle.
+    std::vector<uintptr_t> sorted_thread_ids_;
 
     void atfork_child();
     friend void stack_atfork_child();
@@ -79,6 +92,12 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_target_overhead(double value) { target_overhead = value; }
+    void set_max_sampling_period(microsecond_t max_interval_us)
+    {
+        max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
+    }
+    void set_max_threads_per_cycle(size_t value) { max_threads_per_cycle = std::max(value, static_cast<size_t>(1)); }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

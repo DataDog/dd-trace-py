@@ -15,9 +15,11 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <algorithm>
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <vector>
 
 using namespace Datadog;
 
@@ -136,13 +138,13 @@ Sampler::adapt_sampling_interval()
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
         new_interval = g_min_sampling_period_us;
-    } else if (new_interval > g_max_sampling_period_us) {
-        new_interval = g_max_sampling_period_us;
+    } else if (new_interval > max_sampling_period_us) {
+        new_interval = max_sampling_period_us;
     }
 
     sample_interval_us.store(new_interval);
@@ -193,9 +195,48 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
+        // Select thread IDs to sample this cycle via round-robin, into a stack-allocated
+        // buffer. sorted_thread_ids_ is maintained incrementally by register/unregister_thread,
+        // so no per-cycle sort or heap allocation is needed.
+        // max_threads_per_cycle is bounded by the validator to [1, g_max_threads_per_cycle_limit],
+        // so this fixed-size buffer is always safe.
+        constexpr size_t k_max_threads_buf = 128; // must match validator upper bound in profiling.py
+        uintptr_t ids_to_sample[k_max_threads_buf];
+        size_t n_to_sample = 0;
+        {
+            const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+            if (!sorted_thread_ids_.empty()) {
+                size_t n = std::min(max_threads_per_cycle, sorted_thread_ids_.size());
+                auto it = std::upper_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), thread_subsample_cursor);
+                for (size_t i = 0; i < n; ++i) {
+                    if (it == sorted_thread_ids_.end()) {
+                        it = sorted_thread_ids_.begin(); // wrap around
+                    }
+                    ids_to_sample[n_to_sample++] = *it;
+                    if (i == n - 1) {
+                        thread_subsample_cursor = *it; // advance cursor to last selected ID
+                    }
+                    ++it;
+                }
+            }
+        }
+
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                // Linear scan over ids_to_sample: O(N) where N <= 8 by default,
+                // faster than hash lookup for small N.
+                // If n_to_sample == 0 (no threads registered yet), sample all.
+                if (n_to_sample > 0) {
+                    bool found = false;
+                    for (size_t i = 0; i < n_to_sample; ++i) {
+                        if (ids_to_sample[i] == thread.thread_id) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) return;
+                }
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
@@ -296,6 +337,8 @@ Sampler::postfork_child()
 
     // Clear all entries, we have extracted everything we care about.
     thread_info_map.clear();
+    sorted_thread_ids_.clear();
+    thread_subsample_cursor = 0;
 
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
@@ -304,6 +347,7 @@ Sampler::postfork_child()
     auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, name.c_str());
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
+        sorted_thread_ids_.push_back(current_thread_id);
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
                   << ") " << name << std::endl;
@@ -371,6 +415,8 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
             echion->thread_info_map().emplace(id, std::move(*maybe_thread_info));
+            auto pos = std::lower_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), id);
+            sorted_thread_ids_.insert(pos, id);
         } else {
             if (!has_errored) {
                 has_errored = true;
@@ -382,6 +428,7 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
             it->second = std::move(*maybe_thread_info);
+            // ID already present in sorted_thread_ids_; no change needed.
         } else {
             if (!has_errored) {
                 has_errored = true;
@@ -398,6 +445,10 @@ Sampler::unregister_thread(uint64_t id)
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
     echion->thread_info_map().erase(id);
+    auto pos = std::lower_bound(sorted_thread_ids_.begin(), sorted_thread_ids_.end(), id);
+    if (pos != sorted_thread_ids_.end() && *pos == id) {
+        sorted_thread_ids_.erase(pos);
+    }
 }
 
 bool
