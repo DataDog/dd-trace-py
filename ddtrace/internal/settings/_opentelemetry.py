@@ -81,11 +81,7 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     import os
 
-    traces_exporter = os.environ.get("OTEL_TRACES_EXPORTER", "").lower()
-    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "") or os.environ.get(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", ""
-    )
-    return traces_exporter == "otlp" or bool(otlp_endpoint)
+    return os.environ.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
 class OpenTelemetryConfig(DDConfig):
