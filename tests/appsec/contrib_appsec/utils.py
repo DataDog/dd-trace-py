@@ -154,7 +154,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     """
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    def test_healthcheck(self, interface: Interface, get_entry_span_tag, asm_enabled: bool):
+    def test_healthcheck(self, interface: Interface, get_entry_span_tag, get_entry_span_metric, asm_enabled: bool):
         # you can disable any test in a framework like that:
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
@@ -166,7 +166,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             from ddtrace.internal.settings.asm import config as asm_config
 
             assert asm_config._asm_enabled is asm_enabled
-            assert get_entry_span_tag("http.status_code") == "200"
+            assert get_entry_span_metric("http.status_code") == 200
             assert self.headers(response)["content-type"] in ("text/html; charset=utf-8", "text/html"), (
                 f"{self.headers(response)}"
             )
@@ -590,7 +590,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             if blocked and asm_enabled:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
                 assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
-                assert get_entry_span_tag(http.STATUS_CODE) == "403"
+                assert get_entry_span_metric(http.STATUS_CODE) == 403
                 assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
@@ -643,8 +643,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
             rule = "tst-421-001" if blocked else "tst-421-002"
             assert self.status(response) == code, f"status={self.status(response)}, expected={code}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(code), (
-                f"status_code={get_entry_span_tag(http.STATUS_CODE)}, expected={code}"
+            assert get_entry_span_metric(http.STATUS_CODE) == int(code), (
+                f"status_code={get_entry_span_metric(http.STATUS_CODE)}, expected={code}"
             )
             if asm_enabled and not bypassed:
                 assert (st := get_entry_span_tag(http.URL)) == f"http://localhost:{interface.SERVER_PORT}/{query}", (
@@ -699,7 +699,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             if event and ip == self.SUSPICIOUS_IP:
                 status = 402
             assert self.status(response) == status, f"status={self.status(response)}, expected={status}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(status), (
+            assert get_entry_span_metric(http.STATUS_CODE) == int(status), (
                 f"status_code={self.status(response)}, expected={status}"
             )
             if event:
@@ -733,7 +733,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == method.upper()
             if asm_enabled and method == "get":
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert get_entry_span_tag(http.STATUS_CODE) == "403"
+                assert get_entry_span_metric(http.STATUS_CODE) == 403
                 block_id = self.check_single_rule_triggered("tst-037-006", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -743,7 +743,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -768,7 +768,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert get_entry_span_tag(http.STATUS_CODE) == "403"
+                assert get_entry_span_metric(http.STATUS_CODE) == 403
                 block_id = self.check_single_rule_triggered("tst-037-002", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -778,7 +778,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 404
-                assert get_entry_span_tag(http.STATUS_CODE) == "404"
+                assert get_entry_span_metric(http.STATUS_CODE) == 404
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -833,7 +833,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert get_entry_span_tag(http.STATUS_CODE) == "403"
+                assert get_entry_span_metric(http.STATUS_CODE) == 403
                 block_id = self.check_single_rule_triggered("tst-037-007", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -843,7 +843,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -879,7 +879,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert get_entry_span_tag(http.STATUS_CODE) == "403"
+                assert get_entry_span_metric(http.STATUS_CODE) == 403
                 block_id = self.check_single_rule_triggered("tst-037-001", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -889,7 +889,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -918,7 +918,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
+                assert (st := get_entry_span_metric(http.STATUS_CODE)) == 403, f"status code mismatch {st}"
                 block_id = self.check_single_rule_triggered("tst-037-004", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -928,7 +928,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -957,7 +957,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
+                assert (st := get_entry_span_metric(http.STATUS_CODE)) == 403, f"status code mismatch {st}"
                 block_id = self.check_single_rule_triggered("tst-037-008", entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -967,7 +967,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -1000,7 +1000,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
+                assert (st := get_entry_span_metric(http.STATUS_CODE)) == 403, f"status code mismatch {st}"
                 block_id = self.check_single_rule_triggered(blocked, entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -1010,7 +1010,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == status
-                assert get_entry_span_tag(http.STATUS_CODE) == str(status)
+                assert get_entry_span_metric(http.STATUS_CODE) == int(status)
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -1053,7 +1053,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
+                assert (st := get_entry_span_metric(http.STATUS_CODE)) == 403, f"status code mismatch {st}"
                 block_id = self.check_single_rule_triggered(blocked, entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -1065,7 +1065,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     assert k not in self.headers(response)
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
             assert "content-length" in self.headers(response)
             assert int(self.headers(response)["content-length"]) == len(self.body(response).encode())
@@ -1146,7 +1146,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag(http.METHOD) == "POST"
             if asm_enabled and blocked:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
-                assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
+                assert (st := get_entry_span_metric(http.STATUS_CODE)) == 403, f"status code mismatch {st}"
                 block_id = self.check_single_rule_triggered(blocked, entry_span)
                 assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
@@ -1156,7 +1156,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert self.headers(response)["content-type"] == "application/json"
             else:
                 assert self.status(response) == 200
-                assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                assert get_entry_span_metric(http.STATUS_CODE) == 200
                 assert get_triggers(entry_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
@@ -1228,7 +1228,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 if asm_enabled and action:
                     assert (st := self.status(response)) == status, f"status mismatch {st}"
-                    assert (st := get_entry_span_tag(http.STATUS_CODE)) == str(status), f"status code mismatch {st}"
+                    assert (st := get_entry_span_metric(http.STATUS_CODE)) == int(status), f"status code mismatch {st}"
                     self.check_single_rule_triggered(rule_id, entry_span)
 
                     if action == "blocked":
@@ -1251,7 +1251,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                         assert self.location(response) == "https://www.datadoghq.com"
                 else:
                     assert self.status(response) == 200
-                    assert get_entry_span_tag(http.STATUS_CODE) == "200"
+                    assert get_entry_span_metric(http.STATUS_CODE) == 200
                     assert get_triggers(entry_span()) is None
         finally:
             # remove cache to avoid using custom templates in other tests
@@ -1277,7 +1277,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             assert get_entry_span_tag(http.METHOD) == "GET"
             assert (st := self.status(response)) == 404, f"status mismatch {st}"
-            assert (st := get_entry_span_tag(http.STATUS_CODE)) == "404", f"status code mismatch {st}"
+            assert (st := get_entry_span_metric(http.STATUS_CODE)) == 404, f"status code mismatch {st}"
             if asm_enabled:
                 self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], entry_span)
             else:
@@ -1401,7 +1401,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert asm_config._api_security_enabled == apisec_enabled
 
             assert (st := self.status(response)) == (403 if blocked else 200), f"status mismatch {st}"
-            assert (st := get_entry_span_tag(http.STATUS_CODE)) == ("403" if blocked else "200"), (
+            assert (st := get_entry_span_metric(http.STATUS_CODE)) == (403 if blocked else 200), (
                 f"status code mismatch {st}"
             )
             if event:
@@ -1477,7 +1477,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 content_type="application/json",
             )
             assert (st := self.status(response)) == 200, f"status mismatch {st}"
-            assert (st := get_entry_span_tag(http.STATUS_CODE)) == "200", f"status code mismatch {st}"
+            assert (st := get_entry_span_metric(http.STATUS_CODE)) == 200, f"status code mismatch {st}"
             assert asm_config._api_security_enabled == apisec_enabled
 
             value = get_entry_span_tag("_dd.appsec.s.req.body")
@@ -1507,7 +1507,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             self.update_tracer(interface)
             response = interface.client.get("/", headers={magic_key: "A0000B1111C2222"})
             assert (st := self.status(response)) == 200, f"status mismatch {st}"
-            assert (st := get_entry_span_tag(http.STATUS_CODE)) == "200", f"status code mismatch {st}"
+            assert (st := get_entry_span_metric(http.STATUS_CODE)) == 200, f"status code mismatch {st}"
             assert asm_config._api_security_enabled == apisec_enabled
 
             value = get_entry_span_tag("_dd.appsec.s.req.headers")
@@ -1549,7 +1549,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 content_type="application/json",
             )
             assert (st := self.status(response)) == 200, f"status mismatch {st}"
-            assert (st := get_entry_span_tag(http.STATUS_CODE)) == "200", f"status code mismatch {st}"
+            assert (st := get_entry_span_metric(http.STATUS_CODE)) == 200, f"status code mismatch {st}"
             assert asm_config._api_security_enabled == apisec_enabled
 
             value = get_entry_span_tag("_dd.appsec.s.req.body")
@@ -1565,7 +1565,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 content_type="application/json",
             )
             assert self.status(response) == 200
-            assert get_entry_span_tag(http.STATUS_CODE) == "200"
+            assert get_entry_span_metric(http.STATUS_CODE) == 200
             assert asm_config._api_security_enabled == apisec_enabled
 
             value = get_entry_span_tag("_dd.appsec.s.req.body")
@@ -1659,7 +1659,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ):
             self.update_tracer(interface)
             response = interface.client.get("/stream/")
-            assert self.body(response) == "0123456789"
+            assert self.body(response) == 0123456789
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
@@ -1767,7 +1767,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             response = interface.client.get(f"/rasp/{endpoint}/?{urlencode(parameters)}")
             code = status_expected if asm_enabled and ep_enabled else 200
             assert self.status(response) == code, (self.status(response), code, self.body(response))
-            assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
+            assert get_entry_span_metric(http.STATUS_CODE) == int(code), (get_entry_span_metric(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
             telemetry_calls = {
@@ -1870,7 +1870,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             self.update_tracer(interface)
             response = interface.client.get(f"/login/?username={user}&password={password}")
             assert self.status(response) == status_code
-            assert get_entry_span_tag("http.status_code") == str(status_code)
+            assert get_entry_span_metric("http.status_code") == int(status_code)
             username = user if mode == "identification" else _hash_user_id(user)
             user_id_hash = user_id if mode == "identification" else _hash_user_id(user_id)
             if asm_enabled and auto_events_enabled and mode != "disabled":
@@ -1999,7 +1999,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
             assert self.status(response) == status_code
-            assert get_entry_span_tag("http.status_code") == str(status_code)
+            assert get_entry_span_metric("http.status_code") == int(status_code)
             telemetry_calls = {
                 (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
             }
@@ -2054,7 +2054,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             success = "success" if status_code == 200 else "failure"
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", entry_span()._meta
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == 3, entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
                 entry_span()._meta
             )
@@ -2072,7 +2072,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
             code = 403 if asm_enabled and user_agent == "dd-test-scanner-log-block" else 200
             assert (st := self.status(response)) == code, f"status mismatch {st}={code}"
-            assert get_entry_span_tag("http.status_code") == str(code)
+            assert get_entry_span_metric("http.status_code") == int(code)
             # check for fingerprints when security events
             if asm_enabled:
                 assert (st := get_entry_span_tag(asm_constants.FINGERPRINTING.HEADER)) is not None, (
@@ -2116,7 +2116,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             random_value = "oweh1jfoi4wejflk7sdgf"
             response = interface.client.get(f"/?test_tag=tag_this_trace_{random_value}")
             assert self.status(response) == 200
-            assert get_entry_span_tag("http.status_code") == "200"
+            assert get_entry_span_metric("http.status_code") == 200
             # test for trace tagging with fixed value
             assert (st := get_entry_span_tag("dd.appsec.custom_tag")) == "tagged_trace", f"custom tag mismatch {st}"
             # test for metric tagging with fixed value

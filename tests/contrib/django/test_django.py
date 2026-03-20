@@ -78,7 +78,6 @@ def test_django_v2XX_request_root_span(client, test_spans):
         "django.user.is_authenticated": "False",
         "django.view": "tests.contrib.django.views.index",
         "http.method": "GET",
-        "http.status_code": "200",
         "http.url": "http://testserver/",
     }
     if django.VERSION >= (2, 2, 0):
@@ -93,6 +92,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         span_type="web",
         error=0,
         meta=meta,
+        metrics={"http.status_code": 200},
     )
 
 
@@ -120,7 +120,6 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
         "django.user.is_authenticated": "False",
         "django.view": "tests.contrib.django.views.alter_resource",
         "http.method": "GET",
-        "http.status_code": "200",
         "http.url": "http://testserver/alter-resource/",
     }
     if django.VERSION >= (2, 2, 0):
@@ -135,6 +134,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
         span_type="web",
         error=0,
         meta=meta,
+        metrics={"http.status_code": 200},
     )
 
 
@@ -352,9 +352,9 @@ def test_django_request_not_found(client, test_spans):
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
             "django.response.class": "django.http.response.HttpResponseNotFound",
             "http.method": "GET",
-            "http.status_code": "404",
             "http.url": "http://testserver/unknown/endpoint",
         },
+        metrics={"http.status_code": 404},
     )
 
 
@@ -2617,7 +2617,6 @@ class TestWSGI:
             "django.user.is_authenticated": "False",
             "django.view": "tests.contrib.django.views.index",
             "http.method": "GET",
-            "http.status_code": "200",
             "http.url": "http://testserver/",
             "span.kind": "server",
         }
@@ -2633,6 +2632,7 @@ class TestWSGI:
             span_type="web",
             error=0,
             meta=meta,
+            metrics={"http.status_code": 200},
         )
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):

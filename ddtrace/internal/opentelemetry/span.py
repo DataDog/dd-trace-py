@@ -44,13 +44,9 @@ def _ddmap(span, attribute, value):
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
-            if meta_key == "http.status_code":
-                if isinstance(value, (int, float)):
-                    value = str(value)
-
             if isinstance(value, (str, bytes)):
-                span.set_tag(meta_key, ensure_text(value))
-            if isinstance(value, (int, float)):
+                span._set_attribute(meta_key, ensure_text(value))
+            elif isinstance(value, (int, float)):
                 span._set_attribute(meta_key, value)
     else:
         setattr(span, attribute, value)
@@ -192,19 +188,16 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
-                self._ddspan.set_tag(k, v)
+                self._ddspan._set_attribute(k, v)
             return
-        if key == "http.status_code":
-            if isinstance(value, (int, float)):
-                value = str(value)
         if isinstance(value, (str, bytes)):
             value = ensure_text(value)
-            self._ddspan.set_tag(key, value)
+            self._ddspan._set_attribute(key, value)
         elif isinstance(value, (int, float)):
             self._ddspan._set_attribute(key, value)
         else:
-            # TODO: get rid of this usage, `set_tag` only takes str values
-            self._ddspan.set_tag(key, value)
+            # TODO: get rid of this usage, `_set_attribute` only takes `str | int | float`
+            self._ddspan._set_attribute(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
