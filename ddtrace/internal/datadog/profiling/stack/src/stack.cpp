@@ -421,6 +421,7 @@ static PyMethodDef native_call_handler_def = {
     "native_call_handler",
     // Double cast: METH_FASTCALL signature (PyObject*, PyObject*const*, Py_ssize_t) differs from
     // PyCFunction (PyObject*, PyObject*), but CPython dispatches correctly based on ml_flags.
+    // NOLINTNEXTLINE(bugprone-casting-through-void)
     reinterpret_cast<PyCFunction>(reinterpret_cast<void*>(native_call_handler)),
     METH_FASTCALL,
     "C callback for sys.monitoring CALL events"

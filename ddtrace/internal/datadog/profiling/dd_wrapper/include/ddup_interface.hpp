@@ -13,12 +13,12 @@ class Sample;
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
-// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct name
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
-// NOLINTEND(bugprone-reserved-identifier)
 struct _traceback;
 typedef struct _traceback PyTracebackObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 #ifdef __cplusplus
 extern "C"
@@ -48,15 +48,17 @@ extern "C"
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
 
-    // NOLINTNEXTLINE(performance-unnecessary-value-param)
     // Pass by value is intentional: the map may be modified concurrently by other threads,
     // so we take a copy to avoid data races while iterating.
-    void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
+    void ddup_profile_set_endpoints(
+      // NOLINTNEXTLINE(performance-unnecessary-value-param)
+      std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
 
-    // NOLINTNEXTLINE(performance-unnecessary-value-param)
     // Pass by value is intentional: the map may be modified concurrently by other threads,
     // so we take a copy to avoid data races while iterating.
-    void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
+    void ddup_profile_add_endpoint_counts(
+      // NOLINTNEXTLINE(performance-unnecessary-value-param)
+      std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
 
     bool ddup_upload();
 
