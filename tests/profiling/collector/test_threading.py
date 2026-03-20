@@ -2118,6 +2118,7 @@ def test_exclude_modules_skips_wrapping() -> None:
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
     init_ddup("test_exclude_modules")
 
@@ -2133,6 +2134,7 @@ def test_exclude_modules_wraps_non_excluded() -> None:
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
     init_ddup("test_exclude_modules_wraps")
 
@@ -2152,6 +2154,8 @@ def test_exclude_modules_empty_is_backward_compatible() -> None:
 
     assert not os.environ.get("DD_PROFILING_LOCK_EXCLUDE_MODULES")
 
+    from tests.profiling.collector.test_utils import init_ddup
+
     init_ddup("test_exclude_modules_empty")
 
     with ThreadingLockCollector(capture_pct=100):
@@ -2166,6 +2170,7 @@ def test_exclude_modules_prefix_requires_dot_boundary() -> None:
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
     init_ddup("test_exclude_prefix")
 
@@ -2181,6 +2186,7 @@ def test_exclude_modules_multiple() -> None:
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
     init_ddup("test_exclude_multiple")
 
