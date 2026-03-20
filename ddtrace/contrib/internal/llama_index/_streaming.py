@@ -29,7 +29,6 @@ class _BaseLlamaIndexStreamHandler:
     request_args: tuple
     request_kwargs: dict[str, Any]
     chunks: list[Any]
-    _is_chat: bool = True
 
     def finalize_stream(self, exception: Optional[Exception] = None) -> None:
         """Dispatch the deferred ended event with the constructed response.
@@ -39,7 +38,7 @@ class _BaseLlamaIndexStreamHandler:
         """
         ctx = self.options["ctx"]
         try:
-            resp = _construct_response(self.chunks, self._is_chat)
+            resp = _construct_response(self.chunks)
             ctx.event.response = resp
         except Exception:
             log.warning("Error processing streamed LlamaIndex response.", exc_info=True)
@@ -65,7 +64,6 @@ def handle_streamed_response(
     args: tuple,
     kwargs: dict[str, Any],
     ctx: core.ExecutionContext,
-    is_chat: Optional[bool] = True,
 ) -> Any:
     """Wrap a sync or async LlamaIndex stream for tracing."""
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
@@ -73,15 +71,12 @@ def handle_streamed_response(
         handler = LlamaIndexAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     else:
         handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
-    handler._is_chat = bool(is_chat)
     return make_traced_stream(resp, handler)
 
 
-def _construct_response(streamed_chunks: list[Any], is_chat: bool = True) -> Optional[Any]:
+def _construct_response(streamed_chunks: list[Any]) -> Optional[Any]:
     """Construct a response-like object from accumulated stream chunks.
 
-    For chat streams, each chunk is a ChatResponse with message.content and raw.
-    For completion streams, each chunk is a CompletionResponse with text and raw.
     LlamaIndex streams accumulate — the last chunk has the full content and usage info.
     """
     if not streamed_chunks:

@@ -202,8 +202,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
         Expected ``kwargs`` keys: ``messages`` (chat) or ``prompt`` (completion),
         plus optional ``max_tokens`` and ``temperature``.
-        Chat vs. completion is determined by the ``_dd_is_chat`` context item
-        set by the tracing subscriber.
+        Chat vs. completion is auto-detected from kwargs: presence of ``messages``
+        indicates a chat call, otherwise it's a completion.
         """
         parameters = {}
         if kwargs.get("max_tokens") is not None:
@@ -211,7 +211,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         if kwargs.get("temperature") is not None:
             parameters["temperature"] = kwargs["temperature"]
 
-        is_chat = span._get_ctx_item("_dd_is_chat") or False
+        is_chat = "messages" in kwargs
 
         if is_chat:
             input_messages = self._extract_chat_input_messages(kwargs)
