@@ -9,6 +9,7 @@ components:
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
+    - ddtrace/appsec/_iast/*    
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
