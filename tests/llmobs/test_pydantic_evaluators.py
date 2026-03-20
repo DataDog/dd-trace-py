@@ -9,13 +9,13 @@ import pytest
 
 pydantic_evals = pytest.importorskip("pydantic_evals")
 
-from pydantic_evals.evaluators import Evaluator
-from pydantic_evals.evaluators import EvaluatorContext
-from pydantic_evals.evaluators.evaluator import EvaluationReason
+from pydantic_evals.evaluators import Evaluator  # noqa: E402
+from pydantic_evals.evaluators import EvaluatorContext  # noqa: E402
+from pydantic_evals.evaluators.evaluator import EvaluationReason  # noqa: E402
 
-from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import _ExperimentRunInfo
-from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import Dataset  # noqa: E402
+from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
+from ddtrace.llmobs._experiment import _is_pydantic_evaluator  # noqa: E402
 
 
 def _make_simple_pydantic_evaluator():
