@@ -296,8 +296,8 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
     const int lasti =
-      (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
-      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+      static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code)))) -
+      static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
     auto maybe_frame = Frame::get(echion, frame_addr->f_code, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;

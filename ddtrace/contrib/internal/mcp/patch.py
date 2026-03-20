@@ -264,16 +264,17 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
     if config.mcp.capture_intent and isinstance(response, ListToolsResult):
         integration.inject_tools_list_response(response)
 
-    if span:
-        integration.llmobs_set_tags(
-            span,
-            args=args,
-            kwargs=dict(**kwargs, request_responder=instance),
-            response=None,
-            operation=SERVER_REQUEST_OPERATION_NAME,
-        )
-
-    return await func(*args, **kwargs)
+    try:
+        return await func(*args, **kwargs)
+    finally:
+        if span:
+            integration.llmobs_set_tags(
+                span,
+                args=args,
+                kwargs=dict(**kwargs, request_responder=instance),
+                response=None,
+                operation=SERVER_REQUEST_OPERATION_NAME,
+            )
 
 
 def patch():
