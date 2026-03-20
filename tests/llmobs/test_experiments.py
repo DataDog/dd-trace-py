@@ -3884,6 +3884,7 @@ def test_get_record_json_no_tag_operations_for_insert():
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
     record = {
+        "record_id": "local-uuid",
         "input_data": {"prompt": "hello"},
         "expected_output": None,
         "metadata": {},
@@ -3892,6 +3893,7 @@ def test_get_record_json_no_tag_operations_for_insert():
     result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
     assert "tag_operations" not in result
     assert result["tags"] == ["env:prod"]
+    assert result["id"] == "local-uuid"
 
 
 def test_get_record_json_update_without_tag_operations():
@@ -4531,3 +4533,227 @@ def test_ds_push_new_with_tags(llmobs, test_dataset):
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
     assert len(ds) == 1
     assert set(ds[0]["tags"]) == {"env:prod"}
+
+
+# --- User-defined record ID unit tests ---
+
+
+def test_get_record_json_uses_user_id_on_insert():
+    """_get_record_json should use the user-supplied id in insert payloads."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "local-uuid",
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+        "id": "my-custom-id",
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert result["id"] == "my-custom-id"
+
+
+def test_get_record_json_falls_back_to_record_id_on_insert():
+    """_get_record_json should use the local record_id as id when user supplies no id."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "local-uuid",
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert result["id"] == "local-uuid"
+
+
+def test_get_record_json_user_id_not_included_on_update():
+    """_get_record_json should not add user 'id' on update (id comes from record_id)."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-abc",
+        "input_data": {"prompt": "hello"},
+        "id": "my-custom-id",
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    # On update, 'id' should be the record_id (backend ID), not the user-supplied id
+    assert result["id"] == "rec-abc"
+
+
+def test_dataset_bulk_upload_includes_id_column_when_records_have_ids():
+    """dataset_bulk_upload CSV should include 'id' column when records carry user-supplied IDs."""
+    import csv
+    import io
+    import tempfile
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.llmobs._experiment import DatasetRecord
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    records: list[DatasetRecord] = [
+        {
+            "input_data": {"prompt": "a"},
+            "expected_output": {"answer": "1"},
+            "metadata": {},
+            "tags": [],
+            "record_id": "rec-1",
+            "canonical_id": None,
+            "id": "user-id-1",
+        },
+        {
+            "input_data": {"prompt": "b"},
+            "expected_output": {"answer": "2"},
+            "metadata": {},
+            "tags": [],
+            "record_id": "rec-2",
+            "canonical_id": None,
+            "id": "user-id-2",
+        },
+    ]
+
+    captured_csv: list[str] = []
+
+    def fake_open(path, mode="r", newline=""):
+        if "w" in mode:
+            buf = io.StringIO()
+
+            class FakeFile:
+                def write(self, s):
+                    buf.write(s)
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    captured_csv.append(buf.getvalue())
+
+            return FakeFile()
+        return open(path, mode)
+
+    client = MagicMock(spec=LLMObsExperimentsClient)
+    client.SUPPORTED_UPLOAD_EXTS = {"csv"}
+
+    # Use a real NamedTemporaryFile but patch open to capture the CSV write
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    with patch("ddtrace.llmobs._writer.open", side_effect=fake_open):
+        with patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile") as mock_ntf:
+            mock_ctx = MagicMock()
+            mock_ctx.__enter__.return_value.name = tmp_path
+            mock_ntf.return_value = mock_ctx
+            with patch.object(LLMObsExperimentsClient, "multipart_request", return_value=MagicMock(status=200)):
+                LLMObsExperimentsClient.dataset_bulk_upload(client, "ds-id", records)
+
+    assert captured_csv, "CSV was not written"
+    reader = csv.reader(io.StringIO(captured_csv[0]))
+    rows = list(reader)
+    assert rows[0] == ["input", "expected_output", "metadata", "id"]
+    assert rows[1][-1] == "user-id-1"
+    assert rows[2][-1] == "user-id-2"
+
+
+def test_dataset_bulk_upload_no_id_column_when_records_lack_ids():
+    """dataset_bulk_upload CSV should NOT include 'id' column when records have no user-supplied IDs."""
+    import csv
+    import io
+    import tempfile
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.llmobs._experiment import DatasetRecord
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    records: list[DatasetRecord] = [
+        {
+            "input_data": {"prompt": "a"},
+            "expected_output": {"answer": "1"},
+            "metadata": {},
+            "tags": [],
+            "record_id": "rec-1",
+            "canonical_id": None,
+        },
+    ]
+
+    captured_csv: list[str] = []
+
+    def fake_open(path, mode="r", newline=""):
+        if "w" in mode:
+            buf = io.StringIO()
+
+            class FakeFile:
+                def write(self, s):
+                    buf.write(s)
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    captured_csv.append(buf.getvalue())
+
+            return FakeFile()
+        return open(path, mode)
+
+    client = MagicMock(spec=LLMObsExperimentsClient)
+    client.SUPPORTED_UPLOAD_EXTS = {"csv"}
+
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    with patch("ddtrace.llmobs._writer.open", side_effect=fake_open):
+        with patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile") as mock_ntf:
+            mock_ctx = MagicMock()
+            mock_ctx.__enter__.return_value.name = tmp_path
+            mock_ntf.return_value = mock_ctx
+            with patch.object(LLMObsExperimentsClient, "multipart_request", return_value=MagicMock(status=200)):
+                LLMObsExperimentsClient.dataset_bulk_upload(client, "ds-id", records)
+
+    assert captured_csv, "CSV was not written"
+    reader = csv.reader(io.StringIO(captured_csv[0]))
+    rows = list(reader)
+    assert rows[0] == ["input", "expected_output", "metadata"]
+
+
+def test_dataset_csv_missing_id_column(llmobs):
+    """create_dataset_from_csv should raise ValueError when id_column is not in the CSV header."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(
+        ValueError,
+        match=re.escape("ID column 'nonexistent_id' not found in CSV header"),
+    ):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-id-col-missing",
+            input_data_columns=["in0", "in1", "in2"],
+            id_column="nonexistent_id",
+        )
+
+
+def test_dataset_csv_with_id_column(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv with id_column should populate 'id' field on each record."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset_with_ids.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-with-id-col",
+                description="A dataset with user-supplied IDs",
+                input_data_columns=["in0", "in1"],
+                expected_output_columns=["out0"],
+                id_column="record_id",
+            )
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["id"] == "user-id-0"
+            assert dataset[1]["id"] == "user-id-1"
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)

@@ -39,7 +39,6 @@ from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
@@ -481,7 +480,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         )
 
     @staticmethod
-    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
+    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecord], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
         # set it to None, and we serialize an empty string (for expected_output) and empty dict (for metadata)
         # to indicate this erasure to BE
@@ -513,9 +512,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     serialized["set"] = cast(JSONType, tag_ops["replace"])  # map replace → set for backend
                 rj["tag_operations"] = cast(JSONType, serialized)
         else:
-            tags = record.get("tags")
+            insert_record = cast(DatasetRecord, record)
+            tags = insert_record.get("tags")
             if tags:
                 rj["tags"] = cast(JSONType, tags)
+            rj["id"] = cast(JSONType, insert_record["record_id"])
 
         return rj
 
@@ -523,7 +524,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self,
         dataset_id: str,
         project_id: str,
-        insert_records: list[DatasetRecordRaw],
+        insert_records: list[DatasetRecord],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
         deduplicate: bool = True,
@@ -654,15 +655,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 raise ValueError(f"{file_ext} files not supported")
 
             with open(tmp.name, "w", newline="") as csv_file:
-                field_names = ["input", "expected_output", "metadata"]
                 writer = csv.writer(csv_file)
-                writer.writerow(field_names)
+                writer.writerow(["input", "expected_output", "metadata", "id"])
                 for r in records:
                     writer.writerow(
                         [
                             json.dumps(r.get("input_data", "")),
                             json.dumps(r.get("expected_output", "")),
                             json.dumps(r.get("metadata", "")),
+                            r["record_id"],
                         ]
                     )
 

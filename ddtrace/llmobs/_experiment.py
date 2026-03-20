@@ -906,11 +906,12 @@ class Project(TypedDict):
     _id: str
 
 
-class _DatasetRecordRawOptional(TypedDict, total=False):
+class _DatasetRecordInputOptional(TypedDict, total=False):
     tags: list[str]
+    id: str  # user-supplied record ID; if absent, SDK generates one
 
 
-class DatasetRecordRaw(_DatasetRecordRawOptional):
+class DatasetRecordInput(_DatasetRecordInputOptional):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -922,7 +923,7 @@ class _TagOperations(TypedDict, total=False):
     replace: list[str]
 
 
-class _UpdatableDatasetRecordOptional(TypedDict, total=False):
+class DatasetRecordUpdate(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -930,7 +931,7 @@ class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     tag_operations: _TagOperations
 
 
-class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
+class UpdatableDatasetRecord(DatasetRecordUpdate):
     record_id: str
 
 
@@ -938,7 +939,11 @@ class _DatasetRecordOptional(TypedDict, total=False):
     canonical_id: Optional[str]
 
 
-class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
+class DatasetRecord(_DatasetRecordOptional):
+    input_data: DatasetRecordInputType
+    expected_output: JSONType
+    metadata: dict[str, Any]
+    tags: list[str]
     record_id: str
 
 
@@ -1007,7 +1012,7 @@ class Dataset:
     _version: int
     _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records_by_record_id: dict[str, DatasetRecordRaw]
+    _new_records_by_record_id: dict[str, DatasetRecord]
     _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: list[str]
 
@@ -1123,9 +1128,9 @@ class Dataset:
             # placeholder id to the server as a delete_record_id.
             pending_keys = list(self._new_records_by_record_id.keys())
             for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
-                self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
+                self._new_records_by_record_id[key]["record_id"] = record_id
                 if canonical_id:  # avoid overriding if not present in response
-                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
+                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id
                 del self._new_records_by_record_id[key]
 
             data_changed = len(new_record_ids) > 0 or len(self._deleted_record_ids) > 0
@@ -1140,7 +1145,7 @@ class Dataset:
         self._pending_tag_operations = {}
         return data_changed
 
-    def update(self, index: int, record: DatasetRecordRaw) -> None:
+    def update(self, index: int, record: DatasetRecordUpdate) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "
@@ -1152,31 +1157,41 @@ class Dataset:
             self.replace_tags(index, tags)
 
         record_id = self._records[index]["record_id"]
-        # Only update non-tag fields if there are any
         if any(k in record for k in ("input_data", "expected_output", "metadata")):
             self._updated_record_ids_to_new_fields[record_id] = {
                 **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
                 **record,
                 "record_id": record_id,
             }
-            self._records[index] = {
-                **self._records[index],
-                **record,
-                "record_id": record_id,
-            }
+            self._records[index] = cast(
+                DatasetRecord,
+                {
+                    **self._records[index],
+                    **record,
+                    "record_id": record_id,
+                },
+            )
 
-    def append(self, record: DatasetRecordRaw) -> None:
+    def append(self, record: DatasetRecordInput) -> None:
         if record.get("tags"):
             validate_tags_list(record["tags"])
-        record_id: str = uuid.uuid4().hex
-        # this record ID will be discarded after push, BE will generate a new one, this is just
-        # for tracking new records locally before the push
-        r: DatasetRecord = {**record, "record_id": record_id, "canonical_id": None}
+        # Use the user-supplied id as the record_id so local tracking matches the backend id.
+        # If no user-supplied id, generate a UUID; this will be sent to the backend as the insert id
+        # so the backend uses it, eliminating the need to update local record_id after push.
+        record_id: str = record.get("id") or uuid.uuid4().hex
+        r: DatasetRecord = {
+            "input_data": record["input_data"],
+            "expected_output": record["expected_output"],
+            "metadata": record["metadata"],
+            "tags": record.get("tags", []),
+            "record_id": record_id,
+            "canonical_id": None,
+        }
         # keep the same reference in both lists to enable us to update the record_id after push
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
-    def extend(self, records: list[DatasetRecordRaw]) -> None:
+    def extend(self, records: list[DatasetRecordInput]) -> None:
         for record in records:
             self.append(record)
 

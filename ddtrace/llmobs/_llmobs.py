@@ -112,6 +112,7 @@ from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordInput
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
@@ -1181,7 +1182,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecord]] = None,
+        records: Optional[list[DatasetRecordInput]] = None,
         bulk_upload: bool = False,
         deduplicate: bool = True,
     ) -> Dataset:
@@ -1247,6 +1248,7 @@ class LLMObs(Service):
         description: str = "",
         project_name: Optional[str] = None,
         deduplicate: bool = True,
+        id_column: Optional[str] = None,
     ) -> Dataset:
         if expected_output_columns is None:
             expected_output_columns = []
@@ -1283,18 +1285,19 @@ class LLMObs(Service):
                     raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
                 if any(col not in header_columns for col in metadata_columns):
                     raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
+                if id_column and id_column not in header_columns:
+                    raise ValueError(f"ID column '{id_column}' not found in CSV header")
 
                 for row in rows:
-                    records.append(
-                        DatasetRecord(
-                            input_data={col: row[col] for col in input_data_columns},
-                            expected_output={col: row[col] for col in expected_output_columns},
-                            metadata={col: row[col] for col in metadata_columns},
-                            tags=[],
-                            record_id="",
-                            canonical_id=None,
-                        )
-                    )
+                    record: DatasetRecordInput = {
+                        "input_data": {col: row[col] for col in input_data_columns},
+                        "expected_output": {col: row[col] for col in expected_output_columns},
+                        "metadata": {col: row[col] for col in metadata_columns},
+                        "tags": [],
+                    }
+                    if id_column:
+                        record["id"] = row[id_column]
+                    records.append(record)
 
         finally:
             # Always restore the original field size limit
