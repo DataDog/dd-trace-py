@@ -33,7 +33,6 @@ components:
     - ddtrace/internal/tracemethods.py
     - ddtrace/internal/sysdep.h
     - ddtrace/internal/writer/*
-    - src/native/span/*
   vendor:
     - ddtrace/vendor/*
   opentelemetry:
