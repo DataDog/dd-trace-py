@@ -57,7 +57,7 @@ def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -
     for attr, tag_name in _APM_LATENCY_METRIC_MAP.items():
         value = getattr(latency_metrics, attr, None)
         if value is not None:
-            span.set_metric(tag_name, value)
+            span._set_attribute(tag_name, value)
 
 
 def inject_trace_context(tracer, trace_headers: Optional[dict[str, str]]) -> dict[str, str]:

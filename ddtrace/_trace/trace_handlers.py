@@ -583,7 +583,7 @@ def _on_django_cache(
     try:
         rowcount = ctx.get_item("rowcount")
         if rowcount is not None:
-            ctx.span.set_metric(db.ROWCOUNT, rowcount)
+            ctx.span._set_attribute(db.ROWCOUNT, rowcount)
     finally:
         _finish_span(ctx, exc_info)
 
@@ -818,7 +818,7 @@ def _on_botocore_kinesis_getrecords_post(
 
 def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx.span.set_metric(db.ROWCOUNT, rowcount)
+        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
@@ -835,7 +835,7 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        ctx.span.set_metric(db.ROWCOUNT, rowcount)
+        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def _on_test_visibility_enable(config) -> None:
@@ -972,17 +972,17 @@ def _on_router_match(route):
 def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
     if "text" in message:
         websocket_span._set_attribute(websocket.MESSAGE_TYPE, "text")
-        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
+        websocket_span._set_attribute(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
     elif "binary" in message:
         websocket_span._set_attribute(websocket.MESSAGE_TYPE, "binary")
-        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
+        websocket_span._set_attribute(websocket.MESSAGE_LENGTH, len(message["bytes"]))
 
 
 def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
     code = message.get("code")
     reason = message.get("reason")
     if code is not None:
-        span.set_metric(websocket.CLOSE_CODE, code)
+        span._set_attribute(websocket.CLOSE_CODE, code)
     if reason:
         span.set_tag(websocket.CLOSE_REASON, reason)
 
@@ -1112,7 +1112,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
 
     _set_websocket_message_tags_on_span(span, message)
 
-    span.set_metric(websocket.MESSAGE_FRAMES, 1)
+    span._set_attribute(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
@@ -1142,7 +1142,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
     _set_client_ip_tags(scope, span)
     _set_websocket_message_tags_on_span(span, message)
 
-    span.set_metric(websocket.MESSAGE_FRAMES, 1)
+    span._set_attribute(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
         handshake_span = ctx.parent.span
@@ -1245,7 +1245,7 @@ def _on_aiokafka_send_start(
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
     span._set_attribute(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span.set_metric(PARTITION, partition or -1)
+    span._set_attribute(PARTITION, partition or -1)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
@@ -1285,8 +1285,8 @@ def _on_aiokafka_getone_message(
         if isinstance(message_key, str):
             span.set_tag(MESSAGE_KEY, message_key)
 
-        span.set_metric(PARTITION, message.partition or -1)
-        span.set_metric(MESSAGE_OFFSET, message_offset)
+        span._set_attribute(PARTITION, message.partition or -1)
+        span._set_attribute(MESSAGE_OFFSET, message_offset)
 
     if err is not None:
         span.set_exc_info(type(err), err, err.__traceback__)
