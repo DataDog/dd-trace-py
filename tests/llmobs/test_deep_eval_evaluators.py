@@ -1,13 +1,16 @@
 """Tests for DeepEval evaluator integration with LLMObs experiments."""
 
 import asyncio
-
-from deepeval.metrics import BaseMetric
-from deepeval.test_case import LLMTestCase
+import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+
+deepeval = pytest.importorskip("deepeval")
+
+from deepeval.metrics import BaseMetric
+from deepeval.test_case import LLMTestCase
 
 
 class SimpleDeepEvalMetric(BaseMetric):

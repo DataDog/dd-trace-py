@@ -3339,31 +3339,31 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            pkgs={
-                "vcrpy": latest,
-                "openai": latest,
-                "google-cloud-aiplatform": latest,
-                "boto3": latest,
-                "pytest-asyncio": "==0.21.1",
-                "ragas": "==0.1.21",
-                "langchain": latest,
-                "pandas": latest,
-            },
             venvs=[
-                # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
                 Venv(
-                    pys=["3.9"],
-                    command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
-                ),
-                # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs",
                     pkgs={
-                        "deepeval": latest,
+                        "vcrpy": latest,
+                        "openai": latest,
+                        "google-cloud-aiplatform": latest,
+                        "boto3": latest,
+                        "pytest-asyncio": "==0.21.1",
+                        "ragas": "==0.1.21",
+                        "langchain": latest,
+                        "pandas": latest,
                     },
+                    venvs=[
+                        Venv(pys=["3.9"], command="pytest {cmdargs} tests/llmobs"),
+                        Venv(
+                            pys=select_pys(min_version="3.10", max_version="3.13"),
+                            command="pytest {cmdargs} tests/llmobs",
+                            pkgs={
+                                # deepeval not supported on Python 3.9
+                                "deepeval": latest,
+                            },
+                        ),
+                    ],
                 ),
-                # Pydantic v1 compatibility (v1 supports up to Python 3.13)
+                # Pydantic v1 compatibility to test utils — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     command="pytest {cmdargs} tests/llmobs/test_utils.py",
