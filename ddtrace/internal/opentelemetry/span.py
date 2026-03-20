@@ -16,6 +16,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import http
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
@@ -188,16 +189,18 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
-                self._ddspan._set_attribute(k, v)
+                self._ddspan.set_tag(k, v)
             return
-        if isinstance(value, (str, bytes)):
+        if key == http.STATUS_CODE:
+            self._ddspan._set_attribute(key, value)
+        elif isinstance(value, (str, bytes)):
             value = ensure_text(value)
-            self._ddspan._set_attribute(key, value)
+            self._ddspan.set_tag(key, value)
         elif isinstance(value, (int, float)):
-            self._ddspan._set_attribute(key, value)
+            self._ddspan.set_metric(key, value)
         else:
-            # TODO: get rid of this usage, `_set_attribute` only takes `str | int | float`
-            self._ddspan._set_attribute(key, value)
+            # TODO: get rid of this usage, `set_tag` only takes str values
+            self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
