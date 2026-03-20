@@ -222,6 +222,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
             // Selected threads are placed in [0, sample_count). Overflow threads remain in
             // [sample_count, size) as fallbacks in case a selected thread was unregistered
             // between collection and sampling.
+            // We use Algorithm R rather than the asymptotically faster Algorithm L because we
+            // already traverse all threads unconditionally above (the CPython thread list is a
+            // linked list, so discovery always costs O(n)). Algorithm L's advantage is skipping
+            // elements to reduce random-number generation, but that only pays off when iteration
+            // itself is expensive — it isn't here. Algorithm R is simpler and sufficient.
             size_t sample_count = thread_candidates.size();
             if (sample_count > max_threads_per_sample) {
                 for (size_t i = max_threads_per_sample; i < sample_count; i++) {
