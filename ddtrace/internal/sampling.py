@@ -160,7 +160,7 @@ def get_span_sampling_rules() -> list[SpanSamplingRule]:
 
         if not service and not name:
             log.warning("Sampling rules must supply at least 'service' or 'name', got %s", json.dumps(rule))
-            return []
+            continue
 
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
