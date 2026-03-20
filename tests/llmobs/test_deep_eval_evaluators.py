@@ -1,11 +1,13 @@
 """Tests for DeepEval evaluator integration with LLMObs experiments."""
 
 import asyncio
+
 import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+
 
 deepeval = pytest.importorskip("deepeval")
 

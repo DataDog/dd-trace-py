@@ -743,14 +743,14 @@ class TestXdistHooksUnit:
             if skipped_count > 0:
                 session_span = mock_session_span  # Use our mock directly
                 if session_span:
-                    session_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    session_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
 
         # Verify the session span was tagged with ITR results
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-        mock_session_span.set_metric.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
+        mock_session_span._set_attribute.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
 
         # Clean up
         delattr(pytest, "global_worker_itr_results")
@@ -777,7 +777,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (worker shouldn't aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up
@@ -806,7 +806,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (no global results to aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
     def test_pytest_sessionfinish_no_aggregation_when_zero_skipped(self):
@@ -831,7 +831,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (zero tests skipped)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up

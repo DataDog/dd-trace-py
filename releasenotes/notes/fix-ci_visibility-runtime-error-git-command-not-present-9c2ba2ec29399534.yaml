@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fix an unhandled ``RuntimeError`` that occurred when the ``git`` binary was not available. Git metadata upload is now skipped gracefully with a warning instead of aborting pytest startup.

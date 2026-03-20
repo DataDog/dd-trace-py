@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 #include "libdatadog_helpers.hpp"
+#include "native_call_tracker.hpp"
 #include "profile.hpp"
 #include "types.hpp"
 
@@ -75,6 +76,11 @@ class ProfilerState
     // ========================================================================
     Profile profile_state{};
     bool timeline_enabled{ false };
+
+    // ========================================================================
+    // Native call tracking state
+    // ========================================================================
+    NativeCallRegistry native_call_registry{};
 
     // ========================================================================
     // Upload state
