@@ -58,7 +58,7 @@ def create_checkout_span():
 def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
     set_address_tags(span, sock_info.address)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def process_server_operation_result(span, operation, result):
@@ -86,7 +86,7 @@ def process_server_message_result(span, operation, result):
                 else:
                     data = _unpack_response(response=result.data)
                     if VERSION < (3, 2, 0) and data.get("number_returned", None):
-                        span.set_metric(db.ROWCOUNT, data.get("number_returned"))
+                        span._set_attribute(db.ROWCOUNT, data.get("number_returned"))
                     elif (3, 2, 0) <= VERSION < (3, 6, 0):
                         docs = data.get("data", None)
                         set_query_rowcount(docs=docs, span=span)
@@ -145,7 +145,7 @@ def set_query_rowcount(docs, span):
             pass
     if cursor and isinstance(cursor, dict):
         rowcount = sum(len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key)
-        span.set_metric(db.ROWCOUNT, rowcount)
+        span._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def dbm_dispatch(span, args, kwargs):

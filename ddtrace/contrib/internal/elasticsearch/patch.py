@@ -13,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
@@ -140,6 +141,7 @@ def _get_perform_request_coro(transport):
         with tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            maybe_set_service_source_tag(span, config.elasticsearch)
             if pin.tags:
                 span.set_tags(pin.tags)
 
@@ -148,8 +150,7 @@ def _get_perform_request_coro(transport):
             # set span.kind to the type of request being performed
             span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
             method, target = args
             params = kwargs.get("params")
@@ -229,7 +230,7 @@ def _get_perform_request_coro(transport):
 
                 took = data.get("took")
                 if took:
-                    span.set_metric(metadata.TOOK, int(took))
+                    span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)
 

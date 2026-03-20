@@ -1,0 +1,21 @@
+id: span-set-attribute-measured
+valid:
+  # Literal int values are safe
+  - span._set_attribute(_SPAN_MEASURED_KEY, 1)
+  - span._set_attribute(_SPAN_MEASURED_KEY, 0)
+  # Literal bool values are safe
+  - span._set_attribute(_SPAN_MEASURED_KEY, True)
+  - span._set_attribute(_SPAN_MEASURED_KEY, False)
+  # Other keys with non-literal values are fine
+  - span._set_attribute("some.other.key", some_var)
+  - span._set_attribute(OTHER_KEY, some_var)
+
+invalid:
+  # Variable reference — not guaranteed to be 0/1
+  - span._set_attribute(_SPAN_MEASURED_KEY, some_var)
+  # String literal — would go to _meta instead of _metrics
+  - span._set_attribute(_SPAN_MEASURED_KEY, "1")
+  # None
+  - span._set_attribute(_SPAN_MEASURED_KEY, None)
+  # Expression — not a safe literal
+  - span._set_attribute(_SPAN_MEASURED_KEY, int(flag))

@@ -103,12 +103,12 @@ class RaySpanManager:
     def _emit_partial_span(self, span: Span) -> None:
         partial_version = time.time_ns()
         if span.get_metric(DD_PARTIAL_VERSION) is None:
-            span.set_metric(DD_PARTIAL_VERSION, partial_version)
+            span._set_attribute(DD_PARTIAL_VERSION, partial_version)
             span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
         partial_span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
-        partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
+        partial_span._set_attribute(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
         # Sending spans which are waiting for long running spans to finish
@@ -192,7 +192,7 @@ class RaySpanManager:
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
             del span._metrics[DD_PARTIAL_VERSION]
 
-            span.set_metric(DD_WAS_LONG_RUNNING, 1)
+            span._set_attribute(DD_WAS_LONG_RUNNING, 1)
             span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:

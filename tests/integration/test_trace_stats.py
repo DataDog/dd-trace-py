@@ -212,7 +212,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(_SPAN_MEASURED_KEY)
+                span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 @pytest.mark.snapshot()
@@ -235,4 +235,4 @@ def test_single_span_sampling():
     with tracer.trace("parent", service="test"):
         with tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
-            child.set_metric("_dd.span_sampling.mechanism", 8)
+            child._set_attribute("_dd.span_sampling.mechanism", 8)

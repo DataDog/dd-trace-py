@@ -101,7 +101,13 @@ def _get_rasp_capability(capability: str) -> bool:
         if not in_asm_context():
             return False
 
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+        try:
+            from ddtrace.appsec._processor import AppSecSpanProcessor
+        except Exception as e:
+            from ddtrace.appsec._listeners import _abort_appsec
+
+            _abort_appsec(str(e))
+            return False
 
         return AppSecSpanProcessor._instance is not None and getattr(
             AppSecSpanProcessor._instance, f"rasp_{capability}_enabled", False

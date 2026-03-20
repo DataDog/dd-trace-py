@@ -145,7 +145,8 @@ class ExceptionCollector(collector.Collector):
 
         if HAS_MONITORING:
             try:
-                _state = _SamplerState(self._sampling_interval, self._collect_message)
+                # Claim the tool ID *before* writing _state so that a ValueError
+                # (tool ID already in use) leaves the existing _state untouched.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.EXCEPTION_HANDLED)
                 sys.monitoring.register_callback(
@@ -157,6 +158,7 @@ class ExceptionCollector(collector.Collector):
                 LOG.exception("Failed to set up exception monitoring")
                 return
 
+            _state = _SamplerState(self._sampling_interval, self._collect_message)
             self._monitoring_registered = True
         else:
             LOG.debug("Exception profiling only supports Python 3.12+, skipping")
@@ -171,16 +173,29 @@ class ExceptionCollector(collector.Collector):
             _state = None
             return
 
+        # Each cleanup step is independent: always attempt all three so that
+        # free_tool_id() is called even if an earlier step fails.  Failing to
+        # free the tool_id permanently consumes sys.monitoring slot
+        # _MONITORING_TOOL_ID and prevents any future profiler restart from
+        # registering the callback again.
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,
                 sys.monitoring.events.EXCEPTION_HANDLED,
                 None,
             )
+        except Exception:
+            LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
+
+        try:
             sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
+        except Exception:
+            LOG.debug("Failed to disable exception monitoring events", exc_info=True)
+
+        try:
             sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
         except Exception:
-            LOG.debug("Failed to clean up exception monitoring", exc_info=True)
-        finally:
-            self._monitoring_registered = False
-            _state = None
+            LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+
+        self._monitoring_registered = False
+        _state = None
