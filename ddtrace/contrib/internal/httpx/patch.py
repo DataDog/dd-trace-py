@@ -65,7 +65,7 @@ def _wrapped_sync_send_single_request(
     instance: httpx.Client,
     args: tuple[httpx.Request],
     kwargs: dict[str, Any],
-) -> httpx.Response:
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_event(
         event=HttpClientSendEvent(
@@ -73,7 +73,8 @@ def _wrapped_sync_send_single_request(
             request_method=req.method,
             request_headers=req.headers,
             request_body=lambda: req.content,
-        )
+        ),
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
     ) as ctx:
         resp = None
         try:
@@ -89,7 +90,7 @@ async def _wrapped_async_send_single_request(
     instance: httpx.AsyncClient,
     args: tuple[httpx.Request],
     kwargs: dict[str, Any],
-):
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_event(
         event=HttpClientSendEvent(
@@ -97,7 +98,8 @@ async def _wrapped_async_send_single_request(
             request_method=req.method,
             request_headers=req.headers,
             request_body=lambda: req.content,
-        )
+        ),
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
     ) as ctx:
         resp = None
         try:
@@ -113,7 +115,7 @@ async def _wrapped_async_send(
     instance: httpx.AsyncClient,
     args: tuple[httpx.Request],
     kwargs: dict[str, Any],
-):
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
@@ -144,7 +146,7 @@ def _wrapped_sync_send(
     instance: httpx.AsyncClient,
     args: tuple[httpx.Request],
     kwargs: dict[str, Any],
-):
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(

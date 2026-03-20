@@ -69,7 +69,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
 
 
 class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSendEvent]):
-    event_names = (HttpClientEvents.HTTPX_SINGLE_REQUEST.value,)
+    event_names = (HttpClientEvents.HTTPX_SEND_REQUEST.value,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[HttpClientSendEvent]):

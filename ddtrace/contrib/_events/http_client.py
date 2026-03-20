@@ -26,8 +26,10 @@ JsonType = Union[None, bool, int, float, str, Sequence["JsonType"], Mapping[str,
 
 
 class _HttpClientResponse(Protocol):
-    headers: MutableMapping[str, str]
-    status_code: int
+    @property
+    def headers(self) -> MutableMapping[str, str]: ...
+    @property
+    def status_code(self) -> int: ...
 
     def json(self) -> JsonType: ...
 
@@ -35,7 +37,8 @@ class _HttpClientResponse(Protocol):
 class HttpClientEvents(Enum):
     HTTP_REQUEST = "http.client.request"
     HTTPX_REQUEST = "httpx.request"
-    HTTPX_SINGLE_REQUEST = "httpx.single.request"
+    HTTP_SEND_REQUEST = "http.client.send_request"
+    HTTPX_SEND_REQUEST = "httpx.send_request"
 
 
 @dataclass
@@ -43,7 +46,7 @@ class HttpClientBaseEvent(Event):
     url: str = event_field()
     request_method: str = event_field()
     request_headers: MutableMapping[str, str] = event_field()
-    response_headers: MutableMapping[str, str] = event_field(default_factory=dict)
+    response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
 
     def set_response(self, response: _HttpClientResponse) -> None:
@@ -85,5 +88,5 @@ class HttpClientSendEvent(HttpClientBaseEvent, Event):
     Examples are managed auth flows and redirect requests.
     """
 
-    event_name = HttpClientEvents.HTTPX_SINGLE_REQUEST.value
+    event_name = HttpClientEvents.HTTP_SEND_REQUEST.value
     request_body: Callable[[], Union[str, bytes]] = event_field()
