@@ -194,9 +194,7 @@ async def async_server_info(request, tracer, event_loop):
 # with pytest-asyncio 0.16.0 which is the latest version available for Python3.6.
 @pytest.fixture
 async def server_info(request, tracer, event_loop):
-    """Configures grpc server and starts it in pytest-asyncio event loop.
-    tracer fixture is imported to make sure the tracer is pinned to the modules.
-    """
+    """Configures grpc server and starts it in pytest-asyncio event loop."""
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _servicer = request.param
     target = f"localhost:{_GRPC_PORT}"
@@ -326,7 +324,7 @@ async def test_invalid_target(server_info, tracer, test_spans):
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_pin_not_activated(server_info, tracer):
+async def test_tracer_not_activated(server_info, tracer):
     tracer.enabled = False
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
