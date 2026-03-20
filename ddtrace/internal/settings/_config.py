@@ -675,9 +675,7 @@ class Config(object):
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
-        self._llmobs_event_size_limit = _get_config(
-            "DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int
-        )
+        self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
