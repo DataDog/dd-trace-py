@@ -940,9 +940,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     @staticmethod
     def _parse_otlp_headers() -> list:
         """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs."""
-        raw = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or os.environ.get(
-            "OTEL_EXPORTER_OTLP_HEADERS", ""
-        )
+        raw = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", "")
         headers = []
         for item in raw.split(","):
             item = item.strip()
@@ -1326,7 +1324,9 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
 
     verify_url(agent_config.trace_agent_url)
 
-    otlp_endpoint = otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    otlp_endpoint = (
+        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    )
 
     if config._trace_writer_native:
         return NativeWriter(
