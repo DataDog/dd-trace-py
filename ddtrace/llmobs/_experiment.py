@@ -1181,8 +1181,8 @@ class Dataset:
         record_id: str = record.get("id") or uuid.uuid4().hex
         r: DatasetRecord = {
             "input_data": record["input_data"],
-            "expected_output": record["expected_output"],
-            "metadata": record["metadata"],
+            "expected_output": record.get("expected_output"),
+            "metadata": record.get("metadata", {}),
             "tags": record.get("tags", []),
             "record_id": record_id,
             "canonical_id": None,
