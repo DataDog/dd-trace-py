@@ -33,7 +33,6 @@ class LlmRequestEvent(TracingEvent):
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)
     response: Optional[Any] = event_field(default=None)
-    is_chat: Optional[bool] = event_field(default=None)
     operation: str = event_field(default="")
 
     # Override ClassVar from TracingEvent with an instance field so span_type
