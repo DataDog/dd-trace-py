@@ -543,6 +543,9 @@ else:
 if PydanticEvaluator is not None:
     EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
+if PydanticEvaluator is not None:
+    EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
+    AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
@@ -630,6 +633,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
         and not isinstance(evaluator, BaseSummaryEvaluator)
         and not _is_deep_eval_evaluator(evaluator)
         and not _is_pydantic_evaluator(evaluator)
+        and not _is_pydantic_evaluator(evaluator)
     )
 
 
@@ -709,6 +713,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
 else:
 
     def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking.
 
         :param evaluator: The deep eval evaluator to run
@@ -730,6 +735,8 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
+    from pydantic_evals.evaluators import EvaluationReport as PydanticEvaluationReport
+    from pydantic_evals.evaluators import ReportCase as PydanticReportCase
     from pydantic_evals.evaluators import ReportEvaluatorOutput as PydanticReportEvaluatorOutput
     from pydantic_evals.evaluators.report import ReportReason as PydanticReportEvaluationReason
     from pydantic_evals.evaluators.report import ReportScalar as PydanticReportEvaluationScalar
@@ -821,6 +828,16 @@ if PydanticEvaluator is not None:
             eval_result.metadata = {"raw_response": json.dumps(_eval_result, default=lambda o: o.__dict__, indent=4)}
         return eval_result
 
+    def get_pydantic_report_evaluator_result(
+        result: PydanticReportEvaluatorOutput,
+    ) -> SummaryEvaluatorResult:
+        _eval_result = cast(PydanticReportEvaluatorOutput, result)
+        eval_result = SummaryEvaluatorResult(
+            value=None,
+            reasoning=None,
+            assessment=None,
+        )
+
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
@@ -869,32 +886,57 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
-    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 0) -> Any:
         """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
         :param evaluator: The pydantic report evaluator to run
         :return: A callable function that can be used as an evaluator
         """
 
         def wrapped_evaluator(
-            input_data: dict[str, Any],
-            output_data: Any,
-            expected_output: Optional[JSONType] = None,
+            eval_context: SummaryEvaluatorContext,
         ) -> SummaryEvaluatorResult:
-            evalContext = PydanticReportEvaluatorContext(
-                name="",
-                cases=[],
-                failures=[],
-                analyses=[],
-                report_evaluator_failures=[],
-                experiment_metadata=None,
-                trace_id=None,
-                span_id=None
-            )
-            result = evaluator.evaluate(evalContext)
-            eval_result = get_pydantic_report_evaluator_result(result)
-            return eval_result
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            assertions = dict()
+            scores = dict()
+            labels = dict()
+            for idx, input_data in enumerate(eval_context.inputs):
 
-        wrapped_evaluator.__name__ = eval_name
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) || isinstance(eval_results[eval_name][idx], int):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(PydanticReportCase(
+                    name=f"case_{idx}",
+                    inputs=input_data,
+                    metadata=eval_context.metadata,
+                    expected_output=eval_context.expected_outputs[idx],
+                    output=eval_context.outputs[idx],
+                    assertions=assertions,
+                    scores=scores,
+                    labels=labels,
+                    task_duration=duration,
+                    total_duration=total_duration
+                ))
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_default_evaluation_name(),
+                    cases=cases,
+                    # failures=[],
+                    # analyses=[],
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = evaluator.evaluate(report_eval_context)
+            return result
+
+        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
         return wrapped_evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -2097,6 +2139,13 @@ class Experiment:
 
         semaphore = asyncio.Semaphore(jobs)
         coros = [
+            self._process_record(
+                idx_record,
+                run,
+                semaphore,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+            )
             self._process_record(
                 idx_record,
                 run,
