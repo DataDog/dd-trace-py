@@ -212,6 +212,10 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
+    # NOTE: We specifically use `type(...) is ...` here instead of
+    # `isinstance`, as gevent.Greenlet inherits from the low level
+    # C `greenlet` class, so isinstance would be True for every
+    # greenlet type.
     if type(current_greenlet) is greenlet:
         current_greenlet = gevent.hub.get_hub()
     current_greenlet_id: int = thread.get_ident(current_greenlet)
