@@ -17,7 +17,6 @@
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "",
       "elasticsearch.url": "/ddtrace_index",
-      "http.status_code": "200",
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "c1d592d8db0149c5b140e4dab7d9f84f",
@@ -29,6 +28,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 580
     },
     "duration": 71187180,
@@ -53,7 +53,6 @@
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "",
       "elasticsearch.url": "/ddtrace_index",
-      "http.status_code": "200",
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "c1d592d8db0149c5b140e4dab7d9f84f",
@@ -65,6 +64,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 580
     },
     "duration": 25198832,
