@@ -901,7 +901,7 @@ if PydanticEvaluator is not None:
                 for eval_name in eval_names:
                     if isinstance(eval_results[eval_name][idx], bool):
                         assertions[eval_name] = eval_results[eval_name][idx]
-                    elif isinstance(eval_results[eval_name][idx], float) || isinstance(eval_results[eval_name][idx], int):
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(eval_results[eval_name][idx], int):
                         scores[eval_name] = eval_results[eval_name][idx]
                     else:
                         labels[eval_name] = eval_results[eval_name][idx]
