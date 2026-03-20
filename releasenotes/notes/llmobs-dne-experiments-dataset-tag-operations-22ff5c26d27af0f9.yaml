@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: Dataset records' tags can now be operated on with 3 new ``Dataset`` methods:
+    ```dataset.add_tags```, ```dataset.remove_tags```, and ```dataset.replace_tags```. All 3 new
+    methods accepts an int indicating the zero based index of the record to operate on, and a list of
+    strings in the format of key:values representing the tags. For example, if the tag "env:prod" exists
+    on the 1st record of the dataset ``ds``, calling ``ds.remove_tags(0, ["env:prod"]`` will update the
+    local state of the dataset record to have the "env:prod" tag removed. 

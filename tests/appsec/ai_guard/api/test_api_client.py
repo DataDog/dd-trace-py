@@ -50,7 +50,11 @@ PROMPT = [
             ContentPart(
                 type="input_image",
                 image_url=ImageURL(
-                    url="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                    url=(
+                        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                    )
                 ),
             ),
         ],
@@ -119,12 +123,14 @@ def test_evaluate_method(
         assert exc_info.value.action == action
         assert exc_info.value.reason == reason
         assert exc_info.value.tags == tags
+        assert exc_info.value.sds == []
     else:
         result = ai_guard_client.evaluate(messages, Options(block=blocking))
         assert result["action"] == action
         assert result["reason"] == reason
         if tags:
             assert result["tags"] == tags
+        assert result["sds"] == []
 
     expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
     if target == "tool":
@@ -151,6 +157,28 @@ def test_evaluate_method(
     assert_mock_execute_request_call(
         mock_execute_request, ai_guard_client, messages, endpoint="https://api.example.com/ai-guard"
     )
+
+
+@pytest.mark.parametrize(
+    "options,should_block",
+    [
+        pytest.param(None, True, id="options omitted follows remote blocking"),
+        pytest.param(Options(), True, id="block omitted follows remote blocking"),
+        pytest.param(Options(block=False), False, id="explicit block false disables blocking"),
+    ],
+)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
+    mock_execute_request, ai_guard_client, options, should_block
+):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", "Nope", ["deny_everything"], True)
+
+    if should_block:
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_client.evaluate(TOOL_CALL, options)
+    else:
+        result = ai_guard_client.evaluate(TOOL_CALL, options)
+        assert result["action"] == "DENY"
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
@@ -352,10 +380,12 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_sds_findings(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
-    """Test that sds_findings from the response are added to the span meta_struct."""
+    """Test that sds_findings from the response are added to the span meta_struct and SDK response."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
 
-    ai_guard_client.evaluate(PROMPT)
+    result = ai_guard_client.evaluate(PROMPT)
+
+    assert result["sds"] == sds_findings
 
     expected_meta_struct = {"messages": PROMPT, "sds": sds_findings}
     assert_ai_guard_span(
@@ -378,11 +408,38 @@ def test_evaluate_sds_findings_empty(mock_execute_request, telemetry_mock, ai_gu
     """Test that empty or absent sds_findings are not added to the span meta_struct."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
 
-    ai_guard_client.evaluate(PROMPT)
+    result = ai_guard_client.evaluate(PROMPT)
+
+    assert result["sds"] == (sds_findings if sds_findings else [])
 
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     assert "sds" not in meta
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings_in_abort_error(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+    """Test that sds_findings are included in AIGuardAbortError."""
+    sds_findings = [
+        {
+            "rule_display_name": "Credit Card Number",
+            "rule_tag": "credit_card",
+            "category": "pii",
+            "matched_text": "4111111111111111",
+            "location": {
+                "start_index": 10,
+                "end_index_exclusive": 26,
+                "path": "messages[0].content[0].text",
+            },
+        }
+    ]
+    mock_execute_request.return_value = mock_evaluate_response("ABORT", sds_findings=sds_findings)
+
+    with pytest.raises(AIGuardAbortError) as exc_info:
+        ai_guard_client.evaluate(PROMPT, Options(block=True))
+
+    assert exc_info.value.sds == sds_findings
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
