@@ -580,7 +580,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_ipblock(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, headers, blocked, body, content_type
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        headers,
+        blocked,
+        body,
+        content_type,
     ):
         from ddtrace.ext import http
 
@@ -627,6 +636,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         self,
         interface: Interface,
         get_entry_span_tag,
+        get_entry_span_metric,
         entry_span,
         asm_enabled,
         headers,
@@ -681,7 +691,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_attacker_blocking(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, ip, agent, event, status
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        ip,
+        agent,
+        event,
+        status,
     ):
         from ddtrace.ext import http
 
@@ -713,7 +732,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
     def test_request_suspicious_request_block_match_method(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, method, kwargs
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        method,
+        kwargs,
     ):
         # GET must be blocked
         from ddtrace.ext import http
@@ -750,7 +777,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
     def test_request_suspicious_request_block_match_uri(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        uri,
+        blocked,
     ):
         # GET must be blocked
         from ddtrace.ext import http
@@ -814,7 +849,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_path_params(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, path, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        path,
+        blocked,
     ):
         from ddtrace.ext import http
 
@@ -857,7 +900,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_query_params(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, query, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        query,
+        blocked,
     ):
         if interface.name in ("django",) and query == "?toto=xtrace&toto=ytrace":
             raise pytest.skip(f"{interface.name} does not support multiple query params with same name")
@@ -902,7 +953,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_request_headers(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, headers, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        headers,
+        blocked,
     ):
         from ddtrace.ext import http
 
@@ -941,7 +1000,15 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_request_cookies(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, cookies, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        cookies,
+        blocked,
     ):
         from ddtrace.ext import http
 
@@ -982,7 +1049,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_response_status(
-        self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri, status, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        entry_span,
+        asm_enabled,
+        metastruct,
+        uri,
+        status,
+        blocked,
     ):
         from ddtrace.ext import http
 
@@ -1029,6 +1105,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         self,
         interface: Interface,
         get_entry_span_tag,
+        get_entry_span_metric,
         asm_enabled,
         metastruct,
         entry_span,
@@ -1130,7 +1207,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_request_suspicious_request_block_match_request_body(
-        self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
+        self,
+        interface: Interface,
+        get_entry_span_tag,
+        get_entry_span_metric,
+        asm_enabled,
+        metastruct,
+        entry_span,
+        body,
+        content_type,
+        blocked,
     ):
         from ddtrace.ext import http
 
@@ -1188,6 +1274,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         self,
         interface: Interface,
         get_entry_span_tag,
+        get_entry_span_metric,
         asm_enabled,
         metastruct,
         entry_span,
@@ -1263,6 +1350,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         self,
         interface: Interface,
         get_entry_span_tag,
+        get_entry_span_metric,
         entry_span,
         asm_enabled,
     ):
@@ -1363,6 +1451,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         self,
         interface: Interface,
         get_entry_span_tag,
+        get_entry_span_metric,
         entry_span,
         apisec_enabled,
         apm_tracing_enabled,
@@ -1462,7 +1551,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ],
     )
     def test_api_security_scanners(
-        self, interface: Interface, get_entry_span_tag, apisec_enabled, payload, expected_value
+        self, interface: Interface, get_entry_span_tag, get_entry_span_metric, apisec_enabled, payload, expected_value
     ):
         import base64
         import gzip
@@ -1489,7 +1578,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert value is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
-    def test_api_custom_scanners(self, interface: Interface, get_entry_span_tag, apisec_enabled):
+    def test_api_custom_scanners(self, interface: Interface, get_entry_span_tag, get_entry_span_metric, apisec_enabled):
         import base64
         import gzip
 
@@ -1529,7 +1618,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
-    def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
+    def test_api_security_sampling(
+        self, interface: Interface, get_entry_span_tag, get_entry_span_metric, apisec_enabled, priority, delay
+    ):
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
 
@@ -1659,7 +1750,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         ):
             self.update_tracer(interface)
             response = interface.client.get("/stream/")
-            assert self.body(response) == 0123456789
+            assert self.body(response) == "0123456789"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
@@ -1847,6 +1938,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         interface,
         entry_span,
         get_entry_span_tag,
+        get_entry_span_metric,
         asm_enabled,
         auto_events_enabled,
         local_mode,
@@ -1946,6 +2038,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         interface,
         entry_span,
         get_entry_span_tag,
+        get_entry_span_metric,
         asm_enabled,
         auto_events_enabled,
         local_mode,
@@ -2064,7 +2157,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])
-    def test_fingerprinting(self, interface, entry_span, get_entry_span_tag, asm_enabled, user_agent):
+    def test_fingerprinting(
+        self, interface, entry_span, get_entry_span_tag, get_entry_span_metric, asm_enabled, user_agent
+    ):
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=None)):
             self.update_tracer(interface)
             response = interface.client.post(
