@@ -61,29 +61,39 @@ class TestErrorCodeMapping:
 class TestFlagEvalMetrics:
     """Test FlagEvalMetrics class."""
 
-    def test_initialization_without_otel(self):
-        """Metrics should initialize gracefully when OTel is not available."""
-        with patch.dict("sys.modules", {"opentelemetry": None, "opentelemetry.metrics": None}):
-            # Force re-import by creating new instance
-            # The import will fail and metrics should be disabled
-            _ = FlagEvalMetrics()
-            # When OTel import fails, _enabled should be False
-            # Note: In real scenario, the import might succeed or fail
-            # This test verifies graceful handling
-
-    def test_initialization_with_otel(self):
-        """Metrics should initialize with OTel when available."""
-        # When OTel is available (as it is in the test environment),
-        # the metrics should be enabled and have a counter
+    def test_initialization_disabled_when_otel_metrics_not_enabled(self):
+        """Metrics should be disabled when DD_METRICS_OTEL_ENABLED is false."""
+        # Default config has _otel_metrics_enabled=False
         metrics = FlagEvalMetrics()
 
-        # If OTel is available, metrics should be enabled
-        # The actual behavior depends on whether OTel is installed
-        # We just verify the object is created without error
-        assert metrics is not None
-        # If enabled, counter should be set
-        if metrics._enabled:
-            assert metrics._counter is not None
+        assert metrics._enabled is False
+        assert metrics._counter is None
+
+    def test_initialization_without_otel(self):
+        """Metrics should initialize gracefully when OTel is not available."""
+        with override_global_config({"_otel_metrics_enabled": True}):
+            with patch.dict("sys.modules", {"opentelemetry": None, "opentelemetry.metrics": None}):
+                # Force re-import by creating new instance
+                # The import will fail and metrics should be disabled
+                _ = FlagEvalMetrics()
+                # When OTel import fails, _enabled should be False
+                # Note: In real scenario, the import might succeed or fail
+                # This test verifies graceful handling
+
+    def test_initialization_with_otel(self):
+        """Metrics should initialize with OTel when available and enabled."""
+        with override_global_config({"_otel_metrics_enabled": True}):
+            # When OTel is available and metrics are enabled,
+            # the metrics should be enabled and have a counter
+            metrics = FlagEvalMetrics()
+
+            # If OTel is available, metrics should be enabled
+            # The actual behavior depends on whether OTel is installed
+            # We just verify the object is created without error
+            assert metrics is not None
+            # If enabled, counter should be set
+            if metrics._enabled:
+                assert metrics._counter is not None
 
     def test_record_basic_attributes(self):
         """Record should emit metric with basic attributes."""
@@ -363,7 +373,7 @@ class TestProviderHooksIntegration:
     @pytest.fixture
     def provider(self):
         """Create a DataDogProvider instance for testing."""
-        with override_global_config({"experimental_flagging_provider_enabled": True}):
+        with override_global_config({"experimental_flagging_provider_enabled": True, "_otel_metrics_enabled": True}):
             yield DataDogProvider()
 
     @pytest.fixture(autouse=True)
@@ -420,7 +430,7 @@ class TestMetricsWithRealOTel:
     @pytest.fixture
     def provider(self):
         """Create a DataDogProvider instance for testing."""
-        with override_global_config({"experimental_flagging_provider_enabled": True}):
+        with override_global_config({"experimental_flagging_provider_enabled": True, "_otel_metrics_enabled": True}):
             yield DataDogProvider()
 
     @pytest.fixture(autouse=True)

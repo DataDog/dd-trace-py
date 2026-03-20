@@ -68,9 +68,22 @@ class FlagEvalMetrics:
         Initialize the flag evaluation metrics.
 
         Creates an OTel MeterProvider and Int64Counter for tracking flag evaluations.
+        Only enabled when DD_METRICS_OTEL_ENABLED=true.
         """
         self._counter: typing.Optional[typing.Any] = None
         self._enabled = False
+
+        # Only create metrics if OTel metrics are enabled
+        try:
+            from ddtrace.settings import _config as ddconfig
+
+            if not ddconfig._otel_metrics_enabled:
+                log.debug("OTel metrics not enabled (DD_METRICS_OTEL_ENABLED=false), flag evaluation metrics disabled")
+                return
+        except ImportError:
+            # ddtrace.settings not available (e.g., in isolated test environments)
+            log.debug("ddtrace.settings not available, flag evaluation metrics disabled")
+            return
 
         try:
             from opentelemetry import metrics as otel_metrics
