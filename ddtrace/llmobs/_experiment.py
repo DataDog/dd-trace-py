@@ -543,9 +543,6 @@ else:
 if PydanticEvaluator is not None:
     EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
-if PydanticEvaluator is not None:
-    EvaluatorType = Union[EvaluatorType, PydanticEvaluator]  # type: ignore[misc]
-    AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
@@ -633,7 +630,6 @@ def _is_function_evaluator(evaluator: Any) -> bool:
         and not isinstance(evaluator, BaseSummaryEvaluator)
         and not _is_deep_eval_evaluator(evaluator)
         and not _is_pydantic_evaluator(evaluator)
-        and not _is_pydantic_evaluator(evaluator)
     )
 
 
@@ -712,7 +708,6 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
 
 else:
 
-    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
     def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking.
 
