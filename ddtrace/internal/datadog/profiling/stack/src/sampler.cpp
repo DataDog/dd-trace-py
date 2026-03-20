@@ -196,15 +196,70 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Perform the sample
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us);
+        // Perform the sample.
+        // When max_threads_per_sample is set, we collect all threads first, then apply
+        // reservoir sampling (Algorithm R) to select a uniform random subset, and only
+        // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
+        if (max_threads_per_sample == 0) {
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                    auto success = thread.sample(*echion, tstate, wall_time_us);
+                    if (success) {
+                        Sample::profile_borrow().stats().increment_sample_count();
+                    }
+                });
+            });
+        } else {
+            thread_candidates.clear();
+
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
+                    thread_candidates.push_back({ *tstate, tstate->thread_id });
+                });
+            });
+
+            // Algorithm R: if we have more threads than the cap, select a uniform random subset.
+            // Selected threads are placed in [0, sample_count). Overflow threads remain in
+            // [sample_count, size) as fallbacks in case a selected thread was unregistered
+            // between collection and sampling.
+            size_t sample_count = thread_candidates.size();
+            if (sample_count > max_threads_per_sample) {
+                for (size_t i = max_threads_per_sample; i < sample_count; i++) {
+                    std::uniform_int_distribution<size_t> dist(0, i);
+                    size_t j = dist(rng);
+                    if (j < max_threads_per_sample) {
+                        std::swap(thread_candidates[j], thread_candidates[i]);
+                    }
+                }
+                sample_count = max_threads_per_sample;
+            }
+
+            size_t fallback_idx = sample_count;
+            for (size_t i = 0; i < sample_count; i++) {
+                const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+                auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+                if (it == echion->thread_info_map().end()) {
+                    // Thread was unregistered; try to fill from overflow
+                    while (fallback_idx < thread_candidates.size()) {
+                        auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                        if (fb_it != echion->thread_info_map().end()) {
+                            thread_candidates[i] = thread_candidates[fallback_idx];
+                            it = fb_it;
+                            fallback_idx++;
+                            break;
+                        }
+                        fallback_idx++;
+                    }
+                    if (it == echion->thread_info_map().end()) {
+                        continue;
+                    }
+                }
+                auto success = it->second->sample(*echion, &thread_candidates[i].tstate_copy, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
-            });
-        });
+            }
+        }
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
