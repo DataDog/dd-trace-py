@@ -303,7 +303,13 @@ class SessionManager:
         return self.session.test_command
 
     def upload_git_data(self) -> None:
-        git = Git()
+        # Missing `git` in minimal containers should not abort pytest startup.
+        try:
+            git = Git()
+        except RuntimeError:
+            log.warning("Error calling git binary, skipping metadata upload")
+            return
+
         latest_commits = git.get_latest_commits()
         backend_commits = self.api_client.get_known_commits(latest_commits)
         # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).

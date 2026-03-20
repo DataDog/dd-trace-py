@@ -25,8 +25,8 @@ def test_single_trace_single_span(tracer):
     s.set_tag("k", "v")
     # numeric tag
     s.set_tag("num", 1234)
-    s.set_metric("float_metric", 12.34)
-    s.set_metric("int_metric", 4321)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
     s.finish()
     tracer.flush()
 
@@ -62,15 +62,15 @@ def test_multiple_traces(tracer):
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
 
     with tracer.trace("operation2", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
     tracer.flush()
 
@@ -296,7 +296,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span._set_attribute(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 
@@ -347,9 +347,9 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
     with override_global_config(dict(_trace_api=encoding)):
         s = tracer.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
-        s.set_metric("number1", 123)
-        s.set_metric("number2", 12.0)
-        s.set_metric("number3", "1")
+        s._set_attribute("number1", 123)
+        s._set_attribute("number2", 12.0)
+        s._set_attribute("number3", "1")
         s.finish()
 
 

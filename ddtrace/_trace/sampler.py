@@ -177,7 +177,7 @@ class DatadogSampler:
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
-                span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+                span._set_attribute(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
         _set_sampling_tags(
