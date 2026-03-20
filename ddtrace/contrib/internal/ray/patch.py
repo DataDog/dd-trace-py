@@ -12,6 +12,12 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.ray.serve import traced_actor_remote, traced_handle_request_with_rejection
+from ddtrace.contrib.internal.ray.serve import traced_assign_request
+from ddtrace.contrib.internal.ray.serve import traced_deployment_handle_remote
+from ddtrace.contrib.internal.ray.serve import traced_proxy_request
+from ddtrace.contrib.internal.ray.serve import traced_serve_deployment
+from ddtrace.contrib.internal.ray.serve import traced_shutdown
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -77,8 +83,16 @@ RAY_ACTOR_MODULE_DENYLIST = {
     *RAY_COMMON_MODULE_DENYLIST,
     "ray.experimental",
     "ray.data._internal",
+    "ray.serve._private.controller" # AIDEV-NOTE: this might cause issue with
+    # instrumentation, if we don't see something it might be because of that
 }
 
+RAY_SERVE_REPLICA_METHOD_DENYLIST = {
+    "record_routing_stats",
+    "check_health",
+    "is_allocated",
+    "initialize_and_get_metadata"
+}
 
 config._add(
     "ray",
@@ -520,6 +534,10 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     # We do not want to instrument ping and polling to remove noise
     methods_to_ignore = {"ping", "_polling"} if is_job_supervisor else set()
 
+    # Serve replicas have internal bookkeeping methods that are noisy and not request business logic
+    if module_name.startswith("ray.serve._private") and class_name.startswith("ServeReplica:"):
+        methods_to_ignore.update(RAY_SERVE_REPLICA_METHOD_DENYLIST)
+
     methods = inspect.getmembers(cls, is_function_or_method)
     for name, method in methods:
         if name in methods_to_ignore:
@@ -569,42 +587,52 @@ def patch():
     ray._datadog_patch = True
 
     from ray.util.tracing import tracing_helper
-
     tracing_helper._global_is_tracing_enabled = False
 
     @ModuleWatchdog.after_module_imported("ray.actor")
     def _(m):
         _w(m.ActorHandle, "_actor_method_call", traced_actor_method_call)
         _w(m, "_modify_class", inject_tracing_into_actor_class)
+        # _w(m.ActorMethod, "remote", traced_actor_remote)
 
-    @ModuleWatchdog.after_module_imported("ray.dashboard.modules.job.job_manager")
-    def _(m):
-        _w(m.JobManager, "submit_job", traced_submit_job)
-        _w(m.JobManager, "_monitor_job_internal", traced_end_job)
+    # @ModuleWatchdog.after_module_imported("ray.dashboard.modules.job.job_manager")
+    # def _(m):
+    #     _w(m.JobManager, "submit_job", traced_submit_job)
+    #     _w(m.JobManager, "_monitor_job_internal", traced_end_job)
 
     @ModuleWatchdog.after_module_imported("ray.remote_function")
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
-    _w(ray, "get", traced_get)
-    _w(ray, "wait", traced_wait)
-    _w(ray, "put", traced_put)
+    @ModuleWatchdog.after_module_imported("ray.serve")
+    def _(m):
+        _w(m, "deployment", traced_serve_deployment)
+        _w(m._private.replica.ReplicaBase, "perform_graceful_shutdown", traced_shutdown)
+        _w(m.handle.DeploymentHandle, "remote", traced_deployment_handle_remote)
+        _w(m._private.proxy.GenericProxy, "proxy_request", traced_proxy_request)
+        _w(m._private.router.AsyncioRouter, "assign_request", traced_assign_request)
+        _w(m._private.replica.ReplicaBase, "handle_request_with_rejection", traced_handle_request_with_rejection)
+
+
+    # _w(ray, "get", traced_get)
+    # _w(ray, "wait", traced_wait)
+    # _w(ray, "put", traced_put)
 
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
         return
 
-    _u(ray.remote_function.RemoteFunction, "_remote")
+    # _u(ray.remote_function.RemoteFunction, "_remote")
 
-    _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")
-    _u(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal")
+    # _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")
+    # _u(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal")
 
-    _u(ray.actor, "_modify_class")
-    _u(ray.actor.ActorHandle, "_actor_method_call")
+    # _u(ray.actor, "_modify_class")
+    # _u(ray.actor.ActorHandle, "_actor_method_call")
 
-    _u(ray, "get")
-    _u(ray, "wait")
-    _u(ray, "put")
+    # _u(ray, "get")
+    # _u(ray, "wait")
+    # _u(ray, "put")
 
     ray._datadog_patch = False
