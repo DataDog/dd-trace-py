@@ -5,6 +5,7 @@ import ctypes
 import ctypes.util
 from enum import IntEnum
 from platform import system
+from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
@@ -87,7 +88,7 @@ class DDWAF_LOG_LEVEL(IntEnum):
 
 def _build_sequence(
     self: "ddwaf_object",
-    struct: DDWafRulesType,
+    struct: Any,
     observator: _observator,
     max_objects: int,
     max_depth: int,
@@ -108,7 +109,7 @@ def _build_sequence(
 
 def _build_mapping(
     self: "ddwaf_object",
-    struct: DDWafRulesType,
+    struct: Any,
     observator: _observator,
     max_objects: int,
     max_depth: int,
@@ -142,7 +143,7 @@ def _build_mapping(
 
 def _build_ddwaf_object(
     self: "ddwaf_object",
-    struct: DDWafRulesType,
+    struct: Any,
     observator: _observator,
     max_objects: int,
     max_depth: int,
