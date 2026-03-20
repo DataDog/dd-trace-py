@@ -174,7 +174,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
-    parallelism: 3
+    venvs_per_job: 3
     paths:
       - '@tracing'
       - '@bootstrap'
