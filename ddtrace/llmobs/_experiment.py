@@ -2141,13 +2141,6 @@ class Experiment:
                 max_retries=max_retries,
                 retry_delay=retry_delay,
             )
-            self._process_record(
-                idx_record,
-                run,
-                semaphore,
-                max_retries=max_retries,
-                retry_delay=retry_delay,
-            )
             for idx_record in enumerate(subset_dataset)
         ]
         results = await asyncio.gather(*coros, return_exceptions=True)
