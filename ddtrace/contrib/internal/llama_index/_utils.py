@@ -52,10 +52,7 @@ def _get_max_tokens(instance: Any) -> Any:
 def build_chat_request_kwargs(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
-    """Build trace kwargs for ``chat()`` / ``achat()``.
-
-    Wraps: ``BaseLLM.chat(messages, **kwargs)`` (llama_index.core >= 0.11)
-    """
+    """Build trace kwargs for ``chat()`` / ``achat()``."""
     request_kwargs = kwargs.copy()
     messages = get_argument_value(args, kwargs, 0, "messages", optional=True)
     if messages is not None:
@@ -71,10 +68,7 @@ def build_chat_request_kwargs(
 def build_complete_request_kwargs(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
-    """Build trace kwargs for ``complete()`` / ``acomplete()``.
-
-    Wraps: ``BaseLLM.complete(prompt, formatted=False, **kwargs)`` (llama_index.core >= 0.11)
-    """
+    """Build trace kwargs for ``complete()`` / ``acomplete()``."""
     request_kwargs = kwargs.copy()
     prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True)
     if prompt is not None:
@@ -87,31 +81,9 @@ def build_complete_request_kwargs(
     return request_kwargs, model
 
 
-def build_predict_request_kwargs(
-    instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> tuple[dict[str, Any], str]:
-    """Build trace kwargs for ``predict()`` / ``apredict()``.
-
-    Wraps: ``BaseLLM.predict(prompt, **prompt_args)`` (llama_index.core >= 0.11)
-    The prompt may be a PromptTemplate (has ``.template``) or a plain string.
-    """
-    request_kwargs = kwargs.copy()
-    prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True)
-    if prompt is not None:
-        template = getattr(prompt, "template", None)
-        request_kwargs["prompt"] = str(template) if template else str(prompt)
-    model = get_model_name(instance)
-    request_kwargs["model"] = model
-    max_tokens = _get_max_tokens(instance)
-    if max_tokens is not None:
-        request_kwargs["max_tokens"] = max_tokens
-    return request_kwargs, model
-
-
 def build_query_request_kwargs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Build trace kwargs for ``query()`` / ``aquery()`` and ``retrieve()`` / ``aretrieve()``.
 
-    Wraps: ``BaseQueryEngine.query(str_or_query_bundle)`` (llama_index.core >= 0.11)
     The argument may be a plain string or a QueryBundle with ``.query_str``.
     """
     request_kwargs = kwargs.copy()
@@ -124,10 +96,7 @@ def build_query_request_kwargs(args: tuple[Any, ...], kwargs: dict[str, Any]) ->
 def build_query_embedding_request_kwargs(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
-    """Build trace kwargs for ``get_query_embedding()`` / ``aget_query_embedding()``.
-
-    Wraps: ``BaseEmbedding.get_query_embedding(query)`` (llama_index.core >= 0.11)
-    """
+    """Build trace kwargs for ``get_query_embedding()`` / ``aget_query_embedding()``."""
     request_kwargs = kwargs.copy()
     query = get_argument_value(args, kwargs, 0, "query", optional=True)
     if query is not None:
@@ -143,7 +112,6 @@ def build_text_embedding_batch_request_kwargs(
 ) -> tuple[dict[str, Any], str]:
     """Build trace kwargs for ``get_text_embedding_batch()`` / ``aget_text_embedding_batch()``.
 
-    Wraps: ``BaseEmbedding.get_text_embedding_batch(texts, **kwargs)`` (llama_index.core >= 0.11)
     Stores a summary string rather than the full text list.
     """
     request_kwargs = kwargs.copy()
@@ -159,7 +127,6 @@ def build_text_embedding_batch_request_kwargs(
 def build_agent_run_request_kwargs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Build trace kwargs for agent ``run()``.
 
-    Wraps: ``BaseWorkflowAgent.run(user_msg, **kwargs)`` (llama_index.core >= 0.11)
     The message may be a ChatMessage (has ``.content``) or a plain string.
     """
     request_kwargs = kwargs.copy()
@@ -173,7 +140,6 @@ def build_agent_run_request_kwargs(args: tuple[Any, ...], kwargs: dict[str, Any]
 def build_agent_call_tool_request_kwargs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
     """Build trace kwargs for agent ``call_tool()``.
 
-    Wraps: ``BaseWorkflowAgent.call_tool(ctx, ev, **kwargs)`` (llama_index.core >= 0.11)
     The tool event *ev* is at position 1 and carries ``.tool_name``.
     """
     request_kwargs = kwargs.copy()

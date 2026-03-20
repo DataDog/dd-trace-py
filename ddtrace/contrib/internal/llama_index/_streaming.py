@@ -38,8 +38,8 @@ class _BaseLlamaIndexStreamHandler:
         """
         ctx = self.options["ctx"]
         try:
-            resp = _construct_response(self.chunks)
-            ctx.event.response = resp
+            # LlamaIndex streams accumulate — the last chunk has the full content and usage info.
+            ctx.event.response = self.chunks[-1] if self.chunks else None
         except Exception:
             log.warning("Error processing streamed LlamaIndex response.", exc_info=True)
         if exception:
@@ -72,13 +72,3 @@ def handle_streamed_response(
     else:
         handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     return make_traced_stream(resp, handler)
-
-
-def _construct_response(streamed_chunks: list[Any]) -> Optional[Any]:
-    """Construct a response-like object from accumulated stream chunks.
-
-    LlamaIndex streams accumulate — the last chunk has the full content and usage info.
-    """
-    if not streamed_chunks:
-        return None
-    return streamed_chunks[-1]

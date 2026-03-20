@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_re
 from ddtrace.contrib.internal.llama_index._utils import build_agent_run_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_chat_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_complete_request_kwargs
-from ddtrace.contrib.internal.llama_index._utils import build_predict_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_query_embedding_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_query_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_batch_request_kwargs
@@ -205,12 +204,10 @@ _LLM_WRAPPERS = {
     "complete": _llm_wrapper(build_complete_request_kwargs, always_stream=False),
     "stream_chat": _llm_wrapper(build_chat_request_kwargs, always_stream=True),
     "stream_complete": _llm_wrapper(build_complete_request_kwargs, always_stream=True),
-    "predict": _llm_wrapper(build_predict_request_kwargs, always_stream=False),
     "achat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=False),
     "acomplete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=False),
     "astream_chat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=True),
     "astream_complete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=True),
-    "apredict": _llm_wrapper_async(build_predict_request_kwargs, always_stream=False),
 }
 
 _QUERY_ENGINE_WRAPPERS = {

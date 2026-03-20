@@ -2,6 +2,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -9,6 +10,7 @@ from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -16,6 +18,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
 
@@ -143,17 +146,36 @@ class LlamaIndexIntegration(BaseLLMIntegration):
 
         Expected ``kwargs`` keys: ``query`` (or ``[N texts]`` summary for batch).
         Model name is read from the span tag set by ``_set_base_span_tags``.
+        Response is a list of floats (single query) or list of lists (batch).
         """
         input_value = kwargs.get("query", "")
+        input_documents = [Document(text=str(input_value))]
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "embedding",
-                INPUT_VALUE: input_value,
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: "llama_index",
-            }
-        )
+        ctx_items: dict[str, Any] = {
+            SPAN_KIND: "embedding",
+            MODEL_NAME: span.get_tag(MODEL) or "",
+            MODEL_PROVIDER: "llama_index",
+            INPUT_DOCUMENTS: input_documents,
+        }
+
+        if not span.error and response is not None:
+            try:
+                if isinstance(response, list) and response:
+                    if isinstance(response[0], list):
+                        # Batch: list of embedding vectors
+                        embedding_count = len(response)
+                        embedding_dim = len(response[0]) if response[0] else 0
+                    else:
+                        # Single query: one embedding vector
+                        embedding_count = 1
+                        embedding_dim = len(response)
+                    ctx_items[OUTPUT_VALUE] = "[{} embedding(s) returned with size {}]".format(
+                        embedding_count, embedding_dim
+                    )
+            except Exception:
+                log.debug("Failed to extract embedding output", exc_info=True)
+
+        span._set_ctx_items(ctx_items)
 
     def _llmobs_set_retrieval_tags(
         self,
@@ -168,29 +190,32 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         """
         input_value = kwargs.get("query_str", "")
 
-        output_value = ""
+        ctx_items: dict[str, Any] = {
+            SPAN_KIND: "retrieval",
+            INPUT_VALUE: input_value,
+            OUTPUT_VALUE: "",
+        }
+
         if not span.error and response is not None:
-            # retrieve() returns a list of NodeWithScore objects
             try:
-                documents = []
+                documents: list[Document] = []
                 for node_with_score in response:
                     text = str(_get_attr(node_with_score, "text", "") or "")
                     score = _get_attr(node_with_score, "score", None)
-                    doc = {"text": text}
+                    doc = Document(text=text)
                     if score is not None:
-                        doc["score"] = score
+                        doc["score"] = float(score)
+                    node_id = _get_attr(node_with_score, "node_id", None)
+                    if node_id is not None:
+                        doc["id"] = str(node_id)
                     documents.append(doc)
-                output_value = str(documents)
+                if documents:
+                    ctx_items[OUTPUT_DOCUMENTS] = documents
+                    ctx_items[OUTPUT_VALUE] = "[{} document(s) retrieved]".format(len(documents))
             except Exception:
                 log.debug("Failed to extract retriever output", exc_info=True)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "retrieval",
-                INPUT_VALUE: input_value,
-                OUTPUT_VALUE: output_value,
-            }
-        )
+        span._set_ctx_items(ctx_items)
 
     def _llmobs_set_llm_tags(
         self,

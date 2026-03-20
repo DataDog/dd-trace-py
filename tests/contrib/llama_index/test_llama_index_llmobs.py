@@ -1,6 +1,12 @@
+from unittest import mock
+
 import pytest
 
+from tests.contrib.llama_index.test_llama_index import _make_mock_embedding
+from tests.contrib.llama_index.test_llama_index import _make_mock_query_engine
+from tests.contrib.llama_index.test_llama_index import _make_mock_retriever
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
@@ -320,6 +326,119 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 3,
                 "total_tokens": 11,
             },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    def test_query_engine(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that query engine produces correct LLMObs workflow span."""
+        engine = _make_mock_query_engine()
+        engine.query("What is the meaning of life?")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="workflow",
+            input_value="What is the meaning of life?",
+            output_value="The answer is 42.",
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    async def test_query_engine_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that async query engine produces correct LLMObs workflow span."""
+        engine = _make_mock_query_engine()
+        await engine.aquery("What is the meaning of life?")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="workflow",
+            input_value="What is the meaning of life?",
+            output_value="The answer is 42.",
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    def test_retriever(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that retriever produces correct LLMObs retrieval span with documents."""
+        retriever = _make_mock_retriever()
+        retriever.retrieve("test query")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="retrieval",
+            input_value="test query",
+            output_value="[1 document(s) retrieved]",
+            output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    async def test_retriever_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that async retriever produces correct LLMObs retrieval span with documents."""
+        retriever = _make_mock_retriever()
+        await retriever.aretrieve("test query")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="retrieval",
+            input_value="test query",
+            output_value="[1 document(s) retrieved]",
+            output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    def test_embedding_query(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that query embedding produces correct LLMObs embedding span."""
+        embed = _make_mock_embedding()
+        embed.get_query_embedding("test query")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            span_kind="embedding",
+            model_name="mock-embed",
+            model_provider="llama_index",
+            input_documents=[{"text": "test query"}],
+            output_value="[1 embedding(s) returned with size 3]",
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    def test_embedding_batch(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that batch embedding produces correct LLMObs embedding span."""
+        embed = _make_mock_embedding()
+        embed.get_text_embedding_batch(["doc one", "doc two"])
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            span_kind="embedding",
+            model_name="mock-embed",
+            model_provider="llama_index",
+            input_documents=[{"text": "[2 texts]"}],
+            output_value="[2 embedding(s) returned with size 3]",
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected)
+
+    async def test_embedding_query_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that async query embedding produces correct LLMObs embedding span."""
+        embed = _make_mock_embedding()
+        await embed.aget_query_embedding("test query")
+
+        span = test_spans.pop_traces()[0][0]
+        expected = _expected_llmobs_llm_span_event(
+            span,
+            span_kind="embedding",
+            model_name="mock-embed",
+            model_provider="llama_index",
+            input_documents=[{"text": "test query"}],
+            output_value="[1 embedding(s) returned with size 3]",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected)
