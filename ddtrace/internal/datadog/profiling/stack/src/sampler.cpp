@@ -311,13 +311,47 @@ Sampler::postfork_child()
 }
 
 void
+Sampler::prefork()
+{
+    // Save whether the sampler was running before fork.
+    // stop() changes thread_seq_num parity, so we can't rely on it later.
+    was_running_at_fork_ = thread_seq_num.load() & 1;
+    if (was_running_at_fork_) {
+        stop();
+    }
+}
+
+void
+Sampler::postfork_parent()
+{
+    if (was_running_at_fork_) {
+        start();
+    }
+}
+
+void
 Sampler::restart_after_fork()
 {
     // Restart the sampler if it was running before fork.
-    // Odd thread_seq_num means the sampler was started and not stopped.
-    if (thread_seq_num.load() & 1) {
+    // We use the saved flag because stop() in prefork() changed the thread_seq_num parity.
+    if (was_running_at_fork_) {
         start();
     }
+}
+
+static void
+stack_atfork_prepare()
+{
+    // Stop the sampling thread before fork to ensure all data structures
+    // (frame cache, thread info map, etc.) are in a consistent state.
+    Sampler::get().prefork();
+}
+
+static void
+stack_atfork_parent()
+{
+    // Restart the sampling thread in the parent after fork.
+    Sampler::get().postfork_parent();
 }
 
 static void
@@ -356,7 +390,7 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, stack_atfork_child);
+    pthread_atfork(stack_atfork_prepare, stack_atfork_parent, stack_atfork_child);
 }
 
 void
