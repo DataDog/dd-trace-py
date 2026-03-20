@@ -2176,6 +2176,8 @@ def test_exclude_modules_empty_is_backward_compatible() -> None:
 
     assert not os.environ.get("DD_PROFILING_LOCK_EXCLUDE_MODULES")
 
+    from tests.profiling.collector.test_utils import init_ddup
+
     init_ddup("test_exclude_modules_empty")
 
     with ThreadingLockCollector(capture_pct=100):
