@@ -1,6 +1,5 @@
 from functools import partial
 import importlib.metadata as importlib_metadata
-import os
 
 import google.cloud.pubsub_v1 as pubsub_v1
 from wrapt import wrap_function_wrapper as _w
@@ -9,6 +8,7 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -19,8 +19,8 @@ from ddtrace.propagation.http import HTTPPropagator
 config._add(
     "google_cloud_pubsub",
     dict(
-        distributed_tracing_enabled=asbool(os.getenv("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
-        reparent_enabled=asbool(os.getenv("DD_GOOGLE_CLOUD_PUBSUB_REPARENT_ENABLED", default=True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
+        reparent_enabled=asbool(_get_config("DD_GOOGLE_CLOUD_PUBSUB_REPARENT_ENABLED", default=True)),
     ),
 )
 
@@ -53,7 +53,6 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         "google_cloud_pubsub.receive",
         span_name="gcp.pubsub.receive",
         span_type=SpanTypes.WORKER,
-        service=None,
         resource=subscription_id,
         call_trace=False,
         activate=True,
@@ -62,14 +61,8 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         project_id=project_id,
         subscription_id=subscription_id,
         message=message,
-    ) as ctx:
-        try:
-            callback(message)
-        except BaseException as e:
-            core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (type(e), e, e.__traceback__)))
-            raise
-        else:
-            core.dispatch("google_cloud_pubsub.receive.completed", (ctx, (None, None, None)))
+    ):
+        callback(message)
 
 
 def patch():

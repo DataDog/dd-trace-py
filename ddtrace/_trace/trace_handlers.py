@@ -1382,13 +1382,6 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         span.link_span(propagated_context)
 
 
-def _on_pubsub_receive_complete(
-    ctx: core.ExecutionContext,
-    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-) -> None:
-    _finish_span(ctx, exc_info)
-
-
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1458,7 +1451,6 @@ def listen():
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
     core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
-    core.on("google_cloud_pubsub.receive.completed", _on_pubsub_receive_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1575,6 +1567,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "google_cloud_pubsub.receive",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
