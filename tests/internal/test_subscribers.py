@@ -235,7 +235,7 @@ def test_span_context_event_with_custom_fields(test_spans):
         @classmethod
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
             span = ctx.span
-            span.set_metric("http.status_code", ctx.event.status_code)
+            span._set_attribute("http.status_code", ctx.event.status_code)
 
     with core.context_with_event(TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200)):
         pass
@@ -266,7 +266,7 @@ def test_span_context_event_inheritance(test_spans):
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
-            span._set_tag_str("http.url", ctx.event.url)
+            span._set_attribute("http.url", ctx.event.url)
 
     @dataclass
     class HTTPClientEvent(BaseHTTPEvent):
@@ -280,7 +280,7 @@ def test_span_context_event_inheritance(test_spans):
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
-            span._set_tag_str("http.method", ctx.event.method)
+            span._set_attribute("http.method", ctx.event.method)
 
     with core.context_with_event(HTTPClientEvent(url="http://example.com", component="http", method="GET")):
         pass

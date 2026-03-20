@@ -1,0 +1,4 @@
+features:
+  - |
+    Python profiling: This introduces Python exception profiling using sys.monitoring hooks. This feature is disabled by default
+    and the exception collector only ever registers when explicitly enabled with `DD_PROFILING_EXCEPTION_ENABLED`. 

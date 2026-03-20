@@ -174,7 +174,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
             # route should only be in the root span
             if index == 0:
-                span._set_tag_str(http.ROUTE, path)
+                span._set_attribute(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
@@ -182,7 +182,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
             request_spans[0].resource = route
-        request_spans[0]._set_tag_str(http.ROUTE, route)
+        request_spans[0]._set_attribute(http.ROUTE, route)
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",
