@@ -371,6 +371,14 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        str,
+        "exclude_modules",
+        default="",
+        help_type="String",
+        help=("Comma-separated list of module prefixes. Locks created from these modules are not profiled."),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
