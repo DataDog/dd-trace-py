@@ -64,9 +64,18 @@ def _derive_traces_protocol(config: "ExporterConfig"):
 
 
 def _derive_traces_endpoint(config: "ExporterConfig"):
+    import os
+
+    # Signal-specific endpoint takes precedence (full URL, no path appended).
+    traces_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    if traces_endpoint:
+        return traces_endpoint
+    # Global endpoint is a base URL; append the traces signal path.
+    global_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if global_endpoint:
+        return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
     # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json for OTLP traces.
-    default_endpoint = f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
-    return get_config("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", default_endpoint)
+    return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
