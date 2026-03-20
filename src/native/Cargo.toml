@@ -27,12 +27,12 @@ libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v28
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v27.0.0" }
-libdd-data-pipeline = { path = "/Users/rachel.yang/libdatadog/libdd-data-pipeline" }
+libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "381c48862" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true, features = [
     "cbindgen",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
-libdd-trace-utils = { path = "/Users/rachel.yang/libdatadog/libdd-trace-utils" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "381c48862" }
 pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.27", optional = true }
