@@ -74,7 +74,7 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Riot jobs need build_base_venvs artifacts
+        # Jobs need build_base_venvs artifacts
         lines.append("  needs:")
         lines.append("    - prechecks")
         lines.append("    - job: build_base_venvs")
