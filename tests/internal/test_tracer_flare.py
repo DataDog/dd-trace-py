@@ -572,20 +572,21 @@ def test_multiple_process_success():
     tmp_dir = tempfile.mkdtemp()
     shared_dir = pathlib.Path(tmp_dir) / "tracer_flare_test"
     shared_dir.mkdir(parents=True, exist_ok=True)
-    errors = multiprocessing.Queue()
+    ctx = multiprocessing.get_context("fork")
+    errors = ctx.Queue()
 
     processes = []
     num_processes = 3
 
     for i in range(num_processes):
-        p = multiprocessing.Process(target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, shared_dir, errors))
+        p = ctx.Process(target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
     for p in processes:
         p.join()
 
     for i in range(num_processes):
-        p = multiprocessing.Process(target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, shared_dir, errors))
+        p = ctx.Process(target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
     for p in processes:
@@ -656,18 +657,19 @@ def test_multiple_process_partial_failure():
     tmp_dir = tempfile.mkdtemp()
     shared_dir = pathlib.Path(tmp_dir) / "tracer_flare_test"
     shared_dir.mkdir(parents=True, exist_ok=True)
-    errors = multiprocessing.Queue()
+    ctx = multiprocessing.get_context("fork")
+    errors = ctx.Queue()
 
     processes = []
 
-    p = multiprocessing.Process(
+    p = ctx.Process(
         target=_multiproc_do_tracer_flare,
         args=("DEBUG", *FLARE_REQUEST_DATA, TRACE_AGENT_URL, shared_dir, errors),
     )
     processes.append(p)
     p.start()
     # Create failing process
-    p = multiprocessing.Process(
+    p = ctx.Process(
         target=_multiproc_do_tracer_flare,
         args=(None, *FLARE_REQUEST_DATA, TRACE_AGENT_URL, shared_dir, errors),
     )
