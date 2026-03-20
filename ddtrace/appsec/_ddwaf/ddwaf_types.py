@@ -4,12 +4,10 @@ from collections.abc import Sequence
 import ctypes
 import ctypes.util
 from enum import IntEnum
-from platform import machine
 from platform import system
-from typing import Any
 from typing import Optional
-from typing import Union
 
+from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
@@ -18,8 +16,6 @@ from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
-
-DDWafRulesType = Union[None, int, str, list[Any], dict[str, Any]]
 
 log = get_logger(__name__)
 
@@ -33,10 +29,6 @@ if system() == "Linux":
             ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-
-ARCHI = machine().lower()
-
-# 32-bit-Python on 64-bit-Windows
 
 with unpatching_popen():
     ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
@@ -492,6 +484,7 @@ ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
 
 # ddwaf_object
 
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
     ("ddwaf_object_invalid", ddwaf),
     ((3, "object"),),
@@ -506,8 +499,7 @@ ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_
     ),
 )
 
-# object_string variants not used
-
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_string_from_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_string_from_unsigned", ddwaf),
     (
@@ -524,6 +516,7 @@ ddwaf_object_string_from_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_
     ),
 )
 
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_unsigned", ddwaf),
     (
