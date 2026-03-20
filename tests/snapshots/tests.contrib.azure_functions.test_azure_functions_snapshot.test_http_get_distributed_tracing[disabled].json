@@ -15,7 +15,6 @@
       "component": "azure_functions",
       "http.method": "GET",
       "http.route": "/api/httpgetroot",
-      "http.status_code": "200",
       "http.url": "http://0.0.0.0:7071/api/httpgetroot",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
@@ -26,6 +25,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
+      "http.status_code": 200,
       "process_id": 38127.0
     },
     "duration": 113403750,
@@ -43,7 +43,6 @@
          "_dd.base_service": "test-func",
          "component": "requests",
          "http.method": "GET",
-         "http.status_code": "200",
          "http.url": "http://localhost:7071/api/httpgetchild",
          "http.useragent": "python-requests/x.xx.x",
          "out.host": "localhost",
@@ -51,7 +50,8 @@
        },
        "metrics": {
          "_dd.measured": 1.0,
-         "_dd.top_level": 1.0
+         "_dd.top_level": 1.0,
+         "http.status_code": 200
        },
        "duration": 109826292,
        "start": 1772482165450292380
@@ -73,7 +73,6 @@
       "component": "azure_functions",
       "http.method": "GET",
       "http.route": "/api/httpgetchild",
-      "http.status_code": "200",
       "http.url": "http://localhost:7071/api/httpgetchild",
       "http.useragent": "python-requests/x.xx.x",
       "language": "python",
@@ -84,6 +83,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
+      "http.status_code": 200,
       "process_id": 38127.0
     },
     "duration": 170000,

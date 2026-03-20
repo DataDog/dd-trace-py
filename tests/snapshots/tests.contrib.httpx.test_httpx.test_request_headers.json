@@ -15,7 +15,6 @@
       "http.method": "GET",
       "http.request.headers.some-request-header": "Request-Value",
       "http.response.headers.some-response-header": "Response-Value",
-      "http.status_code": "200",
       "http.url": "http://localhost:8001/response-headers?Some-Response-Header=Response-Value",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
@@ -28,6 +27,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 85259
     },
     "duration": 10222000,

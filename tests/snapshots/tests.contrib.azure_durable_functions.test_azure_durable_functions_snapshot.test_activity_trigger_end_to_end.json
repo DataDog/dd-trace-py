@@ -15,7 +15,6 @@
       "component": "azure_functions",
       "http.method": "GET",
       "http.route": "/api/startactivity",
-      "http.status_code": "200",
       "http.url": "http://0.0.0.0:7072/api/startactivity",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
@@ -26,6 +25,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
+      "http.status_code": 200,
       "process_id": 1405.0
     },
     "duration": 1216397292,
@@ -42,12 +42,14 @@
        "meta": {
          "component": "aiohttp_client",
          "http.method": "POST",
-         "http.status_code": "202",
          "http.status_msg": "Accepted",
          "http.url": "http://127.0.0.1:17071/durabletask/orchestrators/activity_orchestrator",
          "out.host": "127.0.0.1",
          "span.kind": "client",
          "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "metrics": {
+         "http.status_code": 202
        },
        "duration": 131553792,
        "start": 1770110605175859044
@@ -78,12 +80,14 @@
          "_dd.p.tid": "6981be8d00000000",
          "component": "aiohttp_client",
          "http.method": "GET",
-         "http.status_code": "202",
          "http.status_msg": "Accepted",
          "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
          "out.host": "127.0.0.1",
          "span.kind": "client",
          "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "metrics": {
+         "http.status_code": 202
        },
        "duration": 60587292,
        "start": 1770110605309143086
@@ -114,12 +118,14 @@
          "_dd.p.tid": "6981be8d00000000",
          "component": "aiohttp_client",
          "http.method": "GET",
-         "http.status_code": "200",
          "http.status_msg": "OK",
          "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
          "out.host": "127.0.0.1",
          "span.kind": "client",
          "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "metrics": {
+         "http.status_code": 200
        },
        "duration": 15842791,
        "start": 1770110606374362420

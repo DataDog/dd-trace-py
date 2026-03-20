@@ -15,7 +15,6 @@
       "_dd.svc_src": "urllib3",
       "component": "urllib3",
       "http.method": "GET",
-      "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
@@ -27,6 +26,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 9975
     },
     "duration": 1793708,

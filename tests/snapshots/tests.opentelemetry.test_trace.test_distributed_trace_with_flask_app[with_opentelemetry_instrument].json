@@ -42,7 +42,6 @@
          "http.route": "/otel",
          "http.scheme": "http",
          "http.server_name": "0.0.0.0",
-         "http.status_code": "200",
          "http.target": "/otel",
          "http.user_agent": "python-requests/2.28.1",
          "language": "python",
@@ -56,6 +55,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
+         "http.status_code": 200,
          "net.host.port": 8011,
          "net.peer.port": 62683,
          "process_id": 75530

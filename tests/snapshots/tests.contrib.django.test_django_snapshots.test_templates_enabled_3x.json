@@ -22,7 +22,6 @@
       "django.view": "template-view",
       "http.method": "GET",
       "http.route": "^template-view/$",
-      "http.status_code": "200",
       "http.url": "http://localhost:8000/template-view/",
       "http.useragent": "python-requests/2.32.3",
       "http.version": "1.1",
@@ -35,6 +34,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
+      "http.status_code": 200,
       "process_id": 44456.0
     },
     "duration": 19892834,

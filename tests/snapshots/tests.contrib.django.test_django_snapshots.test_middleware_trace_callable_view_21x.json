@@ -17,7 +17,6 @@
       "django.user.is_authenticated": "False",
       "django.view": "feed-view",
       "http.method": "GET",
-      "http.status_code": "200",
       "http.url": "http://testserver/feed-view/",
       "language": "python",
       "runtime-id": "7e33e1368c9c47b2b70b4364370a7902",
@@ -28,6 +27,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 11217
     },
     "duration": 2369000,

@@ -14,7 +14,6 @@
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/sub-app/hello/{name}",
-      "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "http.version": "1.1",
@@ -26,6 +25,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 73301
     },
     "duration": 548000,
@@ -43,11 +43,13 @@
        "meta": {
          "component": "fastapi",
          "http.method": "GET",
-         "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
          "http.version": "1.1",
          "span.kind": "server"
+       },
+       "metrics": {
+         "http.status_code": 200
        },
        "duration": 394000,
        "start": 1709362578710915000

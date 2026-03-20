@@ -15,7 +15,6 @@
       "component": "aiohttp",
       "http.method": "GET",
       "http.route": "/template/",
-      "http.status_code": "200",
       "http.url": "http://127.0.0.1:45601/template/",
       "http.useragent": "Python/3.9 aiohttp/3.8.4",
       "language": "python",
@@ -27,6 +26,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 13541
     },
     "duration": 819042,

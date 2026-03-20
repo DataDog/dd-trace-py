@@ -15,7 +15,6 @@
       "component": "azure_functions",
       "http.method": "GET",
       "http.route": "/api/httpgetfunctionnamenodecorator",
-      "http.status_code": "200",
       "http.url": "http://0.0.0.0:7071/api/httpgetfunctionnamenodecorator",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
@@ -26,6 +25,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 51797
     },
     "duration": 315583,

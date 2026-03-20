@@ -38,7 +38,6 @@
       "http.response.headers.content-length": "1460",
       "http.response.headers.content-type": "text/html",
       "http.route": "^$",
-      "http.status_code": "403",
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.31.0",
       "http.version": "1.1",
@@ -57,6 +56,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
+      "http.status_code": 403,
       "process_id": 48163
     },
     "duration": 2787875,

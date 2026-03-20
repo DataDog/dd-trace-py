@@ -20,7 +20,6 @@
       "django.user.is_authenticated": "False",
       "django.view": "safe-template-list",
       "http.method": "GET",
-      "http.status_code": "200",
       "http.url": "http://testserver/safe-template/",
       "language": "python",
       "runtime-id": "42a636918c6145d1bb8e8a353a6cabe8",
@@ -31,6 +30,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 44209
     },
     "duration": 2040000,

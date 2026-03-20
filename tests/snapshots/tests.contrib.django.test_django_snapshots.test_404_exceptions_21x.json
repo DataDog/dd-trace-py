@@ -17,7 +17,6 @@
       "django.user.is_authenticated": "False",
       "django.view": "404-view",
       "http.method": "GET",
-      "http.status_code": "404",
       "http.url": "http://testserver/404-view/",
       "language": "python",
       "runtime-id": "54fcb6332fb64604a63577be804e6d35",
@@ -28,6 +27,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 404,
       "process_id": 11217
     },
     "duration": 1826000,

@@ -18,7 +18,6 @@
       "django.user.is_authenticated": "False",
       "django.view": "partial-view",
       "http.method": "GET",
-      "http.status_code": "200",
       "http.url": "http://testserver/partial-view/",
       "language": "python",
       "runtime-id": "c1d23bbd4985408db83cd1e7ff579898",
@@ -29,6 +28,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "http.status_code": 200,
       "process_id": 44521
     },
     "duration": 1363000,

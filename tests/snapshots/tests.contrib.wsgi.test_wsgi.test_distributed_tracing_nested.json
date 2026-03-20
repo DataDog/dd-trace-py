@@ -14,7 +14,6 @@
       "_dd.svc_src": "wsgi",
       "component": "wsgi",
       "http.method": "GET",
-      "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
@@ -25,6 +24,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
+      "http.status_code": 200,
       "process_id": 92714.0
     },
     "duration": 1517791,
@@ -60,10 +60,12 @@
             "_dd.svc_src": "wsgi",
             "component": "wsgi",
             "http.method": "GET",
-            "http.status_code": "200",
             "http.status_msg": "OK",
             "http.url": "http://localhost:80/",
             "span.kind": "server"
+          },
+          "metrics": {
+            "http.status_code": 200
           },
           "duration": 763583,
           "start": 1771937955743891217
