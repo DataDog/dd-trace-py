@@ -166,57 +166,36 @@ Datadog::Profile::profile_release()
 void
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    // In contemporary dd-trace-py, it is expected that the initialization path is in
-    // a single thread, and done only once.
-    // However, it doesn't cost us much to keep this initialization tight.
-    if (!first_time.load()) {
-        return;
-    }
+    std::call_once(init_once, [&]() {
+        static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
-    // Threads need to serialize at this point
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+        // nframes
+        max_nframes = _max_nframes;
 
-    // Re-check after acquiring the lock: another thread may have
-    // finished initialization while we blocked.
-    if (!first_time.load()) {
-        return;
-    }
-
-    // nframes
-    max_nframes = _max_nframes;
-
-    // Set the type mask
-    const unsigned int mask_as_int = type & SampleType::All;
-    if (mask_as_int == 0) {
-        // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "No valid sample types were enabled" << std::endl;
+        // Set the type mask
+        const unsigned int mask_as_int = type & SampleType::All;
+        if (mask_as_int == 0) {
+            // This can't happen in contemporary dd-trace-py, but we need better handling around this case
+            if (!already_warned) {
+                already_warned = true;
+                std::cerr << "No valid sample types were enabled" << std::endl;
+            }
+            return;
         }
-        // Mark initialization as done even in the error case so that a
-        // subsequent call cannot re-enter and attempt to double-register
-        // fork handlers or re-run setup_samplers().
-        first_time.store(false);
-        return;
-    }
-    type_mask = static_cast<SampleType>(mask_as_int);
+        type_mask = static_cast<SampleType>(mask_as_int);
 
-    // Setup the samplers
-    setup_samplers();
+        // Setup the samplers
+        setup_samplers();
 
-    // We need to initialize the profiles
-    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
-    if (!make_profile(sample_types, &default_period, cur_profile)) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Error initializing cur_profile" << std::endl;
+        // We need to initialize the profiles
+        const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+        if (!make_profile(sample_types, &default_period, cur_profile)) {
+            if (!already_warned) {
+                already_warned = true;
+                std::cerr << "Error initializing cur_profile" << std::endl;
+            }
         }
-        return;
-    }
-
-    // We're done. Don't do this again.
-    first_time.store(false);
+    });
 }
 
 const Datadog::ValueIndex&
