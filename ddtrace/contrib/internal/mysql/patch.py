@@ -1,4 +1,7 @@
+import importlib
 import os
+from typing import Any
+from typing import Optional
 
 import mysql.connector
 import wrapt
@@ -6,6 +9,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -46,8 +50,35 @@ CONN_ATTR_BY_TAG = {
 }
 
 
+def _get_conn_tags(conn) -> dict[str, str]:
+    tags = {}
+    for tag, attr in CONN_ATTR_BY_TAG.items():
+        value = getattr(conn, attr, "")
+        if value == "":
+            continue
+        string_value = _convert_to_string(value)
+        if string_value is not None:
+            tags[tag] = string_value
+    return tags
+
+
+def _get_mysql_aio_module() -> Optional[Any]:
+    aio_module = getattr(mysql.connector, "aio", None)
+    if aio_module is not None:
+        return aio_module
+
+    try:
+        return importlib.import_module("mysql.connector.aio")
+    except ImportError:
+        return None
+
+
 def patch():
     wrapt.wrap_function_wrapper("mysql.connector", "connect", _connect)
+    aio_module = _get_mysql_aio_module()
+    if aio_module is not None and hasattr(aio_module, "connect"):
+        wrapt.wrap_function_wrapper("mysql.connector.aio", "connect", _connect_async)
+
     # `Connect` is an alias for `connect`, patch it too
     if hasattr(mysql.connector, "Connect"):
         mysql.connector.Connect = mysql.connector.connect
@@ -65,6 +96,11 @@ def unpatch():
         mysql.connector.connect = mysql.connector.connect.__wrapped__
         if hasattr(mysql.connector, "Connect"):
             mysql.connector.Connect = mysql.connector.connect
+
+    aio_module = _get_mysql_aio_module()
+    if aio_module is not None and hasattr(aio_module, "connect") and is_wrapted(aio_module.connect):
+        aio_module.connect = aio_module.connect.__wrapped__
+
     mysql.connector._datadog_patch = False
 
 
@@ -73,14 +109,27 @@ def _connect(func, instance, args, kwargs):
     return patch_conn(conn)
 
 
+async def _connect_async(func, instance, args, kwargs):
+    conn = await func(*args, **kwargs)
+    return patch_conn_async(conn)
+
+
 def patch_conn(conn):
-    tags = {
-        t: _convert_to_string(getattr(conn, a, None)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""
-    }
+    tags = _get_conn_tags(conn)
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
+    pin.onto(wrapped)
+    return wrapped
+
+
+def patch_conn_async(conn):
+    tags = _get_conn_tags(conn)
+    tags[db.SYSTEM] = "mysql"
+    pin = Pin(tags=tags)
+
+    wrapped = TracedAsyncConnection(conn, pin=pin, cfg=config.mysql)
     pin.onto(wrapped)
     return wrapped
