@@ -250,7 +250,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
                 if (it == echion->thread_info_map().end()) {
                     // Thread was unregistered; try to fill from overflow
-                    while (fallback_idx < thread_candidates.size()) {
+                    for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
                         auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
                         if (fb_it != echion->thread_info_map().end()) {
                             thread_candidates[i] = thread_candidates[fallback_idx];
@@ -258,13 +258,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
                             fallback_idx++;
                             break;
                         }
-                        fallback_idx++;
                     }
                     if (it == echion->thread_info_map().end()) {
                         continue;
                     }
                 }
-                auto success = it->second->sample(*echion, &thread_candidates[i].tstate_copy, effective_wall_time_us);
+                auto success = it->second->sample(*echion, &thread_candidates[i].tstate, effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }

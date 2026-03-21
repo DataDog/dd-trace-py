@@ -20,7 +20,7 @@ namespace Datadog {
 
 struct ThreadCandidate
 {
-    PyThreadState tstate_copy;
+    PyThreadState tstate;
     unsigned long thread_id;
 };
 
