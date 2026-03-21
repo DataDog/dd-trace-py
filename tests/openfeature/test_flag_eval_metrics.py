@@ -23,39 +23,12 @@ from ddtrace.internal.openfeature._flageval_metrics import ATTR_VARIANT
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
-from ddtrace.internal.openfeature._flageval_metrics import _error_code_to_tag
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
-
-
-class TestErrorCodeMapping:
-    """Test error code to tag value mapping."""
-
-    def test_flag_not_found(self):
-        """FLAG_NOT_FOUND maps to 'flag_not_found'."""
-        assert _error_code_to_tag(ErrorCode.FLAG_NOT_FOUND) == "flag_not_found"
-
-    def test_type_mismatch(self):
-        """TYPE_MISMATCH maps to 'type_mismatch'."""
-        assert _error_code_to_tag(ErrorCode.TYPE_MISMATCH) == "type_mismatch"
-
-    def test_parse_error(self):
-        """PARSE_ERROR maps to 'parse_error'."""
-        assert _error_code_to_tag(ErrorCode.PARSE_ERROR) == "parse_error"
-
-    def test_general_error(self):
-        """GENERAL maps to 'general'."""
-        assert _error_code_to_tag(ErrorCode.GENERAL) == "general"
-
-    def test_other_errors_map_to_general(self):
-        """Other error codes map to 'general'."""
-        assert _error_code_to_tag(ErrorCode.PROVIDER_NOT_READY) == "general"
-        assert _error_code_to_tag(ErrorCode.TARGETING_KEY_MISSING) == "general"
-        assert _error_code_to_tag(ErrorCode.INVALID_CONTEXT) == "general"
 
 
 class TestFlagEvalMetrics:
@@ -155,7 +128,7 @@ class TestFlagEvalMetrics:
 
         call_args = mock_counter.add.call_args
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_ERROR_TYPE] == "flag_not_found"
+        assert attrs[ATTR_ERROR_TYPE] == "FLAG_NOT_FOUND"
 
     def test_record_empty_allocation_key_not_included(self):
         """Empty allocation_key should not be included in attributes."""
@@ -266,14 +239,14 @@ class TestFlagEvalMetrics:
         metrics._enabled = True
         metrics._counter = mock_counter
 
-        error_cases = [
-            (ErrorCode.FLAG_NOT_FOUND, "flag_not_found"),
-            (ErrorCode.TYPE_MISMATCH, "type_mismatch"),
-            (ErrorCode.PARSE_ERROR, "parse_error"),
-            (ErrorCode.GENERAL, "general"),
+        error_codes = [
+            ErrorCode.FLAG_NOT_FOUND,
+            ErrorCode.TYPE_MISMATCH,
+            ErrorCode.PARSE_ERROR,
+            ErrorCode.GENERAL,
         ]
 
-        for error_code, expected_tag in error_cases:
+        for error_code in error_codes:
             metrics.record(
                 flag_key="test-flag",
                 variant="",
@@ -281,12 +254,12 @@ class TestFlagEvalMetrics:
                 error_code=error_code,
             )
 
-        assert mock_counter.add.call_count == len(error_cases)
+        assert mock_counter.add.call_count == len(error_codes)
 
-        # Verify each call has the correct error.type
+        # Verify each call has the correct error.type (using ErrorCode.value directly)
         calls = mock_counter.add.call_args_list
         error_types = {call[1]["attributes"][ATTR_ERROR_TYPE] for call in calls}
-        assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}
+        assert error_types == {"FLAG_NOT_FOUND", "TYPE_MISMATCH", "PARSE_ERROR", "GENERAL"}
 
 
 class TestFlagEvalHook:

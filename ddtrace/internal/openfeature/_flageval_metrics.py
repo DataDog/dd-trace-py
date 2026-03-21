@@ -35,26 +35,6 @@ ATTR_ALLOCATION_KEY = "feature_flag.result.allocation_key"
 METADATA_ALLOCATION_KEY = "allocation_key"
 
 
-def _error_code_to_tag(error_code: ErrorCode) -> str:
-    """
-    Map OpenFeature ErrorCode values to low-cardinality metric tag values.
-
-    Args:
-        error_code: The OpenFeature error code from evaluation details
-
-    Returns:
-        A string tag value for the error.type attribute
-    """
-    if error_code == ErrorCode.FLAG_NOT_FOUND:
-        return "flag_not_found"
-    elif error_code == ErrorCode.TYPE_MISMATCH:
-        return "type_mismatch"
-    elif error_code == ErrorCode.PARSE_ERROR:
-        return "parse_error"
-    else:
-        return "general"
-
-
 class FlagEvalMetrics:
     """
     Manages OTel metric instruments for flag evaluation tracking.
@@ -132,7 +112,7 @@ class FlagEvalMetrics:
 
             # Add error.type attribute only on error
             if error_code is not None:
-                attributes[ATTR_ERROR_TYPE] = _error_code_to_tag(error_code)
+                attributes[ATTR_ERROR_TYPE] = error_code.value
 
             # Add allocation_key only when present and non-empty
             if allocation_key:
@@ -188,23 +168,26 @@ class FlagEvalHook(Hook):
             details: The evaluation details including value, variant, reason, and errors
             hints: Optional hints passed to the hook (unused)
         """
-        # Extract allocation_key from flag_metadata if present
-        allocation_key: typing.Optional[str] = None
-        if details.flag_metadata:
-            ak = details.flag_metadata.get(METADATA_ALLOCATION_KEY)
-            if isinstance(ak, str) and ak:
-                allocation_key = ak
+        try:
+            # Extract allocation_key from flag_metadata if present
+            allocation_key: typing.Optional[str] = None
+            if details.flag_metadata:
+                ak = details.flag_metadata.get(METADATA_ALLOCATION_KEY)
+                if isinstance(ak, str) and ak:
+                    allocation_key = ak
 
-        # Get reason as string
-        reason_str: typing.Optional[str] = None
-        if details.reason is not None:
-            # Reason can be an enum or string depending on SDK version
-            reason_str = str(details.reason.value) if hasattr(details.reason, "value") else str(details.reason)
+            # Get reason as string
+            reason_str: typing.Optional[str] = None
+            if details.reason is not None:
+                # Reason can be an enum or string depending on SDK version
+                reason_str = str(details.reason.value) if hasattr(details.reason, "value") else str(details.reason)
 
-        self._metrics.record(
-            flag_key=hook_context.flag_key,
-            variant=details.variant,
-            reason=reason_str,
-            error_code=details.error_code,
-            allocation_key=allocation_key,
-        )
+            self._metrics.record(
+                flag_key=hook_context.flag_key,
+                variant=details.variant,
+                reason=reason_str,
+                error_code=details.error_code,
+                allocation_key=allocation_key,
+            )
+        except (TypeError, AttributeError) as e:
+            log.debug("Failed to extract flag evaluation details: %s", e)
