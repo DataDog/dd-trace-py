@@ -2,12 +2,12 @@ import grpc
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
 from ddtrace.contrib.internal.grpc.client_interceptor import create_client_interceptor
 from ddtrace.contrib.internal.grpc.client_interceptor import intercept_channel
 from ddtrace.contrib.internal.grpc.server_interceptor import create_server_interceptor
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -115,8 +115,6 @@ def _patch_client():
         return
     constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = True
 
-    Pin().onto(constants.GRPC_PIN_MODULE_CLIENT)
-
     _w("grpc", "insecure_channel", _client_channel_interceptor)
     _w("grpc", "secure_channel", _client_channel_interceptor)
     _w("grpc", "intercept_channel", intercept_channel)
@@ -127,8 +125,6 @@ def _patch_aio_client():
         return
     GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = True
 
-    Pin().onto(GRPC_AIO_PIN_MODULE_CLIENT)
-
     _w("grpc.aio", "insecure_channel", _aio_client_channel_interceptor)
     _w("grpc.aio", "secure_channel", _aio_client_channel_interceptor)
 
@@ -137,10 +133,6 @@ def _unpatch_client():
     if not getattr(constants.GRPC_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
     constants.GRPC_PIN_MODULE_CLIENT.__datadog_patch = False
-
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
-    if pin:
-        pin.remove_from(constants.GRPC_PIN_MODULE_CLIENT)
 
     _u(grpc, "secure_channel")
     _u(grpc, "insecure_channel")
@@ -152,10 +144,6 @@ def _unpatch_aio_client():
         return
     GRPC_AIO_PIN_MODULE_CLIENT.__datadog_patch = False
 
-    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
-    if pin:
-        pin.remove_from(GRPC_AIO_PIN_MODULE_CLIENT)
-
     _u(grpc.aio, "insecure_channel")
     _u(grpc.aio, "secure_channel")
 
@@ -165,8 +153,6 @@ def _patch_server():
         return
     constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = True
 
-    Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
-
     _w("grpc", "server", _server_constructor_interceptor)
 
 
@@ -174,8 +160,6 @@ def _patch_aio_server():
     if getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
     GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = True
-
-    Pin().onto(GRPC_AIO_PIN_MODULE_SERVER)
 
     _w("grpc.aio", "server", _aio_server_constructor_interceptor)
 
@@ -185,10 +169,6 @@ def _unpatch_server():
         return
     constants.GRPC_PIN_MODULE_SERVER.__datadog_patch = False
 
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_SERVER)
-    if pin:
-        pin.remove_from(constants.GRPC_PIN_MODULE_SERVER)
-
     _u(grpc, "server")
 
 
@@ -197,35 +177,28 @@ def _unpatch_aio_server():
         return
     GRPC_AIO_PIN_MODULE_SERVER.__datadog_patch = False
 
-    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
-    if pin:
-        pin.remove_from(GRPC_AIO_PIN_MODULE_SERVER)
-
     _u(grpc.aio, "server")
 
 
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return channel
 
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
-    interceptor_function = create_client_interceptor(pin, host, port)
+    interceptor_function = create_client_interceptor(host, port)
     return grpc.intercept_channel(channel, interceptor_function)
 
 
 def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
-
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
-    dd_interceptors = create_aio_client_interceptors(pin, host, port)
+    dd_interceptors = create_aio_client_interceptors(host, port)
     interceptor_index = 3
     if wrapped.__name__ == "secure_channel":
         interceptor_index = 4
@@ -242,14 +215,10 @@ def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
 
 
 def _server_constructor_interceptor(wrapped, instance, args, kwargs):
-    # DEV: we clone the pin on the grpc module and configure it for the server
-    # interceptor
-
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_SERVER)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
-    interceptor = create_server_interceptor(pin)
+    interceptor = create_server_interceptor()
 
     # DEV: Inject our tracing interceptor first in the list of interceptors
     if "interceptors" in kwargs:
@@ -261,12 +230,10 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
-
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
-    interceptor = create_aio_server_interceptor(pin)
+    interceptor = create_aio_server_interceptor()
     # DEV: Inject our tracing interceptor first in the list of interceptors
     if "interceptors" in kwargs:
         kwargs["interceptors"] = (interceptor,) + tuple(kwargs["interceptors"])

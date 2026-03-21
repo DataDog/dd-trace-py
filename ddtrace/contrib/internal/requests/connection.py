@@ -102,5 +102,4 @@ def _wrap_send(func, instance, args, kwargs):
             return response
         finally:
             if response is not None:
-                event: HttpClientRequestEvent = ctx.event
-                event.set_response(response)
+                ctx.event.set_response(response)

@@ -136,13 +136,13 @@ Sampler::adapt_sampling_interval()
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
         new_interval = g_min_sampling_period_us;
-    } else if (new_interval > g_max_sampling_period_us) {
-        new_interval = g_max_sampling_period_us;
+    } else if (new_interval > max_sampling_period_us) {
+        new_interval = max_sampling_period_us;
     }
 
     sample_interval_us.store(new_interval);
