@@ -241,6 +241,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             // Apply inverse-probability weighting: each sampled thread represents n/k threads,
             // so scale wall_time_us up to preserve correct absolute wall-time totals.
+            // Note: If a thread disappears between snapshot collection and sampling, fewer than
+            // sample_count threads are actually sampled. The weight per sample is pre-computed
+            // so the total reported wall time can be slightly under the true value under high
+            // thread churn. This is a rare edge case.
             const size_t n_total = thread_candidates.size();
             const microsecond_t effective_wall_time_us =
               (sample_count < n_total)
@@ -250,10 +254,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
             size_t fallback_idx = sample_count;
             for (size_t i = 0; i < sample_count; i++) {
                 const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+                // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
+                // here by thread_id. Under extreme thread churn a pthread_t could theoretically
+                // be reused between snapshot collection and this lookup (old thread exits, new
+                // thread registers with same ID), causing the new ThreadInfo to be paired with
+                // the old tstate. This window is a few microseconds and pthread_t reuse within
+                // it is unlikely.
                 auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
                 if (it == echion->thread_info_map().end()) {
                     // Thread was unregistered; try to fill from overflow
-                    while (fallback_idx < thread_candidates.size()) {
+                    for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
                         auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
                         if (fb_it != echion->thread_info_map().end()) {
                             thread_candidates[i] = thread_candidates[fallback_idx];
@@ -261,13 +271,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
                             fallback_idx++;
                             break;
                         }
-                        fallback_idx++;
                     }
                     if (it == echion->thread_info_map().end()) {
                         continue;
                     }
                 }
-                auto success = it->second->sample(*echion, &thread_candidates[i].tstate_copy, effective_wall_time_us);
+                auto success = it->second->sample(*echion, &thread_candidates[i].tstate, effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
