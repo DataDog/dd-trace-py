@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import sys
 
@@ -259,6 +260,18 @@ def _patched_endpoint(patch_hook):
     return patched_endpoint
 
 
+def _inject_into_parse_cache(api_response, traced_value):
+    """Replace the cached parse result on an AsyncAPIResponse so callers
+    who call ``await api_response.parse()`` receive the traced stream wrapper
+    instead of the original unwrapped stream."""
+    if hasattr(api_response, "_parsed_by_type"):
+        # OpenAI SDK >=2.x caches by target type
+        api_response._parsed_by_type[api_response._cast_to] = traced_value
+    elif hasattr(api_response, "_parsed"):
+        # OpenAI SDK 1.x uses a single _parsed slot
+        api_response._parsed = traced_value
+
+
 class _TracedAsyncPaginator:
     """Wrapper for AsyncPaginator objects to enable tracing for both await and async for usage."""
 
@@ -314,11 +327,23 @@ class _TracedAsyncPaginator:
                 err = e
                 raise
             finally:
+                # Pre-parse AsyncAPIResponse so the sync hook receives the
+                # actual stream object instead of an unawaited coroutine.
+                send_resp = resp
+                if send_resp is not None and err is None and hasattr(send_resp, "parse"):
+                    parsed = send_resp.parse()
+                    if asyncio.iscoroutine(parsed):
+                        send_resp = await parsed
+
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
-                        resp = e.value
+                        hook_val = e.value
+                        if resp is not send_resp and hook_val is not None:
+                            _inject_into_parse_cache(resp, hook_val)
+                        else:
+                            resp = hook_val
             return resp
 
         return _trace_and_await().__await__()
@@ -353,13 +378,27 @@ def _patched_endpoint_async(patch_hook):
                 err = e
                 raise
             finally:
+                # Pre-parse AsyncAPIResponse so the sync hook receives the
+                # actual stream object instead of an unawaited coroutine.
+                send_resp = resp
+                if send_resp is not None and err is None and hasattr(send_resp, "parse"):
+                    parsed = send_resp.parse()
+                    if asyncio.iscoroutine(parsed):
+                        send_resp = await parsed
+
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
                         override_return = e.value
 
             if override_return is not None:
+                # If we pre-parsed an async response, inject the hook's traced
+                # stream wrapper into the response's parse cache so the caller
+                # iterates the traced version (which finishes the span).
+                if resp is not send_resp:
+                    _inject_into_parse_cache(resp, override_return)
+                    return resp
                 return override_return
             return resp
 
