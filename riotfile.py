@@ -3347,12 +3347,21 @@ venv = Venv(
                     pys=["3.9"],
                     command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
                 ),
-                # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
+                # Python 3.10+: llmobs with deepeval and pydantic-evals (runs all tests)
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     command="pytest {cmdargs} tests/llmobs",
                     pkgs={
                         "deepeval": latest,
+                        "pydantic-evals": latest,
+                    },
+                ),
+                # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    pkgs={
+                        "pydantic": "~=1.10",
                     },
                 ),
             ],
