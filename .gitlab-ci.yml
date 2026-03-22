@@ -18,7 +18,7 @@ variables:
   SYSTEM_TESTS_REF: "291f351d6c9689403b7551c16a019c904a506c6c"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
@@ -162,7 +162,7 @@ microbenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v103339901-be1888c-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -198,7 +198,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v103339901-be1888c-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
