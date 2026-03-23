@@ -221,6 +221,11 @@ def _get_span_name(span: Span) -> str:
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.provider") or "OpenAI"
+        # Keep span name as "OpenAI.<operation>" even when the provider is unknown
+        # (e.g., custom base_url pointing to a proxy). The openai.request.provider
+        # tag still reflects "Unknown" for accurate provider attribution.
+        if client_name == "Unknown":
+            client_name = "OpenAI"
         return "{}.{}".format(client_name, span.resource)
     llmobs_data = _get_llmobs_data_metastruct(span)
     return llmobs_data.get(LLMOBS_STRUCT.NAME) or span._get_ctx_item(NAME) or span.name
