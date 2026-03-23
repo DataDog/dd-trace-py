@@ -69,16 +69,19 @@ jobs:
       test-variants: ${{ steps.set-matrix.outputs.test-variants }}
       test-scenarios: ${{ steps.set-matrix.outputs.test-scenarios }}
       test-includes: ${{ steps.set-matrix.outputs.test-includes }}
+      is-mq: ${{ steps.set-matrix.outputs.is-mq }}
     steps:
       - id: set-matrix
         run: |
           if [[ "${GITHUB_REF}" == refs/heads/mq-working-branch-* ]]; then
             # Merge queue: only fastapi + DEFAULT scenario
+            echo 'is-mq=true' >> "$GITHUB_OUTPUT"
             echo 'build-variants=["fastapi"]' >> "$GITHUB_OUTPUT"
             echo 'test-variants=["fastapi"]' >> "$GITHUB_OUTPUT"
             echo 'test-scenarios=["other"]' >> "$GITHUB_OUTPUT"
             echo 'test-includes=[]' >> "$GITHUB_OUTPUT"
           else
+            echo 'is-mq=false' >> "$GITHUB_OUTPUT"
             echo 'build-variants=["flask-poc", "uwsgi-poc", "django-poc", "fastapi", "python3.12", "django-py3.13", "tornado"]' >> "$GITHUB_OUTPUT"
             echo 'test-variants=["flask-poc", "uwsgi-poc", "django-poc", "fastapi", "python3.12", "django-py3.13", "tornado"]' >> "$GITHUB_OUTPUT"
             echo 'test-scenarios=["remote-config", "appsec", "appsec-1", "other"]' >> "$GITHUB_OUTPUT"
@@ -173,19 +176,19 @@ jobs:
         run: ./run.sh DEFAULT
 
       - name: Run SAMPLING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: ./run.sh SAMPLING
 
       - name: Run INTEGRATIONS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: ./run.sh INTEGRATIONS
 
       - name: Run CROSSED_TRACING_LIBRARIES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: ./run.sh CROSSED_TRACING_LIBRARIES
 
       - name: Run PROFILING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: |
           cat /proc/sys/kernel/perf_event_paranoid
           sudo sysctl kernel.perf_event_paranoid=1
@@ -193,11 +196,11 @@ jobs:
           ./run.sh PROFILING
 
       - name: Run AGENT_SUPPORTING_SPAN_EVENTS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: ./run.sh AGENT_SUPPORTING_SPAN_EVENTS
 
       - name: Run RUNTIME_METRICS_ENABLED
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && needs.compute-matrix.outputs.is-mq != 'true'
         run: ./run.sh RUNTIME_METRICS_ENABLED
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
