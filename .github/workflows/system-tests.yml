@@ -90,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
+          ref: 'c4f89b75ef7403d146a67e408acba8cb549f5bd1'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -143,7 +143,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
+          ref: 'c4f89b75ef7403d146a67e408acba8cb549f5bd1'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -341,56 +341,6 @@ jobs:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
           path: artifact.tar.gz
 
-
-  parametric:
-    needs:
-      - download-s3-wheels
-    runs-on: ubuntu-latest
-    env:
-      TEST_LIBRARY: python
-    steps:
-      - name: Install Dependencies
-        run: sudo apt-get install -y patchelf
-
-      - name: Checkout system tests
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          repository: 'DataDog/system-tests'
-          # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
-      - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          pattern: wheels-*
-          path: binaries/
-          merge-multiple: true
-
-      - name: Build runner
-        id: build_runner
-        uses: ./.github/actions/install_runner
-
-      - name: Run
-        if: always() && steps.build_runner.outcome == 'success'
-        run: ./run.sh PARAMETRIC
-
-      - name: Upload test results to Test Optimization
-        if: always() && steps.build_runner.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
-        with:
-          datadog_api_key: ${{ secrets.DD_API_KEY }}
-
-      - name: Compress artifact
-        if: always() && steps.build_runner.outcome == 'success'
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: always() && steps.build_runner.outcome == 'success'
-        with:
-          name: logs_parametric
-          path: artifact.tar.gz
-
   serverless-system-tests-build-layer:
     runs-on: ubuntu-latest
     needs: [download-s3-wheels]
@@ -482,26 +432,23 @@ jobs:
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
+    needs: [system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
     if: always()
     steps:
       - name: Print results
         run: |
-          echo "parametric: ${{ needs.parametric.result }}"
           echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
           echo "integration-frameworks-system-tests: ${{ needs.integration-frameworks-system-tests.result }}"
           echo "tracer-release: ${{ needs.tracer-release.result }}"
       - name: Fail if any dependency failed or was cancelled
         if: |
-          needs.parametric.result == 'failure' ||
-          needs.parametric.result == 'cancelled' ||
           needs.system-tests.result == 'failure' ||
           needs.system-tests.result == 'cancelled' ||
           needs.serverless-system-tests.result == 'failure' ||
           needs.serverless-system-tests.result == 'cancelled' ||
           needs.integration-frameworks-system-tests.result == 'failure' ||
-          needs.integration-frameworks-system-tests.result == 'cancelled'|| 
+          needs.integration-frameworks-system-tests.result == 'cancelled'||
           needs.tracer-release.result == 'failure' ||
           needs.tracer-release.result == 'cancelled'
         run: exit 1
