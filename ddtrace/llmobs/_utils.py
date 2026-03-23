@@ -221,9 +221,7 @@ def _get_span_name(span: Span) -> str:
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.provider") or "OpenAI"
-        # Keep span name as "OpenAI.<operation>" even when the provider is unknown
-        # (e.g., custom base_url pointing to a proxy). The openai.request.provider
-        # tag still reflects "Unknown" for accurate provider attribution.
+        # Keep span name as "OpenAI.<operation>" even when the provider is "unknown"
         if client_name == "Unknown":
             client_name = "OpenAI"
         return "{}.{}".format(client_name, span.resource)
