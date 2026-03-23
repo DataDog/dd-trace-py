@@ -289,11 +289,7 @@ def _unserializable_default_repr(obj):
             return obj.model_dump(mode="json")
         # Pydantic v1
         if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
-            result = obj.dict()
-            # Unwrap custom-root models (v1 serializes __root__ models as {"__root__": ...})
-            if "__root__" in result and len(result) == 1:
-                return result["__root__"]
-            return result
+            return obj.dict()
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
