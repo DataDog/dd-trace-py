@@ -188,6 +188,11 @@ apm-sdk-benchmarks:
   stage: benchmarks
   when: manual
   allow_failure: true
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: manual
+      allow_failure: true
   needs:
     - job: "upload all"
   trigger:
@@ -213,6 +218,8 @@ macrobenchmarks:
     DD_DISABLE_VPA: true
   allow_failure: false
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     # Always run on nightly schedule or API triggered pipelines
     - if: $NIGHTLY_BUILD == "true"
       when: always
@@ -442,6 +449,18 @@ package-oci:
     - job: "download_dependency_wheels"
       artifacts: true
 
+oci-internal-publish:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
+create-multiarch-lib-injection-image:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
 promote-oci-to-prod:
   stage: release
   rules:
@@ -457,6 +476,10 @@ promote-oci-to-prod:
 
 promote-oci-to-prod-beta:
   stage: release
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs:
     - job: package-oci
       artifacts: true
@@ -465,6 +488,10 @@ promote-oci-to-prod-beta:
 
 promote-oci-to-staging:
   stage: release
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs:
     - job: package-oci
       artifacts: true

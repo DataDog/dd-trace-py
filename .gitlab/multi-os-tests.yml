@@ -36,6 +36,10 @@ os tests ubuntu:
 
 os tests macos:
   extends: .multi_os_test_base
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+      when: never
+    - when: on_success
   tags: ["macos:sonoma-amd64", "specific:true"]
   needs: [ "build macos" ]
   variables:
@@ -50,6 +54,10 @@ os tests macos:
 
 os tests windows:
   extends: .multi_os_test_base
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+      when: never
+    - when: on_success
   tags: ["windows-v2:2022"]
   needs:
     - job: "build windows"

@@ -9,6 +9,8 @@ benchmark-serverless:
   needs:
     - job: "upload serverless"
   rules:
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+      when: never
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
