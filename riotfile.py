@@ -243,6 +243,22 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_aggregated_leak_testing",
+            pys=["3.10", "3.11", "3.12"],
+            command="pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+            env={
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
+            },
+            pkgs={
+                "anyio": latest,
+                "pydantic": latest,
+                "pydantic-settings": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+            },
+        ),
+        Venv(
             name="appsec_integrations_django",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
@@ -1436,7 +1452,6 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_FAST_BUILD": "1",
                 "PYDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
             },
@@ -3371,30 +3386,39 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            pkgs={
-                "vcrpy": latest,
-                "openai": latest,
-                "google-cloud-aiplatform": latest,
-                "boto3": latest,
-                "pytest-asyncio": "==0.21.1",
-                "ragas": "==0.1.21",
-                "langchain": latest,
-                "pandas": latest,
-            },
             venvs=[
-                # Python 3.9: llmobs without optional eval deps (deepeval/pydantic_evals require 3.10+)
                 Venv(
-                    pys=["3.9"],
-                    command="""pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py \
-                    --ignore=tests/llmobs/test_pydantic_evaluators.py""",
-                ),
-                # Python 3.10+: llmobs with deepeval and pydantic-evals (runs all tests)
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs",
                     pkgs={
-                        "deepeval": latest,
-                        "pydantic-evals": latest,
+                        "vcrpy": latest,
+                        "openai": latest,
+                        "google-cloud-aiplatform": latest,
+                        "boto3": latest,
+                        "pytest-asyncio": "==0.21.1",
+                        "ragas": "==0.1.21",
+                        "langchain": latest,
+                        "pandas": latest,
+                    },
+                    venvs=[
+                        Venv(
+                            pys=["3.9"],
+                            command="pytest {cmdargs} tests/llmobs",
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10", max_version="3.13"),
+                            command="pytest {cmdargs} tests/llmobs",
+                            pkgs={
+                                "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
+                                "pydantic-evals": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    pkgs={
+                        "pydantic": "~=1.10",
                     },
                 ),
             ],
