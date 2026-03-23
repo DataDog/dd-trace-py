@@ -1,122 +1,47 @@
 id: os-environ-usage
-message: Use ddtrace.internal.settings._env instead of os to access environment variables
+message: Use ddtrace.internal.settings.env instead of os to access environment variables
 severity: error
 language: python
 files:
   - "ddtrace/**"
 ignores:
-  - "ddtrace/internal/settings/_env.py"
+  - "ddtrace/internal/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
   - "ddtrace/testing/**"
   # --- Pre-existing os.environ usage (to be migrated in follow-up PRs) ---
   - "ddtrace/__init__.py"
   - "ddtrace/_monkey.py"
-  - "ddtrace/_trace/apm_filter.py"
-  - "ddtrace/_trace/product.py"
-  - "ddtrace/appsec/_iast/__init__.py"
-  - "ddtrace/appsec/_iast/_ast/ast_patching.py"
-  - "ddtrace/appsec/_iast/reporter.py"
-  - "ddtrace/appsec/_iast/taint_sinks/weak_cipher.py"
-  - "ddtrace/appsec/_iast/taint_sinks/weak_hash.py"
-  - "ddtrace/appsec/_processor.py"
-  - "ddtrace/bootstrap/cloning.py"
-  - "ddtrace/bootstrap/sitecustomize.py"
-  - "ddtrace/commands/ddtrace_run.py"
-  - "ddtrace/contrib/internal/aiobotocore/patch.py"
-  - "ddtrace/contrib/internal/aiohttp/patch.py"
-  - "ddtrace/contrib/internal/aiokafka/patch.py"
-  - "ddtrace/contrib/internal/aredis/patch.py"
-  - "ddtrace/contrib/internal/asgi/middleware.py"
-  - "ddtrace/contrib/internal/boto/patch.py"
-  - "ddtrace/contrib/internal/botocore/patch.py"
-  - "ddtrace/contrib/internal/bottle/patch.py"
-  - "ddtrace/contrib/internal/celery/patch.py"
-  - "ddtrace/contrib/internal/cherrypy/patch.py"
-  - "ddtrace/contrib/internal/django/patch.py"
-  - "ddtrace/contrib/internal/falcon/patch.py"
-  - "ddtrace/contrib/internal/fastapi/patch.py"
-  - "ddtrace/contrib/internal/graphql/patch.py"
-  - "ddtrace/contrib/internal/httplib/patch.py"
-  - "ddtrace/contrib/internal/httpx/patch.py"
-  - "ddtrace/contrib/internal/jinja2/patch.py"
-  - "ddtrace/contrib/internal/kafka/patch.py"
-  - "ddtrace/contrib/internal/kombu/patch.py"
-  - "ddtrace/contrib/internal/mariadb/patch.py"
-  - "ddtrace/contrib/internal/mcp/patch.py"
-  - "ddtrace/contrib/internal/molten/patch.py"
-  - "ddtrace/contrib/internal/mysql/patch.py"
-  - "ddtrace/contrib/internal/mysqldb/patch.py"
-  - "ddtrace/contrib/internal/psycopg/patch.py"
-  - "ddtrace/contrib/internal/pymemcache/client.py"
-  - "ddtrace/contrib/internal/pymysql/patch.py"
-  - "ddtrace/contrib/internal/pyodbc/patch.py"
-  - "ddtrace/contrib/internal/pytest/_plugin_v2.py"
-  - "ddtrace/contrib/internal/pytest/_report_links.py"
-  - "ddtrace/contrib/internal/pytest/_xdist.py"
-  - "ddtrace/contrib/internal/pytest/plugin.py"
-  - "ddtrace/contrib/internal/ray/patch.py"
-  - "ddtrace/contrib/internal/ray/utils.py"
-  - "ddtrace/contrib/internal/redis/patch.py"
-  - "ddtrace/contrib/internal/rediscluster/patch.py"
-  - "ddtrace/contrib/internal/requests/patch.py"
-  - "ddtrace/contrib/internal/selenium/patch.py"
-  - "ddtrace/contrib/internal/snowflake/patch.py"
-  - "ddtrace/contrib/internal/sqlite3/patch.py"
-  - "ddtrace/contrib/internal/starlette/patch.py"
-  - "ddtrace/contrib/internal/subprocess/patch.py"
-  - "ddtrace/contrib/internal/tornado/patch.py"
-  - "ddtrace/contrib/internal/unittest/patch.py"
-  - "ddtrace/contrib/internal/urllib3/patch.py"
-  - "ddtrace/contrib/internal/valkey/patch.py"
-  - "ddtrace/contrib/internal/yaaredis/patch.py"
-  - "ddtrace/ext/ci/__init__.py"
-  - "ddtrace/ext/ci/github_actions.py"
-  - "ddtrace/ext/git.py"
-  - "ddtrace/ext/test_visibility/__init__.py"
-  - "ddtrace/internal/ci_visibility/_api_client.py"
-  - "ddtrace/internal/ci_visibility/_api_responses_cache.py"
-  - "ddtrace/internal/ci_visibility/api/_test.py"
-  - "ddtrace/internal/ci_visibility/coverage.py"
-  - "ddtrace/internal/ci_visibility/encoder.py"
-  - "ddtrace/internal/ci_visibility/git_client.py"
-  - "ddtrace/internal/ci_visibility/recorder.py"
-  - "ddtrace/internal/ci_visibility/writer.py"
-  - "ddtrace/internal/core/crashtracking.py"
-  - "ddtrace/internal/coverage/instrumentation_py3_12.py"
-  - "ddtrace/internal/datadog/profiling/code_provenance.py"
-  - "ddtrace/internal/datastreams/processor.py"
+  - "ddtrace/_trace/**"
+  - "ddtrace/appsec/**"
+  - "ddtrace/bootstrap/**"
+  - "ddtrace/commands/**"
+  - "ddtrace/contrib/internal/**"
+  - "ddtrace/ext/**"
+  - "ddtrace/internal/ci_visibility/**"
+  - "ddtrace/internal/core/**"
+  - "ddtrace/internal/coverage/**"
+  - "ddtrace/internal/datadog/**"
+  - "ddtrace/internal/datastreams/**"
   - "ddtrace/internal/debug.py"
-  - "ddtrace/internal/dist_computing/utils.py"
+  - "ddtrace/internal/dist_computing/**"
   - "ddtrace/internal/hostname.py"
   - "ddtrace/internal/logger.py"
-  - "ddtrace/internal/native/__init__.py"
-  - "ddtrace/internal/opentelemetry/logs.py"
-  - "ddtrace/internal/opentelemetry/metrics.py"
-  - "ddtrace/internal/processor/stats.py"
-  - "ddtrace/internal/remoteconfig/client.py"
-  - "ddtrace/internal/runtime/container.py"
-  - "ddtrace/internal/schema/__init__.py"
-  - "ddtrace/internal/serverless/__init__.py"
-  - "ddtrace/internal/settings/_config.py"
-  - "ddtrace/internal/settings/_inferred_base_service.py"
-  - "ddtrace/internal/settings/_otel_remapper.py"
-  - "ddtrace/internal/settings/asm.py"
-  - "ddtrace/internal/settings/endpoint_config.py"
-  - "ddtrace/internal/settings/integration.py"
-  - "ddtrace/internal/settings/profiling.py"
-  - "ddtrace/internal/telemetry/__init__.py"
-  - "ddtrace/internal/utils/http.py"
-  - "ddtrace/internal/writer/writer.py"
-  - "ddtrace/llmobs/_evaluators/llm_judge.py"
-  - "ddtrace/llmobs/_evaluators/runner.py"
-  - "ddtrace/llmobs/_evaluators/sampler.py"
-  - "ddtrace/llmobs/_http.py"
-  - "ddtrace/llmobs/_llmobs.py"
-  - "ddtrace/llmobs/_writer.py"
-  - "ddtrace/opentelemetry/__init__.py"
-  - "ddtrace/profiling/profiler.py"
-  - "ddtrace/sourcecode/_utils.py"
+  - "ddtrace/internal/native/**"
+  - "ddtrace/internal/opentelemetry/**"
+  - "ddtrace/internal/processor/**"
+  - "ddtrace/internal/remoteconfig/**"
+  - "ddtrace/internal/runtime/**"
+  - "ddtrace/internal/schema/**"
+  - "ddtrace/internal/serverless/**"
+  - "ddtrace/internal/settings/**"
+  - "ddtrace/internal/telemetry/**"
+  - "ddtrace/internal/utils/**"
+  - "ddtrace/internal/writer/**"
+  - "ddtrace/llmobs/**"
+  - "ddtrace/opentelemetry/**"
+  - "ddtrace/profiling/**"
+  - "ddtrace/sourcecode/**"
 rule:
   any:
     # Bare reference to os.environ
@@ -135,6 +60,9 @@ rule:
     - pattern: os.environ.setdefault($$$ARGS)
     # os.getenv calls
     - pattern: os.getenv($$$ARGS)
+    # os.putenv and os.unsetenv (rarely used, but should also be routed through env module)
+    - pattern: os.putenv($$$ARGS)
+    - pattern: os.unsetenv($$$ARGS)
     # Direct imports of environ or getenv from os
     - pattern: from os import environ
     - pattern: from os import environ as $ALIAS
@@ -152,7 +80,7 @@ rule:
     - pattern: from os import getenv as $ALIAS, $$$IMPORTS
 note: |
   Direct access to `os.environ` or `os.getenv` is not allowed in `ddtrace/`.
-  Use the `ddtrace.internal.settings._env` module instead:
+  Use the `ddtrace.internal.settings.env` module instead:
 
   Before:
     import os
@@ -160,6 +88,6 @@ note: |
     value = os.getenv("DD_TRACE_DEBUG", "false")
 
   After:
-    from ddtrace.internal.settings import _env
-    value = _env.environ.get("DD_TRACE_DEBUG", "false")
-    value = _env.getenv("DD_TRACE_DEBUG", "false")
+    from ddtrace.internal.settings import env
+    value = env.dd_environ.get("DD_TRACE_DEBUG", "false")
+    value = env.getenv("DD_TRACE_DEBUG", "false")

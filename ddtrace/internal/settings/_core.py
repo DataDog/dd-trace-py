@@ -5,11 +5,11 @@ from typing import Optional
 from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
-from ddtrace.internal.settings import _env
+from ddtrace.internal.settings import env
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
-ENV_CONFIG = _env.environ
+ENV_CONFIG = env.dd_environ
 
 
 class ValueSource(str, Enum):
