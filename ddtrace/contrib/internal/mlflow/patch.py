@@ -6,16 +6,19 @@ from mlflow.tracking import fluent as mlflow_fluent
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.span import Span
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.contrib.internal.mlflow.constants import LOG_ATTR_MLFLOW_RUN_ID
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import TAGS as LLMOBS_TAGS
 
 
 MLFLOW_ACTIVE_RUN_SPANS = {}
@@ -26,9 +29,16 @@ _MLFLOW_ATEXIT_REGISTERED = False
 config._add(
     "mlflow",
     dict(
-        _default_service=schematize_service_name("mlflow"),
         trace_run_tags=_get_config("DD_TRACE_MLFLOW_RUN_TAGS", default=False, modifier=asbool),
-        log_injection=_get_config("DD_TRACE_MLFLOW_LOGS_INJECTION", default=True, modifier=asbool),
+        log_injection=_get_config(
+            "DD_TRACE_MLFLOW_LOGS_INJECTION",
+            default=_get_config(
+                "DD_MODEL_LAB_ENABLED",
+                default=_get_config("DD_MODEL_LAB", default=False, modifier=asbool),
+                modifier=asbool,
+            ),
+            modifier=asbool,
+        ),
     ),
 )
 
@@ -62,14 +72,30 @@ def _finish_unfinished_spans_at_exit():
     MLFLOW_CURRENT_STEPS.clear()
 
 
-def _on_span_start(span):
-    # this function is tracing specific but having it here prevents dispatching another event
+def _on_span_start(span: Span):
+    """
+    This function is used to set the MLFlow run id of every span in a run.
+    It will not work for the first span of the run as run_id is not active yet.
+
+    Not: this function is tracing specific and should not be in patch in best scenario
+    but having it here prevents dispatching another event
+    """
     run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
     if not run_id and span._parent:
         # if we enter another thread, active_run() can be None
         run_id = span._parent.get_tag(MLFLOW_RUN_ID_TAG)
     if run_id:
-        span._set_tag_str(MLFLOW_RUN_ID_TAG, str(run_id))
+        run_id = str(run_id)
+        # sets mlflow.run_id on apm span tags
+        span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
+        span._set_attribute(_HOSTNAME_KEY, get_hostname())
+        if span.span_type == SpanTypes.LLM:
+            # set mlflow.run_id on mlobs span tags
+            llmobs_tags = span._get_ctx_item(LLMOBS_TAGS) or {}
+            if isinstance(llmobs_tags, dict) and MLFLOW_RUN_ID_TAG not in llmobs_tags:
+                llmobs_tags = dict(llmobs_tags)
+                llmobs_tags[MLFLOW_RUN_ID_TAG] = run_id
+                span._set_ctx_item(LLMOBS_TAGS, llmobs_tags)
 
 
 def _traced_start_run(wrapped, instance, args, kwargs):
@@ -86,14 +112,14 @@ def _traced_start_run(wrapped, instance, args, kwargs):
     with core.context_with_data(
         "mlflow.run",
         span_name="run",
-        service=config.mlflow.get("service", config.mlflow._default_service),
+        service=config.mlflow.get("service"),
         span_type=SpanTypes.WORKER,
     ) as ctx:
         run = wrapped(*args, **kwargs)
         run_id = run.info.run_id
 
         MLFLOW_CURRENT_STEPS[run_id] = 0
-        # we use a different event than mflow.run because we cannot now the run_id before
+        # we use a different event than mflow.run because we cannot know the run_id before
         core.dispatch(
             "mlflow.new.run", (ctx, run_id, experiment_id, run_name, run_tags, parent_run_id, MLFLOW_ACTIVE_RUN_SPANS)
         )

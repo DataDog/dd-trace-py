@@ -18,6 +18,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -64,6 +65,7 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -1378,23 +1380,24 @@ def _on_mlflow_new_run(
 ):
     span = ctx.span
 
-    span._set_tag_str(COMPONENT, config.mlflow.integration_name)
-    span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
+    span._set_attribute(_HOSTNAME_KEY, get_hostname())
+    span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
     if experiment_id:
-        span._set_tag_str(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
+        span._set_attribute(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
     if run_name:
-        span._set_tag_str(MLFLOW_RUN_NAME_TAG, run_name)
+        span._set_attribute(MLFLOW_RUN_NAME_TAG, run_name)
     if parent_run_id:
-        span._set_tag_str(MLFLOW_PARENT_RUN_ID_TAG, parent_run_id)
+        span._set_attribute(MLFLOW_PARENT_RUN_ID_TAG, parent_run_id)
 
     if run_tags and config.mlflow.trace_run_tags:
         for key, value in run_tags.items():
             try:
-                span._set_tag_str(key, str(value))
+                span._set_attribute(key, str(value))
             except Exception:  # nosec B112
                 continue
 
-    span._set_tag_str(MLFLOW_RUN_ID_TAG, run_id)
+    span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
     active_run_spans[run_id] = span
 
 
@@ -1431,19 +1434,19 @@ def _on_mlflow_new_step(run_id: str, active_run_spans, active_step_spans):
     new_step_span = tracer.start_span(
         "run.step",
         child_of=run_span,
-        service=config.mlflow.get("service", config.mlflow._default_service),
+        service=config.mlflow.get("service"),
         span_type=SpanTypes.WORKER,
         activate=True,
     )
-    new_step_span._set_tag_str(COMPONENT, config.mlflow.integration_name)
-    new_step_span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
+    new_step_span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    new_step_span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
     active_step_spans[run_id] = new_step_span
 
 
 def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_info: Optional[Any] = None):
     step_span: Span = active_step_spans.pop(run_id, None)
     if step_span:
-        step_span._set_tag_str(MLFLOW_STEP_TAG, str(step_id))
+        step_span._set_attribute(MLFLOW_STEP_TAG, str(step_id))
         if run_exc_info is not None:
             step_span.set_exc_info(*run_exc_info)
         step_span.finish()
@@ -1456,7 +1459,7 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
             step_span.set_metric(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
         else:
             try:
-                step_span._set_tag_str(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
+                step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
             except Exception:  # nosec B110
                 # If the value cannot be stringified, skip setting the tag
                 pass

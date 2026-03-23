@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.futures.patch import patch as futures_patch
 from ddtrace.contrib.internal.futures.patch import unpatch as futures_unpatch
 
 
-SNAPSHOT_IGNORES = ["meta.mlflow.run_id"]
+SNAPSHOT_IGNORES = ["meta.mlflow.run_id", "meta._dd.hostname"]
 
 
 def _has_thread_local_active_run_stack():
@@ -29,7 +29,9 @@ def patch_futures():
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_mlflow_multithreaded_steps_on_the_same_run(test_spans, assert_run_id_on_all_spans):
+def test_mlflow_multithreaded_steps_on_the_same_run(
+    test_spans, assert_run_id_on_all_spans, assert_hostname_on_all_spans
+):
     """Test multithreading when each thread creates new step on the same run"""
 
     def _worker(worker_id, shared_run_id):
@@ -45,6 +47,7 @@ def test_mlflow_multithreaded_steps_on_the_same_run(test_spans, assert_run_id_on
                 future.result()
 
     assert_run_id_on_all_spans(test_spans)
+    assert_hostname_on_all_spans(test_spans)
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -116,7 +119,9 @@ def test_mlflow_multithreaded_steps_without_explicit_run_id_global_stack():
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_mlflow_multithreaded_steps_specifying_new_run(test_spans, assert_run_id_on_all_spans):
+def test_mlflow_multithreaded_steps_specifying_new_run(
+    test_spans, assert_run_id_on_all_spans, assert_hostname_on_all_spans
+):
     """Tests each worker creates and logs to its own explicitly opened run."""
 
     def _worker(worker_id):
@@ -138,6 +143,7 @@ def test_mlflow_multithreaded_steps_specifying_new_run(test_spans, assert_run_id
                 future.result()
 
     assert_run_id_on_all_spans(test_spans)
+    assert_hostname_on_all_spans(test_spans)
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -145,7 +151,9 @@ def test_mlflow_multithreaded_steps_specifying_new_run(test_spans, assert_run_id
     not _has_thread_local_active_run_stack(),
     reason="requires MLflow thread-local active run stack",
 )
-def test_mlflow_multithreaded_steps_specifying_same_run(test_spans, assert_run_id_on_all_spans):
+def test_mlflow_multithreaded_steps_specifying_same_run(
+    test_spans, assert_run_id_on_all_spans, assert_hostname_on_all_spans
+):
     """Tests cross-thread reuse of one run id.
     We are not properly supporting this case for now but we ensure we are not breaking anything or
     leaking any data
@@ -165,3 +173,4 @@ def test_mlflow_multithreaded_steps_specifying_same_run(test_spans, assert_run_i
                 future.result()
 
     assert_run_id_on_all_spans(test_spans)
+    assert_hostname_on_all_spans(test_spans)

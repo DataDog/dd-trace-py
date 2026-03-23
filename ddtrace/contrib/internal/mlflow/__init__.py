@@ -21,10 +21,13 @@ Manual patching example::
 Log injection
 ~~~~~~~~~~~~~
 
-When log injection and the MLflow integration are enabled, your logging format must include
-``%(dd.mlflow.run_id)s`` to safely reference the injected run ID field.
-For example, this format string includes run correlation with trace
-correlation fields:
+MLflow log injection is disabled by default. Enable it with
+``DD_TRACE_MLFLOW_LOGS_INJECTION=true``; it is also enabled automatically when
+``DD_MODEL_LAB=true``.
+
+When enabled, your logging format must include ``%(dd.mlflow.run_id)s`` to
+safely reference the injected run ID field. For example, this format string
+includes run correlation with trace correlation fields:
 
 .. code-block:: python
 
@@ -37,14 +40,11 @@ correlation fields:
 Outside an active ``mlflow.start_run()`` context, ``dd.mlflow.run_id`` is
 empty. Inside a run, it is populated with the active MLflow run ID.
 
-Set ``DD_TRACE_MLFLOW_LOGS_INJECTION=false`` (or
-``ddtrace.config.mlflow["log_injection"] = False``) to disable injecting
-``dd.mlflow.run_id`` into logs.
-
 MLflow auth plugin
 ~~~~~~~~~~~~~~~~~~
 
-If ``DD_API_KEY``, ``DD_APP_KEY``, and ``DD_MODEL_LAB_ENABLED`` are set, the
-MLflow authentication plugin includes ``DD-API-KEY`` and
-``DD-APPLICATION-KEY`` headers in requests to the MLflow tracking server.
+If environment variables ``DD_API_KEY``, ``DD_APP_KEY``, and
+``DD_MODEL_LAB_ENABLED`` are set, the MLflow authentication plugin
+includes ``DD-API-KEY`` and ``DD-APPLICATION-KEY`` headers in requests
+to the MLflow tracking server.
 """
