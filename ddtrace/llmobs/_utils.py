@@ -300,12 +300,9 @@ def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
-        # Pydantic v2: try JSON-safe dump first, fall back to letting json.dumps handle it
+        # Pydantic v2
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            try:
-                obj = obj.model_dump(mode="json")
-            except Exception:  # nosec B110
-                pass
+            obj = obj.model_dump(mode="json")
         # Pydantic v1
         elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
             obj = obj.dict()
