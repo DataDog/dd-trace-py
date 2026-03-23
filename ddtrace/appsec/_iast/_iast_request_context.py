@@ -85,11 +85,11 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not base.is_iast_request_enabled():
-                        req_span.set_metric(IAST.ENABLED, 0.0)
+                        req_span._set_attribute(IAST.ENABLED, 0.0)
                         base._iast_finish_request(req_span)
                         return
 
-                    req_span.set_metric(IAST.ENABLED, 1.0)
+                    req_span._set_attribute(IAST.ENABLED, 1.0)
                     _create_and_attach_iast_report_to_span(req_span, existing_data, merge=False)
 
             elif move_to_root:

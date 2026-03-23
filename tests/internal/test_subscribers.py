@@ -235,7 +235,7 @@ def test_span_context_event_with_custom_fields(test_spans):
         @classmethod
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
             span = ctx.span
-            span.set_metric("http.status_code", ctx.event.status_code)
+            span._set_attribute("http.status_code", ctx.event.status_code)
 
     with core.context_with_event(TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200)):
         pass
