@@ -621,10 +621,6 @@ class CleanLibraries(CleanCommand):
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         CleanLibraries.remove_native_extensions()
-        # CMake FetchContent cache can become corrupted and cause build failures on reinstall
-        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
-        if cmake_deps.exists():
-            shutil.rmtree(cmake_deps, True)
 
     @staticmethod
     def remove_rust_targets():
@@ -636,7 +632,7 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_build_artifacts():
-        """Remove egg-info, dist, .eggs, and *.egg.
+        """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
 
         The base distutils clean command does not remove these. They can cause
         stale metadata and odd behavior on reinstall. Invoked only for
@@ -650,6 +646,9 @@ class CleanLibraries(CleanCommand):
                 egg.unlink(missing_ok=True)
             elif egg.is_dir():
                 shutil.rmtree(egg, True)
+        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        if cmake_deps.exists():
+            shutil.rmtree(cmake_deps, True)
 
     def run(self):
         CleanLibraries.remove_rust_targets()

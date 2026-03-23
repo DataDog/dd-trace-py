@@ -112,19 +112,11 @@ CMake errors, or stale native extension issues. Build requires Rust, cmake, Cyth
 **Alternative:** The best use case for ``python setup.py clean --all`` is when ddtrace is installed from
 source into a sample app for local dev testing. If your build environment is already installed:
 
-1. Uninstall ddtrace from your environment (e.g. your sample app's venv):
+.. code-block:: bash
 
-   .. code-block:: bash
-
-       $ python -m pip uninstall /path/to/dd-trace-py
-
-2. Clean build artifacts from the dd-trace-py source tree:
-
-   .. code-block:: bash
-
-       $ python /path/to/dd-trace-py/setup.py clean --all
-
-3. Reinstall: ``python -m pip install -e /path/to/dd-trace-py``
+    $ python -m pip uninstall ddtrace
+    $ python /path/to/dd-trace-py/setup.py clean --all
+    $ python -m pip install -e /path/to/dd-trace-py
 
 ModuleNotFoundError when running tests with riot
 ================================================
