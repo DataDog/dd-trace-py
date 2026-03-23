@@ -98,7 +98,7 @@ async def trace_async_socket_write_command(func: FunctionType, args: tuple[Any, 
     async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = await func(*args, **kwargs)
         if result:
-            s.set_metric(db.ROWCOUNT, result.get("n", -1))
+            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
         return result
 
 

@@ -63,6 +63,8 @@ StackChunk::update_with_depth(_PyStackChunk* chunk_addr, size_t depth)
         if (!update_success) {
             previous = nullptr;
         }
+    } else {
+        previous = nullptr;
     }
 
     return Result<void>::ok();

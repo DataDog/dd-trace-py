@@ -35,7 +35,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.redis",
-         "_dd.svc.src": "redis",
+         "_dd.svc_src": "redis",
          "component": "redis",
          "db.system": "redis",
          "out.host": "127.0.0.1",
@@ -64,7 +64,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.redis",
-         "_dd.svc.src": "redis",
+         "_dd.svc_src": "redis",
          "component": "redis",
          "db.system": "redis",
          "out.host": "127.0.0.1",

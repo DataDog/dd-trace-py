@@ -18,7 +18,7 @@ MirrorSet::create(PyObject* set_addr)
         return ErrorKind::MirrorError;
     }
 
-    ssize_t table_size = size * sizeof(setentry);
+    ssize_t table_size = static_cast<ssize_t>(size * sizeof(setentry));
     auto data = std::make_unique<char[]>(table_size);
     if (copy_generic(set.table, data.get(), table_size)) {
         return ErrorKind::MirrorError;

@@ -1,5 +1,6 @@
 import os
 from typing import Any
+from typing import Awaitable
 from typing import Optional
 
 import httpx
@@ -10,6 +11,7 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
@@ -59,40 +61,61 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
 
 
 def _wrapped_sync_send_single_request(
-    wrapped: BoundFunctionWrapper, instance: httpx.Client, args: tuple[httpx.Request], kwargs: dict[str, Any]
-) -> httpx.Response:
-    req = get_argument_value(args, kwargs, 0, "request")
-    with core.context_with_data(
-        "httpx.client._send_single_request",
-        request=req,
+    wrapped: "BoundFunctionWrapper[..., httpx.Response]",
+    instance: httpx.Client,
+    args: tuple[httpx.Request],
+    kwargs: dict[str, Any],
+) -> Optional[httpx.Response]:
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_event(
+        event=HttpClientSendEvent(
+            url=httpx_url_to_str(req.url),
+            request_method=req.method,
+            request_headers=req.headers,
+            request_body=lambda: req.content,
+        ),
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
     ) as ctx:
         resp = None
         try:
             resp = wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                ctx.event.set_response(resp)
 
 
 async def _wrapped_async_send_single_request(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
-):
-    req = get_argument_value(args, kwargs, 0, "request")
-    with core.context_with_data(
-        "httpx.client._send_single_request",
-        request=req,
+    wrapped: "BoundFunctionWrapper[..., Awaitable[httpx.Response]]",
+    instance: httpx.AsyncClient,
+    args: tuple[httpx.Request],
+    kwargs: dict[str, Any],
+) -> Optional[httpx.Response]:
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_event(
+        event=HttpClientSendEvent(
+            url=httpx_url_to_str(req.url),
+            request_method=req.method,
+            request_headers=req.headers,
+            request_body=lambda: req.content,
+        ),
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
     ) as ctx:
         resp = None
         try:
             resp = await wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                ctx.event.set_response(resp)
 
 
 async def _wrapped_async_send(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
-):
+    wrapped: "BoundFunctionWrapper[..., Awaitable[httpx.Response]]",
+    instance: httpx.AsyncClient,
+    args: tuple[httpx.Request],
+    kwargs: dict[str, Any],
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
@@ -115,13 +138,15 @@ async def _wrapped_async_send(
             return resp
         finally:
             if resp is not None:
-                event: HttpClientRequestEvent = ctx.event
-                event.set_response(resp)
+                ctx.event.set_response(resp)
 
 
 def _wrapped_sync_send(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
-):
+    wrapped: "BoundFunctionWrapper[..., httpx.Response]",
+    instance: httpx.AsyncClient,
+    args: tuple[httpx.Request],
+    kwargs: dict[str, Any],
+) -> Optional[httpx.Response]:
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
@@ -144,8 +169,7 @@ def _wrapped_sync_send(
             return resp
         finally:
             if resp is not None:
-                event: HttpClientRequestEvent = ctx.event
-                event.set_response(resp)
+                ctx.event.set_response(resp)
 
 
 def patch() -> None:

@@ -150,8 +150,7 @@ def _get_perform_request_coro(transport):
             # set span.kind to the type of request being performed
             span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
             method, target = args
             params = kwargs.get("params")
@@ -231,7 +230,7 @@ def _get_perform_request_coro(transport):
 
                 took = data.get("took")
                 if took:
-                    span.set_metric(metadata.TOOK, int(took))
+                    span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)
 
