@@ -304,7 +304,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     metrics = self._extract_result_message(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
-                    output_messages.append(Message(content=str(result), role="system"))
+                    output_messages.append(Message(content=str(result), role="assistant"))
+                structured_output = _get_attr(msg, "structured_output", None)
+                if structured_output is not None:
+                    output_messages.append(
+                        Message(content=safe_json(structured_output) or str(structured_output), role="assistant")
+                    )
 
         return output_messages or [Message(content="")], metrics, init_system_message, stop_reason
 

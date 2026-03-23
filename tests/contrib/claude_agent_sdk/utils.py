@@ -95,6 +95,7 @@ def create_mock_result_message(
     result: str = "4",
     usage: dict = None,
     stop_reason: str = "end_turn",
+    structured_output: object = None,
 ) -> ResultMessage:
     """Create a mock ResultMessage for testing with realistic usage data.
 
@@ -121,9 +122,10 @@ def create_mock_result_message(
         usage=usage,
         result=result,
     )
-    # stop_reason field was added in claude-agent-sdk v0.1.48;
-    # set it via setattr for compatibility with older SDK versions
+    # stop_reason and structured_output fields were added in newer claude-agent-sdk versions;
+    # set via setattr for compatibility with older SDK versions that lack these fields
     msg.stop_reason = stop_reason
+    msg.structured_output = structured_output
     return msg
 
 
@@ -188,6 +190,17 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_GREP_TOOL_ASSISTANT,
     MOCK_RESULT_MESSAGE,
+]
+
+MOCK_STRUCTURED_OUTPUT = {"answer": 4, "unit": "integer"}
+MOCK_STRUCTURED_RESULT_MESSAGE = create_mock_result_message(
+    result=None,
+    structured_output=MOCK_STRUCTURED_OUTPUT,
+)
+MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_STRUCTURED_RESULT_MESSAGE,
 ]
 
 EXPECTED_CACHE_WRITE_INPUT_TOKENS = 12742
