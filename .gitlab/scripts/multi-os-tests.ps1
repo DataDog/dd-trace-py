@@ -15,41 +15,22 @@ uv python install --force $env:PYTHON_VERSION
 uv venv --python $env:PYTHON_VERSION .venv
 $wheelTag = "cp$($env:PYTHON_VERSION -replace '\.','')"
 $wheels = Get-Item "$env:CI_PROJECT_DIR\pywheels\ddtrace*${wheelTag}*win_amd64.whl" -ErrorAction SilentlyContinue
-if (-not $wheels) {
-    Write-Host "No local win_amd64 wheel found for tag '${wheelTag}'."
-    Write-Host "Downloading wheels from the last successful main pipeline..."
 
-    # Download artifacts from the last successful 'build windows' job on main
-    $pyVer = $env:PYTHON_VERSION
-    $jobName = "build windows: [$pyVer, amd64]"
+# If no local wheel, download from the last successful build on main
+if (-not $wheels) {
+    Write-Host "No local wheel found. Downloading from last successful main pipeline..."
+    $jobName = "build windows: [$env:PYTHON_VERSION, amd64]"
     $apiUrl = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/jobs/artifacts/main/download?job=$([uri]::EscapeDataString($jobName))"
-    $zipPath = "$env:CI_PROJECT_DIR\pywheels\wheels.zip"
     New-Item -ItemType Directory -Path "$env:CI_PROJECT_DIR\pywheels" -Force | Out-Null
+    $zipPath = "$env:CI_PROJECT_DIR\pywheels\wheels.zip"
+    Invoke-WebRequest -Uri $apiUrl -Headers @{ "JOB-TOKEN" = $env:CI_JOB_TOKEN } -OutFile $zipPath
+    Expand-Archive -Path $zipPath -DestinationPath "$env:CI_PROJECT_DIR\pywheels" -Force
+    Remove-Item $zipPath
+    # Flatten nested pywheels/pywheels/ structure from artifact zip
+    Get-ChildItem "$env:CI_PROJECT_DIR\pywheels" -Recurse -Filter "*.whl" | Move-Item -Destination "$env:CI_PROJECT_DIR\pywheels\" -Force -ErrorAction SilentlyContinue
+    $wheels = Get-Item "$env:CI_PROJECT_DIR\pywheels\ddtrace*${wheelTag}*win_amd64.whl"
+}
 
-    Write-Host "Fetching from: $apiUrl"
-    try {
-        Invoke-WebRequest -Uri $apiUrl -Headers @{ "JOB-TOKEN" = $env:CI_JOB_TOKEN } -OutFile $zipPath
-        Expand-Archive -Path $zipPath -DestinationPath "$env:CI_PROJECT_DIR\pywheels" -Force
-        Remove-Item $zipPath -ErrorAction SilentlyContinue
-        # Flatten: artifacts may be nested under pywheels/pywheels/
-        Get-ChildItem "$env:CI_PROJECT_DIR\pywheels" -Recurse -Filter "*.whl" | ForEach-Object {
-            if ($_.DirectoryName -ne "$env:CI_PROJECT_DIR\pywheels") {
-                Move-Item $_.FullName "$env:CI_PROJECT_DIR\pywheels\" -Force
-            }
-        }
-        $wheels = Get-Item "$env:CI_PROJECT_DIR\pywheels\ddtrace*${wheelTag}*win_amd64.whl" -ErrorAction SilentlyContinue
-    } catch {
-        Write-Host "Failed to download artifacts: $_"
-    }
-}
-if (-not $wheels) {
-    Write-Host "WARNING: No win_amd64 wheel available for tag '${wheelTag}'."
-    Write-Host "Available files in pywheels/:"
-    Get-ChildItem "$env:CI_PROJECT_DIR\pywheels\" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
-    Write-Host ""
-    Write-Host "Skipping Windows tests: no compatible wheel found."
-    exit 0
-}
 $wheel = $wheels[0].FullName
 Write-Host "Using wheel: $wheel"
 uv pip install --python $env:PYTHON_VERSION `

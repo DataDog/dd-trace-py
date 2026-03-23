@@ -18,42 +18,29 @@ export WHEEL_TAG="cp${PYTHON_VERSION//./}"
 echo "Installing Python $PYTHON_VERSION and dependencies in $TMPDIR..."
 uv python install $PYTHON_VERSION
 uv venv --python $PYTHON_VERSION .venv
+
 WHEEL_PATH=$(ls $CI_PROJECT_DIR/pywheels/ddtrace*${WHEEL_TAG}*${WHEEL_PATTERN} 2>/dev/null | head -1)
-if [ -z "$WHEEL_PATH" ]; then
-    echo "No local wheel found for tag '${WHEEL_TAG}' with pattern '${WHEEL_PATTERN}'."
-    echo "Downloading wheels from the last successful main pipeline..."
 
-    # Determine the build job name for downloading artifacts from main
-    if [ "$PLATFORM" = "macOS" ]; then
-        JOB_NAME="build macos"
-    fi
+# If no local wheel, download from the last successful build on main
+if [ -z "$WHEEL_PATH" ] && [ "$PLATFORM" = "macOS" ]; then
+    echo "No local wheel found. Downloading from last successful main pipeline..."
+    mkdir -p "$CI_PROJECT_DIR/pywheels"
+    ENCODED_JOB=$(python3 -c "import urllib.parse; print(urllib.parse.quote('build macos'))")
+    curl -fsSL --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+      -o /tmp/wheels.zip \
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/main/download?job=${ENCODED_JOB}"
+    unzip -o /tmp/wheels.zip -d "$CI_PROJECT_DIR/pywheels"
+    # Flatten nested pywheels/pywheels/ structure from artifact zip
+    find "$CI_PROJECT_DIR/pywheels" -mindepth 2 -name "*.whl" -exec mv {} "$CI_PROJECT_DIR/pywheels/" \;
+    WHEEL_PATH=$(ls $CI_PROJECT_DIR/pywheels/ddtrace*${WHEEL_TAG}*${WHEEL_PATTERN} 2>/dev/null | head -1)
+fi
 
-    if [ -n "$JOB_NAME" ] && [ -n "$CI_JOB_TOKEN" ]; then
-        mkdir -p "$CI_PROJECT_DIR/pywheels"
-        ENCODED_JOB=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$JOB_NAME'))")
-        API_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/main/download?job=${ENCODED_JOB}"
-        echo "Fetching from: $API_URL"
-        if curl -fsSL --header "JOB-TOKEN: $CI_JOB_TOKEN" -o /tmp/wheels.zip "$API_URL" 2>/dev/null; then
-            cd "$CI_PROJECT_DIR/pywheels"
-            unzip -o /tmp/wheels.zip 2>/dev/null || true
-            # Flatten nested directories
-            find . -name "*.whl" -not -path "./*.whl" -exec mv {} . \; 2>/dev/null || true
-            rm -f /tmp/wheels.zip
-            cd "$TMPDIR"
-            WHEEL_PATH=$(ls $CI_PROJECT_DIR/pywheels/ddtrace*${WHEEL_TAG}*${WHEEL_PATTERN} 2>/dev/null | head -1)
-        else
-            echo "Failed to download artifacts from main pipeline."
-        fi
-    fi
-fi
 if [ -z "$WHEEL_PATH" ]; then
-    echo "WARNING: No wheel available for tag '${WHEEL_TAG}' with pattern '${WHEEL_PATTERN}'."
-    echo "Available files in pywheels/:"
-    ls -la "$CI_PROJECT_DIR/pywheels/" 2>/dev/null || echo "  (directory does not exist)"
-    echo ""
-    echo "Skipping ${PLATFORM} tests: no compatible wheel found."
-    exit 0
+    echo "ERROR: No wheel found for tag '${WHEEL_TAG}' with pattern '${WHEEL_PATTERN}'."
+    ls -la "$CI_PROJECT_DIR/pywheels/" 2>/dev/null || echo "pywheels/ does not exist"
+    exit 1
 fi
+
 echo "Using wheel: $WHEEL_PATH"
 uv pip install --python $PYTHON_VERSION -r "$CI_PROJECT_DIR/.gitlab/requirements/multi-os-tests.txt" $WHEEL_PATH
 
