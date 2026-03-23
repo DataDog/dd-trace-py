@@ -8,6 +8,9 @@ from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
 
 
+IGNORE = ["meta._dd.svc_src"]
+
+
 @pytest.fixture(autouse=True)
 def patch_psycopg():
     patch()
@@ -17,7 +20,7 @@ def patch_psycopg():
 
 
 @pytest.mark.subprocess(ddtrace_run=True)
-@pytest.mark.snapshot(wait_for_num_traces=0)
+@pytest.mark.snapshot(wait_for_num_traces=0, ignores=IGNORE)
 def test_connect_default():
     """By default we do not trace psycopg2.connect method"""
     import psycopg2
@@ -29,7 +32,7 @@ def test_connect_default():
 
 
 @pytest.mark.subprocess(ddtrace_run=True)
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=IGNORE)
 def test_connect_traced():
     """When explicitly enabled, we trace psycopg2.connect method"""
     import psycopg2
@@ -43,7 +46,9 @@ def test_connect_traced():
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.psycopg2.test_psycopg_snapshot.test_connect_traced_via_env", wait_for_num_traces=1
+    token="tests.contrib.psycopg2.test_psycopg_snapshot.test_connect_traced_via_env",
+    wait_for_num_traces=1,
+    ignores=IGNORE,
 )
 def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg2.connect method"""

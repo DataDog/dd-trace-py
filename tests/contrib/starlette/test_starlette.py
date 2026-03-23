@@ -469,7 +469,7 @@ def test_subapp_nested_call_snapshot(snapshot_client):
     assert response.text == "Success"
 
 
-@snapshot()
+@snapshot(ignores=["meta._dd.svc_src"])
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
 
@@ -522,7 +522,7 @@ with TestClient(app) as test_client:
     assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
 
 
-@snapshot(ignores=["meta._dd.span_links"])
+@snapshot(ignores=["meta._dd.span_links", "meta._dd.svc_src"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
     r = snapshot_client_with_tracer.get("/backgroundtask")
