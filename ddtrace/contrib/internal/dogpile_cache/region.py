@@ -34,7 +34,7 @@ def _wrap_get_create(func, instance, args, kwargs):
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)
         response = func(*args, **kwargs)
-        span.set_metric(db.ROWCOUNT, 1)
+        span._set_attribute(db.ROWCOUNT, 1)
         return response
 
 
@@ -60,5 +60,5 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         span.set_tag("region", instance.name)
         span.set_tag("backend", instance.actual_backend.__class__.__name__)
         response = func(*args, **kwargs)
-        span.set_metric(db.ROWCOUNT, len(response))
+        span._set_attribute(db.ROWCOUNT, len(response))
         return response

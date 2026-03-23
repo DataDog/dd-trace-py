@@ -94,11 +94,11 @@ def test_set_tag_metric():
 
 def test_set_valid_metrics():
     s = Span(name="test.span")
-    s.set_metric("a", 0)
-    s.set_metric("b", -12)
-    s.set_metric("c", 12.134)
-    s.set_metric("d", 1231543543265475686787869123)
-    s.set_metric("e", "12.34")
+    s.set_metric("a", 0)  # ast-grep-ignore: span-set-metric
+    s.set_metric("b", -12)  # ast-grep-ignore: span-set-metric
+    s.set_metric("c", 12.134)  # ast-grep-ignore: span-set-metric
+    s.set_metric("d", 1231543543265475686787869123)  # ast-grep-ignore: span-set-metric
+    s.set_metric("e", "12.34")  # ast-grep-ignore: span-set-metric
     expected = {
         "a": 0,
         "b": -12,
@@ -116,14 +116,14 @@ def test_set_invalid_metric():
 
     for i, m in enumerate(invalid_metrics):
         k = str(i)
-        s.set_metric(k, m)
+        s.set_metric(k, m)  # ast-grep-ignore: span-set-metric
         assert s.get_metric(k) is None
 
 
 def test_set_numpy_metric():
     np = pytest.importorskip("numpy")
     s = Span(name="test.span")
-    s.set_metric("a", np.int64(1))
+    s.set_metric("a", np.int64(1))  # ast-grep-ignore: span-set-metric
     assert s.get_metric("a") == 1
     assert type(s.get_metric("a")) == float
 
@@ -581,5 +581,5 @@ def test_set_tag_visible_via_get_attribute():
 
 def test_set_metric_visible_via_get_attribute():
     s = Span(name="test.span")
-    s.set_metric("key", 3.14)
+    s._set_attribute("key", 3.14)
     assert s._get_attribute("key") == 3.14

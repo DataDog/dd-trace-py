@@ -56,7 +56,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric(db.ROWCOUNT, self.rowcount)
+                s._set_attribute(db.ROWCOUNT, self.rowcount)
 
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different

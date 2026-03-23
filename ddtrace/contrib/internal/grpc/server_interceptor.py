@@ -19,11 +19,8 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import tracer
 
 
-def create_server_interceptor(pin):
+def create_server_interceptor():
     def interceptor_function(continuation, handler_call_details):
-        if not pin.enabled:
-            return continuation(handler_call_details)
-
         rpc_method_handler = continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
@@ -31,7 +28,7 @@ def create_server_interceptor(pin):
         # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
 
         if rpc_method_handler:
-            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+            return _TracedRpcMethodHandler(handler_call_details, rpc_method_handler)
 
         return rpc_method_handler
 
@@ -66,9 +63,8 @@ def _wrap_response_iterator(response_iterator, server_context, span):
 
 
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
-    def __init__(self, pin, handler_call_details, wrapped):
+    def __init__(self, handler_call_details, wrapped):
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
-        self._pin = pin
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
@@ -96,7 +92,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             span_type=SpanTypes.GRPC,
             resource=self._handler_call_details.method,
         )
-        set_service_and_source(span, trace_utils.int_service(self._pin, config.grpc_server), config.grpc_server)
+        set_service_and_source(span, trace_utils.int_service(None, config.grpc_server), config.grpc_server)
 
         span._set_attribute(COMPONENT, config.grpc_server.integration_name)
 
@@ -111,9 +107,6 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information
         server_context = args[1] if isinstance(args[1], grpc.ServicerContext) else None
-
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
 
         try:
             response_or_iterator = behavior(*args, **kwargs)

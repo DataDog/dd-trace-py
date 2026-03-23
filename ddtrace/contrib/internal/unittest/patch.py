@@ -405,7 +405,7 @@ def _update_remaining_suites_and_modules(
 
 def _update_test_skipping_count_span(span: ddtrace.trace.Span):
     if _CIVisibility.test_skipping_enabled():
-        span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
+        span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
 
 
 def _extract_skip_if_reason(args, kwargs):
@@ -718,7 +718,7 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
     )
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_module_span)
-        test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
+        test_module_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
         test_module_span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_suite_identifier(instance)

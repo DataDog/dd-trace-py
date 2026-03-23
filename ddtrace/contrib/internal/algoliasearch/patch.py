@@ -168,9 +168,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
         if isinstance(result, dict):
             if result.get("processingTimeMS", None) is not None:
-                span.set_metric("processing_time_ms", int(result["processingTimeMS"]))
+                span._set_attribute("processing_time_ms", int(result["processingTimeMS"]))
 
             if result.get("nbHits", None) is not None:
-                span.set_metric("number_of_hits", int(result["nbHits"]))
+                span._set_attribute("number_of_hits", int(result["nbHits"]))
 
         return result

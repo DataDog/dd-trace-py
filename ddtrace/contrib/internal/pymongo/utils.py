@@ -3,6 +3,7 @@ import json
 from typing import Iterable
 
 # 3p
+from bson import json_util
 import pymongo
 from pymongo.message import _GetMore
 from pymongo.message import _Query
@@ -87,7 +88,7 @@ def process_server_message_result(span, operation, result):
                 else:
                     data = _unpack_response(response=result.data)
                     if VERSION < (3, 2, 0) and data.get("number_returned", None):
-                        span.set_metric(db.ROWCOUNT, data.get("number_returned"))
+                        span._set_attribute(db.ROWCOUNT, data.get("number_returned"))
                     elif (3, 2, 0) <= VERSION < (3, 6, 0):
                         docs = data.get("data", None)
                         set_query_rowcount(docs=docs, span=span)
@@ -124,10 +125,13 @@ def set_address_tags(span, address):
 def set_query_metadata(span, cmd):
     """Set span `mongodb.query` tag and resource given command query. Shared between sync and async."""
     if cmd.query:
-        nq = normalize_filter(cmd.query)
-        q = json.dumps(nq)
-        span.set_tag("mongodb.query", q)
-        span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
+        resource_str = json.dumps(normalize_filter(cmd.query))
+        if config.pymongo._mongodb_obfuscation:
+            tag_query = resource_str
+        else:
+            tag_query = json_util.dumps(cmd.query)
+        span.set_tag("mongodb.query", tag_query)
+        span.resource = "{} {} {}".format(cmd.name, cmd.coll, resource_str)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 
@@ -146,7 +150,7 @@ def set_query_rowcount(docs, span):
             pass
     if cursor and isinstance(cursor, dict):
         rowcount = sum(len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key)
-        span.set_metric(db.ROWCOUNT, rowcount)
+        span._set_attribute(db.ROWCOUNT, rowcount)
 
 
 def dbm_dispatch(span, args, kwargs):

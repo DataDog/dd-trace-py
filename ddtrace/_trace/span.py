@@ -245,12 +245,12 @@ class Span(SpanData):
 
         # Set integers that are less than equal to 2^53 as metrics
         if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
             return
 
         # All floats should be set as a metric
         elif isinstance(value, float):
-            self.set_metric(key, value)
+            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
             return
 
         elif key == MANUAL_KEEP_KEY:
@@ -271,7 +271,7 @@ class Span(SpanData):
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
             return
 
         try:
@@ -405,7 +405,7 @@ class Span(SpanData):
         """
         if metrics:
             for k, v in metrics.items():
-                self.set_metric(k, v)
+                self.set_metric(k, v)  # ast-grep-ignore: span-set-metric
 
     def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""

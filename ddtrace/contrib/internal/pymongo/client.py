@@ -224,7 +224,7 @@ def _trace_socket_write_command(func, args, kwargs):
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = func(*args, **kwargs)
         if result:
-            s.set_metric(db.ROWCOUNT, result.get("n", -1))
+            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
         return result
 
 
