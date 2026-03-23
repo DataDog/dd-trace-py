@@ -185,7 +185,7 @@ class ExecutionContext(Generic[EventType]):
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
 
-    def __enter__(self) -> "ExecutionContext":
+    def __enter__(self) -> "ExecutionContext[EventType]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
