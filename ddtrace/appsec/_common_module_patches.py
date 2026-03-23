@@ -230,9 +230,18 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
 
 def wrapped_response(original_response_callable, instance, args, kwargs):
     response = original_response_callable(*args, *kwargs)
+    # AIDEV-NOTE: Only fire for the stdlib urllib.request path where full_url is set
+    # by wrapped_open_ED4CF71136E15EBF. The urllib3/requests path is handled by the
+    # generic HTTP client subscribers in appsec._contrib.http_client.subscribers.
+    full_url = core.find_item("full_url")
     env = _get_asm_context()
     try:
-        if _get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+        if (
+            _get_rasp_capability("ssrf")
+            and full_url is not None
+            and response.__class__.__name__ == "HTTPResponse"
+            and env is not None
+        ):
             status = response.getcode()
             if 300 <= status < 400:
                 # api10 for redirected response status and headers in urllib

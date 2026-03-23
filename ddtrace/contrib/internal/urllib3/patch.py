@@ -201,19 +201,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     request_retries = get_argument_value(args, kwargs, 4, "retries", optional=True)
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
-    if request_url.startswith("/"):
-        request_url = parse.urlunparse(
-            (
-                instance.scheme,
-                "{}:{}".format(instance.host, instance.port)
-                if instance.port and instance.port not in DROP_PORTS
-                else str(instance.host),
-                request_url,
-                None,
-                None,
-                None,
-            )
-        )
+    request_url = _absolute_request_url(instance, request_url)
 
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
