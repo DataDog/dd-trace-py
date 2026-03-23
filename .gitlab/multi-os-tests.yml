@@ -61,9 +61,6 @@ os tests windows:
         matrix:
           - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
             WINDOWS_ARCH: "amd64"
-    - job: "download windows wheels"
-      artifacts: true
-      optional: true
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
