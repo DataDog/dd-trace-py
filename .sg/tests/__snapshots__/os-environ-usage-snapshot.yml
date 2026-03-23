@@ -30,6 +30,18 @@ snapshots:
       style: primary
       start: 0
       end: 21
+  os.putenv("KEY", "value"):
+    labels:
+    - source: os.putenv("KEY", "value")
+      style: primary
+      start: 0
+      end: 25
+  os.unsetenv("KEY"):
+    labels:
+    - source: os.unsetenv("KEY")
+      style: primary
+      start: 0
+      end: 18
   value = os.environ.get("KEY", "default"):
     labels:
     - source: os.environ.get("KEY", "default")
