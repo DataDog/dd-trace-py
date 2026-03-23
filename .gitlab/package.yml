@@ -3,6 +3,13 @@ variables:
   MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v99952233-e6a3deb-alpine_build"
 
+# Rule to skip jobs on merge queue branches where only prechecks + system tests run
+.not_on_merge_queue:
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+      when: never
+    - when: on_success
+
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
   - "3.10"
@@ -68,7 +75,9 @@ variables:
       .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
-  extends: .build_base
+  extends:
+    - .build_base
+    - .not_on_merge_queue
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: [ "arch:${ARCH_TAG}" ]
   variables:
@@ -118,7 +127,9 @@ variables:
     - .gitlab/scripts/build-wheel.sh
 
 "build linux serverless":
-  extends: "build linux"
+  extends:
+    - "build linux"
+    - .not_on_merge_queue
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
@@ -131,7 +142,9 @@ variables:
         DD_SERVERLESS_BUILD: "1"
 
 "build macos":
-  extends: .build_base
+  extends:
+    - .build_base
+    - .not_on_merge_queue
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
@@ -177,7 +190,9 @@ variables:
 
 # All manylinux2014 wheels
 "upload manylinux2014":
-  extends: .upload_wheels_base
+  extends:
+    - .upload_wheels_base
+    - .not_on_merge_queue
   needs:
     - job: "build linux"
       artifacts: true
@@ -195,7 +210,9 @@ variables:
 
 # Only the limited artifacts needed by downstream serverless jobs
 "upload serverless":
-  extends: .upload_wheels_base
+  extends:
+    - .upload_wheels_base
+    - .not_on_merge_queue
   needs:
     - job: "build linux"
       artifacts: true
@@ -212,6 +229,7 @@ variables:
     UPLOAD_SUFFIX: "serverless"
 
 "test sdist":
+  extends: .not_on_merge_queue
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
@@ -233,6 +251,7 @@ variables:
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
 "build windows":
+  extends: .not_on_merge_queue
   stage: package
   tags: ["windows-v2:2022"]
   parallel:
@@ -252,6 +271,7 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
+  extends: .not_on_merge_queue
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -276,6 +296,7 @@ variables:
       - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
+  extends: .not_on_merge_queue
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
@@ -309,7 +330,9 @@ download_dependency_wheels:
       - "pywheels-dep/"
 
 "upload all":
-  extends: .upload_wheels_base
+  extends:
+    - .upload_wheels_base
+    - .not_on_merge_queue
   needs: [ "ddtrace package", "package version" ]
   script:
     - !reference [.upload_wheels_base, script]
@@ -363,6 +386,7 @@ download_dependency_wheels:
 # Aggregates all Windows wheel artifacts
 # DEV: "ddtrace package" has a limit of 50 jobs it can depend on
 "collect windows wheels":
+  extends: .not_on_merge_queue
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -379,6 +403,7 @@ download_dependency_wheels:
 
 # Aggregate and validate all built wheels
 "ddtrace package":
+  extends: .not_on_merge_queue
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package

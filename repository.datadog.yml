@@ -2,9 +2,8 @@
 schema-version: v1
 kind: mergequeue
 enable: true
-# Each PR in the MQ will be rebased on the base branch before merging
-# conflicts between PRs in the MQ will not be able to be detected
-workflow_type: noqueue
+workflow_type: speculative
+speculative_max_depth: 3
 merge_method: squash
 gitlab_check_enable: true
 gitlab_jobs_retry_enable: false

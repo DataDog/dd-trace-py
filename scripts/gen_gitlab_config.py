@@ -26,6 +26,12 @@ import subprocess
 import typing as t
 
 
+def is_merge_queue() -> bool:
+    """Return True if we are running in a devflow merge queue pipeline."""
+    branch = os.getenv("CI_COMMIT_BRANCH", "")
+    return branch.startswith("mq-working-branch-")
+
+
 MAX_BENCHMARKS_PER_GROUP = 8
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
@@ -192,9 +198,9 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     # Collect unique venv hashes by matching pattern (mimics riot's --hash-only logic)
     venv_hashes = set()
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name or not inst.matches_pattern(pattern_regex):  # type: ignore[attr-defined]
+        if not inst.name or not inst.matches_pattern(pattern_regex):
             continue
-        venv_hashes.add(inst.short_hash)  # type: ignore[attr-defined]
+        venv_hashes.add(inst.short_hash)
 
     venv_count = len(venv_hashes)
 
@@ -221,6 +227,10 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
+    if is_merge_queue():
+        LOGGER.info("Merge queue detected, skipping test suites generation (only prechecks will run)")
+        return
+
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed
     import suitespec
@@ -299,12 +309,13 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
-def _get_benchmark_class_name(suite_name: str) -> str:
+def _get_benchmark_class_name(suite_name: str) -> t.Optional[str]:
     contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
     for line in contents.split("\n"):
         match = re.match(BENCHMARK_CLASS_REGEX, line)
         if match:
             return match.group(1).lower()
+    return None
 
 
 def _filter_benchmarks_slos_file(classnames: list) -> None:
@@ -389,6 +400,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    if is_merge_queue():
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -555,6 +569,9 @@ def gen_debugger_exploration() -> None:
     We need to generate this dynamically from a template because it depends
     on the cached testrunner job, which is also generated dynamically.
     """
+    if is_merge_queue():
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if not pr_matches_patterns(
@@ -578,6 +595,9 @@ def gen_appsec_iast_aggregated_leak_testing() -> None:
     We need to generate this dynamically from a template because
     we don't use riot to execute the tests
     """
+    if is_merge_queue():
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if not pr_matches_patterns(
@@ -595,6 +615,9 @@ def gen_appsec_iast_aggregated_leak_testing() -> None:
 
 def gen_detect_global_locks() -> None:
     """Generate the global lock detection job."""
+    if is_merge_queue():
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if not pr_matches_patterns(

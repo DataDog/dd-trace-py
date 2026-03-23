@@ -124,6 +124,8 @@ serverless lambda tests:
   needs:
     - job: "upload manylinux2014"
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
@@ -142,6 +144,10 @@ serverless lambda tests:
   extends: .testrunner
   stage: tests
   needs: []
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   script:
   script:
     - |
@@ -255,6 +261,8 @@ codeql-scan:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - if: !reference [.is_release]
       when: never
     - if: $NIGHTLY_BUILD == "true"
@@ -280,6 +288,8 @@ codeql-scan:
 
 requirements_json_test:
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - when: on_success
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
@@ -289,6 +299,10 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   script:
     - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
@@ -300,12 +314,20 @@ check_ci_dependencies:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   script:
     - scripts/check-ci-dependencies
 
 codeowners:
   stage: tests
   needs: []
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
@@ -373,6 +395,8 @@ detect_circular_imports:
   needs: []
   extends: .testrunner
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - if: !reference [.is_main]
       when: never
   script:
@@ -406,6 +430,10 @@ detect_circular_imports:
 
 
 package-oci:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs:
     - job: "package version"
       artifacts: true
@@ -456,11 +484,19 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
 
 system_tests:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
@@ -503,6 +539,8 @@ prof-correctness:
     - job: "upload all"
   allow_failure: true
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
@@ -529,6 +567,10 @@ prof-correctness:
 
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
@@ -580,6 +622,8 @@ lib_injection_tests:
 profiling_native:
   extends: .profiling_native_base
   rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:

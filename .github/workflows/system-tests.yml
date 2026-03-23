@@ -60,21 +60,39 @@ jobs:
           name: wheels-manylinux_x86_64
           path: ./wheels/*.whl
 
+  compute-matrix:
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      build-variants: ${{ steps.set-matrix.outputs.build-variants }}
+      test-variants: ${{ steps.set-matrix.outputs.test-variants }}
+      test-scenarios: ${{ steps.set-matrix.outputs.test-scenarios }}
+      test-includes: ${{ steps.set-matrix.outputs.test-includes }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/mq-working-branch-* ]]; then
+            # Merge queue: only fastapi + DEFAULT scenario
+            echo 'build-variants=["fastapi"]' >> "$GITHUB_OUTPUT"
+            echo 'test-variants=["fastapi"]' >> "$GITHUB_OUTPUT"
+            echo 'test-scenarios=["other"]' >> "$GITHUB_OUTPUT"
+            echo 'test-includes=[]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build-variants=["flask-poc", "uwsgi-poc", "django-poc", "fastapi", "python3.12", "django-py3.13", "tornado"]' >> "$GITHUB_OUTPUT"
+            echo 'test-variants=["flask-poc", "uwsgi-poc", "django-poc", "fastapi", "python3.12", "django-py3.13", "tornado"]' >> "$GITHUB_OUTPUT"
+            echo 'test-scenarios=["remote-config", "appsec", "appsec-1", "other"]' >> "$GITHUB_OUTPUT"
+            echo 'test-includes=[{"weblog-variant":"flask-poc","scenario":"debugger-1"},{"weblog-variant":"flask-poc","scenario":"debugger-2"},{"weblog-variant":"uwsgi-poc","scenario":"debugger-1"},{"weblog-variant":"uwsgi-poc","scenario":"debugger-2"}]' >> "$GITHUB_OUTPUT"
+          fi
+
   system-tests-build-weblog:
     needs:
       - download-s3-wheels
+      - compute-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - weblog-variant: flask-poc
-          - weblog-variant: uwsgi-poc
-          - weblog-variant: django-poc
-          - weblog-variant: fastapi
-          # runs django-poc for 3.12
-          - weblog-variant: python3.12
-          - weblog-variant: django-py3.13
-          - weblog-variant: tornado
+        weblog-variant: ${{ fromJson(needs.compute-matrix.outputs.build-variants) }}
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -116,20 +134,12 @@ jobs:
 
   system-tests:
     runs-on: ubuntu-latest
-    needs: [system-tests-build-weblog]
+    needs: [system-tests-build-weblog, compute-matrix]
     strategy:
       matrix:
-        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13, tornado]
-        scenario: [remote-config, appsec, appsec-1, other]
-        include:
-          - weblog-variant: flask-poc
-            scenario: debugger-1
-          - weblog-variant: flask-poc
-            scenario: debugger-2
-          - weblog-variant: uwsgi-poc
-            scenario: debugger-1
-          - weblog-variant: uwsgi-poc
-            scenario: debugger-2
+        weblog-variant: ${{ fromJson(needs.compute-matrix.outputs.test-variants) }}
+        scenario: ${{ fromJson(needs.compute-matrix.outputs.test-scenarios) }}
+        include: ${{ fromJson(needs.compute-matrix.outputs.test-includes) }}
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -343,6 +353,7 @@ jobs:
 
 
   parametric:
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/mq-working-branch-')) }}
     needs:
       - download-s3-wheels
     runs-on: ubuntu-latest
@@ -392,6 +403,7 @@ jobs:
           path: artifact.tar.gz
 
   serverless-system-tests-build-layer:
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/mq-working-branch-')) }}
     runs-on: ubuntu-latest
     needs: [download-s3-wheels]
     steps:
@@ -433,6 +445,7 @@ jobs:
       skip_empty_scenarios: true
 
   integration-frameworks-combine-wheels:
+    if: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/heads/mq-working-branch-')) }}
     runs-on: ubuntu-latest
     needs: [download-s3-wheels]
     steps:
