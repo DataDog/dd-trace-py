@@ -9,6 +9,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.fnv import fnv1_64
 
 
@@ -123,8 +124,22 @@ base_hash, base_hash_bytes = None, b""
 _container_tags_hash = ""
 
 
+@callonce
+def _retrieve_container_tags_hash() -> None:
+    if not process_tags_config.enabled:
+        return
+
+    try:
+        from ddtrace.internal import agent
+
+        agent.info()
+    except Exception:
+        log.debug("failed to fetch container tags hash from agent /info endpoint", exc_info=True)
+
+
 def __getattr__(name: str) -> Any:
     if "process_tags" in name:
+        _retrieve_container_tags_hash()
         _initialize_process_tags()
         _recompute_base_hash()
         if name == "process_tags":
