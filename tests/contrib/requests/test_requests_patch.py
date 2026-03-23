@@ -5,6 +5,9 @@
 
 from ddtrace.contrib.internal.requests.patch import get_version
 from ddtrace.contrib.internal.requests.patch import patch
+from ddtrace.contrib.internal.urllib3.patch import patch as patch_urllib3
+from ddtrace.contrib.internal.urllib3.patch import unpatch as unpatch_urllib3
+import urllib3
 
 
 try:
@@ -22,10 +25,40 @@ class TestRequestsPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, requests):
-        pass
+        self.assert_not_wrapped(requests.Session.request)
+        self.assert_wrapped(requests.Session.send)
+        self.assert_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
 
     def assert_not_module_patched(self, requests):
-        pass
+        self.assert_not_wrapped(requests.Session.request)
+        self.assert_not_wrapped(requests.Session.send)
+        self.assert_not_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
 
     def assert_not_module_double_patched(self, requests):
-        pass
+        self.assert_not_wrapped(requests.Session.request)
+        self.assert_not_double_wrapped(requests.Session.send)
+        self.assert_not_double_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+    def test_urllib3_inner_patch_survives_requests_unpatch(self):
+        patch()
+        patch_urllib3()
+
+        self.assert_not_double_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+        unpatch()
+        self.assert_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+        unpatch_urllib3()
+        self.assert_not_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+    def test_requests_inner_patch_survives_urllib3_unpatch(self):
+        patch_urllib3()
+        patch()
+
+        self.assert_not_double_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+        unpatch_urllib3()
+        self.assert_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+
+        unpatch()
+        self.assert_not_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)

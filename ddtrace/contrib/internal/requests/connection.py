@@ -5,6 +5,7 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -95,6 +96,7 @@ def _wrap_send(func, instance, args, kwargs):
             query=_extract_query_string(url),
             target_host=host_without_port,
         ),
+        context_name_override=HttpClientEvents.REQUESTS_REQUEST.value,
     ) as ctx:
         response = None
         try:

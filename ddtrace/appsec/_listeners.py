@@ -81,7 +81,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         flask_listen()
         django_listen()
         fastapi_listen()
-        import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+        import ddtrace.appsec._contrib.http_client.subscribers  # noqa: F401
 
         stripe_listen()
         tornado_listen()

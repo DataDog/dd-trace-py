@@ -1,4 +1,8 @@
+import io
+import importlib
+import json
 import os
+import sys
 from urllib import parse
 
 import urllib3
@@ -8,16 +12,18 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -55,16 +61,9 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request as _make_request
-
-        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
-        if hasattr(urllib3, "_request_methods"):
-            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
-        else:
-            # Old version before https://github.com/urllib3/urllib3/pull/2398
-            _w("urllib3.request", "RequestMethods.request", _wrap_request)
+    _w(_get_request_methods_class(), "request", _wrap_request_method)
+    if not trace_utils.iswrapped(urllib3.connectionpool.HTTPConnectionPool, "_make_request"):
+        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _wrap_make_request)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
@@ -74,6 +73,116 @@ def unpatch():
         urllib3.__datadog_patch = False
 
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
+        _u(_get_request_methods_class(), "request")
+
+    requests_module = sys.modules.get("requests")
+    if requests_module is None or not getattr(requests_module, "__datadog_patch", False):
+        try:
+            _u(urllib3.connectionpool.HTTPConnectionPool, "_make_request")
+        except AttributeError:
+            pass
+
+
+def _get_request_methods_class():
+    if hasattr(urllib3, "_request_methods"):
+        return importlib.import_module("urllib3._request_methods").RequestMethods
+    return importlib.import_module("urllib3.request").RequestMethods
+
+
+def _absolute_request_url(instance, request_url: str) -> str:
+    if request_url.startswith("/"):
+        return parse.urlunparse(
+            (
+                instance.scheme,
+                "{}:{}".format(instance.host, instance.port)
+                if instance.port and instance.port not in DROP_PORTS
+                else str(instance.host),
+                request_url,
+                None,
+                None,
+                None,
+            )
+        )
+    return request_url
+
+
+def _set_urllib3_response(event, response) -> None:
+    adapted_response = _Urllib3ResponseAdapter(response)
+    event.response_status_code = adapted_response.status_code
+    event.response_headers = adapted_response.headers
+    if isinstance(event, HttpClientRequestEvent):
+        event.response = adapted_response
+
+
+class _Urllib3ResponseAdapter(object):
+    def __init__(self, response) -> None:
+        self._response = response
+        self.status_code = response.status
+        self.headers = response.headers
+
+    def json(self):
+        if self._response.length and self._response.headers.get("content-type", None) == "application/json":
+            length = self._response.length
+            body = self._response.read()
+            self._response.fp = io.BytesIO(body)
+            self._response.length = length
+            return json.loads(body)
+        raise ValueError("response body is not valid JSON")
+
+
+def _wrap_request_method(func, instance, args, kwargs):
+    request_method = get_argument_value(args, kwargs, 0, "method", optional=True) or ""
+    request_url = get_argument_value(args, kwargs, 1, "url", optional=True) or ""
+    request_headers = get_argument_value(args, kwargs, 4, "headers", optional=True) or {}
+
+    parsed_uri = parse.urlparse(request_url)
+    hostname = parsed_uri.hostname
+
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            http_operation="urllib3.request",
+            service=trace_utils.ext_service(None, config.urllib3),
+            component=config.urllib3.integration_name,
+            config=config.urllib3,
+            request_method=request_method,
+            request_headers=request_headers,
+            url=request_url,
+            query=parsed_uri.query,
+            target_host=hostname,
+        ),
+        context_name_override=HttpClientEvents.URLLIB3_REQUEST.value,
+    ) as ctx:
+        response = None
+        try:
+            response = func(*args, **kwargs)
+            return response
+        finally:
+            if response is not None:
+                _set_urllib3_response(ctx.event, response)
+
+
+def _wrap_make_request(func, instance, args, kwargs):
+    request_method = get_argument_value(args, kwargs, 1, "method", optional=True) or ""
+    request_url = _absolute_request_url(instance, get_argument_value(args, kwargs, 2, "url", optional=True) or "")
+    request_headers = get_argument_value(args, kwargs, 4, "headers", optional=True) or {}
+    body = get_argument_value(args, kwargs, 3, "body", optional=True)
+
+    with core.context_with_event(
+        HttpClientSendEvent(
+            url=request_url,
+            request_method=request_method,
+            request_headers=request_headers,
+            request_body=lambda: body,
+        ),
+        context_name_override=HttpClientEvents.URLLIB3_SEND_REQUEST.value,
+    ) as ctx:
+        response = None
+        try:
+            response = func(*args, **kwargs)
+            return response
+        finally:
+            if response is not None:
+                _set_urllib3_response(ctx.event, response)
 
 
 def _wrap_urlopen(func, instance, args, kwargs):
@@ -88,14 +197,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
     """
     request_method = get_argument_value(args, kwargs, 0, "method")
     request_url = get_argument_value(args, kwargs, 1, "url")
-    try:
-        request_headers = get_argument_value(args, kwargs, 3, "headers")
-    except ArgumentError:
-        request_headers = None
-    try:
-        request_retries = get_argument_value(args, kwargs, 4, "retries")
-    except ArgumentError:
-        request_retries = None
+    request_headers = get_argument_value(args, kwargs, 3, "headers", optional=True)
+    request_retries = get_argument_value(args, kwargs, 4, "retries", optional=True)
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):

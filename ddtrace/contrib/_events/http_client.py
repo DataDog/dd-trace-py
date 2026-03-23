@@ -37,8 +37,11 @@ class _HttpClientResponse(Protocol):
 class HttpClientEvents(Enum):
     HTTP_REQUEST = "http.client.request"
     HTTPX_REQUEST = "httpx.request"
+    REQUESTS_REQUEST = "requests.request"
+    URLLIB3_REQUEST = "urllib3.request"
     HTTP_SEND_REQUEST = "http.client.send_request"
     HTTPX_SEND_REQUEST = "httpx.send_request"
+    URLLIB3_SEND_REQUEST = "urllib3.send_request"
 
 
 @dataclass
