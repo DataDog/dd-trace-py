@@ -7,16 +7,10 @@ build_base_venvs:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
+    PIP_VERBOSE: '1'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
-    DD_FAST_BUILD: '0'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
   script: |
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
