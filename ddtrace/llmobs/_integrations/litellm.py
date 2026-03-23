@@ -69,7 +69,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
-        model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
+        model_name, model_provider = self._model_map.get(model_name, (model_name, "unknown"))
+        # When a custom base_url is set (e.g. LiteLLM proxy), the provider resolved from the
+        # model name is unreliable since the proxy could route to any provider.
+        base_url = kwargs.get("base_url") or kwargs.get("api_base")
+        if base_url:
+            model_provider = "unknown"
 
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
