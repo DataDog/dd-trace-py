@@ -20,7 +20,9 @@ config._add(
     "google_cloud_pubsub",
     dict(
         distributed_tracing_enabled=asbool(_get_config("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
-        reparent_enabled=asbool(_get_config("DD_GOOGLE_CLOUD_PUBSUB_REPARENT_ENABLED", default=True)),
+        propagation_as_span_links=asbool(
+            _get_config("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS", default=False)
+        ),
     ),
 )
 
@@ -56,7 +58,7 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         resource=subscription_id,
         call_trace=False,
         activate=True,
-        child_of=propagated_context if config.google_cloud_pubsub.reparent_enabled else None,
+        child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
         propagated_context=propagated_context,
         project_id=project_id,
         subscription_id=subscription_id,

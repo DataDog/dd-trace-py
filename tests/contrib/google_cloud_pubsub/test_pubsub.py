@@ -69,9 +69,9 @@ def test_propagation_disabled(publisher, topic_path, subscriber, subscription_pa
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.tracestate"])
-def test_subscribe_reparent_enabled(publisher, topic_path, subscriber, subscription_path):
-    """Test publish-subscribe with reparenting enabled (default). Validates span tags, trace
-    hierarchy (receive is child of send), span links, and that child spans inside the callback
+def test_subscribe_propagation_as_span_links_disabled(publisher, topic_path, subscriber, subscription_path):
+    """Test publish-subscribe with propagation_as_span_links disabled (default). Validates span tags,
+    trace hierarchy (receive is child of send), span links, and that child spans inside the callback
     are parented to the receive span.
     """
     received = threading.Event()
@@ -91,9 +91,9 @@ def test_subscribe_reparent_enabled(publisher, topic_path, subscriber, subscript
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.tracestate"])
-def test_subscribe_reparent_disabled(publisher, topic_path, subscriber, subscription_path, test_spans):
-    """Test publish-subscribe with reparenting disabled. Validates that the receive span is in a
-    separate trace from the producer and span links to the producer still exist.
+def test_subscribe_propagation_as_span_links_enabled(publisher, topic_path, subscriber, subscription_path, test_spans):
+    """Test publish-subscribe with propagation_as_span_links enabled. Validates that the receive span
+    is in a separate trace from the producer and span links to the producer still exist.
     """
     received = threading.Event()
 
@@ -101,7 +101,7 @@ def test_subscribe_reparent_disabled(publisher, topic_path, subscriber, subscrip
         message.ack()
         received.set()
 
-    with override_config("google_cloud_pubsub", dict(reparent_enabled=False)):
+    with override_config("google_cloud_pubsub", dict(propagation_as_span_links=True)):
         future = subscriber.subscribe(subscription_path, callback=callback)
         try:
             publisher.publish(topic_path, b"Hello World").result(timeout=10)
