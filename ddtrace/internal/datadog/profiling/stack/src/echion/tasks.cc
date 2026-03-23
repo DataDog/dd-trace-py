@@ -139,7 +139,11 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
         return false;
     }
 
-    const auto& frame_name = echion.string_table().lookup(frame.name)->get();
+    auto maybe_name = echion.string_table().lookup(frame.name);
+    if (!maybe_name) {
+        return false;
+    }
+    const auto& frame_name = maybe_name->get();
 
 #if PY_VERSION_HEX >= 0x030b0000
     // Python 3.11+: qualified name includes the enclosing function
@@ -149,7 +153,11 @@ is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& f
     // Python < 3.11: just check for "wrapper" in uvloop/__init__.py
     constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
     constexpr std::string_view wrapper = "wrapper";
-    auto filename = echion.string_table().lookup(frame.filename)->get();
+    auto maybe_filename = echion.string_table().lookup(frame.filename);
+    if (!maybe_filename) {
+        return false;
+    }
+    const auto& filename = maybe_filename->get();
     auto is_uvloop = filename.size() >= uvloop_init_py.size() &&
                      filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
     return is_uvloop && (frame_name == wrapper);
