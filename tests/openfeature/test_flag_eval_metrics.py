@@ -128,7 +128,7 @@ class TestFlagEvalMetrics:
 
         call_args = mock_counter.add.call_args
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_ERROR_TYPE] == "FLAG_NOT_FOUND"
+        assert attrs[ATTR_ERROR_TYPE] == "flag_not_found"
 
     def test_record_empty_allocation_key_not_included(self):
         """Empty allocation_key should not be included in attributes."""
@@ -256,10 +256,10 @@ class TestFlagEvalMetrics:
 
         assert mock_counter.add.call_count == len(error_codes)
 
-        # Verify each call has the correct error.type (using ErrorCode.value directly)
+        # Verify each call has the correct error.type
         calls = mock_counter.add.call_args_list
         error_types = {call[1]["attributes"][ATTR_ERROR_TYPE] for call in calls}
-        assert error_types == {"FLAG_NOT_FOUND", "TYPE_MISMATCH", "PARSE_ERROR", "GENERAL"}
+        assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}
 
 
 class TestFlagEvalHook:

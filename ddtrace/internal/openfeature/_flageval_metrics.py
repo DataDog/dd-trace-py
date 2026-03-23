@@ -55,14 +55,14 @@ class FlagEvalMetrics:
 
         # Only create metrics if OTel metrics are enabled
         try:
-            from ddtrace.settings import _config as ddconfig
+            from ddtrace import config as ddconfig
 
             if not ddconfig._otel_metrics_enabled:
                 log.debug("OTel metrics not enabled (DD_METRICS_OTEL_ENABLED=false), flag evaluation metrics disabled")
                 return
         except ImportError:
-            # ddtrace.settings not available (e.g., in isolated test environments)
-            log.debug("ddtrace.settings not available, flag evaluation metrics disabled")
+            # ddtrace config not available (e.g., in isolated test environments)
+            log.debug("ddtrace config not available, flag evaluation metrics disabled")
             return
 
         try:
@@ -70,11 +70,13 @@ class FlagEvalMetrics:
 
             # Get the global meter provider (set up by ddtrace OTel metrics infrastructure)
             meter = otel_metrics.get_meter(METER_NAME)
+
             self._counter = meter.create_counter(
                 name=METRIC_NAME,
                 unit=METRIC_UNIT,
                 description=METRIC_DESC,
             )
+
             self._enabled = True
             log.debug("Flag evaluation metrics initialized successfully")
         except ImportError:
@@ -112,7 +114,7 @@ class FlagEvalMetrics:
 
             # Add error.type attribute only on error
             if error_code is not None:
-                attributes[ATTR_ERROR_TYPE] = error_code.value
+                attributes[ATTR_ERROR_TYPE] = error_code.value.lower()
 
             # Add allocation_key only when present and non-empty
             if allocation_key:
