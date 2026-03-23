@@ -129,6 +129,7 @@ from ddtrace.llmobs._experiment import _is_pydantic_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -1541,14 +1542,23 @@ class LLMObs(Service):
 
                 continue
         if summary_evaluators and not all(
-            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator) or _is_pydantic_report_evaluator(summary_evaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
                 "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
             )
         if summary_evaluators:
-            for summary_evaluator in summary_evaluators:
+            for idx, summary_evaluator in enumerate(summary_evaluators):
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    duration = 0
+                    total_duration = 0
+                    current_span = cls._instance._current_span()
+                    if current_span is not None and current_span.duration_ns is not None:
+                        duration = current_span.duration_ns
+                        total_duration = current_span.duration_ns
+                    summary_evaluators[idx] = _pydantic_report_evaluator_wrapper(summary_evaluator, duration, total_duration)
+                    continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
         return SyncExperiment(
             name,

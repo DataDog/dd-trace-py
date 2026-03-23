@@ -876,7 +876,7 @@ if PydanticEvaluator is not None:
 
         def wrapped_evaluator(
             eval_context: SummaryEvaluatorContext,
-        ) -> SummaryEvaluatorResult:
+        ) -> JSONType:
             cases = []
             eval_results = eval_context.evaluation_results
             eval_names = eval_results.keys()
@@ -902,23 +902,23 @@ if PydanticEvaluator is not None:
                     scores=scores,
                     labels=labels,
                     task_duration=duration,
-                    total_duration=total_duration
+                    total_duration=total_duration,
+                    attributes={},
+                    metrics={},
                 ))
             report_eval_context = PydanticReportEvaluatorContext(
                 name="",
                 report=PydanticEvaluationReport(
-                    name=evaluator.get_default_evaluation_name(),
+                    name=evaluator.get_serialization_name(),
                     cases=cases,
-                    # failures=[],
-                    # analyses=[],
                     experiment_metadata=eval_context.metadata,
                 ),
                 experiment_metadata=eval_context.metadata,
             )
             result = evaluator.evaluate(report_eval_context)
-            return result
+            return json.dumps(result.__dict__, indent=4)
 
-        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -963,6 +963,10 @@ else:
         return evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
@@ -2404,6 +2408,16 @@ class Experiment:
                             metadata=metadata_list,
                         )
                         eval_result = await summary_evaluator.evaluate(context)
+                    elif _is_pydantic_report_evaluator(summary_evaluator):
+                        evaluator_name = summary_evaluator.name
+                        context = SummaryEvaluatorContext(
+                            inputs=inputs,
+                            outputs=outputs,
+                            expected_outputs=expected_outputs,
+                            evaluation_results=eval_results_by_name,
+                            metadata=metadata_list,
+                        )
+                        eval_result = summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
                         eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
@@ -2419,13 +2433,23 @@ class Experiment:
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await asyncio.to_thread(
-                            summary_evaluator,
-                            inputs,
-                            outputs,
-                            expected_outputs,
-                            eval_results_by_name,
-                        )
+                        try:
+                            eval_result = await asyncio.to_thread(
+                                summary_evaluator,
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                            )
+                        except Exception as e:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = summary_evaluator(context)
                     eval_result_value = eval_result
                 except Exception as e:
                     self._has_errors = True
