@@ -455,7 +455,25 @@ oci-internal-publish:
       when: never
     - when: on_success
 
+oci-internal-test-publish:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
 create-multiarch-lib-injection-image:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
+kubernetes-injection-test-ecr-publish:
+  rules:
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
+internal-publish-lib-init-tags:
   rules:
     - if: !reference [.is_devflow_merge_queue]
       when: never
