@@ -44,7 +44,7 @@
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "699d774a00000000",
-         "_dd.svc_src": "fastapi",
+         "_dd.svc_src": "m",
          "component": "fastapi",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -72,7 +72,7 @@
           "meta": {
             "_dd.base_service": "ddtrace_subprocess_dir",
             "_dd.p.tid": "699d774a00000000",
-            "_dd.svc_src": "fastapi",
+            "_dd.svc_src": "m",
             "component": "fastapi",
             "http.method": "GET",
             "http.status_code": "200",
