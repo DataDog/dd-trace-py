@@ -328,8 +328,9 @@ class ExtensionHashes(build_ext):
                     sources = [Path(_) for _ in ext.sources]
 
                 sources_hash = hashlib.sha256()
-                # DEV: Make sure to include the flavor since it determines which features get enabled
-                sources_hash.update(WHEEL_FLAVOR.encode())
+                # DEV: Make sure to include the rust features since changing them changes what gets built
+                for feature in rust_features:
+                    sources_hash.update(feature.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
