@@ -308,7 +308,7 @@ def safe_json(obj, ensure_ascii=True):
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
             try:
                 obj = obj.model_dump(mode="json")
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         # Pydantic v1
         elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
