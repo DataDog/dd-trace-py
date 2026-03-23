@@ -94,6 +94,7 @@ def create_mock_result_message(
     total_cost_usd: float = 0.0484227,
     result: str = "4",
     usage: dict = None,
+    stop_reason: str = "end_turn",
 ) -> ResultMessage:
     """Create a mock ResultMessage for testing with realistic usage data.
 
@@ -109,7 +110,7 @@ def create_mock_result_message(
             "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
             "service_tier": "standard",
         }
-    return ResultMessage(
+    msg = ResultMessage(
         subtype=subtype,
         duration_ms=duration_ms,
         duration_api_ms=duration_api_ms,
@@ -120,6 +121,10 @@ def create_mock_result_message(
         usage=usage,
         result=result,
     )
+    # stop_reason field was added in claude-agent-sdk v0.1.48;
+    # set it via setattr for compatibility with older SDK versions
+    msg.stop_reason = stop_reason
+    return msg
 
 
 def create_mock_user_message(content: str) -> UserMessage:
@@ -209,6 +214,7 @@ MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "result",
         "subtype": "success",
+        "stop_reason": "end_turn",
         "duration_ms": 100,
         "duration_api_ms": 90,
         "is_error": False,
