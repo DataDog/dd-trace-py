@@ -2,7 +2,6 @@ import mlflow
 import pytest
 
 from ddtrace import tracer
-from tests.subprocesstest import run_in_subprocess
 
 
 SNAPSHOT_IGNORES = ["meta.mlflow.run_id", "meta._dd.hostname"]
@@ -66,7 +65,9 @@ def test_mlflow_error_in_run(test_spans, assert_run_id_on_all_spans, assert_host
     assert_hostname_on_all_spans(test_spans)
 
 
-@run_in_subprocess(env_overrides=dict(DD_TRACE_MLFLOW_LOGS_INJECTION="true"))
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_TRACE_MLFLOW_ENABLED="true", DD_TRACE_MLFLOW_LOGS_INJECTION="True"), err=None
+)
 def test_mlflow_log_correlation_context_includes_run_id():
     """Log correlation context includes the MLflow run id only while active."""
     import logging
@@ -80,14 +81,14 @@ def test_mlflow_log_correlation_context_includes_run_id():
     from ddtrace.contrib.internal.mlflow.patch import LOG_ATTR_MLFLOW_RUN_ID
 
     before_run = tracer.get_log_correlation_context()
-    assert before_run[LOG_ATTR_MLFLOW_RUN_ID] is None
+    assert before_run.get(LOG_ATTR_MLFLOW_RUN_ID) is None
 
     with mlflow.start_run() as run:
         inside_run = tracer.get_log_correlation_context()
         assert inside_run[LOG_ATTR_MLFLOW_RUN_ID] == run.info.run_id
 
     after_run = tracer.get_log_correlation_context()
-    assert after_run[LOG_ATTR_MLFLOW_RUN_ID] is None
+    assert after_run.get(LOG_ATTR_MLFLOW_RUN_ID) is None
 
 
 def test_mlflow_log_correlation_deactivated_by_default():
