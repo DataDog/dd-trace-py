@@ -11,6 +11,10 @@ build_base_venvs:
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+    # Disable link time optimization settings to improve build times, the impact will be larger binary sizes
+    CARGO_PROFILE_RELEASE_LTO": 'off'
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
   script: |
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
