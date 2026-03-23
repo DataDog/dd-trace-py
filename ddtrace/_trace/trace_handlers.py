@@ -1456,7 +1456,7 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
     step_span: Optional[Span] = active_step_spans.get(run_id, None)
     if step_span:
         if log_type == MLflowLogType.METRICS:
-            step_span.set_metric(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
+            step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
         else:
             try:
                 step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
