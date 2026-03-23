@@ -1,0 +1,68 @@
+[[
+  {
+    "name": "gcp.pubsub.send",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-topic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ba7aee00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "messaging.destination.name": "test-topic",
+      "messaging.message_id": "1",
+      "messaging.operation": "send",
+      "messaging.system": "pubsub",
+      "runtime-id": "62adf1f89fab4ba28b9b5ef81b1dc6f4",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
+    },
+    "duration": 23286166,
+    "start": 1773828846888268918
+  }],
+[
+  {
+    "name": "gcp.pubsub.receive",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-subscription",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ba7aee00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "messaging.destination.name": "test-subscription",
+      "messaging.message_id": "1",
+      "messaging.operation": "receive",
+      "messaging.system": "pubsub",
+      "runtime-id": "62adf1f89fab4ba28b9b5ef81b1dc6f4",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
+    },
+    "duration": 143083,
+    "start": 1773828846972618251
+  }]]
