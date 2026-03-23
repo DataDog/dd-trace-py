@@ -627,9 +627,9 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_rust_targets():
-        """Remove all versioned Rust target dirs (target3.9, target3.10, etc.)."""
-        # rmtree is a superset of `cargo clean`; tighter glob avoids unrelated dirs
-        for target_dir in NATIVE_CRATE.glob("target[0-9]*"):
+        """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
+        # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
+        for target_dir in NATIVE_CRATE.glob("target*"):
             if target_dir.is_dir():
                 shutil.rmtree(target_dir, True)
 
