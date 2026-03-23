@@ -61,6 +61,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "m",
          "component": "flask",
          "flask.endpoint": "run_subcommunicateshell",
          "flask.url_rule": "/executions/subcommunicateshell"
@@ -77,6 +78,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 28625,
@@ -91,6 +93,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 33000,
@@ -105,6 +108,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 35142458,
@@ -119,6 +123,7 @@
              "parent_id": 6,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
              "duration": 35045292,
@@ -133,7 +138,8 @@
                 "parent_id": 10,
                 "type": "system",
                 "meta": {
-                  "_dd.base_service": ""
+                  "_dd.base_service": "",
+                  "_dd.svc_src": "m"
                 },
                 "duration": 2742875,
                 "start": 1772484733275280637
@@ -148,6 +154,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.svc_src": "m",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -165,6 +172,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.svc_src": "m",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -181,6 +189,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 88084,
@@ -195,6 +204,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 44250,
@@ -209,6 +219,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 27291,
@@ -223,6 +234,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "m",
          "component": "flask"
        },
        "duration": 999667,

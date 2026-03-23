@@ -96,6 +96,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "flask",
          "component": "flask"
        },
        "duration": 412167,
