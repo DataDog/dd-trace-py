@@ -108,6 +108,7 @@ def consumer(kafka_tracer, kafka_topic):
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
+            "auto.commit.interval.ms": 500,
         }
     )
 

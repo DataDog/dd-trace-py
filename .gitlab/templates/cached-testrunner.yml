@@ -10,11 +10,10 @@
     set -e -o pipefail
     if [ ! -d $EXT_CACHE_VENV ]; then
         python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
-        source $EXT_CACHE_VENV/bin/activate
-        pip install cmake setuptools_rust Cython
-    else
-        source $EXT_CACHE_VENV/bin/activate
     fi
+
+    source $EXT_CACHE_VENV/bin/activate
+    python -m pip install cmake setuptools_rust Cython
     python scripts/ext_cache.py restore
     deactivate
   after_script: |
@@ -25,12 +24,12 @@
     bash .gitlab/scripts/generate-core-backtraces.sh
   cache:
     # Share pip between jobs of the same Python version
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+    - key: v7-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+    - key: v7-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
       paths:
         - .ext_cache
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+    - key: v7-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache

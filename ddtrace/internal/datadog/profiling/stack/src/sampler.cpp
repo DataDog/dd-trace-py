@@ -1,6 +1,7 @@
 #include "sampler.hpp"
 
 #include "constants.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -114,7 +115,8 @@ Sampler::adapt_sampling_interval()
                             info.system_time.seconds * 1e6 + info.system_time.microseconds);
 #endif
     auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
-    auto process_delta = static_cast<double>(new_process_count - process_count - sampler_thread_delta);
+    auto process_delta =
+      static_cast<double>(new_process_count) - static_cast<double>(process_count) - sampler_thread_delta;
     if (process_delta <= 0) {
         process_delta = 1; // Avoid division by zero or negative values
     }
@@ -134,13 +136,13 @@ Sampler::adapt_sampling_interval()
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
         new_interval = g_min_sampling_period_us;
-    } else if (new_interval > g_max_sampling_period_us) {
-        new_interval = g_max_sampling_period_us;
+    } else if (new_interval > max_sampling_period_us) {
+        new_interval = max_sampling_period_us;
     }
 
     sample_interval_us.store(new_interval);
@@ -171,8 +173,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // Track upload sequence to clear ephemeral string table entries periodically.
+    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
+    // churning entries for long-lived tasks while still bounding growth.
+    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+    constexpr uint64_t ephemeral_clear_interval = 25;
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Clear ephemeral string table entries (task names, greenlet names) periodically.
+        // Safe because strings are copied into StringArena during sample construction.
+        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
+            last_cleared_upload_seq = current_upload_seq;
+            echion->string_table().clear_ephemeral();
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
@@ -484,7 +500,19 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    echion->greenlet_info_map().erase(greenlet_id);
+    auto& greenlet_info_map = echion->greenlet_info_map();
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Remove the greenlet's name string from the string table
+        // to prevent unbounded growth of the String Table.
+
+        // NOTE: This locks the String Table. If nested locks are required, always
+        // ensure that the greenlet_info_map is locked first before locking the
+        // String Table to avoid deadlocks.
+        echion->string_table().erase(entry->second->name);
+        greenlet_info_map.erase(entry);
+    }
+
     echion->greenlet_parent_map().erase(greenlet_id);
     echion->greenlet_thread_map().erase(greenlet_id);
 }

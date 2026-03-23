@@ -6,6 +6,7 @@
 # Framework Integrations
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-idm-python
+ddtrace/contrib/_events/            @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
@@ -163,6 +164,7 @@ ddtrace/contrib/internal/langgraph                            @DataDog/ml-observ
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
 ddtrace/contrib/internal/litellm                              @DataDog/ml-observability
+ddtrace/contrib/internal/mlflow                               @DataDog/ml-observability
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
@@ -186,6 +188,7 @@ tests/contrib/langgraph                                       @DataDog/ml-observ
 tests/contrib/crewai                                          @DataDog/ml-observability
 tests/contrib/openai_agents                                   @DataDog/ml-observability
 tests/contrib/litellm                                         @DataDog/ml-observability
+tests/contrib/mlflow                                          @DataDog/ml-observability
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
 tests/contrib/ray                                             @DataDog/ml-observability
 tests/contrib/mcp                                             @DataDog/ml-observability
@@ -220,6 +223,7 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities-python
+ddtrace/_trace/subscribers/                        @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/apm-idm-python

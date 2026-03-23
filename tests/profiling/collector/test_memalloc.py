@@ -1089,7 +1089,7 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     The bug occurred when:
     1. A sample had dropped frames (deep stack > max_nframes)
     2. export_sample() was called, adding the indicator frame
-    3. export_sample() was called again before clear_buffers()
+    3. export_sample() was called again before clear()
     4. Another indicator frame was incorrectly added
 
     This test creates allocations from a very deep stack to trigger frame dropping,
