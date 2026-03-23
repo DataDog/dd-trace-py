@@ -10,8 +10,7 @@
     set -e -o pipefail
     if [ ! -d $EXT_CACHE_VENV ]; then
         python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
-        source $EXT_CACHE_VENV/bin/activate
-        pip install cmake setuptools_rust Cython
+        $EXT_CACHE_VENV/bin/python -m pip install cmake setuptools_rust Cython
     else
         source $EXT_CACHE_VENV/bin/activate
     fi
