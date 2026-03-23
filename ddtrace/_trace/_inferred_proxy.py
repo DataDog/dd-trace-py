@@ -58,7 +58,10 @@ supported_proxies: dict[str, ProxyInfo] = {
     "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
 }
 
-SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()}
+# Span names for synthetically created inferred spans.
+# AppSec uses this to report security signals on the actual service span in addition to the inferred parent.
+# Trace handlers use this to propagate HTTP status codes and errors from child spans up to the inferred parent.
+INFERRED_SPAN_NAMES = {info.span_name for info in supported_proxies.values()} | {"gcp.pubsub.receive"}
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
 # logic to extract http headers

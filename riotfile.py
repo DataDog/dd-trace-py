@@ -3322,18 +3322,21 @@ venv = Venv(
                     pys=select_pys(max_version="3.11"),
                     pkgs={
                         "google-cloud-pubsub": ["==2.10.0", latest],
+                        "falcon": [latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={
                         "google-cloud-pubsub": ["==2.14.0", latest],
+                        "falcon": [latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
                     pkgs={
                         "google-cloud-pubsub": [latest],
+                        "falcon": [latest],
                     },
                 ),
             ],
