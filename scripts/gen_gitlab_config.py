@@ -229,6 +229,8 @@ def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
     if is_merge_queue():
         LOGGER.info("Merge queue detected, skipping test suites generation (only prechecks will run)")
+        # Still write the base template (includes .testrunner definition needed by prechecks)
+        TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
         return
 
     from needs_testrun import extract_git_commit_selections
