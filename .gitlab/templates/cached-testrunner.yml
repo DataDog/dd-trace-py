@@ -25,12 +25,12 @@
     bash .gitlab/scripts/generate-core-backtraces.sh
   cache:
     # Share pip between jobs of the same Python version
-    - key: v6.8-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+    - key: v6.9-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
-    - key: v6.8-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+    - key: v6.9-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
       paths:
         - .ext_cache
-    - key: v6.8-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+    - key: v6.9-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache
