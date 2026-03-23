@@ -151,7 +151,9 @@ def test_nested_requests_contexts_only_report_final_response_once(monkeypatch, h
                 ),
                 context_name_override=HttpClientEvents.REQUESTS_REQUEST.value,
             ) as inner_ctx:
-                inner_ctx.event.set_response(_RequestsResponse(200, {"content-type": "application/json"}, {"inner": True}))
+                inner_ctx.event.set_response(
+                    _RequestsResponse(200, {"content-type": "application/json"}, {"inner": True})
+                )
 
             outer_ctx.event.set_response(_RequestsResponse(200, {"content-type": "application/json"}, {"ok": True}))
 

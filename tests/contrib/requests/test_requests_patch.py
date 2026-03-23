@@ -3,11 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+import urllib3
+
 from ddtrace.contrib.internal.requests.patch import get_version
 from ddtrace.contrib.internal.requests.patch import patch
 from ddtrace.contrib.internal.urllib3.patch import patch as patch_urllib3
 from ddtrace.contrib.internal.urllib3.patch import unpatch as unpatch_urllib3
-import urllib3
 
 
 try:

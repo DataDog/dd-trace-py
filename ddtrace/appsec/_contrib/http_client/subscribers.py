@@ -48,9 +48,8 @@ class AppSecHttpClientRequestContextSubscriber(ContextSubscriber[HttpClientReque
         if not _get_rasp_capability("ssrf"):
             return
 
-        if (
-            ctx.identifier == HttpClientEvents.REQUESTS_REQUEST.value
-            and _has_ancestor_context(ctx, HttpClientEvents.REQUESTS_REQUEST.value)
+        if ctx.identifier == HttpClientEvents.REQUESTS_REQUEST.value and _has_ancestor_context(
+            ctx, HttpClientEvents.REQUESTS_REQUEST.value
         ):
             return
 
