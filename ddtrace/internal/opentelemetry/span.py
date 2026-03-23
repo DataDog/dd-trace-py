@@ -197,7 +197,7 @@ class Span(OtelSpan):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)
         elif isinstance(value, (int, float)):
-            self._ddspan.set_metric(key, value)
+            self._ddspan.set_metric(key, value)  # ast-grep-ignore: span-set-metric
         else:
             # TODO: get rid of this usage, `set_tag` only takes str values
             self._ddspan.set_tag(key, value)
