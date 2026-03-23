@@ -1378,7 +1378,7 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         span._set_attribute(MESSAGING_MESSAGE_ID, message.message_id)
 
     propagated_context = ctx.get_item("propagated_context")
-    if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
+    if propagated_context:
         span.link_span(propagated_context)
 
 

@@ -59,7 +59,7 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         call_trace=False,
         activate=True,
         child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
-        propagated_context=propagated_context,
+        propagated_context=propagated_context if config.google_cloud_pubsub.propagation_as_span_links else None,
         project_id=project_id,
         subscription_id=subscription_id,
         message=message,
