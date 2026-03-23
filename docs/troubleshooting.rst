@@ -120,7 +120,7 @@ source into a sample app for local dev testing. If your build environment is alr
 
 
 Note: The ``--all`` option also removes build artifacts (egg-info, dist, .eggs, CMake cache).
-Omitting it removes Rust targets and na tive extensions (``.so``, ``.dylib``) only.
+Omitting it removes Rust targets and native extensions (``.so``, ``.dylib``) only.
 
 
 ModuleNotFoundError when running tests with riot
