@@ -118,6 +118,11 @@ source into a sample app for local dev testing. If your build environment is alr
     $ python /path/to/dd-trace-py/setup.py clean --all
     $ python -m pip install -e /path/to/dd-trace-py
 
+
+Note: The ``--all`` option also removes build artifacts (egg-info, dist, .eggs, CMake cache).
+Omitting it removes Rust targets and na tive extensions (``.so``, ``.dylib``) only.
+
+
 ModuleNotFoundError when running tests with riot
 ================================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``

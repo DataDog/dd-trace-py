@@ -106,7 +106,7 @@ DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
-STACK_DIR = DDTRACE_DIR/ "internal" / "datadog" / "profiling" / "stack"
+STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
 VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
@@ -653,12 +653,23 @@ class CleanLibraries(CleanCommand):
         if cmake_deps.exists():
             shutil.rmtree(cmake_deps, True)
 
+    @staticmethod
+    def remove_build_dir():
+        """Remove the entire build/ tree for a clean slate.
+
+        The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
+        per runtime. We remove build/ wholesale so all build output is cleared.
+        """
+        build_dir = HERE / "build"
+        if build_dir.exists():
+            shutil.rmtree(build_dir, True)
+
     def run(self):
         CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
+        CleanLibraries.remove_build_dir()
         if self.all:
             CleanLibraries.remove_build_artifacts()
-        CleanCommand.run(self)
 
 
 class CustomBuildExt(build_ext):
