@@ -258,7 +258,6 @@ Next, we will need to add a new CI job to run the newly added test suite. This c
         - tests/contrib/yaaredis/*
         - tests/snapshots/tests.contrib.yaaredis.*
       pattern: yaaredis$
-      runner: riot
       services:
         - redis
       snapshot: true

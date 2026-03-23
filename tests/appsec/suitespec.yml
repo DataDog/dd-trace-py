@@ -9,7 +9,7 @@ components:
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
-    - ddtrace/appsec/_iast/*    
+    - ddtrace/appsec/_iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
@@ -63,13 +63,11 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: riot
   iast_aggregated_leak_testing:
     venvs_per_job: 1
     paths:
       - '@appsec_iast'
       - 'tests/appsec/iast_aggregated_memcheck/*'
-    runner: riot
   appsec_iast_packages:
     venvs_per_job: 1
     paths:
