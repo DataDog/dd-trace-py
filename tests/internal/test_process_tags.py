@@ -183,3 +183,29 @@ class TestProcessTags(TracerTestCase):
 
         assert span is not None
         assert PROCESS_TAGS not in span._meta
+
+
+@run_in_subprocess(
+    env_overrides=dict(
+        DD_REMOTE_CONFIGURATION_ENABLED="false",
+    )
+)
+def test_process_tags_base_hash_populated_when_remote_config_disabled():
+    """Check that /info is called even when RC is turned off."""
+    from ddtrace.internal import process_tags
+
+    # Force lazy path so __getattr__ and _retrieve_container_tags_hash() are executed.
+    process_tags.__dict__.pop("process_tags", None)
+    process_tags.__dict__.pop("process_tags_list", None)
+    retrieve_container_tags_hash = process_tags._retrieve_container_tags_hash
+    retrieve_container_tags_hash.__wrapped__.__dict__.pop("__callonce_result__", None)
+
+    def _mock_info():
+        process_tags.compute_base_hash("abc123")
+        return {"endpoints": []}
+
+    with patch("ddtrace.internal.agent.info", side_effect=_mock_info):
+        _ = process_tags.process_tags
+
+    assert process_tags._container_tags_hash == "abc123"
+    assert process_tags.base_hash is not None
