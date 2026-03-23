@@ -202,7 +202,7 @@ def trace_after_publish(*args, **kwargs):
             host = parsed_url.hostname
 
         if parsed_url.port:
-            span.set_metric(net.TARGET_PORT, parsed_url.port)
+            span._set_attribute(net.TARGET_PORT, parsed_url.port)
 
     if host:
         span._set_attribute(net.TARGET_HOST, host)

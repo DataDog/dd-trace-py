@@ -365,11 +365,11 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void
 ddup_profile_set_endpoints(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
@@ -390,11 +390,12 @@ ddup_profile_set_endpoints(
     }
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void
-ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
+  std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();

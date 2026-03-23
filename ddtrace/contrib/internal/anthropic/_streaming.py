@@ -25,7 +25,7 @@ async def _async_text_stream_generator(traced_stream):
             yield chunk.delta.text
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span):
+def handle_streamed_response(integration, resp, args, kwargs, ctx):
     """
     Creates a traced stream with a callback that adds a text_stream attribute
     to the underlying stream object when it is created.
@@ -42,13 +42,15 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
 
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
-            resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
+            resp,
+            AnthropicStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            on_stream_created=add_text_stream,
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicAsyncStreamHandler(integration, span, args, kwargs),
+            AnthropicAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
             on_stream_created=add_async_text_stream,
         )
         return traced_stream
@@ -56,10 +58,20 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
 
 class BaseAnthropicStreamHandler:
     def finalize_stream(self, exception=None):
-        _process_finished_stream(
-            self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks
-        )
-        self.primary_span.finish()
+        """Build the response from chunks, then dispatch the deferred ended event.
+
+        The TracingSubscriber's _on_context_ended will finish the span automatically.
+        """
+        ctx = self.options["ctx"]
+        try:
+            resp_message = _construct_message(self.chunks)
+            ctx.event.response = resp_message
+        except Exception:
+            log.warning("Error processing streamed completion/chat response.", exc_info=True)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
@@ -70,15 +82,6 @@ class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
 class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
-
-
-def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
-    # builds the response message given streamed chunks and sets according span tags
-    try:
-        resp_message = _construct_message(streamed_chunks)
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
-    except Exception:
-        log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
 def _construct_message(streamed_chunks):
