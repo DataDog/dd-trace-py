@@ -669,8 +669,6 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
-
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
