@@ -77,8 +77,8 @@ def _on_span_start(span: Span):
     This function is used to set the MLFlow run id of every span in a run.
     It will not work for the first span of the run as run_id is not active yet.
 
-    Not: this function is tracing specific and should not be in patch in best scenario
-    but having it here prevents dispatching another event
+    Not: this function is tracing specific and should not be in patch.py in the best
+    scenario but having it here prevents dispatching another event.
     """
     run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
     if not run_id and span._parent:
@@ -207,10 +207,14 @@ def patch():
         return
 
     mlflow._datadog_patch = True
-    _w(mlflow, "start_run", _traced_start_run)
-    _w(mlflow_fluent, "start_run", _traced_start_run)
-    _w(mlflow, "end_run", _traced_end_run)
 
+    _w(mlflow, "start_run", _traced_start_run)
+    # When logging a metric, if no run is active, MLFlow
+    # can automatically create a new run using this
+    # method
+    _w(mlflow_fluent, "start_run", _traced_start_run)
+
+    _w(mlflow, "end_run", _traced_end_run)
     # When using with mlflow.start_run, context manager exit will trigger
     # mlflow_fluent.end_run and not mlflow.end_run
     _w(mlflow_fluent, "end_run", _traced_end_run)
@@ -234,9 +238,10 @@ def unpatch():
 
     _u(mlflow, "start_run")
     _u(mlflow, "end_run")
-    _u(mlflow_fluent, "end_run")
     _u(mlflow, "log_metric")
     _u(mlflow, "log_param")
+    _u(mlflow_fluent, "end_run")
+    _u(mlflow_fluent, "start_run")
 
     core.reset_listeners("trace.log_correlation_context", _mlflow_log_correlation_context)
     core.reset_listeners("trace.span_start", _on_span_start)
