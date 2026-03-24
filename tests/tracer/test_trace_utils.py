@@ -411,6 +411,54 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@mock.patch("ddtrace.internal.settings._config.log")
+@pytest.mark.parametrize(
+    "error_codes,status_code,error,log_call",
+    [
+        ("404-400", 400, 1, None),
+        ("400-404", 400, 1, None),
+        ("400-404", 500, 0, None),
+        ("500-520", 530, 0, None),
+        ("500-550         ", 530, 1, None),
+        ("400-404,419", 419, 1, None),
+        ("400,401,403", 401, 1, None),
+        ("400-404,X", 0, 0, ("Error status codes was not a number %s", ["X"])),
+        ("500-599", 200, 0, None),
+    ],
+)
+def test_set_http_meta_custom_client_errors(mock_log, tracer, int_config, error_codes, status_code, error, log_call):
+    config._http_client.error_statuses = error_codes
+    with tracer.trace("client_request", span_type="http") as span:
+        trace_utils.set_http_meta(span, int_config.myint, status_code=status_code)
+        assert span.error == error
+    if log_call:
+        mock_log.exception.assert_called_once_with(*log_call)
+    else:
+        mock_log.exception.assert_not_called()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "404-412"})
+def test_set_http_meta_custom_client_errors_via_env():
+    from ddtrace import config
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    config.myint = IntegrationConfig(config, "myint")
+    with tracer.trace("error", span_type=SpanTypes.HTTP) as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1
+
+    with tracer.trace("noterror", span_type=SpanTypes.HTTP) as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0
+
+    with tracer.trace("noterror2", span_type=SpanTypes.HTTP) as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
+
+
 @pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config

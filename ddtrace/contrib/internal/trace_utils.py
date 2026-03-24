@@ -27,6 +27,7 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -450,7 +451,11 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             span._set_attribute(http.STATUS_CODE, str(status_code))
-            if config._http_server.is_error_code(int_status_code):
+            if span.span_type == SpanTypes.HTTP:
+                is_error = config._http_client.is_error_code(int_status_code)
+            else:
+                is_error = config._http_server.is_error_code(int_status_code)
+            if is_error:
                 span.error = 1
 
     if status_msg is not None:
