@@ -3,6 +3,7 @@ MLFlow authentication plugin for Datadog API key injection.
 """
 
 from ddtrace.internal.settings._config import config
+import os
 
 
 try:
@@ -40,5 +41,8 @@ class DatadogHeaderProvider(RequestHeaderProvider):
                   if DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED are set, empty dictionary otherwise.
         """
         if config._dd_api_key and config._dd_app_key and config._model_lab_enabled:
-            return {"DD-API-KEY": config._dd_api_key, "DD-APPLICATION-KEY": config._dd_app_key}
+            headers = {"DD-API-KEY": config._dd_api_key, "DD-APPLICATION-KEY": config._dd_app_key}
+            if "DD_AUTH_JWT" in os.environ:
+                headers["dd-auth-jwt"] = os.environ["DD_AUTH_JWT"]
+            return headers
         return {}
