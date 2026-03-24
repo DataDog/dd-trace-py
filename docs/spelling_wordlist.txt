@@ -197,6 +197,7 @@ mariadb
 memalloc
 memcached
 metadata
+MiB
 microservices
 middleware
 middlewares
