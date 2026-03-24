@@ -35,8 +35,8 @@ log = get_logger(__name__)
 # https://github.com/grpc/grpc/commit/dd4830eae80143f5b0a9a3a1a024af4cf60e7d02
 
 
-def create_client_interceptor(pin, host, port):
-    return _ClientInterceptor(pin, host, port)
+def create_client_interceptor(host, port):
+    return _ClientInterceptor(host, port)
 
 
 def intercept_channel(wrapped, instance, args, kwargs):
@@ -187,8 +187,7 @@ class _ClientInterceptor(
     grpc.StreamUnaryClientInterceptor,
     grpc.StreamStreamClientInterceptor,
 ):
-    def __init__(self, pin, host, port):
-        self._pin = pin
+    def __init__(self, host, port):
         self._host = host
         self._port = port
 
@@ -206,7 +205,7 @@ class _ClientInterceptor(
         span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(self._pin, config.grpc),
+            service=trace_utils.ext_service(None, config.grpc),
             resource=client_call_details.method,
             child_of=parent,
         )
@@ -216,16 +215,11 @@ class _ClientInterceptor(
         # set span.kind to the type of operation being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
         span._set_attribute(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-
-        # inject tags from pin
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
 
         # propagate distributed tracing headers if available
         headers = {}

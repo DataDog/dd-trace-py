@@ -112,8 +112,8 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
-SLIM_BUILD = os.getenv("DD_SLIM_BUILD", "0").lower() in ("1", "yes", "on", "true")
-WHEEL_FLAVOR = "slim" if SLIM_BUILD else ""
+SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -279,9 +279,9 @@ def is_64_bit_python():
 rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("profiling")
-    if not SLIM_BUILD:
+    if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
-if not SLIM_BUILD:
+if not SERVERLESS_BUILD:
     rust_features.append("ffe")
 
 
@@ -328,6 +328,9 @@ class ExtensionHashes(build_ext):
                     sources = [Path(_) for _ in ext.sources]
 
                 sources_hash = hashlib.sha256()
+                # DEV: Make sure to include the rust features since changing them changes what gets built
+                for feature in rust_features:
+                    sources_hash.update(feature.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
@@ -1277,6 +1280,16 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._sampler",
+                sources=["ddtrace/profiling/collector/_sampler.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._lock",
+                sources=["ddtrace/profiling/collector/_lock.pyx"],
+                language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
@@ -1303,11 +1316,13 @@ setup(
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
+    },
+    exclude_package_data={
+        "": ["CMakeLists.txt", "*.md", "*.sh", "*.cmake", "*.pxd"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -1319,7 +1334,12 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
+    setup_requires=[
+        "cython",
+        "cmake>=3.24.2,<3.28",
+        "setuptools-rust<2",
+        "patchelf>=0.17.0.0; sys_platform == 'linux'",
+    ],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )

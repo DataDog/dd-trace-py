@@ -1,0 +1,28 @@
+id: span-set-tag-manual-drop
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s.set_tag(MANUAL_DROP_KEY)
+  : labels:
+    - source: s.set_tag(MANUAL_DROP_KEY)
+      style: primary
+      start: 23
+      end: 49
+  span.set_tag(MANUAL_DROP_KEY):
+    labels:
+    - source: span.set_tag(MANUAL_DROP_KEY)
+      style: primary
+      start: 0
+      end: 29
+  span.set_tag(MANUAL_DROP_KEY, "some-value"):
+    labels:
+    - source: span.set_tag(MANUAL_DROP_KEY, "some-value")
+      style: primary
+      start: 0
+      end: 43
+  span.set_tag(MANUAL_DROP_KEY, 0):
+    labels:
+    - source: span.set_tag(MANUAL_DROP_KEY, 0)
+      style: primary
+      start: 0
+      end: 32

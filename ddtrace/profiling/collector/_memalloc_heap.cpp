@@ -271,9 +271,11 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
     // Reset the allocation data, keep heap data for tracking
     tb->sample.reset_alloc();
     // pool_get_with_alloc_data_invokes_cpython() creates sample with allocation data only (no heap data)
-    // to avoid double-pushing allocation data, we manually push heap data here
-    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
-    tb->sample.push_heap(size);
+    // to avoid double-pushing allocation data, we manually push heap data here.
+    // Use the weighted size (allocated_memory_val) so the heap profile accounts
+    // for sampling, matching the tcmalloc/Go pprof approach: each sampled live
+    // allocation represents ~R bytes of heap, not just its own raw size.
+    tb->sample.push_heap(allocated_memory_val);
 
     // Check that instance is still valid after GIL release in constructor
     if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
