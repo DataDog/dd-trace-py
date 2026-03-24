@@ -936,7 +936,10 @@ if PydanticEvaluator is not None:
                 experiment_metadata=eval_context.metadata,
             )
             result = evaluator.evaluate(report_eval_context)
-            return {'value': result.value}
+            # return json.dumps(result.__dict__, indent=4)
+            print(f"result: {result}")
+            print(f"result.value: {result.value}")
+            return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
