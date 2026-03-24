@@ -373,15 +373,21 @@ detect_circular_imports:
   needs: []
   extends: .testrunner
   script:
+    - pip install uv
     - cd ..
-    - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
-    - cp dd-trace-py/scripts/import-analysis/cycles.py .
-    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+    # Keep a copy of the PR's cycles.py so we can use it after switching to main
+    - cp dd-trace-py/scripts/import-analysis/cycles.py cycles.py
+    - uv run --no-project cycles.py analyze --root dd-trace-py/ddtrace cycles-pr.json
     - cat cycles-pr.json
     - cd dd-trace-py && git checkout main && cd ..
-    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+    # Analyse main branch ddtrace using the PR version of cycles.py (has uv metadata)
+    - uv run --no-project cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
-    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
+    - |
+      set +e
+      uv run --no-project cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
+      COMPARE_EXIT=$?
+      set -e
     - CYCLES_REPORT="$(cat cycles_report.txt)"
     - cat cycles_report.txt
     - |
@@ -394,12 +400,12 @@ detect_circular_imports:
           -X PATCH -d "{ \
             \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
             \"message\": \"$MESSAGE\", \
-            \"header\": \"\", \
+            \"header\": \"Circular import analysis\", \
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
           }"
-        exit 1
       fi
+    - exit $COMPARE_EXIT
 
 
 package-oci:
