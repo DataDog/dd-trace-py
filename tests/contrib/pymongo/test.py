@@ -653,6 +653,104 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert spans[1].get_tag("mongodb.db") == db_name
         assert spans[1].get_tag("peer.service") == db_name
 
+    def _assert_find_query_obfuscation(self, expected_query_tag, high_cardinality_string=None):
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        db = client["testdb"]
+        db.drop_collection("teams")
+        db.teams.insert_one({"name": "Toronto Maple Leafs"})
+        list(db.teams.find({"name": "Toronto Maple Leafs"}))
+
+        spans = self.get_user_spans()
+        find_with_query = [s for s in spans if s.name == "pymongo.cmd" and s.get_tag("mongodb.query")]
+        assert len(find_with_query) == 1
+        span = find_with_query[0]
+        assert span.resource == 'find teams {"name": "?"}'
+        assert span.get_tag("mongodb.query") == expected_query_tag
+        if high_cardinality_string is not None:
+            for s in spans:
+                if s.name == "pymongo.cmd":
+                    assert high_cardinality_string not in s.resource
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_mongodb_obfuscation_default_enabled_find_operation(self):
+        self._assert_find_query_obfuscation('{"name": "?"}')
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
+    def test_mongodb_obfuscation_enabled_find_operation(self):
+        self._assert_find_query_obfuscation('{"name": "?"}')
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    def test_mongodb_obfuscation_disabled_find_operation(self):
+        self._assert_find_query_obfuscation(
+            '{"name": "Toronto Maple Leafs"}',
+            high_cardinality_string="Toronto Maple Leafs",
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    def test_mongodb_obfuscation_disabled_update_delete_operations(self):
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        db = client["testdb"]
+        db.drop_collection("songs")
+        db.songs.insert_many(
+            [
+                {"name": "Song A", "artist": "ArtistA"},
+                {"name": "Song B", "artist": "NotArtistA"},
+                {"name": "Song C", "artist": "DefinitelyNotArtistA"},
+            ]
+        )
+
+        db.songs.update_many({"artist": "ArtistA"}, {"$set": {"artist": "ArtistB"}})
+        db.songs.delete_many({"artist": "DefinitelyNotArtistA"})
+
+        spans = self.get_user_spans()
+        update_spans = [s for s in spans if s.name == "pymongo.cmd" and s.resource.startswith("update songs ")]
+        delete_spans = [s for s in spans if s.name == "pymongo.cmd" and s.resource.startswith("delete songs ")]
+        assert len(update_spans) == 1
+        assert len(delete_spans) == 1
+
+        update_span = update_spans[0]
+        delete_span = delete_spans[0]
+        assert update_span.resource == 'update songs {"artist": "?"}'
+        assert update_span.get_tag("mongodb.query") == '{"artist": "ArtistA"}'
+        assert delete_span.resource == 'delete songs {"artist": "?"}'
+        assert delete_span.get_tag("mongodb.query") == '{"artist": "DefinitelyNotArtistA"}'
+
+    def _get_bson_find_span(self):
+        """A helper to return a span with a BSON ObjectId query."""
+        from bson import ObjectId
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        db = client["testdb"]
+        db.drop_collection("items")
+        result = db.items.insert_one({"name": "test"})
+        oid = result.inserted_id
+        assert isinstance(oid, ObjectId)
+
+        list(db.items.find({"_id": oid}))
+
+        spans = self.get_user_spans()
+        find_spans = [
+            s for s in spans if s.name == "pymongo.cmd" and "find" in s.resource and s.get_tag("mongodb.query")
+        ]
+        assert len(find_spans) == 1
+        return find_spans[0], oid
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
+    def test_mongodb_obfuscation_enabled_bson_types_in_query(self):
+        """Resource name and mongodb.query tag are both normalized when obfuscation enabled."""
+        span, _ = self._get_bson_find_span()
+        assert span.resource == 'find items {"_id": "?"}'
+        assert span.get_tag("mongodb.query") == '{"_id": "?"}'
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    def test_mongodb_obfuscation_disabled_bson_types_in_query(self):
+        """Resource stays normalized while mongodb.query tag shows raw query with BSON types in Extended JSON."""
+        span, oid = self._get_bson_find_span()
+        assert span.resource == 'find items {"_id": "?"}'
+        tag = span.get_tag("mongodb.query")
+        assert '{"$oid": "' in tag
+        assert str(oid) in tag
+
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
         tracer.enabled = False
