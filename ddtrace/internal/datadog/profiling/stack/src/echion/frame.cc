@@ -3,43 +3,18 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
+/* The shared linetable_parser.h provides dd_py_frame_parse_linetable() which
+ * replaces the former read_varint / read_signed_varint / inline parsing
+ * that was duplicated between echion and memalloc. */
+#include <shared/linetable_parser.h>
+
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
-#include <internal/pycore_code.h>
-#include <internal/pycore_frame.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_interpframe_structs.h>
 #include <internal/pycore_stackref.h>
 #endif // PY_VERSION_HEX >= 0x030e0000
 #endif // PY_VERSION_HEX >= 0x030b0000
-
-// ----------------------------------------------------------------------------
-#if PY_VERSION_HEX >= 0x030b0000
-static inline int
-read_varint(unsigned char* table, ssize_t size, ssize_t* i)
-{
-    ssize_t guard = size - 1;
-    if (*i >= guard)
-        return 0;
-
-    int val = table[++*i] & 63;
-    int shift = 0;
-    while (*i < guard && table[*i] & 64) {
-        shift += 6;
-        val |= (table[++*i] & 63) << shift;
-    }
-    return val;
-}
-
-// ----------------------------------------------------------------------------
-static inline int
-read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
-{
-    int val = read_varint(table, size, i);
-    return (val & 1) ? -(val >> 1) : (val >> 1);
-}
-#endif
 
 // ------------------------------------------------------------------------
 Result<Frame::Ptr>
@@ -73,117 +48,19 @@ Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
 Result<void>
 Frame::infer_location(PyCodeObject* code_obj, int instr_offset)
 {
-    unsigned int lineno = code_obj->co_firstlineno;
     Py_ssize_t len = 0;
 
-#if PY_VERSION_HEX >= 0x030b0000
+#if PY_VERSION_HEX >= 0x030a0000
     auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr) {
-        return ErrorKind::LocationError;
-    }
-
-    auto table_data = table.get();
-
-    for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
-        bc += (table[i] & 7) + 1;
-        int code = (table[i] >> 3) & 15;
-        switch (code) {
-            case 15:
-                break;
-
-            case 14: // Long form
-                lineno += read_signed_varint(table_data, len, &i);
-
-                this->line = lineno;
-                // Skip line_end, column, and column_end varints (not exported)
-                read_varint(table_data, len, &i);
-                read_varint(table_data, len, &i);
-                read_varint(table_data, len, &i);
-
-                break;
-
-            case 13: // No column data
-                lineno += read_signed_varint(table_data, len, &i);
-
-                this->line = lineno;
-
-                break;
-
-            case 12: // New lineno
-            case 11:
-            case 10:
-                if (i >= len - 2) {
-                    return ErrorKind::LocationError;
-                }
-
-                lineno += code - 10;
-
-                this->line = lineno;
-                // Skip column and column_end bytes (not exported)
-                i += 2;
-
-                break;
-
-            default:
-                if (i >= len - 1) {
-                    return ErrorKind::LocationError;
-                }
-
-                // Skip the next byte (column data, not exported)
-                ++i;
-
-                this->line = lineno;
-        }
-
-        if (bc > instr_offset)
-            break;
-    }
-
-#elif PY_VERSION_HEX >= 0x030a0000
-    auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr) {
-        return ErrorKind::LocationError;
-    }
-
-    instr_offset <<= 1;
-    for (int i = 0, bc = 0; i < len; i++) {
-        int sdelta = table[i++];
-        if (sdelta == 0xff)
-            break;
-
-        bc += sdelta;
-
-        int ldelta = table[i];
-        if (ldelta == 0x80)
-            ldelta = 0;
-        else if (ldelta > 0x80)
-            lineno -= 0x100;
-
-        lineno += ldelta;
-        if (bc > instr_offset)
-            break;
-    }
-
 #else
     auto table = pybytes_to_bytes_and_size(code_obj->co_lnotab, &len);
+#endif
+
     if (table == nullptr) {
         return ErrorKind::LocationError;
     }
 
-    for (int i = 0, bc = 0; i < len; i++) {
-        bc += table[i++];
-        if (bc > instr_offset)
-            break;
-
-        if (table[i] >= 0x80)
-            lineno -= 0x100;
-
-        lineno += table[i];
-    }
-
-#endif
-
-    this->line = lineno;
+    this->line = dd_py_frame_parse_linetable(table.get(), len, instr_offset, code_obj->co_firstlineno);
 
     return Result<void>::ok();
 }
