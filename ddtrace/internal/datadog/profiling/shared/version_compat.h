@@ -35,8 +35,7 @@
  * Assert the alignment invariant that tag masking relies on.
  * Expected on our supported 64-bit builds. */
 #if PY_VERSION_HEX >= 0x030e0000
-static_assert(alignof(PyObject) >= 8,
-              "PyObject must be at least 8-byte aligned for _PyStackRef tag masking");
+static_assert(alignof(PyObject) >= 8, "PyObject must be at least 8-byte aligned for _PyStackRef tag masking");
 #endif /* PY_VERSION_HEX >= 0x030e0000 */
 
 namespace DataDog {

@@ -72,8 +72,8 @@ get_code_from_frame(frame_t* frame)
      * Masking with ~7 (clearing 3 lowest bits) safely covers all
      * configs (debug, free-threading, release), since PyObject* is
      * always aligned to at least 8 bytes. */
-    return reinterpret_cast<PyCodeObject*>(
-        static_cast<uintptr_t>(frame->f_executable.bits) & ~static_cast<uintptr_t>(7));
+    return reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(frame->f_executable.bits) &
+                                           ~static_cast<uintptr_t>(7));
 #elif PY_VERSION_HEX >= 0x030d0000
     /* Python 3.13: f_executable is an untagged PyObject*. */
     return reinterpret_cast<PyCodeObject*>(frame->f_executable);
@@ -125,8 +125,8 @@ get_code_name(PyCodeObject* code)
  * code object.  The result is suitable for passing to parse_linetable().
  *
  * Version semantics:
- *   Python 3.13+: instr_ptr points to the NEXT instruction; result
- *                 is in _Py_CODEUNIT units.
+ *   Python 3.13+: instr_ptr points to the CURRENT instruction; result
+ *                 is in _Py_CODEUNIT units.  No -1 adjustment needed.
  *   Python 3.11-3.12: prev_instr points to the last executed
  *                     instruction; result is in _Py_CODEUNIT units.
  *   Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
@@ -134,7 +134,7 @@ inline int
 get_lasti(frame_t* frame, PyCodeObject* code)
 {
 #if PY_VERSION_HEX >= 0x030d0000
-    return static_cast<int>(frame->instr_ptr - 1 - _PyCode_CODE(code));
+    return static_cast<int>(frame->instr_ptr - _PyCode_CODE(code));
 #elif PY_VERSION_HEX >= 0x030b0000
     return static_cast<int>(frame->prev_instr - _PyCode_CODE(code));
 #else
