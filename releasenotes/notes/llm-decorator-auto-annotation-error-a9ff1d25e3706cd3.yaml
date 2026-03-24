@@ -2,7 +2,7 @@
 fixes:
   - |
     LLM Observability: Fixes an issue where the ``@llm`` decorator raised a
-    ``LLMObsAnnotateSpanError: Failed to parse output messages`` exception when
+    ``LLMObsAnnotateSpanError`` exception when
     a decorated function returned a value that could not be parsed as LLM
     messages (e.g. a plain string, integer, or non-messages dict). The decorator
     now logs a warning instead and continues, consistent with other decorators.
