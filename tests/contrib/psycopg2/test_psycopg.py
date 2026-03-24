@@ -18,6 +18,7 @@ from tests.utils import snapshot
 
 
 PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
 
 
 if PSYCOPG2_VERSION >= (2, 7):
@@ -276,7 +277,7 @@ class PsycopgCore(TracerTestCase):
                 dict(name="postgres.query", resource=query.as_string(db)),
             )
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query_encoding(self):
         """Checks whether execution of composed SQL string is traced"""
@@ -394,7 +395,7 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query"))
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_postgres_dbm_propagation_tag(self):
         """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""

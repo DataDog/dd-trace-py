@@ -9,6 +9,8 @@ import pytest
 from tests.webclient import Client
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
@@ -61,54 +63,54 @@ def azure_functions_client(request):
         proc.wait()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_ok(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetok?key=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_ok_async(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetokasync?key=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_ok_obfuscated(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetok?secret=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_ok_async_obfuscated(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetokasync?secret=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
 def test_http_get_error(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgeterror", headers=DEFAULT_HEADERS).status_code == 500
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_post_ok(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post("/api/httppostok", headers=DEFAULT_HEADERS, data={"key": "val"}).status_code == 200
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_trigger_arg(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgettriggerarg", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_function_name_decorator(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetfunctionnamedecorator", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetfunctionnamenodecorator", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_function_name_decorator_order(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.get("/api/httpgetfunctionnamedecoratororder", headers=DEFAULT_HEADERS).status_code == 200
@@ -121,12 +123,12 @@ def test_http_get_function_name_decorator_order(azure_functions_client: Client) 
     ids=["enabled", "disabled"],
     indirect=True,
 )
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_timer(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post(
@@ -138,7 +140,7 @@ def test_timer(azure_functions_client: Client) -> None:
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_timer_async(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post(

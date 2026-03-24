@@ -326,8 +326,8 @@ def test_info_no_configs():
         b"DD Service: None",
         b"DD Env: None",
         b"DD Version: None",
-        b"Global Tags: None",
-        b"Tracer Tags: None",
+        b"Global Tags: _dd.svc_src:m",
+        b"Tracer Tags: _dd.svc_src:m",
         b"Summary",
         b"WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications.",
         b"For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m",
@@ -382,8 +382,8 @@ def test_info_w_configs():
         b"DD Service: tester",
         b"DD Env: dev",
         b"DD Version: 0.45",
-        b"Global Tags: None",
-        b"Tracer Tags: None",
+        b"Global Tags: _dd.svc_src:m",
+        b"Tracer Tags: _dd.svc_src:m",
         b"m\x1b[1mSummary\x1b[0m",
     ]
 

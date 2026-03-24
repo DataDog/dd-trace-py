@@ -16,7 +16,10 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
 
 
-@pytest.mark.snapshot(wait_for_num_traces=3)
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
+@pytest.mark.snapshot(wait_for_num_traces=3, ignores=SNAPSHOT_IGNORES)
 def test_otel_span_attributes(oteltracer):
     with oteltracer.start_span("otel-string-tags") as span1:
         span1.set_attribute("service.name", "moons-service-str")
@@ -45,7 +48,7 @@ def test_otel_span_attributes(oteltracer):
         span.set_attribute("should_not_be_set", "attributes can not be added after a span is ended")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=2)
+@pytest.mark.snapshot(wait_for_num_traces=2, ignores=SNAPSHOT_IGNORES)
 def test_otel_span_events(oteltracer):
     with oteltracer.start_span("webpage.load") as span1:
         span1.add_event(
@@ -65,7 +68,7 @@ def test_otel_span_events(oteltracer):
     span2.add_event("Event on finished span, event won't be added")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize(
     "override",
     [
@@ -82,7 +85,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=5)
+@pytest.mark.snapshot(wait_for_num_traces=5, ignores=SNAPSHOT_IGNORES)
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
         pass

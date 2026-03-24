@@ -15,6 +15,9 @@ from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 @pytest.fixture(autouse=True)
 def patch_asyncpg():
     # type: () -> Generator[None, None, None]
@@ -39,7 +42,7 @@ async def patched_conn():
 
 @pytest.mark.asyncio
 async def test_connect(snapshot_context):
-    with snapshot_context():
+    with snapshot_context(ignores=SNAPSHOT_IGNORES):
         conn = await asyncpg.connect(
             host=POSTGRES_CONFIG["host"],
             port=POSTGRES_CONFIG["port"],
@@ -50,7 +53,7 @@ async def test_connect(snapshot_context):
         await conn.close()
 
     # Using dsn should result in the same trace
-    with snapshot_context():
+    with snapshot_context(ignores=SNAPSHOT_IGNORES):
         conn = await asyncpg.connect(
             dsn="postgresql://%s:%s@%s:%s/%s"
             % (
@@ -66,7 +69,7 @@ async def test_connect(snapshot_context):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "meta.error.message", "meta.error.type"]
+    ignores=["meta.error.stack", "meta.error.message", "meta.error.type"] + SNAPSHOT_IGNORES
 )  # stack is noisy between releases
 async def test_bad_connect():
     with pytest.raises(OSError):
@@ -77,7 +80,7 @@ async def test_bad_connect():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_connection_methods(patched_conn):
     status = await patched_conn.execute(
         """
@@ -106,21 +109,21 @@ async def test_connection_methods(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_select(patched_conn):
     ret = await patched_conn.fetchval("SELECT 1")
     assert ret == 1
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])  # stack is noisy between releases
+@pytest.mark.snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)  # stack is noisy between releases
 async def test_bad_query(patched_conn):
     with pytest.raises(asyncpg.exceptions.PostgresSyntaxError):
         await patched_conn.execute("malformed; query;dfaskjfd")
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_cursor(patched_conn):
     await patched_conn.execute(
         """
@@ -144,7 +147,7 @@ async def test_cursor(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["resource"])
+@pytest.mark.snapshot(ignores=["resource"] + SNAPSHOT_IGNORES)
 async def test_cursor_manual(patched_conn):
     async with patched_conn.transaction():
         cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
@@ -154,7 +157,7 @@ async def test_cursor_manual(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_parenting(patched_conn):
     with tracer.trace("parent"):
         await patched_conn.execute("SELECT 1")
@@ -164,7 +167,7 @@ async def test_parenting(patched_conn):
     await c
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_configure_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -193,7 +196,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_configure_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -222,7 +225,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_unspecified_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -250,7 +253,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_unspecified_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -278,7 +281,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("version", ("v0", "v1"))
 def test_span_name_by_schema(ddtrace_run_python_code_in_subprocess, version):
     code = """
@@ -311,7 +314,7 @@ asyncio.run(test())
     parse_version(getattr(asyncpg, "__version__", "0.0.0")) < (0, 30, 0),
     reason="the custom connect parameter for create_pool requires asyncpg >= 0.30.0",
 )
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.asyncio
 async def test_pool_custom_connect():
     """
@@ -339,7 +342,7 @@ async def test_pool_custom_connect():
     assert True
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.asyncio
 async def test_pool_without_custom_connect():
     """

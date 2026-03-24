@@ -15,6 +15,7 @@ import pytest
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
@@ -451,12 +452,12 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("http-user-agent", None, ["runtime-id"], None),
-        ("useragent", True, ["runtime-id"], None),
-        ("http-user-agent", False, ["runtime-id"], None),
-        ("http-user-agent", [], ["runtime-id"], None),
-        ("http-user-agent", {}, ["runtime-id"], None),
+        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT, _SERVICE_SOURCE], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["runtime-id", _SERVICE_SOURCE], None),
+        ("useragent", True, ["runtime-id", _SERVICE_SOURCE], None),
+        ("http-user-agent", False, ["runtime-id", _SERVICE_SOURCE], None),
+        ("http-user-agent", [], ["runtime-id", _SERVICE_SOURCE], None),
+        ("http-user-agent", {}, ["runtime-id", _SERVICE_SOURCE], None),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -484,7 +485,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert result_keys == ["runtime-id", http.USER_AGENT, _SERVICE_SOURCE]
     assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
     mock_store_headers.assert_called()
 
@@ -497,7 +498,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id"]
+    assert result_keys == ["runtime-id", _SERVICE_SOURCE]
     assert not span.get_tag(http.USER_AGENT)
     mock_store_headers.assert_called()
 

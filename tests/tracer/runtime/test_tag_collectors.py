@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
@@ -37,6 +38,7 @@ def test_tracer_tags():
     assert values is not None
     assert set(values) == set(
         [
+            (_SERVICE_SOURCE, "m"),
             ("service", "test-service"),
             ("key_1", "from_env"),
             ("key_2", "from_env"),
@@ -72,6 +74,7 @@ def test_tracer_tags_config():
     assert values is not None
     assert set(values) == set(
         [
+            (_SERVICE_SOURCE, "m"),
             ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
             ("env", "my-env"),
             ("version", "1.5.4"),
@@ -110,6 +113,7 @@ def test_tracer_tags_service_from_code():
     assert values is not None
     assert values == [
         ("service", "my-service"),
+        (_SERVICE_SOURCE, "m"),
     ], values
 
 

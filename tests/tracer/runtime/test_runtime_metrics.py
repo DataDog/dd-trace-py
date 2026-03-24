@@ -5,6 +5,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
@@ -98,10 +99,10 @@ def test_runtime_tags_usm():
     from ddtrace.internal.runtime.runtime_metrics import TracerTags
 
     tags = list(TracerTags())
-    assert len(tags) == 3, tags
+    assert len(tags) == 4, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["service", "version", "env"])
+    assert set(tags.keys()) == set(["service", "version", "env", _SERVICE_SOURCE])
     assert tags["service"] == "my-service"
     assert tags["env"] == "test-env"
     assert tags["version"] == "1.2.3"

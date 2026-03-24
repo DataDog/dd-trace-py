@@ -10,6 +10,7 @@ SNAPSHOT_IGNORES = [
     "meta._dd.tags.process",
     "meta.messaging.message_id",
     "meta._dd.span_links",
+    "meta._dd.svc_src",
 ]
 
 TRACE_CONTEXT_KEYS = [

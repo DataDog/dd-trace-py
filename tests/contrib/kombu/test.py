@@ -372,7 +372,7 @@ class TestKombuDsm(TracerTestCase):
         self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
 
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.snapshot(ignores=["meta.tracestate", "meta._dd.svc_src"])
 @pytest.mark.subprocess(
     env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_KOMBU_ENABLED": "true"}, ddtrace_run=True, err=None
 )

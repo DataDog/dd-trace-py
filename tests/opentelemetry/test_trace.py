@@ -9,13 +9,16 @@ from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     ddtrace_traceprovider = opentelemetry.trace.get_tracer_provider()
     otel_compatible_tracer = ddtrace_traceprovider.get_tracer("some_tracer")
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=2, ignores=["meta.error.stack"])
+@pytest.mark.snapshot(wait_for_num_traces=2, ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
 def test_otel_start_span_record_exception(oteltracer):
     # Avoid mocking time_ns when Span is created. This is a workaround to resolve a rate limit bug.
     raised_span = oteltracer.start_span("test-raised-exception")
@@ -52,7 +55,7 @@ def test_otel_start_span_record_exception(oteltracer):
         )
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
     otel_span = oteltracer.start_span(
@@ -110,21 +113,21 @@ def test_otel_start_span_with_span_links(oteltracer):
         span2.end()
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
 def test_otel_start_span_ignore_exceptions(caplog, oteltracer):
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
             raise Exception("Sorry Otel Span, I failed you")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
 def test_otel_start_current_span_with_default_args(oteltracer):
     with oteltracer.start_as_current_span("test-start-current-span-defaults") as otel_span:
         assert otel_span.is_recording()
         otel_span.update_name("rename-start-current-span")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
 def test_otel_start_current_span_without_default_args(oteltracer):
     with oteltracer.start_as_current_span("root-span") as root:
         with oteltracer.start_as_current_span(
@@ -227,7 +230,7 @@ def otel_flask_app_env(flask_wsgi_application):
 )
 @pytest.mark.snapshot(
     wait_for_num_traces=1,
-    ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"],
+    ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"] + SNAPSHOT_IGNORES,
 )
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:
@@ -239,7 +242,7 @@ def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F81
     assert resp.status_code == 200
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
 def test_otel_start_as_current_span_decorator(oteltracer):
     """Test that the tracer.start_as_current_span decorator works as expected"""
 

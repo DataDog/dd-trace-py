@@ -18,6 +18,7 @@ import ddtrace
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -597,7 +598,7 @@ class TracerTestCases(TracerTestCase):
             )
             span_keys = list(span.get_tags().keys())
             span_keys.sort()
-            assert span_keys == ["runtime-id", "usr.id"]
+            assert span_keys == [_SERVICE_SOURCE, "runtime-id", "usr.id"]
             assert span.get_tag(user.ID)
             assert span.get_tag(user.EMAIL) is None
             assert span.get_tag(user.SESSION_ID) is None
@@ -1013,9 +1014,9 @@ def test_detect_agentless_env_with_lambda():
 
     assert in_aws_lambda()
     assert not has_aws_lambda_agent_extension()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter), (
-        f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
-    )
+    assert isinstance(
+        ddtrace.tracer._span_aggregator.writer, LogWriter
+    ), f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
 
 
 def test_tracer_set_runtime_tags():
