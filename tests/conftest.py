@@ -19,6 +19,7 @@ import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 from tempfile import gettempdir
+import textwrap
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -51,6 +52,19 @@ try:
     from pytest import StashKey
 except ImportError:
     StashKey = None
+
+try:
+    from tests.deadlock import DEADLOCK_AVAILABLE as _DEADLOCK_AVAILABLE
+    from tests.deadlock import arm as _deadlock_arm
+    from tests.deadlock import disarm as _deadlock_disarm
+except ImportError:
+    _DEADLOCK_AVAILABLE = False
+
+    def _deadlock_arm(*args, **kwargs):
+        pass
+
+    def _deadlock_disarm():
+        pass
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
@@ -213,6 +227,56 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+_DEADLOCK_TIMEOUT: int = int(os.environ.get("DD_TEST_DEADLOCK_TIMEOUT", "300"))
+
+# Parsed once at import time; test_name is injected at runtime via _DD_TEST_NODE_ID env var.
+_DEADLOCK_SUBPROCESS_PREFIX: "ast.Module | None" = None
+if _DEADLOCK_AVAILABLE and _DEADLOCK_TIMEOUT > 0:
+    _DEADLOCK_SUBPROCESS_PREFIX = ast.parse(
+        textwrap.dedent(
+            f"""\
+            try:
+                import atexit as _atexit
+                import os as _os
+                from tests.deadlock import arm as _dd_arm
+                from tests.deadlock import disarm as _dd_disarm
+                _t = max(1, int(_os.environ.get("_DD_DEADLOCK_SUBPROCESS_TIMEOUT", {_DEADLOCK_TIMEOUT!r})) - 5)
+                _dd_arm(timeout=_t, test_name=_os.environ.get("_DD_TEST_NODE_ID"))
+                _atexit.register(_dd_disarm)
+            except Exception:
+                pass
+            """
+        ),
+        "<deadlock_watchdog>",
+        "exec",
+    )
+    ast.fix_missing_locations(_DEADLOCK_SUBPROCESS_PREFIX)
+
+
+@pytest.fixture(autouse=True)
+def deadlock_watchdog(request):
+    """GIL-free deadlock detector: abort + dump Python stacks if the test hangs.
+
+    Implemented by the ``_deadlock`` C extension (tests/deadlock/).  When the
+    extension is not available (e.g. non-native CI environments) this fixture
+    is a silent no-op.
+
+    Timeout defaults to 300 s (5 min); override via ``DD_TEST_DEADLOCK_TIMEOUT``
+    (seconds).  Set ``DD_TEST_DEADLOCK_TIMEOUT=0`` to disable entirely.
+    """
+    if not _DEADLOCK_AVAILABLE or _DEADLOCK_TIMEOUT <= 0:
+        yield
+        return
+    _deadlock_arm(
+        timeout=_DEADLOCK_TIMEOUT,
+        test_name=request.node.nodeid,
+    )
+    try:
+        yield
+    finally:
+        _deadlock_disarm()
 
 
 @pytest.fixture(autouse=True)
@@ -419,8 +483,14 @@ def run_function_from_file(item, params=None):
     os.makedirs(custom_temp_dir, exist_ok=True)
 
     try:
+        if _DEADLOCK_SUBPROCESS_PREFIX is not None:
+            env["_DD_TEST_NODE_ID"] = item.nodeid
+
         with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
+            tree = FunctionDefFinder(func).find(file)
+            if _DEADLOCK_SUBPROCESS_PREFIX is not None:
+                tree.body = _DEADLOCK_SUBPROCESS_PREFIX.body + tree.body
+            dump_code_to_file(compile(tree, file, "exec"), fp.file)
 
             # If running a module with -m, we change directory to the module's
             # folder and run the module directly.
