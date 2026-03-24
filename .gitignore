@@ -214,4 +214,5 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 src/native/target*
 
 # Fuzzing corpus, output and artifacts
-.fuzz/
+.fuzz/# Meson build artifacts
+.mesonbuild/

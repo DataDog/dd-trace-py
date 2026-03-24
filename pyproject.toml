@@ -1,11 +1,23 @@
 [build-system]
 requires = [
-    "cython",
-    "cmake>=3.24.2,<3.28",
-    "setuptools-rust<2",
+    "meson-python>=0.17.0",
+    "meson>=1.5.0",
+    "ninja",
+    "cython>=3.0",
+    "setuptools",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "mesonpy"
+
+# Keep setuptools-based build available as a fallback via DD_USE_SETUPTOOLS=1
+# (old build-system requires kept below for reference)
+# requires = [
+#     "cython",
+#     "cmake>=3.24.2,<3.28",
+#     "setuptools-rust<2",
+#     "patchelf>=0.17.0.0; sys_platform == 'linux'",
+# ]
+# build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
