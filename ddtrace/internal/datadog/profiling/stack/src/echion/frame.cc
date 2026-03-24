@@ -3,8 +3,6 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
-/* The shared headers provide DataDog::parse_linetable() and the frame
- * accessor helpers (get_code_from_frame, get_code_name) shared with memalloc. */
 #include <shared/frame_accessors.h>
 #include <shared/linetable_parser.h>
 

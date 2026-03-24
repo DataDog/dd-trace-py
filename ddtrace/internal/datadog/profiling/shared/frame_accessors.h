@@ -131,7 +131,7 @@ get_code_name(PyCodeObject* code)
  *                     instruction; result is in _Py_CODEUNIT units.
  *   Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
 inline int
-get_lasti(frame_t* frame, PyCodeObject* code)
+get_lasti(frame_t* frame, [[maybe_unused]] PyCodeObject* code)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     return static_cast<int>(frame->instr_ptr - _PyCode_CODE(code));
