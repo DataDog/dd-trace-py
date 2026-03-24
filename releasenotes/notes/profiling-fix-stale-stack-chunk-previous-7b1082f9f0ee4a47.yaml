@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A rare crash which could happen on Python 3.11+ was fixed.

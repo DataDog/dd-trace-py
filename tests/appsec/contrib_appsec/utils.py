@@ -11,9 +11,9 @@ import pytest
 import ddtrace
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
-import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
@@ -123,6 +123,34 @@ class _Contrib_TestClass_Base:
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
+
+    def check_rule_triggered(self, rule_id: str, entry_span):
+        """Check that the given rule_id is among the triggered rules."""
+        triggers = get_triggers(entry_span())
+        assert triggers is not None, "no appsec struct in root span"
+        result = [t["rule"]["id"] for t in triggers]
+        assert rule_id in result, f"rule {rule_id} not found in triggers: {result}"
+
+    def _get_waf_info(self):
+        """Return the current WAF info from the AppSecSpanProcessor."""
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        processor = AppSecSpanProcessor._instance
+        assert processor is not None, "AppSecSpanProcessor not initialized"
+        return processor._ddwaf.info
+
+    def check_waf_no_errors(self):
+        """Check that the WAF has no errors after a rule update."""
+        info = self._get_waf_info()
+        assert info.failed == 0, f"WAF has {info.failed} failed rules after update"
+        assert info.errors == "", f"WAF has errors after update: {info.errors}"
+
+    def check_waf_errors(self, expected_failed: int, expected_errors: dict):
+        """Check that the WAF reports the expected errors after a rule update."""
+        info = self._get_waf_info()
+        assert info.failed == expected_failed, f"Expected {expected_failed} failed rules, got {info.failed}"
+        errors = json.loads(info.errors)
+        assert errors == expected_errors, f"Expected WAF errors {expected_errors}, got {errors}"
 
     def update_tracer(self, interface):
         interface.tracer._span_aggregator.writer._api_version = "v0.4"
@@ -1799,13 +1827,13 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", appsec_metrics.ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
@@ -2219,6 +2247,412 @@ class Contrib_TestClass_For_Threats_RC(_Contrib_TestClass_Base):
     """
     Factorized test class for threats tests requiring remote config enabled.
     """
+
+    def test_rc_ip_blocklist_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of RC rule updates:
+        1. Default config: IP not blocked
+        2. RC update adds IP to blocklist: IP blocked
+        3. RC update changes blocklist to different IP: original IP no longer blocked
+        4. RC data removed (revert to default): no IPs blocked
+        """
+        ip_a = "8.8.4.4"
+        ip_b = "9.9.9.9"
+
+        def _make_rc_data(blocked_ip):
+            return {
+                "rules_data": [
+                    {
+                        "data": [{"value": blocked_ip}],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default config — IP should not be blocked
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 1: expected 200 with default config"
+            test_spans.reset()
+
+            # Step 2: RC update — add ip_a to blocked_ips via ASM_DATA
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips", _make_rc_data(ip_a))],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 403, "Step 2: expected 403 after blocking ip_a"
+            self.check_single_rule_triggered("blk-001-001", entry_span)
+            test_spans.reset()
+
+            # Step 3: RC update — change blocklist to ip_b, ip_a should no longer be blocked
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips", _make_rc_data(ip_b))],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 3: expected 200 for ip_a after switching to ip_b"
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_b})
+            assert self.status(response) == 403, "Step 3: expected 403 for ip_b"
+            self.check_single_rule_triggered("blk-001-001", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove ASM_DATA, no IPs should be blocked
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 4: expected 200 for ip_a after revert"
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_b})
+            assert self.status(response) == 200, "Step 4: expected 200 for ip_b after revert"
+
+    def test_rc_custom_rules_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of RC custom rule updates:
+        1. Default config: Arachni user-agent is detected but not blocked
+        2. RC update pushes a custom rule that blocks Arachni user-agent: blocked
+        3. RC update replaces with a custom rule that blocks a query param pattern: Arachni no longer blocked
+        4. RC data removed (revert to default): back to default behavior
+        """
+        arachni_ua = "Arachni/v1.5.1"
+        attack_query = "1 OR 1=1"
+
+        def _make_custom_rule(rule_id, address, regex, key_path=None):
+            """Build a custom rule payload that blocks requests matching a regex pattern."""
+            input_spec = {"address": address}
+            if key_path:
+                input_spec["key_path"] = key_path
+            return {
+                "custom_rules": [
+                    {
+                        "id": rule_id,
+                        "name": f"Custom rule {rule_id}",
+                        "tags": {"type": "custom", "category": "attack_attempt"},
+                        "conditions": [
+                            {
+                                "operator": "match_regex",
+                                "parameters": {
+                                    "inputs": [input_spec],
+                                    "regex": regex,
+                                    "options": {"case_sensitive": False},
+                                },
+                            }
+                        ],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default config — Arachni detected but not blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 1: expected 200 for Arachni with default rules"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Step 2: RC update — push custom rule that blocks Arachni user-agent
+            custom_rule_ua = _make_custom_rule(
+                "custom-ua-block-001",
+                "server.request.headers.no_cookies",
+                regex="^Arachni",
+                key_path=["user-agent"],
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM", "Datadog/1/ASM/custom_rules", custom_rule_ua)],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 403, "Step 2: expected 403 after custom rule blocks Arachni"
+            # The custom blocking rule must fire; the default monitoring rule may also fire
+            self.check_rule_triggered("custom-ua-block-001", entry_span)
+            test_spans.reset()
+
+            # Step 3: RC update — replace with custom rule blocking query param pattern
+            custom_rule_query = _make_custom_rule(
+                "custom-query-block-001",
+                "server.request.query",
+                regex="OR\\s+1=1",
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM", "Datadog/1/ASM/custom_rules", custom_rule_query)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should no longer be blocked by the custom rule
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 3: expected 200 for Arachni after rule change"
+            test_spans.reset()
+
+            # SQL injection pattern should now be blocked
+            response = interface.client.get(f"/?q={quote(attack_query)}", headers={"User-Agent": "Mozilla/5.0"})
+            assert self.status(response) == 403, "Step 3: expected 403 for SQL injection query"
+            # The custom blocking rule must fire; default rules may also match the pattern
+            self.check_rule_triggered("custom-query-block-001", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove custom rules, back to default behavior
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM", "Datadog/1/ASM/custom_rules")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni detected but not blocked (default behavior)
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 4: expected 200 for Arachni after revert"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # SQL injection pattern should no longer be blocked
+            response = interface.client.get(f"/?q={quote(attack_query)}", headers={"User-Agent": "Mozilla/5.0"})
+            assert self.status(response) == 200, "Step 4: expected 200 for query after revert"
+
+    def test_rc_ruleset_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of ASM_DD rule set updates:
+        1. Default rules: dd-test-scanner-log-block user-agent is blocked, Arachni is detected but not blocked
+        2. ASM_DD update replaces ruleset with one that blocks Arachni: Arachni blocked,
+           dd-test-scanner-log-block no longer blocked (its rule was replaced away)
+        3. ASM_DD update replaces ruleset with one that blocks a query param pattern:
+           Arachni no longer blocked, query param blocked
+        4. ASM_DD removed (revert): default rules restored, dd-test-scanner-log-block blocked again
+        """
+        canary_ua = "dd-test-scanner-log-block"
+        arachni_ua = "Arachni/v1.5.1"
+        attack_query = "block_that_value"
+
+        def _make_ruleset(rule_id, address, key_path, operator, pattern):
+            """Build a minimal ASM_DD ruleset with a single blocking rule."""
+            condition = {
+                "operator": operator,
+                "parameters": {
+                    "inputs": [{"address": address}],
+                },
+            }
+            if key_path:
+                condition["parameters"]["inputs"][0]["key_path"] = key_path
+            if operator == "match_regex":
+                condition["parameters"]["regex"] = pattern
+                condition["parameters"]["options"] = {"case_sensitive": False}
+            elif operator == "phrase_match":
+                condition["parameters"]["list"] = [pattern]
+
+            return {
+                "rules": [
+                    {
+                        "id": rule_id,
+                        "name": f"Test rule {rule_id}",
+                        "tags": {"type": "test_type", "category": "attack_attempt"},
+                        "conditions": [condition],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default rules — canary UA is blocked, Arachni detected but not blocked
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 403, "Step 1: expected 403 for canary UA with default rules"
+            self.check_single_rule_triggered("ua0-600-56x", entry_span)
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 1: expected 200 for Arachni with default rules"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Step 2: ASM_DD update — replace entire ruleset with one that blocks Arachni
+            ruleset_block_arachni = _make_ruleset(
+                rule_id="test-arachni-block",
+                address="server.request.headers.no_cookies",
+                key_path=["user-agent"],
+                operator="match_regex",
+                pattern="^Arachni",
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules", ruleset_block_arachni)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should now be blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 403, "Step 2: expected 403 for Arachni after ASM_DD update"
+            self.check_single_rule_triggered("test-arachni-block", entry_span)
+            test_spans.reset()
+
+            # Canary UA should no longer be blocked (its rule was replaced)
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 200, "Step 2: expected 200 for canary UA after ruleset replacement"
+            test_spans.reset()
+
+            # Step 3: ASM_DD update — replace with a rule that blocks a query param
+            ruleset_block_query = _make_ruleset(
+                rule_id="test-query-block",
+                address="server.request.query",
+                key_path=None,
+                operator="phrase_match",
+                pattern=attack_query,
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules", ruleset_block_query)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should no longer be blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 3: expected 200 for Arachni after second ruleset update"
+            test_spans.reset()
+
+            # Query param should be blocked
+            response = interface.client.get(f"/?q={attack_query}")
+            assert self.status(response) == 403, "Step 3: expected 403 for query param attack"
+            self.check_single_rule_triggered("test-query-block", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove ASM_DD, default rules should be restored
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Canary UA should be blocked again (default rule restored)
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 403, "Step 4: expected 403 for canary UA after revert"
+            self.check_single_rule_triggered("ua0-600-56x", entry_span)
+            test_spans.reset()
+
+            # Arachni should be detected but not blocked (default behavior)
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 4: expected 200 for Arachni after revert"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Query param should no longer be blocked
+            response = interface.client.get(f"/?q={attack_query}")
+            assert self.status(response) == 200, "Step 4: expected 200 for query param after revert"
+
+    def test_rc_ruleset_duplicate_rules_report_errors(self, interface, test_spans, entry_span):
+        """Test that the WAF reports errors when two ASM_DD configs contain duplicate rule IDs.
+        1. Push a first ASM_DD ruleset with a rule
+        2. Push a second ASM_DD ruleset on a different path with the same rule ID: WAF should report errors
+        3. Remove both configs: WAF should be clean again
+        """
+        duplicate_rule_id = "test-duplicate-rule"
+
+        def _make_ruleset(ua_pattern):
+            return {
+                "rules": [
+                    {
+                        "id": duplicate_rule_id,
+                        "name": f"Test rule matching {ua_pattern}",
+                        "tags": {"type": "test_type", "category": "attack_attempt"},
+                        "conditions": [
+                            {
+                                "operator": "match_regex",
+                                "parameters": {
+                                    "inputs": [
+                                        {
+                                            "address": "server.request.headers.no_cookies",
+                                            "key_path": ["user-agent"],
+                                        }
+                                    ],
+                                    "regex": ua_pattern,
+                                    "options": {"case_sensitive": False},
+                                },
+                            }
+                        ],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Push first ASM_DD ruleset — no errors expected
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules_v1", _make_ruleset("^Arachni"))],
+                ),
+            )
+            self.check_waf_no_errors()
+
+            # Step 2: Push second ASM_DD ruleset with the same rule ID on a different path
+            # WAF should report errors about the duplicate rule
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules_v2", _make_ruleset("^Nessus"))],
+                ),
+            )
+            self.check_waf_errors(
+                expected_failed=1,
+                expected_errors={"duplicate rule": [duplicate_rule_id]},
+            )
+
+            # The first ruleset's rule should still work despite the duplicate error
+            response = interface.client.get("/", headers={"User-Agent": "Arachni/v1.5.1"})
+            assert self.status(response) == 403, "First rule should still block Arachni"
+            self.check_single_rule_triggered(duplicate_rule_id, entry_span)
+            test_spans.reset()
+
+            # Step 3: Remove both configs — WAF should be clean (default rules restored)
+            core.dispatch(
+                "waf.update",
+                (
+                    [
+                        ("ASM_DD", "Datadog/1/ASM_DD/rules_v1"),
+                        ("ASM_DD", "Datadog/1/ASM_DD/rules_v2"),
+                    ],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
 
     def test_multiple_service_name(self, interface):
         import time

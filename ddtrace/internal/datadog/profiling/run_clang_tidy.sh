@@ -110,6 +110,7 @@ if [[ -n "${RUN_CLANG_TIDY}" ]]; then
         -j "${JOBS}" \
         -checks="${CHECKS}" \
         -header-filter="${HEADER_FILTER}" \
+        -warnings-as-errors='*' \
         "${SOURCE_FILES[@]}"
 else
     echo "run-clang-tidy not found, falling back to sequential clang-tidy"
@@ -121,6 +122,7 @@ else
             -p "${BUILD_DIR}" \
             -checks="${CHECKS}" \
             -header-filter="${HEADER_FILTER}" \
+            --warnings-as-errors='*' \
             "${file}"; then
             FAILED=1
         fi

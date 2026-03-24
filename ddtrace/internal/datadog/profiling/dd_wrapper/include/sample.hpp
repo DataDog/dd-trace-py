@@ -14,12 +14,12 @@
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
-// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct name
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
-// NOLINTEND(bugprone-reserved-identifier)
 struct _traceback;
 typedef struct _traceback PyTracebackObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
 
