@@ -115,7 +115,7 @@ def _model_decorator(operation_kind):
                             try:
                                 LLMObs.annotate(span=span, output_data=resp)
                             except LLMObsAnnotateSpanError:
-                                log.warning(
+                                log.debug(
                                     "Failed to auto-annotate output for @%s decorated function. "
                                     "Use LLMObs.annotate() to manually annotate the output.",
                                     operation_kind,
@@ -175,7 +175,7 @@ def _model_decorator(operation_kind):
                             try:
                                 LLMObs.annotate(span=span, output_data=resp)
                             except LLMObsAnnotateSpanError:
-                                log.warning(
+                                log.debug(
                                     "Failed to auto-annotate output for @%s decorated function. "
                                     "Use LLMObs.annotate() to manually annotate the output.",
                                     operation_kind,

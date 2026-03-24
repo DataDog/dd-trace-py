@@ -313,7 +313,7 @@ def test_llm_decorator_unparseable_output_logs_warning_not_raises(llmobs, llmobs
         return {"unexpected": "format"}
 
     f()  # should not raise LLMObsAnnotateSpanError
-    mock_logs.warning.assert_called_once_with(
+    mock_logs.debug.assert_called_once_with(
         "Failed to auto-annotate output for @%s decorated function. "
         "Use LLMObs.annotate() to manually annotate the output.",
         "llm",
@@ -333,7 +333,7 @@ async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(
         return {"unexpected": "format"}
 
     await f()  # should not raise LLMObsAnnotateSpanError
-    mock_logs.warning.assert_called_once_with(
+    mock_logs.debug.assert_called_once_with(
         "Failed to auto-annotate output for @%s decorated function. "
         "Use LLMObs.annotate() to manually annotate the output.",
         "llm",
