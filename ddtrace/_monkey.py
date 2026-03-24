@@ -42,7 +42,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "google_adk": True,
-    "google_cloud_pubsub": False,
+    "google_cloud_pubsub": True,
     "google_genai": True,
     "gevent": True,
     "graphql": True,
