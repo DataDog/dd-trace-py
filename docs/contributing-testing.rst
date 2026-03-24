@@ -176,7 +176,7 @@ Build issues when running tests with Riot
 If you encounter build failures, CMake errors, or stale native extension issues when running tests:
 
 - **Installing ddtrace locally** (e.g. ``pip install -e .``): See :ref:`build-failures-local-install` for the clean command.
-- **Using scripts/ddtest:** The project is mounted from the host, so run ``uv run --group clean python setup.py clean --all`` on the host first.
+- **Using scripts/ddtest:** The project is mounted from the host, so run ``uv run scripts/clean.py`` on the host first.
   The container sees the cleaned project on the next run.
 
 Then run Riot **without** the ``-s`` flag so that ddtrace is rebuilt from source. The ``-s`` flag skips the base install; omitting it forces a fresh build:
