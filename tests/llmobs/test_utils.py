@@ -285,6 +285,32 @@ def test_json_serialize_pydantic_model_with_complex_field():
     assert encoded_model == '{"name": "hello world", "metadata": {"key": "goodbye", "value": "cruel world"}}'
 
 
+def test_json_serialize_pydantic_model_in_list():
+    class Model(BaseModel):
+        name: str
+        age: int
+
+    result = safe_json([Model(name="alice", age=30), Model(name="bob", age=25)])
+    assert result == '[{"name": "alice", "age": 30}, {"name": "bob", "age": 25}]'
+
+
+def test_json_serialize_pydantic_model_in_tuple():
+    class Model(BaseModel):
+        name: str
+        age: int
+
+    result = safe_json((Model(name="alice", age=30), "hello"))
+    assert result == '[{"name": "alice", "age": 30}, "hello"]'
+
+
+def test_json_serialize_pydantic_model_in_dict_value():
+    class Model(BaseModel):
+        name: str
+
+    result = safe_json({"result": Model(name="alice")})
+    assert result == '{"result": {"name": "alice"}}'
+
+
 def test_json_serialize_class_with_repr():
     class Class:
         pass

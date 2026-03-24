@@ -360,6 +360,11 @@ def openai_set_meta_tags_from_chat(
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
             content = streamed_message.get("content", "")
+
+            reasoning_content = streamed_message.get("reasoning_content", None)
+            if reasoning_content:
+                output_messages.append(Message(content=str(reasoning_content), role="reasoning"))
+
             message = Message(content=content, role=role)
 
             extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
@@ -376,6 +381,10 @@ def openai_set_meta_tags_from_chat(
             choice_message = _get_attr(choice, "message", {})
             role = _get_attr(choice_message, "role", "")
             content = _get_attr(choice_message, "content", "") or ""
+
+            reasoning_content = _get_attr(choice_message, "reasoning_content", None)
+            if reasoning_content:
+                output_messages.append(Message(content=str(reasoning_content), role="reasoning"))
 
             extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
                 choice_message, llm_span=span, dispatch_llm_choice=True

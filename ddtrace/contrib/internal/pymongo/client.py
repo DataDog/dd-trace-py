@@ -113,16 +113,15 @@ def datadog_trace_operation(operation, wrapped):
         service=trace_utils.ext_service(None, config.pymongo),
     )
 
-    span._set_tag_str(COMPONENT, config.pymongo.integration_name)
+    span._set_attribute(COMPONENT, config.pymongo.integration_name)
 
     # set span.kind to the operation type being performed
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span._set_tag_str(mongox.DB, cmd.db)
-    span._set_tag_str(mongox.COLLECTION, cmd.coll)
-    span._set_tag_str(db.SYSTEM, mongox.SERVICE)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(mongox.DB, cmd.db)
+    span._set_attribute(mongox.COLLECTION, cmd.coll)
+    span._set_attribute(db.SYSTEM, mongox.SERVICE)
     span.set_tags(cmd.tags)
 
     # set `mongodb.query` tag and resource for span
@@ -224,7 +223,7 @@ def _trace_socket_write_command(func, args, kwargs):
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = func(*args, **kwargs)
         if result:
-            s.set_metric(db.ROWCOUNT, result.get("n", -1))
+            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
         return result
 
 
@@ -235,12 +234,12 @@ def trace_cmd(cmd, socket_instance, address):
         service=trace_utils.ext_service(None, config.pymongo),
     )
 
-    s._set_tag_str(COMPONENT, config.pymongo.integration_name)
-    s._set_tag_str(db.SYSTEM, mongox.SERVICE)
-    s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    s.set_metric(_SPAN_MEASURED_KEY, 1)
+    s._set_attribute(COMPONENT, config.pymongo.integration_name)
+    s._set_attribute(db.SYSTEM, mongox.SERVICE)
+    s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    s._set_attribute(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
-        s._set_tag_str(mongox.DB, cmd.db)
+        s._set_attribute(mongox.DB, cmd.db)
     if cmd:
         s.set_tag(mongox.COLLECTION, cmd.coll)
         s.set_tags(cmd.tags)

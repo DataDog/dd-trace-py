@@ -9,8 +9,9 @@ from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _hash_user_id
-import ddtrace.constants as constants
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
@@ -21,17 +22,35 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+_NO_ROOT_SPAN_WARNING = (
+    "No root span in the current execution. Skipping %s tags. "
+    "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+    "?tab=set_user&code-lang=python for more information."
+)
+
+_BLOCKING_ACTIONS = frozenset({WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION})
+
+
+def _is_blocking(res: Optional[DDWaf_result]) -> bool:
+    return res is not None and not _BLOCKING_ACTIONS.isdisjoint(res.actions)
+
+
+def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
+    if value is not None and mode == LOGIN_EVENTS_MODE.ANON and isinstance(value, str):
+        return _hash_user_id(value)
+    return value
+
 
 def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
-    span.set_tag(constants.MANUAL_KEEP_KEY)
+    span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
-    span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
+    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
     # set Security propagation tag
-    span._set_tag_str(APPSEC.PROPAGATION_HEADER, "02")
+    span._set_attribute(APPSEC.PROPAGATION_HEADER, "02")
     span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
 
 
@@ -39,30 +58,28 @@ def _aiguard_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
-    span.set_tag(constants.MANUAL_KEEP_KEY)
+    span._override_sampling_decision(USER_KEEP)
     # set decision maker to AI_GUARD = -13
-    span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.AI_GUARD)
+    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.AI_GUARD}")
 
 
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
     MAX_DEPTH = 6
-    if metadata is None:
-        return
     stack = [(prefix, metadata, 1)]
     while stack:
-        prefix, data, level = stack.pop()
+        current_prefix, data, level = stack.pop()
         if isinstance(data, list):
             if level < MAX_DEPTH:
                 for i, v in enumerate(data):
-                    stack.append((f"{prefix}.{i}", v, level + 1))
+                    stack.append((f"{current_prefix}.{i}", v, level + 1))
         elif isinstance(data, dict):
             if level < MAX_DEPTH:
                 for k, v in data.items():
-                    stack.append((f"{prefix}.{k}", v, level + 1))
+                    stack.append((f"{current_prefix}.{k}", v, level + 1))
         else:
             if isinstance(data, bool):
                 data = "true" if data else "false"
-            entry_span._set_tag_str(f"{prefix}", str(data))
+            entry_span._set_attribute(current_prefix, str(data))
 
 
 def _track_user_login_common(
@@ -81,47 +98,43 @@ def _track_user_login_common(
         span = current_span._service_entry_span
     if span:
         success_str = "success" if success else "failure"
-        tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
+        tag_prefix = f"{APPSEC.USER_LOGIN_EVENT_PREFIX}.{success_str}"
 
         if success:
-            span._set_tag_str(APPSEC.USER_LOGIN_EVENT_SUCCESS_TRACK, "true")
+            span._set_attribute(APPSEC.USER_LOGIN_EVENT_SUCCESS_TRACK, "true")
         else:
-            span._set_tag_str(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
+            span._set_attribute(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
-            span._set_tag_str("%s.sdk" % tag_prefix, "true")
+            span._set_attribute(f"{tag_prefix}.sdk", "true")
             reported_mode = asm_config._user_event_mode
         else:
             reported_mode = login_events_mode
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
-        span._set_tag_str(mode_tag, reported_mode)
+        span._set_attribute(mode_tag, reported_mode)
 
-        tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
+        tag_metadata_prefix = f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}"
         if metadata is not None:
             _handle_metadata(span, tag_metadata_prefix, metadata)
 
         if login:
-            span._set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
+            span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
             if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-                span._set_tag_str(APPSEC.USER_LOGIN_USERNAME, login)
-            span._set_tag_str("%s.login" % tag_prefix, login)
+                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, login)
+            span._set_attribute(f"{tag_prefix}.login", login)
 
         if email:
-            span._set_tag_str("%s.email" % tag_prefix, email)
+            span._set_attribute(f"{tag_prefix}.email", email)
 
         if name:
-            span._set_tag_str("%s.username" % tag_prefix, name)
+            span._set_attribute(f"{tag_prefix}.username", name)
 
         _asm_manual_keep(span)
         return span
     else:
-        log.warning(
-            "No root span in the current execution. Skipping track_user_success_login tags. "
-            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
+        log.warning(_NO_ROOT_SPAN_WARNING, "track_user_login")
     return None
 
 
@@ -157,18 +170,17 @@ def track_user_login_success_event(
     initial_user_id = user_id
     if real_mode == LOGIN_EVENTS_MODE.ANON:
         name = email = None
-        login = None if login is None else _hash_user_id(str(login))
+        login = _maybe_hash(login, real_mode)
     span = _track_user_login_common(None, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
-    if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-        user_id = _hash_user_id(user_id)
-    span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
+    user_id = _maybe_hash(user_id, real_mode)
+    span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if user_id:
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-            span._set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
         else:
-            span._set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
+            span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
     set_user(None, user_id or "", name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
         custom_data = {
@@ -182,7 +194,7 @@ def track_user_login_success_event(
             custom_data=custom_data,
             force_sent=True,
         )
-        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+        if _is_blocking(res):
             raise BlockingException(get_blocked())
 
 
@@ -207,35 +219,33 @@ def track_user_login_failure_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
-    if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(login, str):
-        login = _hash_user_id(login)
+    login = _maybe_hash(login, real_mode)
     span = _track_user_login_common(None, False, metadata, login_events_mode, login)
     if not span:
         return
     if exists is not None:
         exists_str = "true" if exists else "false"
-        span._set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
+        span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.{user.EXISTS}", exists_str)
     if user_id:
-        if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-            user_id = _hash_user_id(user_id)
+        user_id = _maybe_hash(user_id, real_mode)
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-            span._set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-        span._set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
-    span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
+            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
+        span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.{user.ID}", str(user_id))
+    span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
         if login:
-            span._set_tag_str("%s.failure.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
+            span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.login", login)
         if email:
-            span._set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
+            span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.email", email)
         if name:
-            span._set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
+            span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.username", name)
     if in_asm_context():
         custom_data: dict[str, Any] = {"LOGIN_FAILURE": None}
         if login:
             custom_data["REQUEST_USERNAME"] = login
         res = call_waf_callback(custom_data=custom_data)
-        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+        if _is_blocking(res):
             raise BlockingException(get_blocked())
 
 
@@ -249,33 +259,27 @@ def track_user_signup_event(
     span = _asm_request_context.get_entry_span()
     if span:
         success_str = "true" if success else "false"
-        span._set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
+        span._set_attribute(APPSEC.USER_SIGNUP_EVENT, success_str)
         if user_id:
-            if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-                user_id = _hash_user_id(user_id)
-            span._set_tag_str(user.ID, str(user_id))
-            span._set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERID, str(user_id))
-            span._set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            user_id = _maybe_hash(user_id, login_events_mode)
+            span._set_attribute(user.ID, str(user_id))
+            span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERID, str(user_id))
+            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
         if login:
-            if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(login, str):
-                login = _hash_user_id(login)
-            span._set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERNAME, str(login))
-            span._set_tag_str(APPSEC.USER_LOGIN_USERNAME, str(login))
+            login = _maybe_hash(login, login_events_mode)
+            span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, str(login))
+            span._set_attribute(APPSEC.USER_LOGIN_USERNAME, str(login))
         _asm_manual_keep(span)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
-            span._set_tag_str("%s.sdk" % APPSEC.USER_SIGNUP_EVENT, "true")
+            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT}.sdk", "true")
         else:
-            span._set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT_MODE, str(login_events_mode))
+            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", str(login_events_mode))
 
         return
     else:
-        log.warning(
-            "No root span in the current execution. Skipping track_user_signup tags. "
-            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
+        log.warning(_NO_ROOT_SPAN_WARNING, "track_user_signup")
 
 
 def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -> None:
@@ -297,17 +301,11 @@ def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -
 
     span = _asm_request_context.get_entry_span()
     if not span:
-        log.warning(
-            "No root span in the current execution. Skipping track_custom_event tags. "
-            "See https://docs.datadoghq.com/security_platform/application_security"
-            "/setup_and_configure/"
-            "?tab=set_user&code-lang=python for more information.",
-        )
+        log.warning(_NO_ROOT_SPAN_WARNING, "track_custom_event")
         return
 
-    span._set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
-    if metadata:
-        _handle_metadata(span, f"{APPSEC.CUSTOM_EVENT_PREFIX}.{event_name}", metadata)
+    span._set_attribute(f"{APPSEC.CUSTOM_EVENT_PREFIX}.{event_name}.track", "true")
+    _handle_metadata(span, f"{APPSEC.CUSTOM_EVENT_PREFIX}.{event_name}", metadata)
     _asm_manual_keep(span)
 
 
@@ -326,7 +324,7 @@ def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None
         )
         return False
 
-    # Early check to avoid calling the WAF if the request is already blockedxw
+    # Early check to avoid calling the WAF if the request is already blocked
     if get_blocked():
         return True
     custom_data: dict[str, Any] = {}
@@ -369,13 +367,12 @@ def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Op
         mode = asm_config._user_event_mode
     entry_span = _asm_request_context.get_entry_span()
     if entry_span:
-        entry_span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+        entry_span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
         if userid:
             if mode == LOGIN_EVENTS_MODE.ANON:
                 userid = _hash_user_id(str(userid))
-            entry_span._set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             if mode != LOGIN_EVENTS_MODE.SDK:
-                entry_span._set_tag_str(APPSEC.USER_LOGIN_USERID, str(userid))
-            entry_span._set_tag_str(user.ID, str(userid))
+                entry_span._set_attribute(APPSEC.USER_LOGIN_USERID, str(userid))
+            entry_span._set_attribute(user.ID, str(userid))
     if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()

@@ -20,9 +20,7 @@ from ddtrace.internal.wrapping import wrap
 ASYNCIO_IMPORTED: bool = False
 
 
-def current_task(
-    loop: typing.Optional["asyncio.AbstractEventLoop"] = None,
-) -> typing.Optional["asyncio.Task[typing.Any]"]:
+def current_task() -> typing.Optional["asyncio.Task[typing.Any]"]:
     return None
 
 
@@ -83,7 +81,7 @@ def _(asyncio: ModuleType) -> None:
 
     def _get_running_loop() -> typing.Optional["aio.AbstractEventLoop"]:
         try:
-            return asyncio.get_running_loop()
+            return typing.cast("aio.AbstractEventLoop", asyncio.get_running_loop())
         except RuntimeError:
             return None
 
@@ -123,12 +121,7 @@ def _(asyncio: ModuleType) -> None:
                 children = get_argument_value(args, kwargs, 1, "children")
                 assert children is not None  # nosec: assert is used for typing
 
-                # Pass an invalid positional index for 'loop'
-                loop = get_argument_value(args, kwargs, -1, "loop")
-
-                # Link the parent gathering task to the gathered children
-                parent = globals()["current_task"](loop)
-
+                parent = globals()["current_task"]()
                 for child in children:
                     stack.link_tasks(parent, child)
 
@@ -142,10 +135,8 @@ def _(asyncio: ModuleType) -> None:
                 return f(*args, **kwargs)
             finally:
                 futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                loop = typing.cast("aio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
 
-                # Link the parent gathering task to the gathered children
-                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"](loop))
+                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
                 for future in futures:
                     stack.link_tasks(parent, future)
 
@@ -156,16 +147,23 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
-            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"](loop)
+            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
 
             if parent is not None:
                 fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                futures: set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                futures: set["aio.Future[typing.Any]"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
                 for future in futures:
                     stack.link_tasks(parent, future)
 
-                # Replace fs with the ensured futures to avoid double-wrapping
-                args = (futures,) + args[1:]
+                # Replace fs with the ensured futures to avoid double-wrapping.
+                # Handle both positional (args[0]) and keyword ('fs') call patterns:
+                # if fs was positional we update args; if it was a keyword we must
+                # update kwargs instead, otherwise f() receives fs twice and raises
+                # TypeError: got multiple values for argument 'fs'.
+                if args:
+                    args = (futures,) + args[1:]
+                else:
+                    kwargs = {**kwargs, "fs": futures}
 
             return f(*args, **kwargs)
 
@@ -184,7 +182,13 @@ def _(asyncio: ModuleType) -> None:
             if parent is not None:
                 stack.link_tasks(parent, future)
 
-            args = (future,) + args[1:]
+            # Same positional-vs-keyword handling as the as_completed wrapper above:
+            # if 'arg' was passed positionally update args, otherwise update kwargs to
+            # avoid TypeError: got multiple values for argument 'arg'.
+            if args:
+                args = (future,) + args[1:]
+            else:
+                kwargs = {**kwargs, "arg": future}
 
             return f(*args, **kwargs)
 

@@ -11,6 +11,7 @@ from typing import OrderedDict
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 
 
@@ -102,8 +103,15 @@ def _model_decorator(operation_kind):
                         session_id=session_id,
                         ml_app=ml_app,
                         _decorator=True,
-                    ):
-                        return await func(*args, **kwargs)
+                    ) as span:
+                        resp = await func(*args, **kwargs)
+                        if (
+                            resp is not None
+                            and get_llmobs_output_value(span) is not None
+                            and get_llmobs_output_messages(span) is not None
+                        ):
+                            LLMObs.annotate(span=span, output_data=resp)
+                        return resp
 
             else:
 
@@ -147,8 +155,15 @@ def _model_decorator(operation_kind):
                         session_id=session_id,
                         ml_app=ml_app,
                         _decorator=True,
-                    ):
-                        return func(*args, **kwargs)
+                    ) as span:
+                        resp = func(*args, **kwargs)
+                        if (
+                            resp is not None
+                            and get_llmobs_output_value(span) is not None
+                            and get_llmobs_output_messages(span) is not None
+                        ):
+                            LLMObs.annotate(span=span, output_data=resp)
+                        return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 

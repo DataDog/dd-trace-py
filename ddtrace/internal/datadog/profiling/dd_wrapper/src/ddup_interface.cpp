@@ -255,6 +255,13 @@ ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_push_exception_message(Datadog::Sample* sample,
+                            std::string_view exception_message) // cppcheck-suppress unusedFunction
+{
+    sample->push_exception_message(exception_message);
+}
+
+void
 ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cppcheck-suppress unusedFunction
 {
     sample->push_class_name(class_name);
@@ -280,6 +287,12 @@ void
 ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
 {
     sample->push_pyframes(frame);
+}
+
+void
+ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb) // cppcheck-suppress unusedFunction
+{
+    sample->push_pytraceback(tb);
 }
 
 void
@@ -352,11 +365,11 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void
 ddup_profile_set_endpoints(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
@@ -377,11 +390,12 @@ ddup_profile_set_endpoints(
     }
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void
-ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
+  std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();

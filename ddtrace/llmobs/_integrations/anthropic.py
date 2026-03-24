@@ -6,6 +6,8 @@ from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -39,7 +41,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
         if model is not None:
-            span._set_tag_str(MODEL, model)
+            span._set_attribute(MODEL, model)
 
     def _llmobs_set_tags(
         self,
@@ -118,6 +120,10 @@ class AnthropicIntegration(BaseLLMIntegration):
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
 
+                    elif _get_attr(block, "type", None) == "thinking":
+                        thinking_text = _get_attr(block, "thinking", "")
+                        input_messages.append(Message(content=str(thinking_text), role="reasoning"))
+
                     elif _get_attr(block, "type", None) == "tool_use":
                         text = _get_attr(block, "text", None)
                         input_data = _get_attr(block, "input", "")
@@ -172,6 +178,10 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
+                if _get_attr(completion, "type", None) == "thinking":
+                    thinking_text = _get_attr(completion, "thinking", "")
+                    output_messages.append(Message(content=str(thinking_text), role="reasoning"))
+                    continue
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append(Message(content=text, role=str(role)))
@@ -211,6 +221,15 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         if cache_write_tokens is not None:
             metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+            cache_creation_breakdown = _get_attr(usage, "cache_creation", {})
+            cache_creation_1h_tokens = _get_attr(cache_creation_breakdown, "ephemeral_1h_input_tokens", None)
+            cache_creation_5m_tokens = _get_attr(cache_creation_breakdown, "ephemeral_5m_input_tokens", None)
+            if cache_creation_1h_tokens is None and cache_creation_5m_tokens is None:
+                # Legacy API response without cache_creation breakdown; assume all writes are 5m TTL.
+                cache_creation_5m_tokens = cache_write_tokens
+            metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = cache_creation_1h_tokens or 0
+            metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_5m_tokens or 0
+
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics

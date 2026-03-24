@@ -16,7 +16,12 @@ setup_rust() {
   section_start "install_rust" "Rust toolchain"
   export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:${PATH}"
   if ! command -v rustc &> /dev/null; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    for i in 1 2 3; do
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && break
+      echo "rustup install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
+    done
   fi
   rustup default stable
   which rustc && rustc --version
@@ -33,7 +38,12 @@ setup_python() {
     export PATH="$(dirname "${UV_PYTHON}"):${PATH}"
   fi
   if ! command -v uv &> /dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    for i in 1 2 3; do
+      curl -LsSf https://astral.sh/uv/install.sh | sh && break
+      echo "uv install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install uv after 3 attempts"; exit 1; }
+    done
   fi
   which python && python --version
   if [[ ${UNPIN_DEPENDENCIES:-"false"} == "true" ]]
@@ -142,6 +152,7 @@ test_wheel() {
   export VIRTUAL_ENV="${VENV_PATH}"
   export PATH="${VENV_PATH}/bin:${PATH}"
   cd "${TEST_WHEEL_DIR}"
+  ls -al "${FINAL_WHEEL_FILE}"
   # Activate venv and install wheel in a subshell
   # Unset UV_PYTHON so uv respects the venv instead of the global setting
   (
