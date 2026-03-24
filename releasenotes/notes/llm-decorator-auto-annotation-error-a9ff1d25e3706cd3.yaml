@@ -6,5 +6,4 @@ fixes:
     a decorated function returned a value that could not be parsed as LLM
     messages (e.g. a plain string, integer, or non-messages dict). The decorator
     now logs a warning instead and continues, consistent with other decorators.
-    Use ``LLMObs.annotate()`` inside the function to manually set the output if
-    automatic annotation does not apply to your return type.
+    Note that manual annotation still overrides this automatic annotation.
