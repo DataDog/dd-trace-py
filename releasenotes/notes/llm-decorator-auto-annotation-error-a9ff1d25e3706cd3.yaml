@@ -4,6 +4,5 @@ fixes:
     LLM Observability: Fixes an issue where the ``@llm`` decorator raised a
     ``LLMObsAnnotateSpanError`` exception when
     a decorated function returned a value that could not be parsed as LLM
-    messages (e.g. a plain string, integer, or non-messages dict). The decorator
-    now logs a warning instead and continues, consistent with other decorators.
+    messages.
     Note that manual annotation still overrides this automatic annotation.
