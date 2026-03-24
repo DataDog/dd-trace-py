@@ -20,6 +20,10 @@ from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+from typing import Annotated
+from typing import get_args
+from typing import get_origin
+from typing import get_type_hints
 
 
 try:
@@ -40,10 +44,11 @@ except ImportError:
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
     from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
+    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 except ImportError:
     PydanticEvaluator = None
     PydanticReportEvaluator = None
-
+    PydanticScalarResult = None
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -601,14 +606,29 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, PydanticEvaluator)
 
-def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
-    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator). 
+def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator) with a scalar result. 
     :param evaluator: The evaluator to check
-    :return: True if it's a pydantic report evaluator, False otherwise
+    :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
     """
     if PydanticReportEvaluator is None:
         return False
-    return isinstance(evaluator, PydanticReportEvaluator)
+    if isinstance(evaluator, PydanticReportEvaluator):
+        from typing import Annotated, Union, get_args, get_origin, get_type_hints
+
+        hint = get_type_hints(evaluator.evaluate)["return"]
+        while get_origin(hint) is Annotated:
+            hint = get_args(hint)[0]
+        # hint should be the union of confusion matrix, precision/recall, ScalarResult, etc.
+        args = get_args(hint) if get_origin(hint) in (Union, type(Union)) or str(get_origin(hint)) == "typing.Union" else (hint,)
+        # Python 3.10+: union might be types.UnionType; handle with typing.get_args(hint) for X | Y | Z
+        scalar_ok = any(
+            arg is PydanticScalarResult or (isinstance(arg, type) and issubclass(arg, PydanticScalarResult))
+            for arg in (get_args(hint) if hint is not PydanticScalarResult else (hint,))
+        ) and len(args) == 1
+        
+        return scalar_ok
+    return False
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -916,7 +936,7 @@ if PydanticEvaluator is not None:
                 experiment_metadata=eval_context.metadata,
             )
             result = evaluator.evaluate(report_eval_context)
-            return json.dumps(result.__dict__, indent=4)
+            return {'value': result.value}
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
