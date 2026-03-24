@@ -6,6 +6,7 @@ import os
 import typing as t
 
 from envier import Env
+from envier import validators
 
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -177,6 +178,7 @@ class ProfilingConfig(DDConfig):
         float,
         "upload_interval",
         default=60.0,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Float",
         help="The interval in seconds to wait before flushing out recorded events",
     )
@@ -185,16 +187,18 @@ class ProfilingConfig(DDConfig):
         float,
         "capture_pct",
         default=1.0,
+        validator=validators.range(0, 100),
         help_type="Float",
         help="The percentage of events that should be captured (e.g. memory "
         "allocation). Greater values reduce the program execution speed. Must be "
-        "greater than 0 lesser or equal to 100",
+        "between 0 and 100",
     )
 
     max_frames = DDConfig.v(
         int,
         "max_frames",
         default=64,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The maximum number of frames to capture in stack execution tracing",
     )
@@ -211,15 +215,19 @@ class ProfilingConfig(DDConfig):
         float,
         "max_time_usage_pct",
         default=1.0,
+        validator=validators.range(0, 100),
         help_type="Float",
-        help="The percentage of maximum time the stack profiler can use when computing "
-        "statistics. Must be greater than 0 and lesser or equal to 100",
+        help=(
+            "The percentage of maximum time the stack profiler can use when computing "
+            "statistics. Must be between 0 and 100"
+        ),
     )
 
     api_timeout_ms = DDConfig.v(
         int,
         "api_timeout_ms",
         default=10000,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
     )
@@ -229,8 +237,10 @@ class ProfilingConfig(DDConfig):
         "timeline_enabled",
         default=True,
         help_type="Boolean",
-        help="Whether to add timestamp information to captured samples.  Adds a small amount of "
-        "overhead to the profiler, but enables the use of the Timeline view in the UI.",
+        help=(
+            "Whether to add timestamp information to captured samples.  Adds a small amount of "
+            "overhead to the profiler, but enables the use of the Timeline view in the UI."
+        ),
     )
 
     tags = DDConfig.v(
@@ -254,10 +264,13 @@ class ProfilingConfig(DDConfig):
         int,
         "sample_pool_capacity",
         default=4,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
-        help="The number of Sample objects to keep in the pool for reuse. "
-        "Increasing this can reduce the overhead from frequently allocating "
-        "and deallocating Sample objects.",
+        help=(
+            "The number of Sample objects to keep in the pool for reuse. "
+            "Increasing this can reduce the overhead from frequently allocating "
+            "and deallocating Sample objects."
+        ),
     )
 
 
@@ -280,12 +293,40 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    adaptive_sampling_target_overhead = DDConfig.v(
+        float,
+        "adaptive_sampling.target_overhead",
+        default=1.0,
+        validator=validators.range(1, 100),
+        help_type="Float",
+        help="Target CPU overhead percentage for adaptive sampling. Must be between 1 and 100.",
+        private=True,
+    )
+
+    adaptive_sampling_max_interval = DDConfig.v(
+        int,
+        "adaptive_sampling.max_interval_us",
+        default=1_000_000,
+        validator=validators.range(100, 1_000_000),
+        help_type="Integer",
+        help="Maximum sampling interval in microseconds for adaptive sampling.",
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
         default=True,
         help_type="Boolean",
         help="Whether to enable uvloop support for async profiling",
+    )
+
+    native_frames = DDConfig.v(
+        bool,
+        "native_frames",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
     )
 
 
@@ -305,8 +346,10 @@ class ProfilingConfigLock(DDConfig):
         "name_inspect_dir",
         default=True,
         help_type="Boolean",
-        help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
-        "With this enabled, the profiler finds the name of locks that are attributes of an object.",
+        help=(
+            "Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+            "With this enabled, the profiler finds the name of locks that are attributes of an object."
+        ),
     )
 
 
@@ -325,6 +368,7 @@ class ProfilingConfigMemory(DDConfig):
         int,
         "events_buffer",
         default=16,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
     )
@@ -356,6 +400,11 @@ def _validate_non_negative_int(value: int) -> None:
         raise ValueError("value must be non negative")
 
 
+def _validate_positive_int(value: int) -> None:
+    if value < 1:
+        raise ValueError("value must be >= 1")
+
+
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
@@ -377,12 +426,46 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
+class ProfilingConfigException(DDConfig):
+    __item__ = __prefix__ = "exception"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the exception profiler",
+    )
+
+    sampling_interval = DDConfig.v(
+        int,
+        "sampling_interval",
+        default=100,
+        help_type="Integer",
+        validator=_validate_positive_int,
+        help=(
+            "Average number of exceptions between samples (uses Poisson distribution). "
+            "Lower values sample more frequently but add more overhead."
+            "This value must be >= 1."
+        ),
+    )
+
+    collect_message = DDConfig.v(
+        bool,
+        "collect_message",
+        default=False,
+        help_type="Boolean",
+        help="Whether to collect exception messages, which can contain sensitive data.",
+    )
+
+
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
+ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
 report_configuration(config)
@@ -430,6 +513,8 @@ def config_str(config) -> str:
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
+    if config.exception.enabled:
+        configured_features.append("exception")
     configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))

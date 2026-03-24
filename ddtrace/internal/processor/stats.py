@@ -91,6 +91,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
+        self._enabled: bool = True
         self._agent_url = agent_url or agent.config.trace_agent_url
         self._endpoint = "/v0.6/stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
@@ -109,7 +110,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if config._report_hostname:
             self._hostname = get_hostname()
         self._lock = Lock()
-        self._enabled = True
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,

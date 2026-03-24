@@ -140,6 +140,11 @@ KAFKA_CONFIG = {
     "port": int(os.getenv("TEST_KAFKA_PORT", 29092)),
 }
 
+PUBSUB_CONFIG = {
+    "host": os.getenv("TEST_PUBSUB_HOST", "127.0.0.1"),
+    "port": int(os.getenv("TEST_PUBSUB_PORT", 8085)),
+}
+
 VALKEY_CONFIG = {
     "host": os.getenv("TEST_VALKEY_HOST", "localhost"),
     "port": int(os.getenv("TEST_VALKEY_PORT", 6379)),

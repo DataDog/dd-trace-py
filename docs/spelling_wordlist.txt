@@ -197,6 +197,7 @@ mariadb
 memalloc
 memcached
 metadata
+MiB
 microservices
 middleware
 middlewares
@@ -252,6 +253,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pyenv
 PyFrameObject

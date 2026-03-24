@@ -165,7 +165,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
         suite_config: The suite configuration dict from suitespec
 
     Returns:
-        The calculated parallelism value (1 to 20), or None if venvs_per_job not configured
+        The calculated parallelism value (1 to 25), or None if venvs_per_job not configured
     """
     # Only for riot suites
     if suite_config.get("runner") != "riot":
@@ -206,7 +206,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     calculated = math.ceil(venv_count / venvs_per_job)
 
     # Cap at 20 to avoid over-parallelization
-    MAX_PARALLELISM = 20
+    MAX_PARALLELISM = 25
     calculated = min(calculated, MAX_PARALLELISM)
 
     LOGGER.debug(
@@ -570,27 +570,6 @@ def gen_debugger_exploration() -> None:
 
     with TESTS_GEN.open("a") as f:
         f.write(template("debugging/exploration"))
-
-
-def gen_appsec_iast_aggregated_leak_testing() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because
-    we don't use riot to execute the tests
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
-            "tests/appsec/iast_aggregated_memcheck/*",
-            "ddtrace/appsec/_iast/**",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("appsec/iast_aggregated_leak_testing"))
 
 
 def gen_detect_global_locks() -> None:

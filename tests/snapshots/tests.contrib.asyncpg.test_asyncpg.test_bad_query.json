@@ -11,26 +11,27 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69a5ec6600000000",
+      "_dd.svc_src": "asyncpg",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "ed7e8c2b2f2941df82375dfe28f4da8c",
+      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 5432,
-      "process_id": 25714
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 28476.0
     },
-    "duration": 3872958,
-    "start": 1692706986511852881
+    "duration": 40432375,
+    "start": 1772481638144343094
   }],
 [
   {
@@ -45,28 +46,28 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69a5ec6600000000",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "error.message": "syntax error at or near \"malformed\"",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 114, in _traced_query\n    return await method(*args, **kwargs)\n  File \"asyncpg/protocol/protocol.pyx\", line 336, in query\nasyncpg.exceptions.PostgresSyntaxError: syntax error at or near \"malformed\"\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/asyncpg/patch.py\", line 148, in _traced_query\n    return await method(*args, **kwargs)\n  File \"asyncpg/protocol/protocol.pyx\", line 338, in query\nasyncpg.exceptions.PostgresSyntaxError: syntax error at or near \"malformed\"\n",
       "error.type": "asyncpg.exceptions.PostgresSyntaxError",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "ed7e8c2b2f2941df82375dfe28f4da8c",
+      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 5432,
-      "process_id": 25714
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 28476.0
     },
-    "duration": 1039541,
-    "start": 1692706986516239256
+    "duration": 3492666,
+    "start": 1772481638189810553
   }]]

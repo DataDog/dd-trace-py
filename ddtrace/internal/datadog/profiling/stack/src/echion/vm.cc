@@ -83,7 +83,7 @@ VmReader::get_instance()
     if (instance == nullptr) {
         instance = VmReader::create(MB);
         if (!instance) {
-            std::cerr << "Failed to initialize VmReader with buffer size " << instance->sz << std::endl;
+            std::cerr << "Failed to initialize VmReader" << std::endl;
             return nullptr;
         }
     }

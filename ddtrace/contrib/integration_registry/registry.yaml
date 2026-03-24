@@ -431,6 +431,16 @@ integrations:
       min: 1.0.0
       max: 1.15.1
 
+- integration_name: google_cloud_pubsub
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-cloud-pubsub
+  tested_versions_by_dependency:
+    google-cloud-pubsub:
+      min: 2.10.0
+      max: 2.36.0
+
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
