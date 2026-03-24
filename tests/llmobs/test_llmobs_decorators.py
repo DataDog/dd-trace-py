@@ -310,7 +310,7 @@ def test_llm_decorator_unparseable_output_logs_warning_not_raises(llmobs, llmobs
 
     @llm(model_name="test_model", model_provider="test_provider", name="test_function")
     def f():
-        return {"unexpected": "format"}
+        return 42  # int cannot be parsed as LLM messages
 
     f()  # should not raise LLMObsAnnotateSpanError
     mock_logs.debug.assert_called_once_with(
@@ -320,7 +320,7 @@ def test_llm_decorator_unparseable_output_logs_warning_not_raises(llmobs, llmobs
     )
     test_spans.pop()
     # span is still created, output messages are not set
-    assert llmobs_events[0]["output"] == {}
+    assert llmobs_events[0].get("output", {}) == {}
 
 
 async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(
@@ -330,7 +330,7 @@ async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(
 
     @llm(model_name="test_model", model_provider="test_provider", name="test_function")
     async def f():
-        return {"unexpected": "format"}
+        return 42  # int cannot be parsed as LLM messages
 
     await f()  # should not raise LLMObsAnnotateSpanError
     mock_logs.debug.assert_called_once_with(
@@ -339,7 +339,7 @@ async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(
         "llm",
     )
     test_spans.pop()
-    assert llmobs_events[0]["output"] == {}
+    assert llmobs_events[0].get("output", {}) == {}
 
 
 def test_llm_decorator_manual_annotation_not_overridden(llmobs, llmobs_events, test_spans):
