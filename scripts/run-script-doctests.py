@@ -13,8 +13,10 @@
 Usage:
     uv run scripts/run-script-doctests.py
 """
+
 import doctest
 import sys
+
 
 _FILES = [
     "scripts/get-target-milestone.py",
