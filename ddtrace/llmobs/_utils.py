@@ -329,8 +329,7 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    llmobs_span_data = cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY))
-    return llmobs_span_data or {}
+    return cast("LLMObsSpanData", span._meta_struct.get(LLMOBS_STRUCT.KEY, {}))
 
 
 def get_llmobs_ml_app(span: Span) -> Optional[str]:

@@ -108,8 +108,6 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-DECORATOR = "_ml_obs.decorator"
-
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
 DISPATCH_ON_TOOL_CALL = "on_tool_call"
@@ -175,6 +173,7 @@ class LLMOBS_STRUCT:
     METADATA: Final = "metadata"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
+    ERROR: Final = "error"
     TOOL_DEFINITIONS: Final = "tool_definitions"
     INPUT: Final = "input"
     OUTPUT: Final = "output"

@@ -377,16 +377,16 @@ def _build_span_meta(
         metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
     )
     if span_kind in ("llm", "embedding"):
-        meta["model_name"] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
-        meta["model_provider"] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
+        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
+        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
     tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
     if tool_definitions:
-        meta["tool_definitions"] = tool_definitions
+        meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
     intent = str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or "")
     if intent:
-        meta["intent"] = intent
+        meta[LLMOBS_STRUCT.INTENT] = intent
     if span.error:
-        meta["error"] = _ErrorField(
+        meta[LLMOBS_STRUCT.ERROR] = _ErrorField(
             message=span.get_tag(ERROR_MSG) or "",
             stack=span.get_tag(ERROR_STACK) or "",
             type=span.get_tag(ERROR_TYPE) or "",
@@ -396,13 +396,13 @@ def _build_span_meta(
         # experiment i/o is stored as raw values — pass through directly
         input_data = llmobs_meta.get(LLMOBS_STRUCT.INPUT)
         if input_data:
-            meta["input"] = input_data
+            meta[LLMOBS_STRUCT.INPUT] = input_data
         output_data = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT)
         if output_data:
-            meta["output"] = output_data
+            meta[LLMOBS_STRUCT.OUTPUT] = output_data
         expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
         if expected_output is not None:
-            meta["expected_output"] = expected_output
+            meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
         return meta
 
     meta_input: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.INPUT) or {}))
@@ -415,21 +415,21 @@ def _build_span_meta(
     elif input_prompt is None and span_kind == "llm":
         parent_prompt = _get_parent_prompt(span)
         if parent_prompt is not None:
-            meta_input["prompt"] = parent_prompt
+            meta_input[LLMOBS_STRUCT.PROMPT] = parent_prompt
 
     if input_type == "messages":
-        meta_input["messages"] = llmobs_span.input
+        meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
     elif input_type == "value" and llmobs_span.input:
-        meta_input["value"] = llmobs_span.input[0].get("content", "")
+        meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     if meta_input:
-        meta["input"] = meta_input
+        meta[LLMOBS_STRUCT.INPUT] = meta_input
 
     if output_type == "messages":
-        meta_output["messages"] = llmobs_span.output
+        meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
     elif output_type == "value" and llmobs_span.output:
-        meta_output["value"] = llmobs_span.output[0].get("content", "")
+        meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     if meta_output:
-        meta["output"] = meta_output
+        meta[LLMOBS_STRUCT.OUTPUT] = meta_output
 
     return meta
 
