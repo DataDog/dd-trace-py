@@ -372,9 +372,6 @@ detect_circular_imports:
   stage: tests
   needs: []
   extends: .testrunner
-  rules:
-    - if: !reference [.is_main]
-      when: never
   script:
     - cd ..
     - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
