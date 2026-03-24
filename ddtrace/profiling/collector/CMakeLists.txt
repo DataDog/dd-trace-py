@@ -90,7 +90,8 @@ endif()
 # Include directories
 target_include_directories(
     ${FULL_EXTENSION_NAME}
-    PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${Python3_INCLUDE_DIRS}
+            ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
             ${RUST_GENERATED_HEADERS_DIR})
