@@ -78,15 +78,15 @@ class TestBooleanFlagResolution:
         assert result.error_message is None
 
     def test_resolve_boolean_flag_no_config(self, provider):
-        """Should return default value with DEFAULT reason when no config is available."""
+        """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
 
         result = provider.resolve_boolean_details("non-existent-flag", False)
 
         assert result.value is False
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
         assert result.variant is None
-        assert result.error_code is None
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
     def test_resolve_boolean_flag_not_found_in_config(self, provider):
         """Should return ERROR with FLAG_NOT_FOUND when flag not in existing config."""
@@ -141,13 +141,14 @@ class TestStringFlagResolution:
         assert result.error_code is None
 
     def test_resolve_string_flag_no_config(self, provider):
-        """Should return default value with DEFAULT reason when no config is available."""
+        """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
 
         result = provider.resolve_string_details("non-existent-flag", "default")
 
         assert result.value == "default"
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
 
 class TestIntegerFlagResolution:
@@ -192,13 +193,14 @@ class TestFloatFlagResolution:
         assert result.variant == "var-3.14159"
 
     def test_resolve_float_flag_no_config(self, provider):
-        """Should return default value with DEFAULT reason when no config is available."""
+        """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
 
         result = provider.resolve_float_details("non-existent-flag", 1.0)
 
         assert result.value == 1.0
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
 
 class TestObjectFlagResolution:
@@ -229,14 +231,15 @@ class TestObjectFlagResolution:
         assert result.variant == "var-object"
 
     def test_resolve_object_flag_no_config(self, provider):
-        """Should return default value with DEFAULT reason when no config is available."""
+        """Should return default value with ERROR reason and PROVIDER_NOT_READY when no config."""
         _set_ffe_config(None)
 
         default = {"default": True}
         result = provider.resolve_object_details("non-existent-flag", default)
 
         assert result.value == default
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
 
 class TestEvaluationContext:
@@ -342,12 +345,14 @@ class TestVariantHandling:
         assert result.value == "variant-value"
 
     def test_variant_none_on_flag_not_found(self, provider):
-        """Variant should be None when flag not found."""
+        """Variant should be None when no config is available."""
         _set_ffe_config(None)
 
         result = provider.resolve_string_details("missing-flag", "default")
 
         assert result.variant is None
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
     def test_default_variant_key(self, provider):
         """Should use 'default' as variant_key when not specified."""
@@ -382,14 +387,15 @@ class TestComplexScenarios:
         assert result3.reason == Reason.DISABLED
 
     def test_empty_config(self, provider):
-        """Should handle empty configuration."""
+        """Should handle empty configuration with ERROR reason and PROVIDER_NOT_READY error code."""
         # Native library doesn't accept truly empty configs, so just clear it
         _set_ffe_config(None)
 
         result = provider.resolve_boolean_details("any-flag", True)
 
         assert result.value is True
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
 
 class TestFlagKeyCornerCases:
@@ -441,11 +447,12 @@ class TestFlagKeyCornerCases:
         assert result.value is True
 
     def test_flag_key_empty_string(self, provider):
-        """Should handle empty string flag key gracefully."""
+        """Should handle empty string flag key gracefully with ERROR reason when no config."""
         result = provider.resolve_boolean_details("", False)
 
         assert result.value is False
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
     def test_flag_key_very_long(self, provider):
         """Should handle very long flag keys."""

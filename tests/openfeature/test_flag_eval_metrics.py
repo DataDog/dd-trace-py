@@ -424,10 +424,11 @@ class TestMetricsWithRealOTel:
 
     def test_metrics_record_on_error(self, provider):
         """Metrics should be recorded even on evaluation errors."""
-        # No config set - will result in DEFAULT reason
+        # No config set - will result in ERROR reason with PROVIDER_NOT_READY
         result = provider.resolve_boolean_details("non-existent", False)
         assert result.value is False
-        assert result.reason == Reason.DEFAULT
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
 
     def test_disabled_flag_records_disabled_reason(self, provider):
         """Disabled flag should record DISABLED reason in metrics."""

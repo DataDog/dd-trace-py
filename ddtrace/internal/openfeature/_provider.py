@@ -275,13 +275,14 @@ class DataDogProvider(AbstractProvider):
                 expected_type=variation_type,
             )
 
-            # No configuration available - return default
+            # No configuration available - return error with PROVIDER_NOT_READY code
             # Note: No exposure logging when configuration is missing
             if details is None:
                 return FlagResolutionDetails(
                     value=default_value,
-                    reason=Reason.DEFAULT,
-                    variant=None,
+                    reason=Reason.ERROR,
+                    error_code=ErrorCode.PROVIDER_NOT_READY,
+                    error_message="No FFE configuration loaded",
                 )
 
             # Handle errors from native evaluation
