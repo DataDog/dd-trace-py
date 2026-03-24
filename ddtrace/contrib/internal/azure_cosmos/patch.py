@@ -27,7 +27,7 @@ config._add(
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"azure.cosmos": ">=4.0.0"}
+    return {"azure.cosmos": ">=4.8.0"}
 
 
 def get_version():
@@ -52,7 +52,7 @@ def _patch(azure_cosmos_module):
 
 
 def _patched_synchronized_request(wrapped, instance, args, kwargs):
-    if not tracer or not tracer.enabled():
+    if not tracer or not tracer.enabled:
         return wrapped(*args, **kwargs)
 
     try:
@@ -88,7 +88,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
-    if not tracer or not tracer.enabled():
+    if not tracer or not tracer.enabled:
         return await wrapped(*args, **kwargs)
 
     try:
