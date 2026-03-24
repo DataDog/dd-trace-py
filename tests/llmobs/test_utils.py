@@ -258,7 +258,7 @@ def test_json_serialize_list():
 
 
 def test_json_serialize_dict():
-    assert safe_json({"name": "hello world", "age": 123}) == '{"name": "hello world", "age": 123}'
+    assert safe_json({"name": "hello world", "age": 123}) == '{"age": 123, "name": "hello world"}'
 
 
 def test_json_serialize_pydantic_model():
@@ -268,7 +268,7 @@ def test_json_serialize_pydantic_model():
 
     pydantic_model = Model(name="hello world", age=123)
     encoded_model = safe_json(pydantic_model)
-    assert encoded_model == '{"name": "hello world", "age": 123}'
+    assert encoded_model == '{"age": 123, "name": "hello world"}'
 
 
 def test_json_serialize_pydantic_model_with_complex_field():
@@ -282,7 +282,7 @@ def test_json_serialize_pydantic_model_with_complex_field():
 
     pydantic_model = Model(name="hello world", metadata=Metadata(key="goodbye", value="cruel world"))
     encoded_model = safe_json(pydantic_model)
-    assert encoded_model == '{"name": "hello world", "metadata": {"key": "goodbye", "value": "cruel world"}}'
+    assert encoded_model == '{"metadata": {"key": "goodbye", "value": "cruel world"}, "name": "hello world"}'
 
 
 def test_json_serialize_pydantic_model_in_list():
@@ -291,7 +291,7 @@ def test_json_serialize_pydantic_model_in_list():
         age: int
 
     result = safe_json([Model(name="alice", age=30), Model(name="bob", age=25)])
-    assert result == '[{"name": "alice", "age": 30}, {"name": "bob", "age": 25}]'
+    assert result == '[{"age": 30, "name": "alice"}, {"age": 25, "name": "bob"}]'
 
 
 def test_json_serialize_pydantic_model_in_tuple():
@@ -300,7 +300,7 @@ def test_json_serialize_pydantic_model_in_tuple():
         age: int
 
     result = safe_json((Model(name="alice", age=30), "hello"))
-    assert result == '[{"name": "alice", "age": 30}, "hello"]'
+    assert result == '[{"age": 30, "name": "alice"}, "hello"]'
 
 
 def test_json_serialize_pydantic_model_in_dict_value():
