@@ -44,23 +44,10 @@ ignores:
   - "ddtrace/sourcecode/**"
 rule:
   any:
-    # Bare reference to os.environ
+    # os.environ matches subscript, method calls, and bare references via subtree matching
     - pattern: os.environ
-    # Subscript access: os.environ["KEY"] or os.environ[KEY]
-    - pattern: os.environ[$$$ARGS]
-    # Method calls on os.environ
-    - pattern: os.environ.get($$$ARGS)
-    - pattern: os.environ.keys($$$ARGS)
-    - pattern: os.environ.values($$$ARGS)
-    - pattern: os.environ.items($$$ARGS)
-    - pattern: os.environ.copy($$$ARGS)
-    - pattern: os.environ.clear($$$ARGS)
-    - pattern: os.environ.update($$$ARGS)
-    - pattern: os.environ.pop($$$ARGS)
-    - pattern: os.environ.setdefault($$$ARGS)
-    # os.getenv calls
+    # os.getenv, os.putenv, os.unsetenv are separate os attributes, not caught by os.environ
     - pattern: os.getenv($$$ARGS)
-    # os.putenv and os.unsetenv (rarely used, but should also be routed through env module)
     - pattern: os.putenv($$$ARGS)
     - pattern: os.unsetenv($$$ARGS)
     # Direct imports of environ or getenv from os
