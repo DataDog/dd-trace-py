@@ -124,6 +124,12 @@ get_code_name(PyCodeObject* code)
 /* Compute the last-instruction index (lasti) from a frame and its
  * code object.  The result is suitable for passing to parse_linetable().
  *
+ * Requires: code must be a valid, accessible PyCodeObject* (not null, not a
+ * remote address).  On Python 3.11+, _PyCode_CODE(code) is dereferenced to
+ * compute the pointer difference; passing a dangling or remote pointer is UB.
+ * The [[maybe_unused]] annotation suppresses the unused-parameter warning on
+ * pre-3.11 builds where f_lasti is read directly from the frame.
+ *
  * Version semantics:
  *   Python 3.13+: instr_ptr points to the CURRENT instruction; result
  *                 is in _Py_CODEUNIT units.  No -1 adjustment needed.
