@@ -1,7 +1,7 @@
 """Centralized environment variable access for dd-trace-py.
 
-This module provides a wrapper around os.environ as part of the Configuration Registry
-initiative, enabling centralized validation and control of environment variable access.
+This module provides a drop-in replacement for os.environ, enabling centralized
+control and future validation of all environment variable access in ddtrace.
 """
 
 from collections.abc import MutableMapping
@@ -11,36 +11,27 @@ from typing import Iterator
 
 
 class EnvConfig(MutableMapping):
-    """Wraps os.environ as a MutableMapping for the Configuration Registry initiative.
+    """A MutableMapping wrapper around os.environ.
 
-    This class serves as the centralized entry point for all environment variable access
-    in dd-trace-py. It implements the five core MutableMapping methods and inherits the
-    rest (get, items, keys, values, etc.) from MutableMapping.
-
-    Next steps:
-        - Add validation against a registry of allowed environment variables in the
-          read methods (__getitem__, __contains__, __iter__) to detect and warn on
-          unrecognized variable access.
+    Serves as the centralized entry point for all environment variable access
+    in dd-trace-py. Implements the five core MutableMapping abstract methods and
+    inherits the rest (get, items, keys, values, etc.) from MutableMapping.
     """
 
-    @property
-    def _env(self) -> os._Environ:
-        return os.environ
-
     def __getitem__(self, key: str) -> str:
-        return self._env[key]
+        return os.environ[key]
 
     def __setitem__(self, key: str, value: str) -> None:
-        self._env[key] = value
+        os.environ[key] = value
 
     def __delitem__(self, key: str) -> None:
-        del self._env[key]
+        del os.environ[key]
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self._env)
+        return iter(os.environ)
 
     def __len__(self) -> int:
-        return len(self._env)
+        return len(os.environ)
 
 
 dd_environ = EnvConfig()
