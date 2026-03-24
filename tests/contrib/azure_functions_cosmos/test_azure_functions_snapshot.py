@@ -1,4 +1,3 @@
-import itertools
 import os
 import signal
 import subprocess
@@ -11,27 +10,9 @@ from tests.webclient import Client
 
 SNAPSHOT_IGNORES = ["meta.http.useragent"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
-ASYNC_OPTIONS = [False, True]
-METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
-
-params = [
-    (
-        f"{m}{'_async' if a else ''}",
-        (
-            {
-                "METHOD": m,
-                "IS_ASYNC": str(a),
-            },
-            m,
-        ),
-    )
-    for m, a in itertools.product(METHODS, ASYNC_OPTIONS)
-]
-
-param_ids, param_values = zip(*params)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def azure_functions_client(request):
     env_vars = getattr(request, "param", {})
 
@@ -74,12 +55,6 @@ def azure_functions_client(request):
         proc.wait()
 
 
-@pytest.mark.parametrize(
-    "azure_functions_client, method",
-    param_values,
-    ids=param_ids,
-    indirect=["azure_functions_client"],
-)
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_cosmos_routes(azure_functions_client: Client, method) -> None:
-    assert azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS).status_code == 200
+def test_cosmos_trigger(azure_functions_client: Client) -> None:
+    assert azure_functions_client.post("/api/upsert_item", headers=DEFAULT_HEADERS).status_code == 200

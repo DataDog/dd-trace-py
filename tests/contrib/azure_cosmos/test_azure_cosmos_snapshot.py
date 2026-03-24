@@ -1,4 +1,3 @@
-import itertools
 import os
 from pathlib import Path
 
@@ -7,7 +6,8 @@ import pytest
 
 from ddtrace.contrib.internal.azure_cosmos.patch import patch
 from ddtrace.contrib.internal.azure_cosmos.patch import unpatch
-
+from tests.utils import override_config
+import common
 
 CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 DB_NAME = "db.azure_cosmos_error"
@@ -16,20 +16,15 @@ SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
-METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
 
 params = [
     (
-        f"{m}{'_async' if a else ''}",
+        f"{'_async' if a else ''}",
         {
-            "METHOD": m,
             "IS_ASYNC": str(a),
         },
     )
-    for m, a in itertools.product(
-        METHODS,
-        ASYNC_OPTIONS,
-    )
+    for a in ASYNC_OPTIONS
 ]
 
 param_ids, param_values = zip(*params)
@@ -40,6 +35,25 @@ def patch_azure_cosmos():
     patch()
     yield
     unpatch()
+
+@pytest.mark.parametrize(
+    "env_vars",
+    param_values,
+    ids=param_ids,
+)
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_cosmos_sync(tracer, env_vars, test_spans):
+    env = os.environ.copy()
+    env.update(env_vars)
+
+    cosmos_client = azure_cosmos.CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
+
+    database = cosmos_client.create_database_if_not_exists(SYNC_DB_NAME)
+    container = database.create_container_if_not_exists(
+        SYNC_CONTAINER_NAME, partition_key=azure_cosmos.PartitionKey(path="/productName")
+    )
+
+    common.run_test(container)
 
 
 @pytest.mark.parametrize(

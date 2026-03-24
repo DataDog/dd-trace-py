@@ -3,6 +3,6 @@
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_EXTENSION_VERSION": "~4",
+    "FUNCTIONS_EXTENSION_VERSION": "~4"
   }
 }

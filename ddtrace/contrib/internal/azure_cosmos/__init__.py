@@ -14,14 +14,6 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
     patch(azure_cosmos=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
-
-.. py:data:: ddtrace.config.azure_cosmos["service"]
-
-   The service name reported by default for azure_cosmos clients.
-
-   Default: ``"azure_cosmos"``
 
 """
 

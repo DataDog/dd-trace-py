@@ -12,62 +12,59 @@ ASYNC_DB_NAME = "db.azure_cosmos_async"
 ASYNC_CONTAINER_NAME = "container.azure_cosmos_async"
 
 
-def run_test(container, method):
-    if method == "create_item":
-        container.create_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model 1",
-            }
-        )
-    elif method == "read_item":
-        container.read_item("item1", partition_key="Widget")
-    elif method == "upsert_item":
-        container.upsert_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model X",
-            }
-        )
-    elif method == "delete_item":
-        for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-        ):
-            container.delete_item(item["id"], partition_key="Widget")
+def run_test(container):
+    container.create_item(
+        {
+            "id": "item1",
+            "productName": "Widget",
+            "productModel": "Model 1",
+        }
+    )
+
+    container.read_item("item1", partition_key="Widget")
+
+    container.upsert_item(
+        {
+            "id": "item1",
+            "productName": "Widget",
+            "productModel": "Model X",
+        }
+    )
+
+    for item in container.query_items(
+        query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+    ):
+        container.delete_item(item["id"], partition_key="Widget")
 
 
-async def run_test_async(container, method):
-    if method == "create_item":
-        await container.create_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model 1",
-            }
-        )
-    elif method == "read_item":
-        await container.read_item("item1", partition_key="Widget")
-    elif method == "upsert_item":
-        await container.upsert_item(
-            {
-                "id": "item1",
-                "productName": "Widget",
-                "productModel": "Model X",
-            }
-        )
-    elif method == "delete_item":
-        async for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-        ):
-            await container.delete_item(item["id"], partition_key="Widget")
+async def run_test_async(container):
+    await container.create_item(
+        {
+            "id": "item1",
+            "productName": "Widget",
+            "productModel": "Model 1",
+        }
+    )
+
+    await container.read_item("item1", partition_key="Widget")
+
+    await container.upsert_item(
+        {
+            "id": "item1",
+            "productName": "Widget",
+            "productModel": "Model X",
+        }
+    )
+
+    async for item in container.query_items(
+        query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+    ):
+        await container.delete_item(item["id"], partition_key="Widget")
 
 
 @pytest.mark.asyncio
 async def test_common():
     is_async = os.environ.get("IS_ASYNC") == "True"
-    method = os.environ.get("METHOD")
 
     if is_async:
         async with azure_cosmos_aio.CosmosClient.from_connection_string(
@@ -78,10 +75,7 @@ async def test_common():
                 ASYNC_CONTAINER_NAME, partition_key=azure_cosmos.PartitionKey(path="/productName")
             )
 
-            await run_test_async(
-                container,
-                method,
-            )
+            await run_test_async(container)
     else:
         cosmos_client = azure_cosmos.CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
 
@@ -90,10 +84,7 @@ async def test_common():
             SYNC_CONTAINER_NAME, partition_key=azure_cosmos.PartitionKey(path="/productName")
         )
 
-        run_test(
-            container,
-            method,
-        )
+        run_test(container)
 
 
 if __name__ == "__main__":
