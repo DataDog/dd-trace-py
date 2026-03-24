@@ -118,7 +118,7 @@
         "dependency": "azure-functions-durable",
         "integration": "azure_durable_functions",
         "minimum_tracer_supported": "1.2.1",
-        "max_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.5.0",
         "auto-instrumented": true
     },
     {
@@ -433,6 +433,27 @@
         "minimum_tracer_supported": "1.65.4",
         "max_tracer_supported": "1.80.16",
         "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama-index",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama-index-core",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama_index",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
         "auto-instrumented": true
     },
     {
