@@ -491,7 +491,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events, test_spa
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
-            input_value='{"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}',
+            input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "prompt": "test_prompt"}',
             output_value="test_prompt",
             session_id="test_session_id",
         )
@@ -509,7 +509,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events, test_sp
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "retrieval",
-        input_value='{"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}',
+        input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "query": "test_query"}',
         session_id="test_session_id",
     )
 
