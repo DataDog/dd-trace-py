@@ -223,3 +223,11 @@ lines-after-imports = 2
 force-sort-within-sections = true
 known-first-party = [ "ddtrace" ]
 relative-imports-order = "furthest-to-closest"
+
+[dependency-groups]
+clean = [
+    "cython",
+    "cmake>=3.24.2,<3.28",
+    "setuptools-rust<2",
+    "setuptools-scm[toml]>=4",
+]
