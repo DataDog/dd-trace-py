@@ -388,25 +388,25 @@ def traced_convert(func, instance, args, kwargs):
         return func(*args, **kwargs)
     if headers.get("openai-organization"):
         org_name = headers.get("openai-organization")
-        span._set_tag_str("openai.organization.name", org_name)
+        span._set_attribute("openai.organization.name", org_name)
 
     # Gauge total rate limit
     if headers.get("x-ratelimit-limit-requests"):
         v = headers.get("x-ratelimit-limit-requests")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
+            span._set_attribute("openai.organization.ratelimit.requests.limit", int(v))
     if headers.get("x-ratelimit-limit-tokens"):
         v = headers.get("x-ratelimit-limit-tokens")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
+            span._set_attribute("openai.organization.ratelimit.tokens.limit", int(v))
     # Gauge and set span info for remaining requests and tokens
     if headers.get("x-ratelimit-remaining-requests"):
         v = headers.get("x-ratelimit-remaining-requests")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.requests.remaining", int(v))
+            span._set_attribute("openai.organization.ratelimit.requests.remaining", int(v))
     if headers.get("x-ratelimit-remaining-tokens"):
         v = headers.get("x-ratelimit-remaining-tokens")
         if v is not None:
-            span.set_metric("openai.organization.ratelimit.tokens.remaining", int(v))
+            span._set_attribute("openai.organization.ratelimit.tokens.remaining", int(v))
 
     return func(*args, **kwargs)

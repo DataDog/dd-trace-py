@@ -53,7 +53,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 def run_llmobs_trace_filter(tracer, test_spans):
     with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
-        span._set_tag_str(SPAN_KIND, "llm")
+        span._set_attribute(SPAN_KIND, "llm")
     return test_spans.pop()
 
 

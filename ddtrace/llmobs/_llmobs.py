@@ -100,6 +100,9 @@ from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -212,6 +215,9 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
         return
 
     if _is_deep_eval_evaluator(evaluator):
+        return
+
+    if _is_pydantic_evaluator(evaluator):
         return
 
     if not callable(evaluator):
@@ -1299,10 +1305,24 @@ class LLMObs(Service):
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         evaluators_list = list(evaluators)
+        eval_names: dict[str, int] = {}
         for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=False)
             if _is_deep_eval_evaluator(evaluator):
                 evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
+                continue
+            if _is_pydantic_evaluator(evaluator):
+                duration = 0
+                eval_name_count = 1
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
+                if eval_name in eval_names:
+                    eval_name_count = eval_names[eval_name]
+                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, duration, eval_name_count)
+                eval_names[eval_name] = eval_name_count + 1
+
                 continue
         if summary_evaluators and not all(
             callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
@@ -1377,10 +1397,23 @@ class LLMObs(Service):
                 "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
             )
         evaluators_list = list(evaluators)
+        eval_names: dict[str, int] = {}
         for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=True)
             if _is_deep_eval_evaluator(evaluator):
                 evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
+                continue
+            if _is_pydantic_evaluator(evaluator):
+                duration = 0
+                eval_name_count = 1
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
+                if eval_name in eval_names:
+                    eval_name_count = eval_names[eval_name]
+                evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration, eval_name_count)
+                eval_names[eval_name] = eval_name_count + 1
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
@@ -1832,6 +1865,11 @@ class LLMObs(Service):
         _annotate_llmobs_span_data(
             span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
         )
+        # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
+        # to this LLMObs trace
+        if span._local_root.get_tag("llmobs_trace_id") is None:
+            span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
+            span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
 
     def _start_span(

@@ -45,7 +45,7 @@ def _supported_versions() -> dict[str, str]:
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
-        span._set_tag_str("sfqid", self.__wrapped__.sfqid)
+        span._set_attribute("sfqid", self.__wrapped__.sfqid)
 
 
 def patch():

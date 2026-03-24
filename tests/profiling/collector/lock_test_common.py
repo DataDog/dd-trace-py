@@ -35,10 +35,10 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
 
     assert isinstance(lock_class, _LockAllocatorWrapper)
 
-    union: UnionType = lock_class | None  # type: ignore[operator]
+    union: UnionType = lock_class | None
     assert isinstance(union, types.UnionType)
-    assert union == (original | None)
+    assert union.__args__ == (original, type(None))
 
-    runion: UnionType = None | lock_class  # type: ignore[operator]
+    runion: UnionType = None | lock_class
     assert isinstance(runion, types.UnionType)
-    assert runion == (None | original)
+    assert runion.__args__ == (type(None), original)

@@ -1,3 +1,4 @@
+import mock
 import pytest
 
 from ddtrace._monkey import patch
@@ -499,6 +500,9 @@ class TestLLMObsLiteLLM:
                 messages=messages,
             )
             output_messages, token_metrics = parse_response(resp)
+        # Cassettes have cache_creation_input_tokens=2, all attributed to 5m TTL
+        token_metrics["ephemeral_1h_input_tokens"] = 0
+        token_metrics["ephemeral_5m_input_tokens"] = 2
 
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
@@ -517,6 +521,94 @@ class TestLLMObsLiteLLM:
         event_metrics = llmobs_events[0]["metrics"]
         assert "cache_read_input_tokens" in event_metrics
         assert "cache_write_input_tokens" in event_metrics
+
+    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+        """Test that 1h cache TTL breakdown metrics are captured for Anthropic models via litellm."""
+        if stream or n > 1:
+            pytest.skip("Anthropic cassette is non-streamed, single-choice only")
+        if parse_version(get_version()) < (1, 77, 3):
+            pytest.skip("cache_creation_token_details not available until litellm 1.77.3")
+
+        large_system_prompt = "Hardware engineering best practices guide: " + "farewell " * 1024
+
+        with request_vcr.use_cassette("completion_anthropic_cache_write_1h_ttl.yaml"):
+            messages = [
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": large_system_prompt,
+                            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                        }
+                    ],
+                    "role": "system",
+                },
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What are the key principles for designing scalable systems?",
+                            "cache_control": {"type": "ephemeral", "ttl": "5m"},
+                        }
+                    ],
+                    "role": "user",
+                },
+            ]
+            resp = litellm.completion(
+                model="anthropic/claude-sonnet-4-20250514",
+                messages=messages,
+            )
+            output_messages, token_metrics = parse_response(resp)
+        token_metrics["ephemeral_1h_input_tokens"] = 2056
+        token_metrics["ephemeral_5m_input_tokens"] = 14
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-sonnet-4-20250514",
+            model_provider="anthropic",
+            input_messages=mock.ANY,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+
+    def test_completion_with_reasoning(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+        """Test that reasoning_content and reasoning_output_tokens are captured for models with reasoning."""
+        if stream or n > 1:
+            pytest.skip("Reasoning cassette is non-streamed, single-choice only")
+
+        with request_vcr.use_cassette("completion_reasoning.yaml"):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="o3-mini",
+                messages=messages,
+            )
+            output_messages, token_metrics = parse_response(resp)
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="o3-mini",
+            model_provider="openai",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+
+        # Verify reasoning output message is present
+        event_output = llmobs_events[0]["meta"]["output"]["messages"]
+        assert any(msg.get("role") == "reasoning" for msg in event_output)
+
+        # Verify reasoning_output_tokens metric is present
+        event_metrics = llmobs_events[0]["metrics"]
+        assert "reasoning_output_tokens" in event_metrics
+        assert event_metrics["reasoning_output_tokens"] == 15
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):

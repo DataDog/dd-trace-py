@@ -16,6 +16,7 @@ the same subscriber.
 
 import logging
 from types import TracebackType
+from typing import ClassVar
 from typing import Generic
 from typing import Optional
 from typing import Sequence
@@ -131,7 +132,7 @@ class ContextSubscriber(Generic[EventType]):
             pass
     """
 
-    event_names: Sequence[str]
+    event_names: ClassVar[Sequence[str]]
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
 

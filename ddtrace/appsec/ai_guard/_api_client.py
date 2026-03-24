@@ -62,9 +62,17 @@ class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
     tags: list[str]
+    sds: list
 
 
 class Options(TypedDict, total=False):
+    """Optional evaluation behavior.
+
+    Attributes:
+        block: Controls whether non-ALLOW decisions raise ``AIGuardAbortError``. Defaults to
+            following the AI Guard response ``is_blocking_enabled`` setting when omitted.
+    """
+
     block: bool
 
 
@@ -87,10 +95,11 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None):
+    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None, sds: Optional[list] = None):
         self.action = action
         self.reason = reason
         self.tags = tags
+        self.sds = sds or []
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
@@ -201,16 +210,20 @@ class AIGuardClient:
 
     @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
-        if not remote_enabled or not options:
+        if not remote_enabled:
             return False
-        return options.get("block", False)
+        if not options:
+            return True
+        return options.get("block", True)
 
     def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
             messages: list of messages to evaluate
-            options: Optional configuration with 'block' parameter (defaults to False)
+            options: Optional configuration with 'block' parameter. By default, block follows
+                the AI Guard response is_blocking_enabled setting; set block=False to force
+                non-blocking behavior.
 
         Returns:
             EvaluationResult containing action and reason
@@ -248,7 +261,7 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
-                        sds_findings = attributes.get("sds_findings", [])
+                        sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -290,9 +303,9 @@ class AIGuardClient:
                     _aiguard_manual_keep(root_span)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
+                    raise AIGuardAbortError(action=action, reason=reason, tags=tags, sds=sds_findings)
 
-                return Evaluation(action=action, reason=reason, tags=tags)
+                return Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings)
 
             except AIGuardAbortError:
                 raise
