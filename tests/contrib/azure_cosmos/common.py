@@ -1,5 +1,3 @@
-import os
-
 import azure.cosmos as azure_cosmos
 import azure.cosmos.aio as azure_cosmos_aio
 import pytest
@@ -42,8 +40,9 @@ def run_test():
         query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
     ):
         container.delete_item(item["id"], partition_key="Widget")
-    
+
     cosmos_client.delete_database(database)
+
 
 @pytest.mark.asyncio
 async def run_test_async():
@@ -77,5 +76,5 @@ async def run_test_async():
             query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
         ):
             await container.delete_item(item["id"], partition_key="Widget")
-        
+
         await cosmos_client.delete_database(database)

@@ -12,7 +12,7 @@ SNAPSHOT_IGNORES = ["meta.http.useragent"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture()
 def azure_functions_client(request):
     env_vars = getattr(request, "param", {})
 
@@ -55,6 +55,7 @@ def azure_functions_client(request):
         proc.wait()
 
 
+#@pytest.mark.parametrize(indirect=["azure_functions_client"])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cosmos_trigger(azure_functions_client: Client) -> None:
     assert azure_functions_client.post("/api/upsert_item", headers=DEFAULT_HEADERS).status_code == 200

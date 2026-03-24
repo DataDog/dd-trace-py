@@ -11,26 +11,9 @@ from .common import run_test_async
 CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 ERR_DB_NAME = "db.azure_cosmos_error"
 ERR_CONTAINER_NAME = "container.azure_cosmos_error"
-SYNC_DB_NAME = "db.azure_cosmos_sync"
-SYNC_CONTAINER_NAME = "container.azure_cosmos_sync"
-ASYNC_DB_NAME = "db.azure_cosmos_async"
-ASYNC_CONTAINER_NAME = "container.azure_cosmos_async"
 SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
-ASYNC_OPTIONS = [False, True]
-
-params = [
-    (
-        f"{'_async' if a else ''}",
-        {
-            "IS_ASYNC": str(a),
-        },
-    )
-    for a in ASYNC_OPTIONS
-]
-
-param_ids, param_values = zip(*params)
 
 
 @pytest.fixture(autouse=True)
@@ -59,25 +42,7 @@ async def test_cosmos_async(tracer, test_spans):
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
         print(span.resource)
-        assert "sdk-python-cosmos-async" in span._meta["http.useragent"] 
-
-
-"""
-@pytest.mark.parametrize(
-    "env_vars",
-    param_values,
-    ids=param_ids,
-)
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-async def test_cosmos(ddtrace_run_python_code_in_subprocess, env_vars):
-    env = os.environ.copy()
-    env.update(env_vars)
-
-    helper_path = Path(__file__).resolve().parent.joinpath("common.py")
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
-
-    assert status == 0, (err.decode(), out.decode())
-    assert err == b"", err.decode()"""
+        assert "sdk-python-cosmos-async" in span._meta["http.useragent"]
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -115,4 +80,3 @@ def test_cosmos_error():
         cosmos_client.delete_database(database)
 
         assert "The document already exists in the collection" in str(e)
-
