@@ -202,6 +202,10 @@ services:
           DD_USE_SCCACHE: "1"
           SCCACHE_DIR: "/home/bits/.cache/sccache"
           DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
+          # Expose scripts/ so Python's site module finds sitecustomize.py there.
+          # sitecustomize.py patches meson-python's editable loader to survive
+          # a missing pip-build-isolation ninja after "pip install -e .".
+          PYTHONPATH: "/home/bits/project/scripts"
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
