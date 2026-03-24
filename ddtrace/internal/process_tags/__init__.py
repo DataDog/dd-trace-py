@@ -116,6 +116,8 @@ def compute_base_hash(container_tags_hash):
         return
 
     global _container_tags_hash
+    if _container_tags_hash == container_tags_hash:
+        return
     _container_tags_hash = container_tags_hash
     _recompute_base_hash()
 
@@ -129,12 +131,18 @@ def _retrieve_container_tags_hash() -> None:
     if not process_tags_config.enabled:
         return
 
-    try:
-        from ddtrace.internal import agent
+    import threading
 
-        agent.info()
-    except Exception:
-        log.debug("failed to fetch container tags hash from agent /info endpoint", exc_info=True)
+    def _fetch():
+        try:
+            from ddtrace.internal import agent
+
+            agent.info()
+        except Exception:
+            log.debug("failed to fetch container tags hash from agent /info endpoint", exc_info=True)
+
+    t = threading.Thread(target=_fetch, daemon=True)
+    t.start()
 
 
 def __getattr__(name: str) -> Any:
