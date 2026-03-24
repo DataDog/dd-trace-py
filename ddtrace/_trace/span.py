@@ -21,7 +21,6 @@ from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
-from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -38,6 +37,7 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import is_integer
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS

@@ -13,6 +13,9 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 @pytest.fixture(autouse=True)
 def enable_graphql_patching():
     patch()
@@ -57,7 +60,7 @@ def test_source(test_source_str):
 
 @pytest.mark.asyncio
 async def test_graphql(test_schema, test_source_str, snapshot_context):
-    with snapshot_context():
+    with snapshot_context(ignores=SNAPSHOT_IGNORES):
         if graphql_version < (3, 0):
             result = graphql.graphql(test_schema, test_source_str)
         else:
@@ -67,7 +70,7 @@ async def test_graphql(test_schema, test_source_str, snapshot_context):
 
 @pytest.mark.asyncio
 async def test_graphql_with_traced_resolver(test_schema, test_source_str, snapshot_context, enable_graphql_resolvers):
-    with snapshot_context():
+    with snapshot_context(ignores=SNAPSHOT_IGNORES):
         if graphql_version < (3, 0):
             result = graphql.graphql(test_schema, test_source_str)
         else:
@@ -81,7 +84,7 @@ def resolve_fail(root, info):
 
 
 @snapshot(
-    ignores=["meta.error.stack", "meta.events"],
+    ignores=["meta.error.stack", "meta.events"] + SNAPSHOT_IGNORES,
     variants={"2.x": graphql_version >= (3, 0), "3.x": graphql_version < (3, 0)},
 )
 def test_graphql_fail(enable_graphql_resolvers):
@@ -115,7 +118,7 @@ def test_graphql_fail(enable_graphql_resolvers):
 
 @pytest.mark.asyncio
 async def test_graphql_error(test_schema, snapshot_context):
-    with snapshot_context(ignores=["meta.error.type", "meta.error.message", "meta.events"]):
+    with snapshot_context(ignores=["meta.error.type", "meta.error.message", "meta.events"] + SNAPSHOT_IGNORES):
         if graphql_version < (3, 0):
             result = graphql.graphql(test_schema, "query my_query{ invalid_schema }")
         else:
@@ -125,7 +128,7 @@ async def test_graphql_error(test_schema, snapshot_context):
         assert "Cannot query field" in result.errors[0].message
 
 
-@snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql")
+@snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql", ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphql_version >= (3, 0), reason="graphql version>=3.0 does not return a promise")
 def test_graphql_v2_promise(test_schema, test_source_str):
     promise = graphql.graphql(test_schema, test_source_str, return_promise=True)
@@ -135,7 +138,7 @@ def test_graphql_v2_promise(test_schema, test_source_str):
 
 @snapshot(
     token_override="tests.contrib.graphql.test_graphql.test_graphql_error",
-    ignores=["meta.error.type", "meta.error.message"],
+    ignores=["meta.error.type", "meta.error.message"] + SNAPSHOT_IGNORES,
 )
 @pytest.mark.skipif(graphql_version >= (3, 0), reason="graphql.graphql is NOT async in v2.0")
 def test_graphql_error_v2_promise(test_schema):
@@ -146,7 +149,7 @@ def test_graphql_error_v2_promise(test_schema):
     assert result.errors[0].message == 'Cannot query field "invalid_schema" on type "RootQueryType".'
 
 
-@snapshot()
+@snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphql_version >= (3, 0), reason="graphql.graphql is NOT async in v2.0")
 def test_graphql_v2_with_document(test_schema, test_source_str):
     source = graphql.language.source.Source(test_source_str, "GraphQL request")
@@ -155,7 +158,7 @@ def test_graphql_v2_with_document(test_schema, test_source_str):
     assert result.data == {"hello": "friend"}
 
 
-@snapshot()
+@snapshot(ignores=SNAPSHOT_IGNORES)
 def test_graphql_with_document_with_no_location(test_schema, test_source_str):
     source = graphql.language.source.Source(test_source_str, "GraphQL request")
     document_ast = graphql.language.parser.parse(source, no_location=True)
@@ -163,14 +166,14 @@ def test_graphql_with_document_with_no_location(test_schema, test_source_str):
     assert result.data == {"hello": "friend"}
 
 
-@snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql")
+@snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql", ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT supported in v2.0")
 def test_graphql_sync(test_schema, test_source_str):
     result = graphql.graphql_sync(test_schema, test_source_str)
     assert result.data == {"hello": "friend"}
 
 
-@snapshot()
+@snapshot(ignores=SNAPSHOT_IGNORES)
 def test_graphql_execute_with_middleware(test_schema, test_source_str, test_middleware, enable_graphql_resolvers):
     with tracer.trace("test-execute-instrumentation"):
         source = graphql.language.source.Source(test_source_str, "GraphQL request")
@@ -182,7 +185,9 @@ def test_graphql_execute_with_middleware(test_schema, test_source_str, test_midd
         assert res2.data == {"hello": "friend"}
 
 
-@snapshot(token_override="tests.contrib.graphql.test_graphql.test_graphql_execute_with_middleware")
+@snapshot(
+    token_override="tests.contrib.graphql.test_graphql.test_graphql_execute_with_middleware", ignores=SNAPSHOT_IGNORES
+)
 @pytest.mark.skipif(graphql_version < (3, 1), reason="graphql.execute_sync is not supported in graphql<3.1")
 def test_graphql_execute_sync_with_middlware_manager(
     test_schema, test_source_str, test_middleware, enable_graphql_resolvers
@@ -198,7 +203,7 @@ def test_graphql_execute_sync_with_middlware_manager(
         assert res2.data == {"hello": "friend"}
 
 
-@snapshot(ignores=["meta.error.stack", "meta.events"])
+@snapshot(ignores=["meta.error.stack", "meta.events"] + SNAPSHOT_IGNORES)
 def test_regression_graphql_error_locations_none():
     """
     Ensure GraphQLError with `locations=None` does not cause patching issues.
@@ -210,7 +215,7 @@ def test_regression_graphql_error_locations_none():
     assert result.errors[0].locations is None
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT supported in v2.0")
 @pytest.mark.parametrize(
     "service_name, schema_version",

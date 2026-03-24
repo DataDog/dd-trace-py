@@ -1,129 +1,132 @@
 import pytest
 
 
-@pytest.mark.snapshot
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_basic_crew(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff(inputs={"topic": "AI"})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew", ignores=SNAPSHOT_IGNORES)
 def test_basic_crew_for_each(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}])
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew", ignores=SNAPSHOT_IGNORES)
 async def test_basic_crew_async(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_async(inputs={"topic": "AI"})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew", ignores=SNAPSHOT_IGNORES)
 async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_for_each_async(inputs=[{"topic": "AI"}])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_crew_with_tool(crewai, tool_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool", ignores=SNAPSHOT_IGNORES)
 def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool", ignores=SNAPSHOT_IGNORES)
 async def test_crew_with_tool_async(crewai, tool_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool", ignores=SNAPSHOT_IGNORES)
 async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_crew_with_async_tasks(crewai, async_exec_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks", ignores=SNAPSHOT_IGNORES)
 def test_crew_with_async_tasks_for_each(crewai, async_exec_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks", ignores=SNAPSHOT_IGNORES)
 async def test_crew_with_async_tasks_async(crewai, async_exec_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks", ignores=SNAPSHOT_IGNORES)
 async def test_crew_with_async_tasks_async_for_each(crewai, async_exec_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_conditional_crew(crewai, conditional_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         conditional_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_conditional_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_conditional_crew", ignores=SNAPSHOT_IGNORES)
 async def test_conditional_crew_async(crewai, conditional_crew, request_vcr):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await conditional_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew", ignores=SNAPSHOT_IGNORES)
 def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew", ignores=SNAPSHOT_IGNORES)
 async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew", ignores=SNAPSHOT_IGNORES)
 async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow", ignores=SNAPSHOT_IGNORES)
 def test_simple_flow(crewai, simple_flow):
     simple_flow.kickoff(inputs={"continent": "North America"})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow", ignores=SNAPSHOT_IGNORES)
 async def test_simple_flow_async(crewai, simple_flow_async):
     await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow", ignores=SNAPSHOT_IGNORES)
 def test_complex_flow(crewai, complex_flow):
     complex_flow.kickoff(inputs={"continent": "North America"})
 
 
-@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow", ignores=SNAPSHOT_IGNORES)
 async def test_complex_flow_async(crewai, complex_flow_async):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})

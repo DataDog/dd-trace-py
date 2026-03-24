@@ -8,12 +8,12 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import DEFAULT_BUFFER_SIZE
 from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL

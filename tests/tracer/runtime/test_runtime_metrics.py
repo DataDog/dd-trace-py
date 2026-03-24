@@ -5,7 +5,6 @@ import time
 import mock
 import pytest
 
-from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
@@ -96,6 +95,7 @@ def test_runtime_platformv2_tags():
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
 def test_runtime_tags_usm():
+    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime.runtime_metrics import TracerTags
 
     tags = list(TracerTags())

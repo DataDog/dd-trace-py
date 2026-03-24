@@ -15,11 +15,11 @@ import pytest
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -444,7 +444,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert result_keys == ["runtime-id", http.USER_AGENT, _SERVICE_SOURCE]
     mock_store_headers.assert_not_called()
 
 
@@ -717,7 +717,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
-        assert result_keys == ["runtime-id"]
+        assert result_keys == ["runtime-id", _SERVICE_SOURCE]
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
@@ -731,7 +731,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
-        assert result_keys == ["runtime-id"]
+        assert result_keys == ["runtime-id", _SERVICE_SOURCE]
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
@@ -745,7 +745,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
-        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
+        assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP, _SERVICE_SOURCE]
         assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
 
 
@@ -763,8 +763,8 @@ def test_ip_subnet_regression():
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
-        (b"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT, _SERVICE_SOURCE], "ㄲㄴㄷㄸ"),
+        (b"", ["runtime-id", _SERVICE_SOURCE], None),
     ],
 )
 def test_set_http_meta_headers_useragent(  # noqa:F811
