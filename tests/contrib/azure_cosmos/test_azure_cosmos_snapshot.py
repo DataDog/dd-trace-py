@@ -41,7 +41,6 @@ async def test_cosmos_async(tracer, test_spans):
     test_spans.assert_has_spans()
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
-        print(span.resource)
         assert "sdk-python-cosmos-async" in span._meta["http.useragent"]
 
 
