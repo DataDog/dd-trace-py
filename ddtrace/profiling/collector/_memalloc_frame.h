@@ -14,8 +14,9 @@
  *
  * The core frame-access logic and line table parsing are provided by the
  * shared profiling headers (ddtrace/internal/datadog/profiling/shared/).
- * This file provides memalloc-specific aliases and the lasti-to-lineno
- * helper that combines frame access with table parsing.
+ * This file provides the memalloc_frame_t alias and the memalloc_get_lineno()
+ * helper that combines lasti computation with table-pointer fetching and
+ * line number parsing.
  */
 
 #ifdef Py_PYTHON_H
@@ -39,40 +40,8 @@
 #include "shared/frame_accessors.h"
 #include "shared/linetable_parser.h"
 
-/* Memalloc frame type — alias of the shared dd_py_frame_t. */
-using memalloc_frame_t = dd_py_frame_t;
-
-/* ---- Thin wrappers preserving the memalloc_ API ----------------------- */
-
-static inline memalloc_frame_t*
-memalloc_get_frame_from_thread_state(PyThreadState* tstate)
-{
-    return dd_py_frame_get_frame_from_tstate(tstate);
-}
-
-static inline memalloc_frame_t*
-memalloc_get_previous_frame(memalloc_frame_t* frame)
-{
-    return dd_py_frame_get_previous_frame(frame);
-}
-
-static inline PyCodeObject*
-memalloc_get_code_from_frame(memalloc_frame_t* frame)
-{
-    return dd_py_frame_get_code_from_frame(frame);
-}
-
-static inline bool
-memalloc_should_skip_frame(memalloc_frame_t* frame)
-{
-    return dd_py_frame_should_skip_frame(frame);
-}
-
-static inline PyObject*
-memalloc_get_code_name(PyCodeObject* code)
-{
-    return dd_py_frame_get_code_name(code);
-}
+/* Memalloc frame type — alias of the shared DataDog::frame_t. */
+using memalloc_frame_t = DataDog::frame_t;
 
 /* Return the current line number for the frame by parsing the line table
  * directly, without calling PyCode_Addr2Line().
@@ -84,8 +53,8 @@ memalloc_get_code_name(PyCodeObject* code)
  * The only CPython APIs used to obtain the table bytes are
  * PyBytes_AS_STRING / PyBytes_GET_SIZE, which are macros expanding to
  * struct field reads on PyBytesObject (ob_sval / ob_size) — guaranteed
- * not to allocate.  The actual parsing is delegated to the shared
- * dd_py_frame_parse_linetable() which performs pure byte arithmetic.
+ * not to allocate.  The actual parsing is delegated to DataDog::parse_linetable()
+ * which performs pure byte arithmetic.
  *
  * Allocation safety: this function only performs pointer arithmetic and byte
  * reads from already-owned objects. It does not allocate, decref, or touch
@@ -93,7 +62,7 @@ memalloc_get_code_name(PyCodeObject* code)
 static inline int
 memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
 {
-    int lasti = dd_py_frame_get_lasti(frame, code);
+    int lasti = DataDog::get_lasti(frame, code);
 
 #ifdef _PY310_AND_LATER
     const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_linetable);
@@ -103,5 +72,5 @@ memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_lnotab);
 #endif
 
-    return dd_py_frame_parse_linetable(table, len, lasti, code->co_firstlineno);
+    return DataDog::parse_linetable(table, len, lasti, code->co_firstlineno);
 }

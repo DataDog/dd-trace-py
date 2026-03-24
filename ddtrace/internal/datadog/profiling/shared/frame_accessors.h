@@ -14,10 +14,10 @@
  *   - memalloc reads directly with the GIL held
  *   - echion uses copy_type() for cross-thread reads
  *
- * Note: dd_py_frame_should_skip_frame() calls PyCode_Check(), which
- * dereferences the code object's ob_type pointer.  This is safe when
- * the GIL is held (memalloc) but may not be safe for cross-thread
- * reads without additional precautions.
+ * Note: should_skip_frame() calls PyCode_Check(), which dereferences the
+ * code object's ob_type pointer.  This is safe when the GIL is held
+ * (memalloc) but may not be safe for cross-thread reads without additional
+ * precautions.
  *
  * Prerequisites: the translation unit must define Py_BUILD_CORE and
  * include <Python.h> before this header (satisfied transitively by
@@ -28,10 +28,12 @@
 
 #include <cstdint>
 
+namespace DataDog {
+
 /* Return the innermost interpreter frame from the thread state.
  * Returns a borrowed frame pointer (no reference created). */
-static inline dd_py_frame_t*
-dd_py_frame_get_frame_from_tstate(PyThreadState* tstate)
+inline frame_t*
+get_frame_from_tstate(PyThreadState* tstate)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     /* Python 3.13+: current_frame is directly on PyThreadState. */
@@ -48,8 +50,8 @@ dd_py_frame_get_frame_from_tstate(PyThreadState* tstate)
 
 /* Return the caller's frame (one level up the call stack) without
  * creating a new reference. */
-static inline dd_py_frame_t*
-dd_py_frame_get_previous_frame(dd_py_frame_t* frame)
+inline frame_t*
+get_previous_frame(frame_t* frame)
 {
 #if PY_VERSION_HEX >= 0x030b0000
     return frame->previous;
@@ -61,8 +63,8 @@ dd_py_frame_get_previous_frame(dd_py_frame_t* frame)
 /* Return the code object for the frame as a borrowed reference.
  * For Python 3.14+, f_executable carries tagged pointer bits that
  * must be masked off before treating it as a PyObject*. */
-static inline PyCodeObject*
-dd_py_frame_get_code_from_frame(dd_py_frame_t* frame)
+inline PyCodeObject*
+get_code_from_frame(frame_t* frame)
 {
 #if PY_VERSION_HEX >= 0x030e0000
     /* Python 3.14+: f_executable is a _PyStackRef (tagged pointer).
@@ -89,10 +91,10 @@ dd_py_frame_get_code_from_frame(dd_py_frame_t* frame)
  * IMPORTANT: Calls PyCode_Check() which dereferences the code object.
  * Only safe when the code object pointer is valid (GIL held or
  * object known to be alive). */
-static inline bool
-dd_py_frame_should_skip_frame(dd_py_frame_t* frame)
+inline bool
+should_skip_frame(frame_t* frame)
 {
-    PyObject* code = reinterpret_cast<PyObject*>(dd_py_frame_get_code_from_frame(frame));
+    PyObject* code = reinterpret_cast<PyObject*>(get_code_from_frame(frame));
     if (code == NULL || !PyCode_Check(code)) {
         return true;
     }
@@ -109,8 +111,8 @@ dd_py_frame_should_skip_frame(dd_py_frame_t* frame)
 /* Return the best available function name for a code object.
  * co_qualname (Python 3.11+) provides richer context (e.g., Class.method).
  * Returns a borrowed reference. */
-static inline PyObject*
-dd_py_frame_get_code_name(PyCodeObject* code)
+inline PyObject*
+get_code_name(PyCodeObject* code)
 {
 #if PY_VERSION_HEX >= 0x030b0000
     return code->co_qualname ? code->co_qualname : code->co_name;
@@ -120,8 +122,7 @@ dd_py_frame_get_code_name(PyCodeObject* code)
 }
 
 /* Compute the last-instruction index (lasti) from a frame and its
- * code object.  The result is suitable for passing to
- * dd_py_frame_parse_linetable().
+ * code object.  The result is suitable for passing to parse_linetable().
  *
  * Version semantics:
  *   Python 3.13+: instr_ptr points to the NEXT instruction; result
@@ -129,8 +130,8 @@ dd_py_frame_get_code_name(PyCodeObject* code)
  *   Python 3.11-3.12: prev_instr points to the last executed
  *                     instruction; result is in _Py_CODEUNIT units.
  *   Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
-static inline int
-dd_py_frame_get_lasti(dd_py_frame_t* frame, PyCodeObject* code)
+inline int
+get_lasti(frame_t* frame, PyCodeObject* code)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     return static_cast<int>(frame->instr_ptr - 1 - _PyCode_CODE(code));
@@ -140,3 +141,5 @@ dd_py_frame_get_lasti(dd_py_frame_t* frame, PyCodeObject* code)
     return frame->f_lasti;
 #endif
 }
+
+} /* namespace DataDog */

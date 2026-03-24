@@ -17,11 +17,13 @@
 
 #include "version_compat.h"
 
+namespace DataDog {
+
 /* ---- Varint helpers for PEP 657 location table (Python 3.11+) ---------- */
 #if PY_VERSION_HEX >= 0x030b0000
 
-static inline int
-dd_py_frame_read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
+inline int
+read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
 {
     Py_ssize_t guard = len - 1;
     if (*i >= guard)
@@ -35,10 +37,10 @@ dd_py_frame_read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* 
     return val;
 }
 
-static inline int
-dd_py_frame_read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
+inline int
+read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
 {
-    int val = dd_py_frame_read_varint(table, len, i);
+    int val = read_varint(table, len, i);
     return (val & 1) ? -(val >> 1) : (val >> 1);
 }
 
@@ -63,8 +65,8 @@ dd_py_frame_read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ss
  * table format is handled internally.
  *
  * Returns the resolved line number, or 0 if it cannot be determined. */
-static inline int
-dd_py_frame_parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int firstlineno)
+inline int
+parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int firstlineno)
 {
     if (lasti < 0) {
         return firstlineno;
@@ -83,13 +85,13 @@ dd_py_frame_parse_linetable(const unsigned char* table, Py_ssize_t len, int last
             case 15: /* No location info */
                 break;
             case 14: /* Long form: signed varint line delta + 3 varints */
-                lineno += dd_py_frame_read_signed_varint(table, len, &i);
-                dd_py_frame_read_varint(table, len, &i); /* end_line */
-                dd_py_frame_read_varint(table, len, &i); /* column */
-                dd_py_frame_read_varint(table, len, &i); /* end_column */
+                lineno += read_signed_varint(table, len, &i);
+                read_varint(table, len, &i); /* end_line */
+                read_varint(table, len, &i); /* column */
+                read_varint(table, len, &i); /* end_column */
                 break;
             case 13: /* No column data: signed varint line delta */
-                lineno += dd_py_frame_read_signed_varint(table, len, &i);
+                lineno += read_signed_varint(table, len, &i);
                 break;
             case 12:
             case 11:
@@ -143,3 +145,5 @@ dd_py_frame_parse_linetable(const unsigned char* table, Py_ssize_t len, int last
 
     return lineno > 0 ? static_cast<int>(lineno) : 0;
 }
+
+} /* namespace DataDog */

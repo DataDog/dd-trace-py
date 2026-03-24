@@ -3,7 +3,7 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
-/* The shared linetable_parser.h provides dd_py_frame_parse_linetable() which
+/* The shared linetable_parser.h provides DataDog::parse_linetable() which
  * replaces the former read_varint / read_signed_varint / inline parsing
  * that was duplicated between echion and memalloc. */
 #include <shared/linetable_parser.h>
@@ -60,7 +60,7 @@ Frame::infer_location(PyCodeObject* code_obj, int instr_offset)
         return ErrorKind::LocationError;
     }
 
-    this->line = dd_py_frame_parse_linetable(table.get(), len, instr_offset, code_obj->co_firstlineno);
+    this->line = DataDog::parse_linetable(table.get(), len, instr_offset, code_obj->co_firstlineno);
 
     return Result<void>::ok();
 }
