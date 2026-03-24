@@ -11,6 +11,9 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import tracer as ddtracer
 from tests.integration.utils import AGENT_VERSION
+
+
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 
@@ -115,7 +118,7 @@ def test_priority_sampling_response():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.9999})
+@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.9999}, ignores=SNAPSHOT_IGNORES)
 def test_agent_sample_rate_keep():
     """Ensure that the agent sample rate is respected when a trace is auto sampled."""
     # First trace won't actually have the sample rate applied since the response has not yet been received.
@@ -191,7 +194,7 @@ def test_sampling_configurations_are_not_reset_on_tracer_configure():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
+@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001}, ignores=SNAPSHOT_IGNORES)
 def test_agent_sample_rate_reject():
     """Ensure that the agent sample rate is respected when a trace is auto rejected."""
     # First trace won't actually have the sample rate applied since the response has not yet been received.

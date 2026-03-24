@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.constants import _SERVICE_SOURCE
 from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
@@ -28,6 +27,7 @@ def test_values():
 def test_tracer_tags():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
+    from ddtrace.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
 
     ddtrace.tracer.set_tags({"global": "tag"})
@@ -53,6 +53,7 @@ def test_tracer_tags():
 def test_tracer_tags_config():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
+    from ddtrace.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
     from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
@@ -87,6 +88,7 @@ def test_tracer_tags_config():
 def test_tracer_tags_service_from_code():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
+    from ddtrace.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
     from ddtrace.trace import TraceFilter
 

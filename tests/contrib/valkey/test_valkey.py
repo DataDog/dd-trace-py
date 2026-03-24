@@ -14,6 +14,9 @@ from ..config import VALKEY_CONFIG
 from ..redis.utils import find_redis_span
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 class TestValkeyPatch(TracerTestCase):
     TEST_PORT = VALKEY_CONFIG["port"]
 
@@ -474,21 +477,21 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         super(TestValkeyPatchSnapshot, self).tearDown()
         self.r.flushall()
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_long_command(self):
         self.r.mget(*range(1000))
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_unicode(self):
         us = self.r.get("😐")
         assert us is None
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_pipeline_traced(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)
@@ -496,14 +499,14 @@ class TestValkeyPatchSnapshot(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_pipeline_immediate(self):
         with self.r.pipeline() as p:
             p.set("a", 1)
             p.immediate_execute_command("SET", "a", 1)
             p.execute()
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_meta_override(self):
         r = self.r
 
@@ -546,7 +549,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         assert span is not None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_user_specified_service(self):
         from ddtrace import config
 
@@ -555,7 +558,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_SERVICE="myvalkey"))
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_env_user_specified_valkey_service(self):
         self.r.get("cheese")
 
@@ -568,7 +571,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_service_precedence(self):
         self.r.get("cheese")
 
@@ -576,17 +579,17 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_custom_cmd_length_env(self):
         self.r.get("here-is-a-long-key-name")
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_custom_cmd_length(self):
         with self.override_config("valkey", dict(cmd_max_length=7)):
             self.r.get("here-is-a-long-key-name")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_RESOURCE_ONLY_COMMAND="false"))
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_full_command_in_resource_env(self):
         self.r.get("put_key_in_resource")
         p = self.r.pipeline(transaction=False)
@@ -594,7 +597,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         p.set("pipeline-cmd2", 2)
         p.execute()
 
-    @snapshot()
+    @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_full_command_in_resource_config(self):
         with self.override_config("valkey", dict(resource_only_command=False)):
             self.r.get("put_key_in_resource")
