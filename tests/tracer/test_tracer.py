@@ -1014,9 +1014,9 @@ def test_detect_agentless_env_with_lambda():
 
     assert in_aws_lambda()
     assert not has_aws_lambda_agent_extension()
-    assert isinstance(
-        ddtrace.tracer._span_aggregator.writer, LogWriter
-    ), f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter), (
+        f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
+    )
 
 
 def test_tracer_set_runtime_tags():

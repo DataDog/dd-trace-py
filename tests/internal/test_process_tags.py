@@ -136,14 +136,14 @@ class TestProcessTags(TracerTestCase):
                     call_args1 = mock_log.debug.call_args_list[0][0]
                     call_args2 = mock_log.debug.call_args_list[1][0]
 
-                    assert (
-                        "failed to get process tag" in call_args1[0]
-                    ), f"Expected error message not found. Got: {call_args1[0]}"
+                    assert "failed to get process tag" in call_args1[0], (
+                        f"Expected error message not found. Got: {call_args1[0]}"
+                    )
                     assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
 
-                    assert (
-                        "failed to get process tag" in call_args2[0]
-                    ), f"Expected error message not found. Got: {call_args2[0]}"
+                    assert "failed to get process tag" in call_args2[0], (
+                        f"Expected error message not found. Got: {call_args2[0]}"
+                    )
                     assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
 
     @pytest.mark.snapshot(ignores=IGNORES)
