@@ -2,6 +2,7 @@ import platform
 import sys
 import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
 from typing import Iterable  # noqa:F401
 
 from ddtrace.internal import process_tags
@@ -12,6 +13,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
+from .dependency import DependencyEntry
 
 
 def _format_version_info(vi: "sys._version_info") -> str:
@@ -69,7 +71,9 @@ def _get_application(key: tuple[str, str, str]) -> dict:
     return application
 
 
-def update_imported_dependencies(already_imported: dict[str, str], new_modules: Iterable[str]) -> list[dict[str, str]]:
+def update_imported_dependencies(
+    already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
+) -> list[dict[str, Any]]:
     deps = []
 
     for module_name in new_modules:
@@ -84,8 +88,9 @@ def update_imported_dependencies(already_imported: dict[str, str], new_modules: 
         if name in already_imported:
             continue
 
-        already_imported[name] = version
-        deps.append({"name": name, "version": version})
+        entry = DependencyEntry(name=name, version=version)
+        already_imported[name] = entry
+        deps.append(entry.to_telemetry_dict())
 
     return deps
 

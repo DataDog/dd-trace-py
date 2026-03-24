@@ -34,6 +34,8 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
+from .dependency import DependencyEntry
+from .dependency import attach_reachability_metadata
 from .logging import DDTelemetryErrorHandler
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import MetricTagType
@@ -159,7 +161,7 @@ class TelemetryWriter(PeriodicService):
         self._queued_configs: list[dict] = []
         self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
-        self._imported_dependencies: dict[str, str] = dict()
+        self._imported_dependencies: dict[str, DependencyEntry] = dict()
         self._modules_already_imported: set[str] = set()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
@@ -309,7 +311,7 @@ class TelemetryWriter(PeriodicService):
             payload["configurations"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [
-                    {"name": name, "version": version} for name, version in self._imported_dependencies.items()
+                    entry.to_telemetry_dict(include_all_metadata=True) for entry in self._imported_dependencies.values()
                 ]
             self._extended_time += self._extended_heartbeat_interval
         return payload
@@ -330,15 +332,61 @@ class TelemetryWriter(PeriodicService):
         return configurations
 
     def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
-        """Adds events to report imports done since the last periodic run"""
+        """Adds events to report imports done since the last periodic run.
+
+        Returns dependency dicts for:
+        1. Newly imported modules (standard behavior).
+        2. Previously reported dependencies that have new unsent reachability metadata.
+        """
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
             return None
 
         with self._service_lock:
+            # 1. Detect and process newly imported modules
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            if not newly_imported_deps:
-                return None
-            return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+            new_dep_dicts: list[dict[str, Any]] = []
+            if newly_imported_deps:
+                new_dep_dicts = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+
+            # Mark newly reported entries and flush any pre-attached metadata
+            for dep_dict in new_dep_dicts:
+                name = dep_dict["name"]
+                entry = self._imported_dependencies.get(name)
+                if entry is not None:
+                    entry.mark_initial_sent()
+                    entry.mark_all_metadata_sent()
+
+            # 2. Check for already-reported dependencies with new unsent metadata
+            re_report_dicts: list[dict[str, Any]] = []
+            for entry in self._imported_dependencies.values():
+                if entry._initial_report_sent and entry.has_unsent_metadata():
+                    re_report_dicts.append(entry.to_telemetry_dict(include_all_metadata=False))
+                    entry.mark_all_metadata_sent()
+
+            combined = new_dep_dicts + re_report_dicts
+            return combined if combined else None
+
+    def attach_dependency_metadata(
+        self,
+        package_name: str,
+        cve_id: str,
+        reached: bool,
+        path: str,
+        method: str,
+        line: int,
+    ) -> bool:
+        """Attach reachability metadata to an imported dependency.
+
+        Called by SCA detection hook when a vulnerable symbol is reached at runtime.
+        Thread-safe: acquires _service_lock before mutating dependency entries.
+
+        Returns:
+            True if metadata was attached, False if the package is not yet tracked.
+        """
+        with self._service_lock:
+            return attach_reachability_metadata(
+                self._imported_dependencies, package_name, cve_id, reached, path, method, line
+            )
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
