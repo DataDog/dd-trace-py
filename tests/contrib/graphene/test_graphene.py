@@ -107,7 +107,9 @@ def test_schema_execute_with_resolvers(test_schema, test_source_str, enable_grap
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute_with_resolvers", ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(
+    token="tests.contrib.graphene.test_graphene.test_schema_execute_with_resolvers", ignores=SNAPSHOT_IGNORES
+)
 @pytest.mark.skipif(graphene.VERSION < (3, 0, 0), reason="execute_async is only supported in graphene>=3.0")
 async def test_schema_execute_async_with_resolvers(test_schema, test_source_str, enable_graphql_resolvers):
     result = await test_schema.execute_async(test_source_str)
@@ -134,7 +136,8 @@ def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "meta.events"] + SNAPSHOT_IGNORES, variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.error.stack", "meta.events"] + SNAPSHOT_IGNORES,
+    variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)},
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)
