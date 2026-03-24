@@ -4,28 +4,22 @@ This module provides a drop-in replacement for os.environ, enabling centralized
 control and future validation of all environment variable access in ddtrace.
 """
 
-from collections.abc import MutableMapping
+from collections.abc import Mapping
 import os
 from typing import Any
 from typing import Iterator
 
 
-class EnvConfig(MutableMapping):
-    """A MutableMapping wrapper around os.environ.
+class EnvConfig(Mapping):
+    """A read-only Mapping wrapper around os.environ.
 
     Serves as the centralized entry point for all environment variable access
-    in dd-trace-py. Implements the five core MutableMapping abstract methods and
-    inherits the rest (get, items, keys, values, etc.) from MutableMapping.
+    in dd-trace-py. Inherits get, items, keys, values, etc. from Mapping.
+    For writes, use os.environ directly or the setenv() helper.
     """
 
     def __getitem__(self, key: str) -> str:
         return os.environ[key]
-
-    def __setitem__(self, key: str, value: str) -> None:
-        os.environ[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del os.environ[key]
 
     def __iter__(self) -> Iterator[str]:
         return iter(os.environ)
@@ -43,5 +37,5 @@ def getenv(env_name: str, default: Any = None) -> Any:
 
 
 def setenv(env_name: str, value: Any) -> None:
-    """Wrapper around dd_environ assignment."""
-    dd_environ[env_name] = value
+    """Wrapper around os.environ assignment — use instead of os.environ[key] = value."""
+    os.environ[env_name] = value
