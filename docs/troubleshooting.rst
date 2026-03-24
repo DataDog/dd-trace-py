@@ -103,11 +103,11 @@ When installing ddtrace from source locally (e.g. ``pip install -e .``), you may
 CMake errors, or stale native extension issues. Build requires Rust, cmake, Cython, and setuptools-rust—see
 :doc:`build_system` for installation. Run a full clean to remove cached artifacts before reinstalling:
 
-**Preferred: Hatch clean env** (creates a venv with build deps, no global install needed):
+**Preferred: uv run** (installs build deps on the fly, no separate venv needed):
 
 .. code-block:: bash
 
-    $ hatch run clean:all
+    $ uv run --with cython --with "cmake>=3.24.2,<3.28" --with "setuptools-rust<2" --with "setuptools-scm[toml]>=4" python setup.py clean --all
 
 **Alternative:** The best use case for ``python setup.py clean --all`` is when ddtrace is installed from
 source into a sample app for local dev testing. If your build environment is already installed:
