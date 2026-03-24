@@ -63,7 +63,7 @@ def _finish_unfinished_spans_at_exit():
     for run_span in list(MLFLOW_ACTIVE_RUN_SPANS.values()):
         if run_span is not None:
             try:
-                run_span.finish()
+                run_span._finish_with_ancestors()
             except Exception:  # nosec B110
                 pass
 
