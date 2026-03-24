@@ -54,7 +54,7 @@ class heap_tracker_t
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
      * to the current allocated_memory value. */
     [[nodiscard]] [[gnu::always_inline]] inline bool should_sample_no_cpython(size_t size,
-                                                                               uint64_t* allocated_memory_val);
+                                                                              uint64_t* allocated_memory_val);
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
