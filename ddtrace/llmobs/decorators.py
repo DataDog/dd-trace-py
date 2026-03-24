@@ -11,9 +11,9 @@ from typing import OrderedDict
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
-from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 
 
 log = get_logger(__name__)
