@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    tracing: Adds ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` environment variable to configure the list of HTTP status codes that should be considered errors when instrumenting HTTP severs.
+    tracing: Adds ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` environment variable to configure the list of HTTP status codes that should be considered errors when instrumenting HTTP servers.
