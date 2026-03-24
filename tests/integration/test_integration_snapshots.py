@@ -460,7 +460,7 @@ except KeyboardInterrupt:
 
     with snapshot_context(
         token=token,
-        ignores=["meta._dd.base_service"],
+        ignores=["meta._dd.base_service", "meta._dd.svc_src"],
         variants=variants,
     ):
         # Copy environment INSIDE snapshot_context so it includes the test session token

@@ -7,6 +7,9 @@ from ddtrace.contrib.internal.graphql.patch import unpatch
 from tests.utils import override_config
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 class Patron(graphene.ObjectType):
     id = graphene.ID()
     name = graphene.String()
@@ -80,7 +83,7 @@ def failing_schema():
     return graphene.Schema(query=FailingQuery)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_schema_execute(test_schema, test_source_str):
     result = test_schema.execute(test_source_str)
     assert not result.errors
@@ -88,7 +91,7 @@ def test_schema_execute(test_schema, test_source_str):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute")
+@pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute", ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphene.VERSION < (3, 0, 0), reason="execute_async is only supported in graphene>=3.0")
 async def test_schema_execute_async(test_schema, test_source_str):
     result = await test_schema.execute_async(test_source_str)
@@ -96,7 +99,7 @@ async def test_schema_execute_async(test_schema, test_source_str):
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_schema_execute_with_resolvers(test_schema, test_source_str, enable_graphql_resolvers):
     result = test_schema.execute(test_source_str)
     assert not result.errors
@@ -104,7 +107,7 @@ def test_schema_execute_with_resolvers(test_schema, test_source_str, enable_grap
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute_with_resolvers")
+@pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute_with_resolvers", ignores=SNAPSHOT_IGNORES)
 @pytest.mark.skipif(graphene.VERSION < (3, 0, 0), reason="execute_async is only supported in graphene>=3.0")
 async def test_schema_execute_async_with_resolvers(test_schema, test_source_str, enable_graphql_resolvers):
     result = await test_schema.execute_async(test_source_str)
@@ -113,7 +116,7 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_GRAPHQL_ERROR_EXTENSIONS="code, status"))
-@pytest.mark.snapshot(ignores=["meta.events", "meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.events", "meta.error.stack"] + SNAPSHOT_IGNORES)
 def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_resolvers):
     import ddtrace.auto  # noqa
 
@@ -131,7 +134,7 @@ def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "meta.events"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.error.stack", "meta.events"] + SNAPSHOT_IGNORES, variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)
