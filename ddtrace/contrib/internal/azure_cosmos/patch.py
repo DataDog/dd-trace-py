@@ -143,7 +143,7 @@ def _build_span_tags(span, client, request_params, request, request_data):
     span.resource = request_params.operation_type + " " + resource_link
     if (
         request_params.operation_type == "Create"
-        and request_params.resource_type == "database"
+        and request_params.resource_type == "dbs"
         and (request_data.get("id") is not None)
     ):
         span._set_attribute(db.NAME, request_data["id"])
