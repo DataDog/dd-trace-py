@@ -3,17 +3,13 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
-/* The shared linetable_parser.h provides DataDog::parse_linetable() which
- * replaces the former read_varint / read_signed_varint / inline parsing
- * that was duplicated between echion and memalloc. */
+/* The shared headers provide DataDog::parse_linetable() and the frame
+ * accessor helpers (get_code_from_frame, get_code_name) shared with memalloc. */
+#include <shared/frame_accessors.h>
 #include <shared/linetable_parser.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
-
-#if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_stackref.h>
-#endif // PY_VERSION_HEX >= 0x030e0000
 #endif // PY_VERSION_HEX >= 0x030b0000
 
 // ------------------------------------------------------------------------
@@ -25,11 +21,7 @@ Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
         return ErrorKind::FrameError;
     }
 
-#if PY_VERSION_HEX >= 0x030b0000
-    auto maybe_name = echion.string_table().key(code->co_qualname, StringTag::FuncName);
-#else
-    auto maybe_name = echion.string_table().key(code->co_name, StringTag::FuncName);
-#endif
+    auto maybe_name = echion.string_table().key(DataDog::get_code_name(code), StringTag::FuncName);
 
     if (!maybe_name) {
         return ErrorKind::FrameError;
@@ -129,11 +121,12 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #endif // PY_VERSION_HEX >= 0x030c0000
 
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
-    // from the code object.
-#if PY_VERSION_HEX >= 0x030e0000
-    // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
-    // Profilers must clear the least significant bit to recover the PyObject* pointer.
-    PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    // from the code object, which is a remote address here.  Use offsetof
+    // arithmetic instead to avoid dereferencing it.
+#if PY_VERSION_HEX >= 0x030d0000
+    // DataDog::get_code_from_frame() handles both Python 3.13 (untagged
+    // f_executable) and 3.14+ (tagged _PyStackRef f_executable) transparently.
+    PyCodeObject* code_obj = DataDog::get_code_from_frame(frame_addr);
     if (code_obj == nullptr || frame_addr->instr_ptr == nullptr) {
         return ErrorKind::FrameError;
     }
@@ -141,27 +134,9 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // In Python 3.13+, instr_ptr points to the current instruction (not past it),
     // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
-    int instr_offset = static_cast<int>(frame_addr->instr_ptr - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    const int lasti = instr_offset - code_offset;
+    const int lasti = static_cast<int>(frame_addr->instr_ptr - code_units) - code_offset;
     auto maybe_frame = Frame::get(echion, code_obj, lasti);
-    if (!maybe_frame) {
-        return ErrorKind::FrameError;
-    }
-
-    auto& frame = maybe_frame->get();
-#elif PY_VERSION_HEX >= 0x030d0000
-    if (frame_addr->f_executable == nullptr || frame_addr->instr_ptr == nullptr) {
-        return ErrorKind::FrameError;
-    }
-
-    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
-    // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
-    const int lasti =
-      (static_cast<int>((frame_addr->instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(
-                                                   (reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
-      static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
-    auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -181,7 +156,7 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
     auto& frame = maybe_frame->get();
-#endif // PY_VERSION_HEX >= 0x030e0000
+#endif // PY_VERSION_HEX >= 0x030d0000
     if (&frame != &INVALID_FRAME) {
 #if PY_VERSION_HEX >= 0x030c0000
         frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
