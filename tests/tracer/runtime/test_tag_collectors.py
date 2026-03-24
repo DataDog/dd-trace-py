@@ -27,7 +27,6 @@ def test_values():
 def test_tracer_tags():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
-    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
 
     ddtrace.tracer.set_tags({"global": "tag"})
@@ -38,7 +37,6 @@ def test_tracer_tags():
     assert values is not None
     assert set(values) == set(
         [
-            (_SERVICE_SOURCE, "m"),
             ("service", "test-service"),
             ("key_1", "from_env"),
             ("key_2", "from_env"),

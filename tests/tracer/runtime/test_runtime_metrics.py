@@ -124,16 +124,17 @@ def test_runtime_tags_dd_tags():
 
 @pytest.mark.subprocess()
 def test_runtime_tags_manual_tracer_tags():
+    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime.runtime_metrics import TracerTags
     from ddtrace.trace import tracer
 
     tracer.set_tags({"manual": "tag"})
 
     tags = list(TracerTags())
-    assert len(tags) == 2, tags
+    assert len(tags) == 3, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["manual", "service"])
+    assert set(tags.keys()) == set(["manual", "service", _SERVICE_SOURCE])
     assert tags["manual"] == "tag"
 
 

@@ -179,7 +179,9 @@ def test_auth_error(bedrock_client, request_vcr):
             bedrock_client.invoke_model(body=body, modelId=model)
 
 
-@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(
+    token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"] + SNAPSHOT_IGNORES
+)
 def test_read_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
