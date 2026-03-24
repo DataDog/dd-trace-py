@@ -2,8 +2,8 @@ from ddtrace.internal.runtime import get_runtime_id
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
-from .. import process_tags
 from ..constants import DEFAULT_SERVICE_NAME
+from ..service_remapping import process_tags
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER

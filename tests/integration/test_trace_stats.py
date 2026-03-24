@@ -125,9 +125,9 @@ def test_stats_report_hostname(get_hostname):
 def test_periodic_payload_includes_process_tags():
     from unittest import mock
 
-    from ddtrace.internal import process_tags
     from ddtrace.internal.processor import stats
     from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+    from ddtrace.internal.service_remapping import process_tags
 
     assert process_tags.process_tags
 

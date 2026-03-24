@@ -4,10 +4,10 @@ import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Iterable  # noqa:F401
 
-from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import __version__
 

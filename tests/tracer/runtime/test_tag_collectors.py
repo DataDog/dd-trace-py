@@ -2,11 +2,11 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.runtime import tag_collectors
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_WORKDIR_TAG
 from tests.utils import process_tag_reload
 
 

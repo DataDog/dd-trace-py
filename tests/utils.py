@@ -26,7 +26,6 @@ from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
@@ -38,6 +37,7 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config

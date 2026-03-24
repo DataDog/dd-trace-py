@@ -13,11 +13,6 @@ import pytest
 from ddtrace._trace.product import _convert_rc_trace_sampling_rules
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
-from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
-from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -29,6 +24,11 @@ from ddtrace.internal.remoteconfig.products.apm_tracing import config_key
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_TYPE_SCRIPT
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_WORKDIR_TAG
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
 from tests.utils import process_tag_reload

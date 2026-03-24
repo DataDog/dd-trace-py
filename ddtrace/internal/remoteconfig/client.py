@@ -16,7 +16,6 @@ import uuid
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
-from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -29,6 +28,7 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer

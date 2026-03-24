@@ -64,7 +64,7 @@ def test_data_streams_processor():
 @pytest.mark.subprocess()
 def test_new_pathway_uses_container_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-    from ddtrace.internal.process_tags import compute_base_hash
+    from ddtrace.internal.service_remapping.base_hash import compute_base_hash
 
     processor = DataStreamsProcessor("http://localhost:8126")
     mocked_time = 1642544540
@@ -83,8 +83,9 @@ def test_new_pathway_uses_container_tags_hash():
 
 @pytest.mark.subprocess()
 def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
-    from ddtrace.internal import process_tags
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+    from ddtrace.internal.service_remapping import base_hash
+    from ddtrace.internal.service_remapping import process_tags
 
     processor = DataStreamsProcessor("http://localhost:8126")
     mocked_time = 1642544540
@@ -93,8 +94,8 @@ def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     # Trigger lazy process tags initialization, which should compute a base hash even
     # before we receive any container hash from the agent.
     _ = process_tags.process_tags
-    assert process_tags.base_hash is not None
-    assert process_tags.base_hash_bytes
+    assert base_hash.base_hash is not None
+    assert base_hash.base_hash_bytes
 
     ctx_with_base = processor.new_pathway(now_sec=mocked_time)
     ctx_with_base.set_checkpoint(tags)

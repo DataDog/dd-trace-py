@@ -11,12 +11,12 @@ from typing import cast
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
-from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer

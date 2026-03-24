@@ -2,14 +2,14 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROCESS_TAGS
-from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
-from ddtrace.internal.process_tags import _compute_process_tag
-from ddtrace.internal.process_tags import normalize_tag_value
+from ddtrace.internal.service_remapping import process_tags
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_BASEDIR_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_NAME_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_TYPE_TAG
+from ddtrace.internal.service_remapping.constants import ENTRYPOINT_WORKDIR_TAG
+from ddtrace.internal.service_remapping.process_tags import _compute_process_tag
+from ddtrace.internal.service_remapping.process_tags import normalize_tag_value
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
@@ -124,7 +124,7 @@ class TestProcessTags(TracerTestCase):
     def test_process_tags_error(self):
         with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             with self.override_global_config(dict(_telemetry_enabled=False)):
-                with patch("ddtrace.internal.process_tags.log") as mock_log:
+                with patch("ddtrace.internal.service_remapping.process_tags.log") as mock_log:
                     process_tag_reload()
 
                     with self.tracer.trace("span"):
@@ -193,7 +193,8 @@ class TestProcessTags(TracerTestCase):
 def test_process_tags_base_hash_populated_when_remote_config_disabled():
     """Check that /info is called even when RC is turned off."""
     from ddtrace.internal import core
-    from ddtrace.internal import process_tags
+    from ddtrace.internal.service_remapping import base_hash
+    from ddtrace.internal.service_remapping import process_tags
 
     # Force lazy path so __getattr__ and _retrieve_container_tags_hash() are executed.
     process_tags.__dict__.pop("process_tags", None)
@@ -216,5 +217,5 @@ def test_process_tags_base_hash_populated_when_remote_config_disabled():
         # /info call so container_tags_hash.retrieved is dispatched before assertions.
         assert info_called.wait(timeout=2.0)
 
-    assert process_tags._container_tags_hash == "abc123"
-    assert process_tags.base_hash is not None
+    assert base_hash._container_tags_hash == "abc123"
+    assert base_hash.base_hash is not None
