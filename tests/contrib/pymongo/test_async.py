@@ -85,6 +85,27 @@ class TestAsyncPymongo(AsyncioTestCase):
             await asyncio.sleep(0.1)
 
     @mark_asyncio
+    async def test_async_mongodb_obfuscation_disabled_find_operation(self):
+        client = AsyncMongoClient(port=MONGO_CONFIG["port"])
+        try:
+            with self.override_config("pymongo", dict(_mongodb_obfuscation=False)):
+                db = client["testdb"]
+                await db.drop_collection("teams")
+                await db.teams.insert_one({"name": "Team1"})
+                queried = [doc async for doc in db.teams.find({"name": "Team1"})]
+                assert len(queried) == 1
+
+            spans = self.pop_spans()
+            find_with_query = [s for s in spans if s.name == "pymongo.cmd" and s.get_tag("mongodb.query") is not None]
+            assert len(find_with_query) == 1
+            span = find_with_query[0]
+            assert span.resource == 'find teams {"name": "?"}'
+            assert span.get_tag("mongodb.query") == '{"name": "Team1"}'
+        finally:
+            await client.close()
+            await asyncio.sleep(0.1)
+
+    @mark_asyncio
     async def test_async_update(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:

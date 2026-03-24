@@ -61,6 +61,7 @@ components:
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/process_tags/__init__.py
     - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
@@ -173,7 +174,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
-    parallelism: 3
+    venvs_per_job: 3
     paths:
       - '@tracing'
       - '@bootstrap'
