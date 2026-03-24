@@ -186,7 +186,7 @@ suites:
     parallelism: 1
     paths:
       - '@contrib'
-      - ddtrace/contrib/integration_registry/*
+      - scripts/integration_registry/*
   internal:
     venvs_per_job: 2
     paths:
