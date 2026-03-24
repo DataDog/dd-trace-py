@@ -3,6 +3,7 @@ import json
 from typing import Iterable
 
 # 3p
+from bson import json_util
 import pymongo
 from pymongo.message import _GetMore
 from pymongo.message import _Query
@@ -123,10 +124,13 @@ def set_address_tags(span, address):
 def set_query_metadata(span, cmd):
     """Set span `mongodb.query` tag and resource given command query. Shared between sync and async."""
     if cmd.query:
-        nq = normalize_filter(cmd.query)
-        q = json.dumps(nq)
-        span.set_tag("mongodb.query", q)
-        span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
+        resource_str = json.dumps(normalize_filter(cmd.query))
+        if config.pymongo._mongodb_obfuscation:
+            tag_query = resource_str
+        else:
+            tag_query = json_util.dumps(cmd.query)
+        span.set_tag("mongodb.query", tag_query)
+        span.resource = "{} {} {}".format(cmd.name, cmd.coll, resource_str)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 
