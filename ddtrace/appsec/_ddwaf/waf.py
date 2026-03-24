@@ -6,7 +6,6 @@ from typing import Sequence
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
@@ -16,13 +15,11 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-import ddtrace.appsec._metrics as appsec_metrics
 from ddtrace.appsec._metrics import report_error
+from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
@@ -40,7 +37,7 @@ DDWAF_MATCH = 1
 ASM_DD_DEFAULT = "ASM_DD/default"
 
 
-class DDWaf(WAF):
+class DDWaf:
     empty_observator = _observator()
 
     def __init__(
@@ -73,7 +70,6 @@ class DDWaf(WAF):
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
-        appsec_metrics.ddwaf_version = version()
         self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
@@ -208,7 +204,3 @@ class DDWaf(WAF):
     def __del__(self) -> None:
         if hasattr(self, "_default_ruleset"):
             ddwaf_object_free(self._default_ruleset)
-
-
-def version() -> str:
-    return ddwaf_get_version().decode("UTF-8")

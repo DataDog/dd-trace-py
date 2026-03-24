@@ -284,6 +284,12 @@ def _get_session_id(span: Span) -> Optional[str]:
 
 def _unserializable_default_repr(obj):
     try:
+        # Pydantic v2
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump(mode="json")
+        # Pydantic v1
+        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            return obj.dict()
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
@@ -294,9 +300,12 @@ def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
-        # If object is a Pydantic model, convert to JSON serializable dict first using model_dump()
+        # Pydantic v2
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            obj = obj.model_dump()
+            obj = obj.model_dump(mode="json")
+        # Pydantic v1
+        elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            obj = obj.dict()
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
@@ -528,6 +537,16 @@ def enforce_message_role(messages: list[Message]) -> list[Message]:
     for message in messages:
         message.setdefault("role", "")
     return messages
+
+
+def validate_tags_list(tags: list[str]) -> None:
+    if not isinstance(tags, list):
+        raise TypeError("Tags must be a list of strings")
+    for tag in tags:
+        if not isinstance(tag, str):
+            raise TypeError("Each tag must be a string")
+        if ":" not in tag:
+            raise ValueError(f"Tag '{tag}' is malformed. Tags must be in 'key:value' format (e.g., 'env:prod').")
 
 
 def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:

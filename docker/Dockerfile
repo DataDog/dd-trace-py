@@ -27,6 +27,8 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
+      autoconf \
+      automake \
       build-essential \
       clang-format \
       gdb \
@@ -43,6 +45,7 @@ RUN apt-get update \
       libmemcached-dev \
       libncurses5-dev \
       libncursesw5-dev \
+      libtool \
       libpq-dev \
       libreadline-dev \
       libsasl2-dev \

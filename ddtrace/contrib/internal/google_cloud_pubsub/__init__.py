@@ -1,6 +1,6 @@
 """
 This integration instruments the `google-cloud-pubsub <https://github.com/googleapis/python-pubsub>`_
-library to trace Cloud Pub/Sub publishing.
+library to trace Cloud Pub/Sub publishing and consuming.
 
 Enabling
 ~~~~~~~~
@@ -26,5 +26,19 @@ Configuration
    environment variable.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.google_cloud_pubsub["propagation_as_span_links"]
+
+   Whether to attach propagated context as span links instead of re-parenting
+   subscriber spans under the producer trace. When disabled (the default), the
+   receive span becomes a child of the publishing span, linking producer and
+   consumer traces. When enabled, the receive span starts a new trace and the
+   producer context is attached as a span link. Requires
+   ``distributed_tracing_enabled`` to be ``True``.
+
+   This option can also be set with the ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS``
+   environment variable.
+
+   Default: ``False``
 
 """

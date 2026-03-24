@@ -113,6 +113,7 @@ class ASMConfig(DDConfig):
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
         float,

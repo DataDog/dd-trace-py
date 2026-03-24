@@ -68,8 +68,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
     with tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         span._set_attribute(COMPONENT, config.jinja2.integration_name)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)
         finally:
