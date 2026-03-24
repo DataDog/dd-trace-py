@@ -615,7 +615,7 @@ def _openai_parse_input_response_messages(
             if processed_item_content:
                 processed_item["content"] = str(processed_item_content)
                 processed_item["role"] = role
-        elif call_id is not None and (arguments is not None or input_ is not None):
+        elif item_type in ("function_call", "custom_tool_call"):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
             arguments_str = arguments or input_ or OAI_HANDOFF_TOOL_ARG
             arguments = safe_load_json(str(arguments_str))
@@ -624,7 +624,7 @@ def _openai_parse_input_response_messages(
                 tool_id=str(call_id),
                 arguments=arguments,
                 name=name,
-                type=str(item_type or "function_call"),
+                type=str(item_type),
             )
             processed_item.update(
                 {
@@ -632,7 +632,7 @@ def _openai_parse_input_response_messages(
                     "tool_calls": [tool_call_info],
                 }
             )
-        elif call_id is not None and output is not None:
+        elif item_type == "function_call_output":
             # Process `FunctionCallOutput` type from input messages
             if not isinstance(output, str):
                 output = safe_json(output)
@@ -640,7 +640,7 @@ def _openai_parse_input_response_messages(
                 tool_id=str(call_id),
                 result=str(output) if output else "",
                 name=name,
-                type=str(item_type or "function_call_output"),
+                type=str(item_type),
             )
             processed_item.update(
                 {
