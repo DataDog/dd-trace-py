@@ -107,8 +107,8 @@ def _model_decorator(operation_kind):
                         resp = await func(*args, **kwargs)
                         if (
                             resp is not None
-                            and get_llmobs_output_value(span) is not None
-                            and get_llmobs_output_messages(span) is not None
+                            and get_llmobs_output_value(span) is None
+                            and get_llmobs_output_messages(span) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
@@ -159,8 +159,8 @@ def _model_decorator(operation_kind):
                         resp = func(*args, **kwargs)
                         if (
                             resp is not None
-                            and get_llmobs_output_value(span) is not None
-                            and get_llmobs_output_messages(span) is not None
+                            and get_llmobs_output_value(span) is None
+                            and get_llmobs_output_messages(span) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp

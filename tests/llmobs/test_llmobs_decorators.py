@@ -316,6 +316,7 @@ def test_llm_decorator_automatic_output_annotation(llmobs, llmobs_events, test_s
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -334,6 +335,7 @@ async def test_llm_decorator_automatic_output_annotation_async(llmobs, llmobs_ev
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -353,6 +355,7 @@ def test_llm_decorator_manual_annotation_not_overridden(llmobs, llmobs_events, t
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "manual_response", "role": ""}],
+        is_decorator=True,
     )
 
 
