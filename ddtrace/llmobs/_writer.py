@@ -39,6 +39,7 @@ from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
@@ -480,7 +481,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         )
 
     @staticmethod
-    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecord], is_update: bool) -> JSONType:
+    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
         # set it to None, and we serialize an empty string (for expected_output) and empty dict (for metadata)
         # to indicate this erasure to BE
@@ -524,7 +525,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self,
         dataset_id: str,
         project_id: str,
-        insert_records: list[DatasetRecord],
+        insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
         deduplicate: bool = True,

@@ -112,7 +112,7 @@ from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordInput
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
@@ -1182,7 +1182,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecordInput]] = None,
+        records: Optional[list[DatasetRecordRaw]] = None,
         bulk_upload: bool = False,
         deduplicate: bool = True,
     ) -> Dataset:
@@ -1289,7 +1289,7 @@ class LLMObs(Service):
                     raise ValueError(f"ID column '{id_column}' not found in CSV header")
 
                 for row in rows:
-                    record: DatasetRecordInput = {
+                    record: DatasetRecordRaw = {
                         "input_data": {col: row[col] for col in input_data_columns},
                         "expected_output": {col: row[col] for col in expected_output_columns},
                         "metadata": {col: row[col] for col in metadata_columns},

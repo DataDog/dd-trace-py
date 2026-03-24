@@ -906,12 +906,12 @@ class Project(TypedDict):
     _id: str
 
 
-class _DatasetRecordInputOptional(TypedDict, total=False):
+class _DatasetRecordRawOptional(TypedDict, total=False):
     tags: list[str]
     id: str  # user-supplied record ID; if absent, SDK generates one
 
 
-class DatasetRecordInput(_DatasetRecordInputOptional):
+class DatasetRecordRaw(_DatasetRecordRawOptional):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -923,7 +923,7 @@ class _TagOperations(TypedDict, total=False):
     replace: list[str]
 
 
-class DatasetRecordUpdate(TypedDict, total=False):
+class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -931,7 +931,7 @@ class DatasetRecordUpdate(TypedDict, total=False):
     tag_operations: _TagOperations
 
 
-class UpdatableDatasetRecord(DatasetRecordUpdate):
+class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
@@ -939,11 +939,7 @@ class _DatasetRecordOptional(TypedDict, total=False):
     canonical_id: Optional[str]
 
 
-class DatasetRecord(_DatasetRecordOptional):
-    input_data: DatasetRecordInputType
-    expected_output: JSONType
-    metadata: dict[str, Any]
-    tags: list[str]
+class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
     record_id: str
 
 
@@ -1012,7 +1008,7 @@ class Dataset:
     _version: int
     _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records_by_record_id: dict[str, DatasetRecord]
+    _new_records_by_record_id: dict[str, DatasetRecordRaw]
     _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: list[str]
 
@@ -1137,7 +1133,7 @@ class Dataset:
         self._pending_tag_operations = {}
         return data_changed
 
-    def update(self, index: int, record: DatasetRecordUpdate) -> None:
+    def update(self, index: int, record: DatasetRecordRaw) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "
@@ -1155,16 +1151,13 @@ class Dataset:
                 **record,
                 "record_id": record_id,
             }
-            self._records[index] = cast(
-                DatasetRecord,
-                {
-                    **self._records[index],
-                    **record,
-                    "record_id": record_id,
-                },
-            )
+            self._records[index] = {
+                **self._records[index],
+                **record,
+                "record_id": record_id,
+            }
 
-    def append(self, record: DatasetRecordInput) -> None:
+    def append(self, record: DatasetRecordRaw) -> None:
         if record.get("tags"):
             validate_tags_list(record["tags"])
         # Use the user-supplied id as the record_id so local tracking matches the backend id.
@@ -1187,7 +1180,7 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
-    def extend(self, records: list[DatasetRecordInput]) -> None:
+    def extend(self, records: list[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
 
