@@ -11,11 +11,11 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import tracer as ddtracer
 from tests.integration.utils import AGENT_VERSION
+from tests.integration.utils import parametrize_with_all_encodings
+from tests.integration.utils import skip_if_testagent
 
 
 SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-from tests.integration.utils import parametrize_with_all_encodings
-from tests.integration.utils import skip_if_testagent
 
 
 def _turn_tracer_into_dummy(tracer):

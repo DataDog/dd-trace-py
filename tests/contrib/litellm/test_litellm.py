@@ -51,7 +51,9 @@ def test_litellm_completion(litellm, snapshot_context, request_vcr, stream, n):
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await litellm.acompletion(
@@ -67,7 +69,9 @@ async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, strea
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_text_completion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             resp = litellm.text_completion(
                 model="gpt-3.5-turbo",
@@ -82,7 +86,9 @@ def test_litellm_text_completion(litellm, snapshot_context, request_vcr, stream,
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"] + SNAPSHOT_IGNORES
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             resp = await litellm.atext_completion(
                 model="gpt-3.5-turbo",
@@ -124,7 +130,9 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_router_completion(litellm, snapshot_context, request_vcr, router, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=SNAPSHOT_IGNORES):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=SNAPSHOT_IGNORES
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
