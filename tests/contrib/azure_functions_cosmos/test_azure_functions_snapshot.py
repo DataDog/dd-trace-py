@@ -55,7 +55,7 @@ def azure_functions_client(request):
         proc.wait()
 
 
-#@pytest.mark.parametrize(indirect=["azure_functions_client"])
+# @pytest.mark.parametrize(indirect=["azure_functions_client"])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cosmos_trigger(azure_functions_client: Client) -> None:
     assert azure_functions_client.post("/api/upsert_item", headers=DEFAULT_HEADERS).status_code == 200

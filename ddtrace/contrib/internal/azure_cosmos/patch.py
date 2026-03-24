@@ -75,7 +75,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
 
         try:
             result = wrapped(*args, **kwargs)
-            (res, headers) = result
+            _, headers = result
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:
@@ -111,7 +111,7 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
 
         try:
             result = await wrapped(*args, **kwargs)
-            (res, headers) = result
+            _, headers = result
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:

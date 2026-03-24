@@ -32,7 +32,8 @@ async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
 
     return func.HttpResponse("Hello Datadog!")
 
-'''
+
+"""
 @app.cosmos_db_trigger(
     arg_name="documents",
     container_name=COSMOS_CONTAINER_NAME,
@@ -42,4 +43,4 @@ async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
 )
 def cosmos_trigger(documents: func.DocumentList):
     pass
-'''
+"""

@@ -142,7 +142,7 @@ integrations:
   - azure-cosmos
   tested_versions_by_dependency:
     azure-cosmos:
-      min: 4.3.1
+      min: 4.8.0
       max: 4.15.0
 
 - integration_name: azure_durable_functions
