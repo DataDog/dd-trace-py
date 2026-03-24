@@ -461,7 +461,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="uv run --group scripts python -m doctest scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
