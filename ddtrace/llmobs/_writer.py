@@ -14,8 +14,6 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
-from ddtrace.internal.evp_proxy.constants import EVP_EVENT_SIZE_LIMIT
-from ddtrace.internal.evp_proxy.constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
@@ -239,7 +237,7 @@ class BaseLLMObsWriter(PeriodicService):
                 )
                 telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
                 return
-            if self._buffer_size + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+            if self._buffer_size + event_size > config._llmobs_payload_size_limit:
                 logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
                 self.periodic()
             self._buffer.append(event)
@@ -500,7 +498,18 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
 
         if is_update:
-            rj["id"] = cast(UpdatableDatasetRecord, record)["record_id"]
+            update_record = cast(UpdatableDatasetRecord, record)
+            rj["id"] = update_record["record_id"]
+            tag_ops = update_record.get("tag_operations")
+            if tag_ops:
+                serialized: dict[str, JSONType] = {}
+                if "add" in tag_ops:
+                    serialized["add"] = cast(JSONType, tag_ops["add"])
+                if "remove" in tag_ops:
+                    serialized["remove"] = cast(JSONType, tag_ops["remove"])
+                if "replace" in tag_ops:
+                    serialized["set"] = cast(JSONType, tag_ops["replace"])  # map replace → set for backend
+                rj["tag_operations"] = cast(JSONType, serialized)
         else:
             tags = record.get("tags")
             if tags:
@@ -927,11 +936,12 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
         truncated_event_size = None
-        should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
+        should_truncate = raw_event_size >= config._llmobs_event_size_limit
         if should_truncate:
             logger.warning(
-                "dropping event input/output because its size (%d) exceeds the event size limit (5MB)",
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
                 raw_event_size,
+                config._llmobs_event_size_limit,
             )
             event = _truncate_span_event(event)
             truncated_event_size = len(safe_json(event))

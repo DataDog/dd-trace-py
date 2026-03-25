@@ -11,17 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69a5eb2300000000",
       "language": "python",
-      "runtime-id": "9ac61da02efc4632a954063a29231b49"
+      "runtime-id": "44c636383e7240d59d17575bf5f491a4"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 77955
+      "_sampling_priority_v1": 1.0,
+      "process_id": 28047.0
     },
-    "duration": 1619000,
-    "start": 1698860024177234000
+    "duration": 1570875,
+    "start": 1772481315862145584
   },
      {
        "name": "redis.command",
@@ -34,6 +35,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.aredis",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -42,15 +44,15 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "db.row_count": 0,
-         "network.destination.port": 6379,
-         "out.redis_db": 0,
-         "redis.args_length": 2
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "db.row_count": 0.0,
+         "network.destination.port": 6379.0,
+         "out.redis_db": 0.0,
+         "redis.args_length": 2.0
        },
-       "duration": 636000,
-       "start": 1698860024177630000
+       "duration": 545708,
+       "start": 1772481315862506334
      },
      {
        "name": "redis.command",
@@ -63,6 +65,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.aredis",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -71,12 +74,12 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "network.destination.port": 6379,
-         "out.redis_db": 0,
-         "redis.pipeline_length": 2
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "network.destination.port": 6379.0,
+         "out.redis_db": 0.0,
+         "redis.pipeline_length": 2.0
        },
-       "duration": 485000,
-       "start": 1698860024178350000
+       "duration": 348833,
+       "start": 1772481315863332584
      }]]

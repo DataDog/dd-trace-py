@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Pydantic model outputs nested inside lists, tuples, or dicts
+    were serialized as unreadable ``repr()`` strings instead of JSON. Pydantic v1 and v2 models are now
+    properly serialized using ``model_dump()`` or ``.dict()`` respectively.

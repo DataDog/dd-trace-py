@@ -105,6 +105,7 @@ class DataStreamsProcessor(PeriodicService):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
+        self._enabled: bool = True
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
@@ -125,7 +126,6 @@ class DataStreamsProcessor(PeriodicService):
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
-        self._enabled = True
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
@@ -471,7 +471,7 @@ class DataStreamsCtx:
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
-            span._set_tag_str("pathway.hash", str(hash_value))
+            span._set_attribute("pathway.hash", str(hash_value))
         edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
         pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value

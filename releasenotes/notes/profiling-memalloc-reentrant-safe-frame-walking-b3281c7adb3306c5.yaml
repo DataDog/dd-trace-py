@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fix potential reentrant crashes in the memory profiler by
+    avoiding object allocations and frees during stack unwinding inside the
+    allocator hook. #16661
