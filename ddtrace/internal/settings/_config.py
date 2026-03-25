@@ -428,7 +428,17 @@ class Config(object):
             return False
 
     class _HTTPClientConfig(object):
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "500-599")
+        # If DD_TRACE_HTTP_CLIENT_ERROR_STATUSES is explicitly set, use it.
+        # Otherwise fall back to DD_TRACE_HTTP_SERVER_ERROR_STATUSES (for backward
+        # compatibility with users who relied on the server setting to classify
+        # client spans), and only then default to "500-599".
+        _unset = object()
+        _client_configured = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", _unset, report_telemetry=False)
+        if _client_configured is not _unset:
+            _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "500-599")
+        else:
+            _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
+        del _unset, _client_configured
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
