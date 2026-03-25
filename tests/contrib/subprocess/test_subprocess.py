@@ -947,3 +947,35 @@ def test_subprocess_resource_cleanup_on_error(tracer, test_spans, config):
         # Verify exit code is recorded even for failed processes
         span = subprocess_spans[-1]  # Last subprocess span
         assert span.get_tag(COMMANDS.EXIT_CODE) == "1"
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_popen_positional_env_no_typeerror():
+    """Positional ``env`` must not conflict with the wrapper's merged env (no duplicate ``env`` binding)."""
+    import os
+    import subprocess
+    import sys
+
+    env = os.environ.copy()
+    env.pop("_DD_ROOT_PY_SESSION_ID", None)
+    env.pop("_DD_PARENT_PY_SESSION_ID", None)
+    # ``env`` at positional index 10; stdout/stderr only positionally so we do not duplicate kwargs.
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.exit(0)"],
+        -1,
+        None,
+        None,
+        subprocess.DEVNULL,
+        subprocess.DEVNULL,
+        None,
+        False,
+        False,
+        None,
+        env,
+    )
+    try:
+        assert proc.wait() == 0
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait()

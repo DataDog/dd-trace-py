@@ -78,6 +78,7 @@ def test_get_runtime_id_double_fork():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
         "_DD_ROOT_PY_SESSION_ID": None,
         "_DD_PARENT_PY_SESSION_ID": None,
+        "DD_TRACE_SUBPROCESS_ENABLED": "false",
     }
 )
 def test_ancestor_runtime_id():
@@ -124,6 +125,7 @@ def test_ancestor_runtime_id():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
         "_DD_ROOT_PY_SESSION_ID": None,
         "_DD_PARENT_PY_SESSION_ID": None,
+        "DD_TRACE_SUBPROCESS_ENABLED": "false",
     },
     err=None,
 )
