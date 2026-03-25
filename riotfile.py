@@ -1467,8 +1467,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pyyaml": "==6.0.1",
-                # pip==26.0.0 removed the --global-option install arg
-                "pip": "<26",
+                # pip==25.0.0 removed the --global-option install arg
+                "pip": "<25",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "false",
