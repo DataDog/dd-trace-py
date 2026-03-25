@@ -1,8 +1,7 @@
-from ddtrace import config
-from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.trace import tracer
+from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
+from . import processor
 
 
 required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka"]
@@ -23,9 +22,6 @@ if config._data_streams_enabled:
 def data_streams_processor(reset=False):
     global _processor
     if config._data_streams_enabled and (not _processor or reset):
-        from . import processor
-
         _processor = processor.DataStreamsProcessor()
-        register_on_exit_signal(tracer._atexit)
 
     return _processor
