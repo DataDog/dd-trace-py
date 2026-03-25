@@ -6,7 +6,9 @@ instead of citestcycle intake, even when DD_CIVISIBILITY_AGENTLESS_ENABLED=1.
 """
 
 import os
+from unittest import mock
 
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
@@ -21,19 +23,17 @@ class TestPytestKillswitchIntegration(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        # Use subprocess_run to avoid the CIVisibilityPlugin assertion issue
-        rec = self.subprocess_run(
+        rec = self.inline_run(
             "--ddtrace",
             file_name,
-            env={
+            extra_env={
                 "DD_CIVISIBILITY_ENABLED": "false",
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
             },
+            expect_enabled=False,
         )
-        rec.assert_outcomes(passed=1)
-
-        # The test passed, and CI Visibility should have been disabled
-        # We can't check spans in subprocess mode, but the test passing indicates the killswitch worked
+        rec.assertoutcome(passed=1)
+        assert len(self.pop_spans()) == 0
 
     def test_pytest_programmatic_killswitch_integration_disabled_0(self):
         """Test killswitch when DD_CIVISIBILITY_ENABLED=0."""
@@ -45,19 +45,17 @@ class TestPytestKillswitchIntegration(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        # Use subprocess_run to avoid the CIVisibilityPlugin assertion issue
-        rec = self.subprocess_run(
+        rec = self.inline_run(
             "--ddtrace",
             file_name,
-            env={
+            extra_env={
                 "DD_CIVISIBILITY_ENABLED": "0",
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
             },
+            expect_enabled=False,
         )
-        rec.assert_outcomes(passed=1)
-
-        # The test passed, and CI Visibility should have been disabled
-        # We can't check spans in subprocess mode, but the test passing indicates the killswitch worked
+        rec.assertoutcome(passed=1)
+        assert len(self.pop_spans()) == 0
 
     def test_pytest_programmatic_killswitch_integration_enabled_default(self):
         """Test that CI Visibility is enabled by default when DD_CIVISIBILITY_ENABLED is not set."""
@@ -69,19 +67,21 @@ class TestPytestKillswitchIntegration(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        # For enabled tests, we can use inline_run since CI Visibility should work normally
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-            },
-        )
-        rec.assertoutcome(passed=1)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ) as mock_check_enabled_features:
+            rec = self.inline_run(
+                "--ddtrace",
+                file_name,
+                extra_env={"DD_CIVISIBILITY_AGENTLESS_ENABLED": "1"},
+            )
 
-        # When killswitch is not set, CI Visibility should run and create spans
-        spans = self.pop_spans()
-        assert len(spans) >= 4, f"Expected at least 4 spans when CI Visibility is enabled, got {len(spans)}"
+        rec.assertoutcome(passed=1)
+        assert mock_check_enabled_features.called, (
+            "_check_enabled_features was not called — CI Visibility may not have started"
+        )
+        assert len(self.pop_spans()) >= 4
 
     def test_pytest_programmatic_killswitch_integration_enabled_true(self):
         """Test that DD_CIVISIBILITY_ENABLED=true enables CI Visibility."""
@@ -93,17 +93,21 @@ class TestPytestKillswitchIntegration(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        # For enabled tests, we can use inline_run since CI Visibility should work normally
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_CIVISIBILITY_ENABLED": "true",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-            },
-        )
-        rec.assertoutcome(passed=1)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ) as mock_check_enabled_features:
+            rec = self.inline_run(
+                "--ddtrace",
+                file_name,
+                extra_env={
+                    "DD_CIVISIBILITY_ENABLED": "true",
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                },
+            )
 
-        # When killswitch is enabled, CI Visibility should run and create spans
-        spans = self.pop_spans()
-        assert len(spans) >= 4, f"Expected at least 4 spans when CI Visibility is enabled, got {len(spans)}"
+        rec.assertoutcome(passed=1)
+        assert mock_check_enabled_features.called, (
+            "_check_enabled_features was not called — CI Visibility may not have started"
+        )
+        assert len(self.pop_spans()) >= 4
