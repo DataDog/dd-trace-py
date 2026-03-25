@@ -1413,10 +1413,7 @@ def _on_mlflow_new_run(
 
     if run_tags and config.mlflow.trace_run_tags:
         for key, value in run_tags.items():
-            try:
-                span._set_attribute(key, str(value))
-            except Exception:  # nosec B112
-                continue
+            span._set_attribute(key, value)
 
     span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
     active_run_spans[run_id] = span

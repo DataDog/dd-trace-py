@@ -55,17 +55,11 @@ def _finish_unfinished_spans_at_exit():
     # Finish child spans before run spans to preserve parent/child ordering.
     for step_span in list(MLFLOW_ACTIVE_STEP_SPANS.values()):
         if step_span is not None:
-            try:
-                step_span.finish()
-            except Exception:  # nosec B110
-                pass
+            step_span.finish()
 
     for run_span in list(MLFLOW_ACTIVE_RUN_SPANS.values()):
         if run_span is not None:
-            try:
-                run_span._finish_with_ancestors()
-            except Exception:  # nosec B110
-                pass
+            run_span._finish_with_ancestors()
 
     MLFLOW_ACTIVE_RUN_SPANS.clear()
     MLFLOW_ACTIVE_STEP_SPANS.clear()
