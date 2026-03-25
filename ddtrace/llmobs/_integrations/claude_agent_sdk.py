@@ -274,7 +274,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
     def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str]:
         """Extract output data from response, including output messages, usage metrics, init system message,
-        and stop reason."""
+        and stop reason.
+        """
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
