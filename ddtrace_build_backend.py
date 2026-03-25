@@ -22,6 +22,13 @@ _BUILD_SYSTEM_FILES = (
     "pyproject.toml",
 )
 
+_WHEEL_DEBUG_SETUP_ARGS = (
+    "-Dbuildtype=custom",
+    "-Ddebug=true",
+    "-Doptimization=3",
+    "-Db_ndebug=true",
+)
+
 
 def _build_system_cache_key() -> str:
     digest = hashlib.sha256()
@@ -48,6 +55,56 @@ def _python_build_cache_key() -> str:
     return digest.hexdigest()[:12]
 
 
+def _config_value_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return [str(item) for item in value]
+
+
+def _config_settings_cache_key(config_settings: dict[Any, Any] | None) -> str:
+    digest = hashlib.sha256()
+    for key in sorted((config_settings or ()), key=str):
+        if key in ("build-dir", "builddir"):
+            continue
+
+        digest.update(str(key).encode("utf-8"))
+        digest.update(b"\0")
+        for value in _config_value_list(config_settings[key]):
+            digest.update(value.encode("utf-8"))
+            digest.update(b"\0")
+    return digest.hexdigest()[:12]
+
+
+def _has_explicit_wheel_build_setup(config_settings: dict[Any, Any]) -> bool:
+    for arg in _config_value_list(config_settings.get("setup-args")):
+        if any(
+            arg == f"-D{name}" or arg.startswith(f"-D{name}=")
+            for name in ("buildtype", "debug", "optimization", "b_ndebug")
+        ):
+            return True
+    return False
+
+
+def _with_default_wheel_build_settings(config_settings: dict[Any, Any] | None) -> dict[Any, Any]:
+    settings = dict(config_settings or {})
+
+    # AIDEV-NOTE: Linux and macOS wheel packaging split debug symbols into a
+    # separate artifact in CI. setup.py used Python's default compiler flags,
+    # which typically included -g alongside optimization, so meson wheel
+    # builds need an equivalent default without changing editable/dev builds.
+    # setup.py historically built non-Windows wheels with release-like optimization
+    # plus debug info so CI could split symbols out into a separate artifact.
+    if sys.platform == "win32" or _has_explicit_wheel_build_setup(settings):
+        return settings
+
+    setup_args = _config_value_list(settings.get("setup-args"))
+    setup_args.extend(_WHEEL_DEBUG_SETUP_ARGS)
+    settings["setup-args"] = setup_args
+    return settings
+
+
 def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any, Any]:
     settings = dict(config_settings or {})
     if "build-dir" not in settings and "builddir" not in settings:
@@ -58,6 +115,8 @@ def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any,
             + _python_build_cache_key()
             + "-"
             + _build_system_cache_key()
+            + "-"
+            + _config_settings_cache_key(settings)
         )
     return settings
 
@@ -76,9 +135,10 @@ def build_wheel(
     config_settings: dict[Any, Any] | None = None,
     metadata_directory: str | None = None,
 ) -> str:
+    settings = _with_default_wheel_build_settings(config_settings)
     return mesonpy.build_wheel(
         wheel_directory,
-        _with_default_build_dir(config_settings),
+        _with_default_build_dir(settings),
         metadata_directory,
     )
 
