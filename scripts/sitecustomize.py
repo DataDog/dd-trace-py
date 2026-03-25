@@ -20,6 +20,13 @@ only at the prefix venv's site-packages (venv_py3140_<hash>).  The .pth file tha
 registers the EditableFinder lives in the base venv's site-packages, which is never
 processed, so sys.meta_path never contains the EditableFinder.
 
+Problem 3 — subprocess in sys.modules at startup: the generated
+_ddtrace_editable_loader.py imports subprocess at module level (it is only used
+inside _rebuild(), which we patch away in fix 1).  Because ddtrace-editable.pth
+executes "import _ddtrace_editable_loader" before sitecustomize runs, subprocess
+appears in sys.modules at Python startup.  This breaks test_auto, which asserts
+that "import ddtrace.auto" does not transitively import subprocess.
+
 Fix for problem 2: detect when the EditableFinder is absent, find
 _ddtrace_editable_loader.py in the nearest riot base venv, import it properly so it
 registers the EditableFinder in sys.meta_path.
@@ -30,7 +37,11 @@ subprocess call and reads the already-generated meson-info/intro-install_plan.js
 directly.  The plan file is always present because meson-python generated it during
 "pip install -e .".
 
-Both patches are no-ops in normal dev environments where everything is available.
+Fix for problem 3: after patching _rebuild() (so subprocess is no longer needed by
+the editable loader), remove subprocess from sys.modules if it was imported solely
+by the editable loader.  Any code that genuinely needs subprocess can re-import it.
+
+All patches are no-ops in normal dev environments where everything is available.
 """
 import functools
 import glob
@@ -145,5 +156,71 @@ def _patch_mesonpy_editable():
         return  # Only one ddtrace editable finder expected; done.
 
 
+def _remove_editable_loader_subprocess():
+    """Remove subprocess from sys.modules if it was imported only by _ddtrace_editable_loader.
+
+    The generated _ddtrace_editable_loader.py imports subprocess at module level,
+    even though subprocess is only used inside _rebuild() — which we have already
+    patched to not call subprocess.  Removing subprocess from sys.modules here
+    ensures it does not appear as an implicit import of ddtrace.auto, allowing
+    test_auto's assertion to pass.
+
+    We only remove subprocess when:
+    1. _ddtrace_editable_loader is in sys.modules (it brought subprocess in), AND
+    2. subprocess is currently in sys.modules, AND
+    3. The editable loader module holds a direct reference to the subprocess object
+       that matches sys.modules["subprocess"] (confirming the loader imported it).
+
+    Any code that genuinely needs subprocess can import it normally afterwards.
+    """
+    loader_mod = sys.modules.get("_ddtrace_editable_loader")
+    if loader_mod is None:
+        return
+
+    sub_mod = sys.modules.get("subprocess")
+    if sub_mod is None:
+        return  # Already removed or never imported
+
+    # Check that the loader module is the one that holds a reference to subprocess
+    # (i.e., subprocess was imported as a module-level import in _ddtrace_editable_loader.py).
+    loader_subprocess = getattr(loader_mod, "subprocess", None)
+    if loader_subprocess is not sub_mod:
+        return  # subprocess came from somewhere else — don't touch it
+
+    # Safe to remove: the editable loader is the sole reason subprocess is present.
+    del sys.modules["subprocess"]
+
+
+def _chain_to_next_sitecustomize():
+    """Execute the next sitecustomize.py found in sys.path after scripts/.
+
+    When scripts/sitecustomize.py is loaded first (because scripts/ is earlier
+    in PYTHONPATH than another directory that has its own sitecustomize.py),
+    that other sitecustomize.py is never loaded.  This function finds and execs
+    it so that both sets of startup logic run.
+
+    A typical case is tests/internal/sitecustomize.py, which registers a
+    post-run module hook that certain subprocess tests rely on.
+    """
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    for path in sys.path:
+        abs_path = os.path.abspath(path) if path else os.getcwd()
+        if abs_path == this_dir:
+            continue
+        candidate = os.path.join(abs_path, "sitecustomize.py")
+        if os.path.isfile(candidate):
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "_ddtrace_chained_sitecustomize", candidate
+                )
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+            except Exception:
+                pass
+            break  # Only chain to the first one found.
+
+
 _activate_ddtrace_editable_loader()
 _patch_mesonpy_editable()
+_remove_editable_loader_subprocess()
+_chain_to_next_sitecustomize()

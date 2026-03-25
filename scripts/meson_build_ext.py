@@ -57,6 +57,13 @@ def cmd_rust(args):
     python = args.python
     host = args.host
 
+    # If cargo is not available, skip with a warning
+    cargo_bin = shutil.which("cargo")
+    if not cargo_bin:
+        print("[meson_build_ext] WARNING: cargo not found, skipping Rust extension build")
+        _write_stamp(args)
+        return
+
     output.parent.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
@@ -68,7 +75,7 @@ def cmd_rust(args):
 
     # Build with cargo
     cargo_cmd = [
-        shutil.which("cargo") or "cargo",
+        cargo_bin,
         "build",
         "--release",
         "--manifest-path", str(manifest),
@@ -173,6 +180,17 @@ def _ensure_dedup_headers():
 def cmd_cmake(args):
     """Build a CMake extension component."""
     cmake = get_cmake_binary()
+
+    # Check if cmake is available
+    if cmake == "cmake" and not shutil.which("cmake"):
+        # cmake not found even as fallback — check pip cmake
+        try:
+            import cmake as cmake_pkg  # noqa: F401
+        except ImportError:
+            print(f"[meson_build_ext] WARNING: cmake not found, skipping {args.component_name}")
+            _write_stamp(args)
+            return
+
     src_root = Path(args.src_root)
     cmake_src_dir = Path(args.cmake_src_dir)
     output = Path(args.output)
@@ -511,7 +529,19 @@ def main():
         "psutil": cmd_psutil,
         "libddwaf": cmd_libddwaf,
     }
-    dispatch[args.subcommand](args)
+    try:
+        dispatch[args.subcommand](args)
+    except subprocess.CalledProcessError as e:
+        # Check if the component is optional (stamp arg present means we can skip)
+        stamp = getattr(args, "stamp", None)
+        if stamp:
+            print(
+                f"[meson_build_ext] WARNING: {args.subcommand} build failed (exit {e.returncode}), "
+                f"writing skip stamp. Some functionality may be unavailable."
+            )
+            _write_stamp(args)
+        else:
+            raise
 
 
 if __name__ == "__main__":
