@@ -33,6 +33,7 @@ What this shadow does:
 This is a pure no-op in environments where ``subprocess`` was already present
 (e.g., when code that uses subprocess imports ddtrace later).
 """
+
 import os as _os
 import sys as _sys
 

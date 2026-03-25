@@ -34,6 +34,7 @@ Add all monkey-patching that needs to run by default here
 # missing, replace _rebuild() with a version that reads the already-generated
 # meson-info/intro-install_plan.json directly, skipping the subprocess call.
 try:
+
     def _apply_mesonpy_patch():
         import functools
         import json
@@ -53,6 +54,7 @@ try:
         if finder is None:
             try:
                 import _ddtrace_editable_loader  # noqa: F401 — side-effect: calls install()
+
                 finder = _get_finder()
             except ImportError:
                 pass

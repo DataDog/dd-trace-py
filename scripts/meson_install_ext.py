@@ -14,9 +14,8 @@ Environment variables provided by meson at install time:
 
 import argparse
 import os
-import shutil
-import sys
 from pathlib import Path
+import shutil
 
 
 def parse_args():

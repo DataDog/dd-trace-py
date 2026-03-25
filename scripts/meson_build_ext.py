@@ -14,12 +14,10 @@ Each invocation is for one component; meson handles parallelism and ordering.
 
 import argparse
 import os
+from pathlib import Path
 import platform
 import shutil
 import subprocess
-import sys
-import sysconfig
-from pathlib import Path
 
 
 CURRENT_OS = platform.system()
@@ -78,7 +76,8 @@ def cmd_rust(args):
         cargo_bin,
         "build",
         "--release",
-        "--manifest-path", str(manifest),
+        "--manifest-path",
+        str(manifest),
     ]
     if features:
         cargo_cmd += ["--features", features]
@@ -112,13 +111,8 @@ def cmd_rust(args):
             break
 
     if lib_file is None:
-        # Try glob
-        matches = list(release_dir.glob("*_native*"))
         print(f"[meson_build_ext] Release dir contents: {list(release_dir.iterdir())}")
-        raise RuntimeError(
-            f"Could not find Rust-built _native library in {release_dir}. "
-            f"Tried: {candidates}"
-        )
+        raise RuntimeError(f"Could not find Rust-built _native library in {release_dir}. Tried: {candidates}")
 
     print(f"[meson_build_ext] Rust built: {lib_file} → {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -163,9 +157,12 @@ def _ensure_dedup_headers():
     cargo = shutil.which("cargo") or "cargo"
     subprocess.run(
         [
-            cargo, "install",
-            "--git", "https://github.com/DataDog/libdatadog",
-            "--bin", "dedup_headers",
+            cargo,
+            "install",
+            "--git",
+            "https://github.com/DataDog/libdatadog",
+            "--bin",
+            "dedup_headers",
             "tools",
         ],
         check=True,
@@ -283,6 +280,7 @@ def cmd_cmake(args):
 def cmd_psutil(args):
     """Build the vendored psutil extension by importing its get_extensions()."""
     import importlib.util
+
     src_root = Path(args.src_root)
     psutil_dir = src_root / "ddtrace" / "vendor" / "psutil"
     output = Path(args.output)
@@ -293,9 +291,7 @@ def cmd_psutil(args):
 
     # Import psutil's setup.py as a module to call get_extensions() without
     # invoking main() (which fails due to missing convert_readme.py in vendor tree).
-    spec = importlib.util.spec_from_file_location(
-        "ddtrace.vendor.psutil.setup", psutil_dir / "setup.py"
-    )
+    spec = importlib.util.spec_from_file_location("ddtrace.vendor.psutil.setup", psutil_dir / "setup.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     exts = mod.get_extensions()
@@ -318,6 +314,7 @@ def cmd_psutil(args):
     cmd.inplace = True
     # Tell distutils the source root so relative paths resolve correctly
     import os as _os
+
     orig_dir = _os.getcwd()
     _os.chdir(str(src_root))
     try:
@@ -338,7 +335,9 @@ def cmd_psutil(args):
         pattern = "_psutil_*"
 
     # Filter to only shared libraries (exclude .c/.h source files)
-    candidates = [p for p in psutil_dir.glob(pattern) if p.suffix in (".so", ".pyd", ".dylib") or p.name.endswith(args.ext_suffix)]
+    candidates = [
+        p for p in psutil_dir.glob(pattern) if p.suffix in (".so", ".pyd", ".dylib") or p.name.endswith(args.ext_suffix)
+    ]
     if not candidates:
         candidates = [p for p in psutil_dir.glob(f"*{args.ext_suffix}") if p.is_file()]
 
@@ -365,7 +364,6 @@ def cmd_psutil(args):
 
 def cmd_libddwaf(args):
     """Download libddwaf pre-built binary using pure stdlib (no setuptools required)."""
-    import hashlib
     import tarfile
     from urllib.request import urlretrieve
 
@@ -404,7 +402,6 @@ def cmd_libddwaf(args):
         return
 
     # Only download the matching architecture
-    import struct
     machine = platform.machine().lower()
     if host == "darwin":
         if machine in ("arm64", "aarch64"):
