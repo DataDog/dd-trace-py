@@ -558,7 +558,7 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
-  timeout: 90m
+  timeout: 15m
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
