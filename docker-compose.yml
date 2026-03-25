@@ -148,6 +148,7 @@ services:
           - "127.0.0.1:5433:5433"
     azurecosmosemulator:
         image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+        platform: linux/arm64
         ports:
             - "127.0.0.1:8081:8081"
             - "127.0.0.1:1234:1234"
@@ -214,6 +215,7 @@ services:
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
+        platform: linux/amd64
         volumes:
           - ddagent:/tmp/ddagent
           - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache

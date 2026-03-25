@@ -3310,12 +3310,13 @@ venv = Venv(
         Venv(
             name="azure_functions:cosmos",
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
-            pys=select_pys(min_version="3.9", max_version="3.9"),
+            pys=select_pys(min_version="3.11", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "azure.cosmos": ["~=4.8.0", latest],
                 "azure.storage.blob": latest,
                 "aiohttp": latest,
+                "boto": latest,
             },
         ),
         Venv(
