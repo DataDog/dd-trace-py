@@ -167,26 +167,25 @@ class TestAttachReachabilityMetadata:
 
 
 class TestWriterAttachDependencyMetadata:
-    """Writer-level tests for attach_dependency_metadata (with locking and lazy upgrade)."""
+    """Writer-level tests for attach_dependency_metadata (with locking)."""
 
-    def test_attach_upgrades_str_to_entry(self):
-        """When a dependency is stored as a plain version string, attach upgrades it."""
+    def test_attach_metadata_to_tracked_dependency(self):
         from unittest.mock import MagicMock
 
         from ddtrace.internal.telemetry.writer import TelemetryWriter
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
-        writer._imported_dependencies = {"requests": "2.28.0"}
+        writer._imported_dependencies = {
+            "requests": DependencyEntry(name="requests", version="2.28.0"),
+        }
 
         result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
 
         assert result is True
         entry = writer._imported_dependencies["requests"]
-        assert isinstance(entry, DependencyEntry)
-        assert entry.name == "requests"
-        assert entry.version == "2.28.0"
         assert len(entry.metadata) == 1
+        assert entry.metadata[0].value["id"] == "CVE-1"
 
     def test_attach_returns_false_for_unknown_package(self):
         from unittest.mock import MagicMock
@@ -195,7 +194,9 @@ class TestWriterAttachDependencyMetadata:
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
-        writer._imported_dependencies = {"requests": "2.28.0"}
+        writer._imported_dependencies = {
+            "requests": DependencyEntry(name="requests", version="2.28.0"),
+        }
 
         result = writer.attach_dependency_metadata("flask", "CVE-1", True, "mod", "func", 1)
 

@@ -161,9 +161,7 @@ class TelemetryWriter(PeriodicService):
         self._queued_configs: list[dict] = []
         self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
-        # AIDEV-NOTE: values are str (version) by default; attach_dependency_metadata
-        # upgrades individual entries to DependencyEntry when SCA attaches metadata.
-        self._imported_dependencies: dict = dict()
+        self._imported_dependencies: dict[str, DependencyEntry] = dict()
         self._modules_already_imported: set[str] = set()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
@@ -313,8 +311,7 @@ class TelemetryWriter(PeriodicService):
             payload["configurations"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [
-                    {"name": name, "version": v if isinstance(v, str) else v.version}
-                    for name, v in self._imported_dependencies.items()
+                    {"name": entry.name, "version": entry.version} for entry in self._imported_dependencies.values()
                 ]
             self._extended_time += self._extended_heartbeat_interval
         return payload
@@ -358,19 +355,11 @@ class TelemetryWriter(PeriodicService):
 
         Called by SCA detection hook when a vulnerable symbol is reached at runtime.
         Thread-safe: acquires _service_lock before mutating dependency entries.
-        Lazily upgrades the stored version string to a DependencyEntry on first call.
 
         Returns:
             True if metadata was attached, False if the package is not yet tracked.
         """
         with self._service_lock:
-            value = self._imported_dependencies.get(package_name)
-            if value is None:
-                return False
-            # Upgrade str -> DependencyEntry on first metadata attachment
-            if isinstance(value, str):
-                value = DependencyEntry(name=package_name, version=value)
-                self._imported_dependencies[package_name] = value
             return attach_reachability_metadata(
                 self._imported_dependencies, package_name, cve_id, reached, path, method, line
             )
