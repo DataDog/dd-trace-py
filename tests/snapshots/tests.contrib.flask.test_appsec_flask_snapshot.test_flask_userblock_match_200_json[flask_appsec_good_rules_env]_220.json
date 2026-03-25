@@ -64,7 +64,6 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
-         "_dd.svc_src": "m",
          "component": "flask",
          "flask.endpoint": "checkuser",
          "flask.url_rule": "/checkuser/<user_id>",
@@ -82,7 +81,6 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 41709,
@@ -97,7 +95,6 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 1586000,
@@ -112,7 +109,6 @@
              "parent_id": 5,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
                "component": "flask"
              },
              "duration": 1497625,
@@ -127,7 +123,6 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 33375,
@@ -142,7 +137,6 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 32459,
@@ -157,7 +151,6 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 24500,
@@ -172,7 +165,6 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
-         "_dd.svc_src": "m",
          "component": "flask"
        },
        "duration": 469042,

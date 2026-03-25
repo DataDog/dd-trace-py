@@ -66,8 +66,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.svc_src": "m"
+            "_dd.base_service": "ddtrace_subprocess_dir"
           },
           "duration": 54292,
           "start": 1771927544830576085

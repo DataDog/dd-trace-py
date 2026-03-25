@@ -48,7 +48,6 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
-         "_dd.svc_src": "m",
          "component": "flask",
          "flask.endpoint": "hello",
          "flask.url_rule": "/stream"
@@ -68,7 +67,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 29833,
@@ -86,7 +84,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 30416,
@@ -104,7 +101,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 92958,
@@ -122,7 +118,6 @@
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
-               "_dd.svc_src": "m",
                "component": "flask"
              },
              "duration": 39417,
@@ -140,7 +135,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 20958,
@@ -158,7 +152,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 23500,
@@ -176,7 +169,6 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
-            "_dd.svc_src": "m",
             "component": "flask"
           },
           "duration": 18875,
@@ -194,7 +186,6 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
-         "_dd.svc_src": "m",
          "component": "flask"
        },
        "duration": 436916,
