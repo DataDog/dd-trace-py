@@ -20,9 +20,9 @@ def print_test_report_links(terminalreporter):
     ci_tags = ci_visibility_instance.get_ci_tags()
     settings = ci_visibility_instance.get_session_settings()
     service = settings.test_service
-    env = ci_visibility_instance.get_dd_env()
+    dd_env = ci_visibility_instance.get_dd_env()
 
-    redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
+    redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, dd_env)
     test_runs_url = _build_test_runs_url(base_url, ci_tags)
 
     if not (redirect_test_commit_url or test_runs_url):
