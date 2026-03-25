@@ -159,6 +159,15 @@ suites:
       - tests/ddtrace_run.py
     services:
       - redis
+  detect_global_locks:
+    venvs_per_job: 1
+    paths:
+      - 'ddtrace/*'
+      - 'setup.py'
+      - 'setup.cfg'
+      - 'pyproject.toml'
+      - 'src/native/*'
+      - 'scripts/global-lock-detection.py'
   integration_agent:
     parallelism: 2
     paths:
