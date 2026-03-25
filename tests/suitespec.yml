@@ -167,7 +167,7 @@ suites:
       - 'setup.cfg'
       - 'pyproject.toml'
       - 'src/native/*'
-      - 'scripts/detect-global-locks.py'
+      - 'scripts/global-lock-detection.py'
   integration_agent:
     parallelism: 2
     paths:
