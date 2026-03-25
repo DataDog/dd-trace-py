@@ -17,11 +17,12 @@ from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.internal.settings import env
+
 
 # These will be initialized lazily to avoid circular imports
 _original_connect = None

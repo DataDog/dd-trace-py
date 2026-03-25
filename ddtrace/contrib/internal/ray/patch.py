@@ -18,11 +18,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.internal.settings import env
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import DEFAULT_JOB_NAME

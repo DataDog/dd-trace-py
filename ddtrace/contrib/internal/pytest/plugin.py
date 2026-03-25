@@ -29,9 +29,10 @@ from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # n
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 from ddtrace.contrib.internal.pytest._utils import _extract_span
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.settings import env
+
 
 if asm_config._iast_enabled:
     from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401

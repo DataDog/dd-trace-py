@@ -11,9 +11,10 @@ from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.settings import env
+
 
 # Original connect method
 _connect = sqlite3.connect

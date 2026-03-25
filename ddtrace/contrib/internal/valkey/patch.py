@@ -57,10 +57,11 @@ from ddtrace.contrib.internal.valkey_utils import determine_row_count
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
-from ddtrace.internal.settings import env
+
 
 config._add(
     "valkey",

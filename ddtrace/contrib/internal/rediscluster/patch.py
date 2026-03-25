@@ -17,12 +17,13 @@ from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
+
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
 #      but in `1.x.x` `__version__` is a tuple and `VERSION` does not exist

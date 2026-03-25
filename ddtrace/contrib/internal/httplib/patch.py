@@ -17,11 +17,12 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
+
 
 span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)

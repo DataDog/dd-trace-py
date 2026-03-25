@@ -10,9 +10,10 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.internal.settings import env
+
 
 config._add(
     "pymysql",

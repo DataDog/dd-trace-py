@@ -2,11 +2,12 @@ import falcon
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.internal.settings import env
 
 from .middleware import TraceMiddleware
+
 
 FALCON_VERSION = parse_version(falcon.__version__)
 

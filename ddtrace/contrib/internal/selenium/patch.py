@@ -5,9 +5,10 @@ from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
+
 
 if t.TYPE_CHECKING:
     import selenium.webdriver.remote.webdriver
