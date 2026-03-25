@@ -4,7 +4,7 @@
  *
  * This header centralizes:
  *   - CPython internal header includes (version-conditional)
- *   - Frame type alias (DataDog::frame_t)
+ *   - Frame type alias (DataDog::py_frame_t)
  *   - _PyStackRef alignment assertions (Python 3.14+)
  *
  * Prerequisites: the translation unit must define Py_BUILD_CORE and include
@@ -41,9 +41,9 @@ static_assert(alignof(PyObject) >= 8, "PyObject must be at least 8-byte aligned 
 namespace DataDog {
 
 #if PY_VERSION_HEX >= 0x030b0000
-using frame_t = _PyInterpreterFrame;
+using py_frame_t = _PyInterpreterFrame;
 #else
-using frame_t = PyFrameObject;
+using py_frame_t = PyFrameObject;
 #endif /* PY_VERSION_HEX >= 0x030b0000 */
 
 } /* namespace DataDog */

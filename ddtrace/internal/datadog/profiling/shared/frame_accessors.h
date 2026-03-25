@@ -32,7 +32,7 @@ namespace DataDog {
 
 /* Return the innermost interpreter frame from the thread state.
  * Returns a borrowed frame pointer (no reference created). */
-inline frame_t*
+inline py_frame_t*
 get_frame_from_tstate(PyThreadState* tstate)
 {
 #if PY_VERSION_HEX >= 0x030d0000
@@ -50,8 +50,8 @@ get_frame_from_tstate(PyThreadState* tstate)
 
 /* Return the caller's frame (one level up the call stack) without
  * creating a new reference. */
-inline frame_t*
-get_previous_frame(frame_t* frame)
+inline py_frame_t*
+get_previous_frame(py_frame_t* frame)
 {
 #if PY_VERSION_HEX >= 0x030b0000
     return frame->previous;
@@ -64,7 +64,7 @@ get_previous_frame(frame_t* frame)
  * For Python 3.14+, f_executable carries tagged pointer bits that
  * must be masked off before treating it as a PyObject*. */
 inline PyCodeObject*
-get_code_from_frame(frame_t* frame)
+get_code_from_frame(py_frame_t* frame)
 {
 #if PY_VERSION_HEX >= 0x030e0000
     /* Python 3.14+: f_executable is a _PyStackRef (tagged pointer).
@@ -92,7 +92,7 @@ get_code_from_frame(frame_t* frame)
  * Only safe when the code object pointer is valid (GIL held or
  * object known to be alive). */
 inline bool
-should_skip_frame(frame_t* frame)
+should_skip_frame(py_frame_t* frame)
 {
     PyObject* code = reinterpret_cast<PyObject*>(get_code_from_frame(frame));
     if (code == NULL || !PyCode_Check(code)) {
@@ -137,7 +137,7 @@ get_code_name(PyCodeObject* code)
  *                     instruction; result is in _Py_CODEUNIT units.
  *   Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
 inline int
-get_lasti(frame_t* frame, [[maybe_unused]] PyCodeObject* code)
+get_lasti(py_frame_t* frame, [[maybe_unused]] PyCodeObject* code)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     return static_cast<int>(frame->instr_ptr - _PyCode_CODE(code));

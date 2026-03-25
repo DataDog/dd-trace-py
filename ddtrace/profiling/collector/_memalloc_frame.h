@@ -14,9 +14,8 @@
  *
  * The core frame-access logic and line table parsing are provided by the
  * shared profiling headers (ddtrace/internal/datadog/profiling/shared/).
- * This file provides the memalloc_frame_t alias and the memalloc_get_lineno()
- * helper that combines lasti computation with table-pointer fetching and
- * line number parsing.
+ * This file provides the memalloc_get_lineno() helper that combines lasti
+ * computation with table-pointer fetching and line number parsing.
  */
 
 #ifdef Py_PYTHON_H
@@ -40,9 +39,6 @@
 #include "shared/frame_accessors.h"
 #include "shared/linetable_parser.h"
 
-/* Memalloc frame type — alias of the shared DataDog::frame_t. */
-using memalloc_frame_t = DataDog::frame_t;
-
 /* Return the current line number for the frame by parsing the line table
  * directly, without calling PyCode_Addr2Line().
  *
@@ -60,7 +56,7 @@ using memalloc_frame_t = DataDog::frame_t;
  * reads from already-owned objects. It does not allocate, decref, or touch
  * Python exception state. */
 static inline int
-memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
+memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
 {
     int lasti = DataDog::get_lasti(frame, code);
 

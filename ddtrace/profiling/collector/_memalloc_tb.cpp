@@ -72,7 +72,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         return;
     }
 
-    memalloc_frame_t* current_frame = DataDog::get_frame_from_tstate(tstate);
+    DataDog::py_frame_t* current_frame = DataDog::get_frame_from_tstate(tstate);
     if (current_frame == NULL) {
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
@@ -80,7 +80,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
 
     uint16_t pushed_frames = 0;
     size_t walked_frames = 0;
-    for (memalloc_frame_t* frame = current_frame; frame != NULL; frame = DataDog::get_previous_frame(frame)) {
+    for (DataDog::py_frame_t* frame = current_frame; frame != NULL; frame = DataDog::get_previous_frame(frame)) {
         // Safety cap on raw frame-chain traversal, independent of emitted
         // frames, so allocator-hook walking always stays finite.
         if (++walked_frames > TRACEBACK_MAX_WALKED_NFRAME) {
