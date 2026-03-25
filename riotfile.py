@@ -365,6 +365,10 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                # pip 25+ changed dist-info registration, causing pip to not appear in
+                # packages_distributions(), which breaks IAST first-party detection tests.
+                # TODO: fix the first-party detection logic in iastpatch.c
+                "pip": "<25",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -1347,14 +1351,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.11"),
                     pkgs={
                         "mlflow": ["~=2.11.0"],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
                     pkgs={
                         "mlflow": [latest],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
             ],
@@ -2509,6 +2515,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
                 # pkg_resources was removed in v82.0.0
                 "setuptools": "<82",
@@ -2530,6 +2538,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
