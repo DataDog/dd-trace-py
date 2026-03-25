@@ -420,19 +420,17 @@ class TestRunner:
 
     def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
         """Let user select which riot suites to run."""
-        riot_suites = {name: config for name, config in matching_suites.items() if config.get("runner") == "riot"}
-
-        if not riot_suites:
+        if not matching_suites:
             print("❌ No riot suites found in matching suites")
             return {}
 
-        print(f"\n📋 Found {len(riot_suites)} matching riot suite(s):")
-        suite_list = list(riot_suites.keys())
+        print(f"\n📋 Found {len(matching_suites)} matching riot suite(s):")
+        suite_list = list(matching_suites.keys())
 
         selected = self._interactive_select(suite_list, "suites")
         if selected:
             print(f"   Selected suites: {', '.join(selected)}")
-            return {name: riot_suites[name] for name in selected}
+            return {name: matching_suites[name] for name in selected}
         return {}
 
     def select_venvs_for_suites(self, selected_suites: dict[str, dict]) -> list[RiotVenv]:
@@ -690,9 +688,6 @@ class TestRunner:
         suites_data = []
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -726,9 +721,6 @@ class TestRunner:
         venv_hashes_set = set(venv_hashes)
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -863,9 +855,6 @@ Examples:
         for venv in selected_venvs:
             # Try to find which suite this venv belongs to by pattern matching
             for suite_name, suite_config in all_suites.items():
-                if suite_config.get("runner") != "riot":
-                    continue
-
                 pattern = suite_config.get("pattern", suite_name)
 
                 try:

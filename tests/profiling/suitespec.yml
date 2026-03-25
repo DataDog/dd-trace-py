@@ -19,7 +19,6 @@ suites:
       - tests/profiling/*
     pattern: profile$
     retry: 2
-    runner: riot
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -33,7 +32,6 @@ suites:
       - tests/profiling/*
     pattern: profile-uwsgi
     retry: 2
-    runner: riot
   profile-memalloc:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -47,4 +45,3 @@ suites:
       - tests/profiling/*
     pattern: profile-memalloc
     retry: 2
-    runner: riot

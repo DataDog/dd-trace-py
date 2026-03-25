@@ -225,7 +225,6 @@ are not yet any expected spans stored for it, so we need to create some.
       - tests/contrib/asyncpg/*
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
-    runner: riot
     snapshot: true
     services:
       - postgres
