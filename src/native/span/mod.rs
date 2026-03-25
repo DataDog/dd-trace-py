@@ -8,8 +8,6 @@ pub mod utils;
 pub use span_data::SpanData;
 pub use span_event::SpanEvent;
 pub use span_link::SpanLink;
-#[allow(unused_imports)]
-pub use span_link::SpanLinkData;
 
 pub fn register_native_span(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_class::<SpanLink>()?;

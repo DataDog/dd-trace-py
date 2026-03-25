@@ -227,5 +227,3 @@ impl SpanLink {
     }
 }
 
-// Keep SpanLinkData as a type alias for backward compatibility
-pub use SpanLink as SpanLinkData;
