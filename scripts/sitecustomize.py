@@ -43,12 +43,34 @@ by the editable loader.  Any code that genuinely needs subprocess can re-import 
 
 All patches are no-ops in normal dev environments where everything is available.
 """
+
 import functools
 import glob
 import importlib.util
 import json
 import os
+from pathlib import Path
+import re
 import sys
+
+
+_BASE_RIOT_VENV_RE = re.compile(r"^venv_py\d+$")
+
+
+def _editable_loader_sort_key(match):
+    """Prefer loaders for the active interpreter, then base venvs, then shorter paths."""
+    path = Path(match)
+    venv_name = path.parents[3].name if len(path.parents) > 3 else ""
+    py_dir = path.parents[1].name if len(path.parents) > 1 else ""
+    current_py_dir = f"python{sys.version_info[0]}.{sys.version_info[1]}"
+    is_current_interpreter = py_dir == current_py_dir
+    is_base_venv = _BASE_RIOT_VENV_RE.match(venv_name) is not None
+
+    return (
+        0 if is_current_interpreter and is_base_venv else 1 if is_current_interpreter else 2 if is_base_venv else 3,
+        len(match),
+        match,
+    )
 
 
 def _find_ddtrace_editable_loader():
@@ -78,8 +100,11 @@ def _find_ddtrace_editable_loader():
     )
     if not matches:
         return None
-    matches.sort(key=len)  # shortest path = base venv
-    return matches[0]
+    # AIDEV-NOTE: A riot checkout can have multiple base venvs alive at once
+    # (for example 3.11 and 3.14). Registering the wrong editable loader makes
+    # MesonpyMetaFinder expose extension suffixes for the wrong Python version,
+    # so imports like ddtrace.internal._threads fail with ModuleNotFoundError.
+    return min(matches, key=_editable_loader_sort_key)
 
 
 def _activate_ddtrace_editable_loader():
@@ -138,9 +163,7 @@ def _patch_mesonpy_editable():
 
         @functools.lru_cache(maxsize=1)
         def _safe_rebuild(_build_path=build_path, _collect=_collect):
-            install_plan_path = os.path.join(
-                _build_path, "meson-info", "intro-install_plan.json"
-            )
+            install_plan_path = os.path.join(_build_path, "meson-info", "intro-install_plan.json")
             if not os.path.exists(install_plan_path):
                 raise ImportError(
                     f"meson-python: build directory '{_build_path}' has no "
@@ -210,9 +233,7 @@ def _chain_to_next_sitecustomize():
         candidate = os.path.join(abs_path, "sitecustomize.py")
         if os.path.isfile(candidate):
             try:
-                spec = importlib.util.spec_from_file_location(
-                    "_ddtrace_chained_sitecustomize", candidate
-                )
+                spec = importlib.util.spec_from_file_location("_ddtrace_chained_sitecustomize", candidate)
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
             except Exception:

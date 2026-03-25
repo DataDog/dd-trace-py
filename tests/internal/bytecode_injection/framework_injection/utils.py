@@ -10,6 +10,10 @@ try:
 except Exception:
     COLS = 80
 CWD = Path.cwd()
+# AIDEV-NOTE: Meson editable installs rely on startup hooks like
+# scripts/sitecustomize.py. Framework bootstrap tests should only report target
+# project imports, not those repository startup helpers.
+_BOOTSTRAP_FILENAMES = {"sitecustomize.py", "usercustomize.py"}
 
 
 # Taken from Python 3.9. This is not implemented in older versions of Python
@@ -27,7 +31,8 @@ def from_editable_install(module: ModuleType, config) -> bool:
     if o is None:
         return False
     return (
-        o.is_relative_to(CWD)
+        o.name not in _BOOTSTRAP_FILENAMES
+        and o.is_relative_to(CWD)
         and not any(_.stem.startswith("test") for _ in o.parents)
         and (config.venv is None or not o.is_relative_to(config.venv))
     )

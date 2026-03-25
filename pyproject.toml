@@ -8,7 +8,8 @@ requires = [
     "setuptools",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
-build-backend = "mesonpy"
+build-backend = "ddtrace_build_backend"
+backend-path = ["."]
 
 # Keep setuptools-based build available as a fallback via DD_USE_SETUPTOOLS=1
 # (old build-system requires kept below for reference)
