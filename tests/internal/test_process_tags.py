@@ -198,8 +198,11 @@ def test_process_tags_base_hash_populated_when_remote_config_disabled():
     # Force lazy path so __getattr__ and _retrieve_container_tags_hash() are executed.
     process_tags.__dict__.pop("process_tags", None)
     process_tags.__dict__.pop("process_tags_list", None)
+    register_container_tags_hook = process_tags._register_container_tags_hook
+    register_container_tags_hook.__wrapped__.__dict__.pop("__callonce_result__", None)
     retrieve_container_tags_hash = process_tags._retrieve_container_tags_hash
     retrieve_container_tags_hash.__wrapped__.__dict__.pop("__callonce_result__", None)
+    process_tags._container_tags_hash = ""
 
     from threading import Event
 
