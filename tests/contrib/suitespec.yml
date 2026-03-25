@@ -872,18 +872,6 @@ suites:
       - '@mako'
       - tests/contrib/mako/*
     snapshot: true
-  mlflow:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mlflow'
-      - tests/contrib/mlflow/*
-      - tests/snapshots/tests.contrib.mlflow.*
-    runner: riot
-    snapshot: true
   mariadb:
     paths:
       - '@bootstrap'
@@ -907,6 +895,7 @@ suites:
       - '@tracing'
       - '@mlflow'
       - tests/contrib/mlflow/*
+      - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
   molten:
     parallelism: 1
