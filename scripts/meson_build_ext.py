@@ -379,14 +379,12 @@ def cmd_libddwaf(args):
     CACHE_DIR = src_root / ".download_cache"
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # If libddwaf is already downloaded, skip
-    if DOWNLOAD_DIR.exists() and any(DOWNLOAD_DIR.iterdir()):
-        print(f"[meson_build_ext] libddwaf already present at {DOWNLOAD_DIR}, skipping download")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text("downloaded\n")
-        return
-
     # Determine OS name for URL
+    # AIDEV-NOTE: Do NOT add an early-exit "already downloaded" check here.
+    # The per-arch check inside the loop (arch_dir.is_dir()) handles skipping
+    # correctly. A global check based on DOWNLOAD_DIR.exists() would incorrectly
+    # skip the Linux aarch64 download when macOS arm64 artifacts are already
+    # present (e.g., when running tests inside Docker on a macOS host).
     if host == "darwin":
         os_name = "darwin"
         suffix = ".dylib"
