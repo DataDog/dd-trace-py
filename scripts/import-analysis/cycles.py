@@ -80,15 +80,16 @@ def compare(args):
         print()
 
     if existing_cycles:
-        print("The following circular imports among modules already exist on the base branch:")
+        print("## ⚠️ Existing circular imports")
+        print()
+        print("The following circular imports already exist on the base branch and have not been changed by this PR:")
         print()
         print_cycles([pr[_] for _ in existing_cycles])
 
     if removed_cycles:
-        print(
-            "The following circular imports among modules have been removed on "
-            "this PR, when compared to the base branch:"
-        )
+        print("## ✅ Circular imports removed")
+        print()
+        print("The following circular imports have been removed on this PR, when compared to the base branch:")
         print()
         print_cycles([base[_] for _ in removed_cycles])
 
