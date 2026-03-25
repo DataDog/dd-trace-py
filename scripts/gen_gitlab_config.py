@@ -26,7 +26,7 @@ import subprocess
 import typing as t
 
 
-MAX_BENCHMARKS_PER_GROUP = 8
+MAX_BENCHMARKS_PER_GROUP = 6
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
@@ -570,27 +570,6 @@ def gen_debugger_exploration() -> None:
 
     with TESTS_GEN.open("a") as f:
         f.write(template("debugging/exploration"))
-
-
-def gen_appsec_iast_aggregated_leak_testing() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because
-    we don't use riot to execute the tests
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
-            "tests/appsec/iast_aggregated_memcheck/*",
-            "ddtrace/appsec/_iast/**",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("appsec/iast_aggregated_leak_testing"))
 
 
 def gen_detect_global_locks() -> None:

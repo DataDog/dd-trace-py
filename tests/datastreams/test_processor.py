@@ -81,6 +81,28 @@ def test_new_pathway_uses_container_tags_hash():
     assert hash_without_base != hash_with_base
 
 
+@pytest.mark.subprocess()
+def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+    processor = DataStreamsProcessor("http://localhost:8126")
+    mocked_time = 1642544540
+    tags = ["direction:out", "topic:topicA", "type:kafka"]
+
+    # Trigger lazy process tags initialization, which should compute a base hash even
+    # before we receive any container hash from the agent.
+    _ = process_tags.process_tags
+    assert process_tags.base_hash is not None
+    assert process_tags.base_hash_bytes
+
+    ctx_with_base = processor.new_pathway(now_sec=mocked_time)
+    ctx_with_base.set_checkpoint(tags)
+    hash_with_base = ctx_with_base.hash
+
+    assert hash_with_base is not None
+
+
 def test_data_streams_loop_protection():
     ctx = processor.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
     parent_hash = ctx.hash

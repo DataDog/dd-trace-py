@@ -156,7 +156,7 @@ def traced_publish(func, instance, args, kwargs):
             s.set_tags(pin.tags)
         s._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
-        s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
+        s._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
         # run the command
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])

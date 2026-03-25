@@ -21,7 +21,7 @@
       "_dd.p.tid": "689a0aeb00000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
-      "_dd.svc.src": "django",
+      "_dd.svc_src": "django",
       "actor.ip": "127.0.0.1",
       "appsec.event": "true",
       "asgi.version": "3.0",

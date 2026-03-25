@@ -209,6 +209,7 @@ tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observ
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
 tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
 tests/snapshots/tests.contrib.vllm.*                          @DataDog/ml-observability
+tests/snapshots/tests.contrib.mlflow.*                        @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
