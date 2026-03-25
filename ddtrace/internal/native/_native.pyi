@@ -596,7 +596,7 @@ class SpanLink:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Any] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
         _dropped_attributes: int = 0,
         _skip_validation: bool = False,
     ) -> None: ...
