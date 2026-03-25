@@ -18,6 +18,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env as _env_module
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
 
@@ -433,7 +434,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
 
 def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
-    env = os.environ if env is None else env
+    env = _env_module.dd_environ if env is None else env
 
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))
