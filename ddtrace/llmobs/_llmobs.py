@@ -35,9 +35,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.settings import env
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT

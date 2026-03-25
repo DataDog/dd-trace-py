@@ -2,8 +2,8 @@ from concurrent import futures
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.settings import env
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import RLock
