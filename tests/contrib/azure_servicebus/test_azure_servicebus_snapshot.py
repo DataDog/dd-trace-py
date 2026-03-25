@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.azure_servicebus.patch import unpatch
 
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
-SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links", "meta._dd.svc_src"]
+SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links"]
 
 METHODS = ["send_messages", "schedule_messages"]
 ASYNC_OPTIONS = [False, True]

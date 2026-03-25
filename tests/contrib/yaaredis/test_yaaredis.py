@@ -13,9 +13,6 @@ from tests.utils import override_config
 from ..config import REDIS_CONFIG
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 @pytest.fixture(autouse=True)
 async def traced_yaaredis():
     r = yaaredis.StrictRedis(port=REDIS_CONFIG["port"])
@@ -53,12 +50,12 @@ def test_patching():
 
 @pytest.mark.asyncio
 async def test_long_command(snapshot_context, traced_yaaredis):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         await traced_yaaredis.mget(*range(1000))
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_cmd_max_length(traced_yaaredis):
     with override_config("yaaredis", dict(cmd_max_length=7)):
         await traced_yaaredis.get("here-is-a-long-key")
@@ -66,7 +63,7 @@ async def test_cmd_max_length(traced_yaaredis):
 
 @pytest.mark.skip(reason="No traces sent to the test agent")
 @pytest.mark.subprocess(env=dict(DD_YAAREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cmd_max_length_env():
     import asyncio
 
@@ -83,19 +80,19 @@ def test_cmd_max_length_env():
 
 @pytest.mark.asyncio
 async def test_basics(snapshot_context, traced_yaaredis):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         await traced_yaaredis.get("cheese")
 
 
 @pytest.mark.asyncio
 async def test_unicode(snapshot_context, traced_yaaredis):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         await traced_yaaredis.get("😐")
 
 
 @pytest.mark.asyncio
 async def test_pipeline_traced(snapshot_context, traced_yaaredis):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         p = await traced_yaaredis.pipeline(transaction=False)
         await p.set("blah", 32)
         await p.rpush("foo", "éé")
@@ -105,7 +102,7 @@ async def test_pipeline_traced(snapshot_context, traced_yaaredis):
 
 @pytest.mark.asyncio
 async def test_pipeline_immediate(snapshot_context, traced_yaaredis):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         p = await traced_yaaredis.pipeline()
         await p.set("a", 1)
         await p.immediate_execute_command("SET", "a", 1)
@@ -152,7 +149,7 @@ async def test_service_name_config(tracer, test_spans, traced_yaaredis):
         ("mysvc", "v1"),
     ],
 )
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
     service, schema = service_schema
     code = """
@@ -182,7 +179,7 @@ if __name__ == "__main__":
 
 
 @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import ddtrace.auto  # noqa
 
@@ -206,7 +203,7 @@ def test_full_command_in_resource_env():
     asyncio.run(traced_client())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 @pytest.mark.asyncio
 async def test_full_command_in_resource_config(tracer, traced_yaaredis):
     with override_config("yaaredis", dict(resource_only_command=False)):

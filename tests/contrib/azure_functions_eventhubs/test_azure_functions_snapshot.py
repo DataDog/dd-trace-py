@@ -14,12 +14,7 @@ from tests.webclient import Client
 BLOB_CONNECTION_STRING = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
-SNAPSHOT_IGNORES = [
-    "meta.messaging.message_id",
-    "span_links.tracestate",
-    "span_links.trace_id_high",
-    "meta._dd.svc_src",
-]
+SNAPSHOT_IGNORES = ["meta.messaging.message_id", "span_links.tracestate", "span_links.trace_id_high"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
 CARDINALITY = ["one", "many"]

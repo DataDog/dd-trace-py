@@ -12,9 +12,6 @@ from tests.utils import override_http_config
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 def chunked_response(start_response):
     status = "200 OK"
     headers = [("Content-type", "text/plain")]
@@ -217,7 +214,7 @@ def test_generator_exit_ignored(tracer, test_spans):
     assert spans[0].error == 0
 
 
-@snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@snapshot(wait_for_num_traces=1)
 def test_generator_exit_ignored_snapshot():
     with pytest.raises(GeneratorExit):
         app = TestApp(DDWSGIMiddleware(application))
@@ -256,7 +253,7 @@ def test_chunked_response_custom_middleware(tracer, test_spans):
     assert spans[2].name == "test_wsgi.response"
 
 
-@snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@snapshot(wait_for_num_traces=1)
 def test_chunked():
     app = TestApp(DDWSGIMiddleware(application))
     resp = app.get("/chunked")
@@ -266,7 +263,7 @@ def test_chunked():
     assert resp.text.endswith("999")
 
 
-@snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@snapshot(wait_for_num_traces=1)
 def test_200():
     app = TestApp(DDWSGIMiddleware(application))
     resp = app.get("/")
@@ -274,7 +271,7 @@ def test_200():
     assert resp.status_int == 200
 
 
-@snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@snapshot(ignores=["meta.error.stack"])
 def test_500_py3():
     app = TestApp(DDWSGIMiddleware(application))
     with pytest.raises(Exception, match="Oops!"):
@@ -282,7 +279,7 @@ def test_500_py3():
 
 
 @snapshot(
-    ignores=["meta.error.stack"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack"],
     wait_for_num_traces=1,
 )
 def test_base_exception_in_wsgi_app_py3():
@@ -293,7 +290,7 @@ def test_base_exception_in_wsgi_app_py3():
         app.get("/baseException")
 
 
-@snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@snapshot(wait_for_num_traces=1)
 def test_stop_iteration_in_wsgi_app_py3():
     # StopIteration should not mark span as an error: https://github.com/miguelgrinberg/flask-sock/issues/64
     with pytest.raises(StopIteration):
@@ -304,7 +301,6 @@ def test_stop_iteration_in_wsgi_app_py3():
 @pytest.mark.snapshot(
     token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware",
     wait_for_num_traces=1,
-    ignores=SNAPSHOT_IGNORES,
 )
 def test_wsgi_base_middleware(tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
@@ -315,7 +311,7 @@ def test_wsgi_base_middleware(tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500",
-    ignores=["meta.error.stack", "meta.error.type"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack", "meta.error.type"],
     wait_for_num_traces=1,
 )
 def test_wsgi_base_middleware_500(tracer):
@@ -325,7 +321,7 @@ def test_wsgi_base_middleware_500(tracer):
         app.get("/error")
 
 
-@pytest.mark.snapshot(ignores=["meta.result_class"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.result_class"])
 def test_distributed_tracing_nested():
     app = TestApp(
         DDWSGIMiddleware(
@@ -391,7 +387,7 @@ def test_get_request_headers(extra, expected):
     assert headers == expected
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.parametrize(
     "service_name, schema_version",
     [(None, None), ("mysvc", None), (None, "v0"), ("mysvc", "v0"), (None, "v1"), ("mysvc", "v1")],

@@ -14,7 +14,7 @@ CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageShare
 EVENTHUB_NAME = "eh1"
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
-SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links", "meta.error.stack", "meta._dd.svc_src"]
+SNAPSHOT_IGNORES = ["meta.messaging.message_id", "meta._dd.span_links", "meta.error.stack"]
 
 METHODS = ["send_event", "send_batch"]
 BUFFERED_OPTIONS = [False, True]

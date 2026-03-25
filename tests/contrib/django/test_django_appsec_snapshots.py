@@ -78,7 +78,6 @@ def daphne_client(django_asgi, additional_env=None):
         "meta." + FINGERPRINTING.SESSION,
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
-        "meta._dd.svc_src",
     ]
 )
 def test_appsec_enabled():
@@ -111,7 +110,6 @@ def test_appsec_enabled():
         "meta." + FINGERPRINTING.SESSION,
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
-        "meta._dd.svc_src",
     ]
 )
 def test_appsec_enabled_attack():
@@ -138,7 +136,6 @@ def test_appsec_enabled_attack():
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
-        "meta._dd.svc_src",
     ]
 )
 def test_request_ipblock_nomatch_200():
@@ -175,7 +172,6 @@ def test_request_ipblock_nomatch_200():
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
-        "meta._dd.svc_src",
     ]
 )
 def test_request_ipblock_match_403():
@@ -219,7 +215,6 @@ def test_request_ipblock_match_403():
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
         "meta.http.response.headers.content-length",
-        "meta._dd.svc_src",
     ]
 )
 def test_request_ipblock_match_403_json():

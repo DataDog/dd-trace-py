@@ -18,7 +18,6 @@ else:
     req_mock = responses.RequestsMock(target="snowflake.connector.network.HTTPAdapter.send")
 
 
-IGNORES = ["meta._dd.svc_src"]
 SNOWFLAKE_TYPES = {
     "TEXT": {
         "type": "TEXT",
@@ -91,7 +90,7 @@ def client():
         yield ctx
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_fetchone(client):
     add_snowflake_query_response(
@@ -104,7 +103,7 @@ def test_snowflake_fetchone(client):
         assert cur.fetchone() == ("4.30.2",)
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_settings_override(client):
     add_snowflake_query_response(
@@ -119,7 +118,7 @@ def test_snowflake_settings_override(client):
 
 
 @pytest.mark.subprocess(env=dict(DD_SNOWFLAKE_SERVICE="env-svc"), err=None)
-@snapshot(ignores=IGNORES)
+@snapshot()
 def test_snowflake_service_env():
     from tests.contrib.snowflake.test_snowflake import _client
     from tests.contrib.snowflake.test_snowflake import add_snowflake_query_response
@@ -138,21 +137,21 @@ def test_snowflake_service_env():
                 assert cur.fetchone() == ("4.30.2",)
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_commit(client):
     add_snowflake_query_response(rowtype=[], rows=[])
     client.commit()
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_rollback(client):
     add_snowflake_query_response(rowtype=[], rows=[])
     client.rollback()
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_fetchall(client):
     add_snowflake_query_response(
@@ -165,7 +164,7 @@ def test_snowflake_fetchall(client):
         assert cur.fetchall() == [("4.30.2",)]
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_fetchall_multiple_rows(client):
     add_snowflake_query_response(
@@ -181,7 +180,7 @@ def test_snowflake_fetchall_multiple_rows(client):
         ]
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @req_mock.activate
 def test_snowflake_executemany_insert(client):
     add_snowflake_query_response(
@@ -201,7 +200,7 @@ def test_snowflake_executemany_insert(client):
         assert res.rowcount == 2
 
 
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.parametrize(
     "service_schema",
     [

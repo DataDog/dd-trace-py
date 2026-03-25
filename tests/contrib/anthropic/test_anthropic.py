@@ -11,8 +11,6 @@ from .utils import tools
 
 ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 
 def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
     """
@@ -39,9 +37,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_span
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
 def test_anthropic_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -63,8 +59,7 @@ def test_anthropic_llm_sync_create(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_create_image",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_create_image", ignores=["resource"]
 )
 def test_anthropic_llm_sync_create_image(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -95,8 +90,7 @@ def test_anthropic_llm_sync_create_image(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts", ignores=["resource"]
 )
 def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -120,7 +114,7 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
 
 @pytest.mark.snapshot(
     token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_with_chat_history",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    ignores=["resource"],
 )
 def test_anthropic_llm_sync_multiple_prompts_with_chat_history(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -152,8 +146,7 @@ def test_anthropic_llm_sync_multiple_prompts_with_chat_history(anthropic, reques
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "resource"] + SNAPSHOT_IGNORES,
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error",
+    ignores=["meta.error.stack", "resource"], token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error"
 )
 def test_anthropic_llm_error(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -163,7 +156,7 @@ def test_anthropic_llm_error(anthropic, request_vcr):
             llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=["Invalid content"])
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "resource", "meta.anthropic.request.parameters"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.error.stack", "resource", "meta.anthropic.request.parameters"])
 def test_anthropic_llm_unserializable_arg(anthropic, request_vcr):
     """Assert that unserializable arguments will not break integration tagging."""
     llm = anthropic.Anthropic()
@@ -176,9 +169,7 @@ def test_anthropic_llm_unserializable_arg(anthropic, request_vcr):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"])
 def test_anthropic_llm_sync_stream(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -203,8 +194,7 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
 )
 def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -229,9 +219,7 @@ def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
         assert message is not None
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"])
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
 def test_anthropic_llm_sync_tools(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -246,8 +234,7 @@ def test_anthropic_llm_sync_tools(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
 )
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
 def test_anthropic_llm_sync_tools_full_use(anthropic, request_vcr, snapshot_context):
@@ -317,9 +304,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
 
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_create(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"] + SNAPSHOT_IGNORES
-    ):
+    with snapshot_context(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"]):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
             await llm.messages.create(
@@ -343,7 +328,7 @@ async def test_anthropic_llm_async_create(anthropic, request_vcr, snapshot_conte
 async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        ignores=["resource"],
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_multi_prompt.yaml"):
@@ -371,7 +356,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
 async def test_anthropic_llm_async_multiple_prompts_with_chat_history(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_with_chat_history",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        ignores=["resource"],
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_multi_prompt_with_chat_history.yaml"):
@@ -404,7 +389,7 @@ async def test_anthropic_llm_async_multiple_prompts_with_chat_history(anthropic,
 @pytest.mark.asyncio
 async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        ignores=["meta.error.stack", "resource"] + SNAPSHOT_IGNORES,
+        ignores=["meta.error.stack", "resource"],
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error",
     ):
         llm = anthropic.AsyncAnthropic()
@@ -417,8 +402,7 @@ async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_contex
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -445,8 +429,7 @@ async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_conte
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
@@ -474,7 +457,7 @@ async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapsho
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"] + SNAPSHOT_IGNORES
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
@@ -491,8 +474,7 @@ async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_contex
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
@@ -533,8 +515,7 @@ async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapsh
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_stream.yaml"):
@@ -553,8 +534,7 @@ async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream_helper",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream_helper", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_stream_helper.yaml"):
@@ -578,8 +558,7 @@ async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, s
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use_stream",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use_stream", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_stream_helper.yaml"):
@@ -625,9 +604,7 @@ BETA_SKIP_REASON = "Anthropic Beta API not available until 0.37.0, skipping."
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
 def test_anthropic_beta_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -641,9 +618,7 @@ def test_anthropic_beta_llm_sync_create(anthropic, request_vcr):
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"])
 def test_anthropic_beta_llm_sync_stream(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -661,8 +636,7 @@ def test_anthropic_beta_llm_sync_stream(anthropic, request_vcr):
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
 )
 def test_anthropic_beta_llm_sync_stream_helper(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -681,9 +655,7 @@ def test_anthropic_beta_llm_sync_stream_helper(anthropic, request_vcr):
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
 @pytest.mark.asyncio
 async def test_anthropic_beta_llm_async_create(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"] + SNAPSHOT_IGNORES
-    ):
+    with snapshot_context(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"]):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
             await llm.beta.messages.create(
@@ -699,8 +671,7 @@ async def test_anthropic_beta_llm_async_create(anthropic, request_vcr, snapshot_
 @pytest.mark.asyncio
 async def test_anthropic_beta_llm_async_stream(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -720,8 +691,7 @@ async def test_anthropic_beta_llm_async_stream(anthropic, request_vcr, snapshot_
 @pytest.mark.asyncio
 async def test_anthropic_beta_llm_async_stream_helper(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper",
-        ignores=["resource"] + SNAPSHOT_IGNORES,
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):

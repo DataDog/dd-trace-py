@@ -15,9 +15,6 @@ from tests.utils import override_config
 from ..config import VALKEY_CONFIG
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 def get_valkey_instance(max_connections: int, client_name: typing.Optional[str] = None):
     return valkey.asyncio.from_url(
         "valkey://127.0.0.1:%s" % VALKEY_CONFIG["port"], max_connections=max_connections, client_name=client_name
@@ -64,19 +61,19 @@ def test_patching():
     assert not is_wrapted(valkey.asyncio.client.Pipeline.pipeline)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_basic_request(valkey_client):
     val = await valkey_client.get("cheese")
     assert val is None
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_unicode_request(valkey_client):
     val = await valkey_client.get("😐")
     assert val is None
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 async def test_connection_error(valkey_client):
     with mock.patch.object(
         valkey.asyncio.connection.ConnectionPool,
@@ -87,14 +84,14 @@ async def test_connection_error(valkey_client):
             await valkey_client.get("foo")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=2, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=2)
 async def test_decoding_non_utf8_args(valkey_client):
     await valkey_client.set(b"\x80foo", b"\x80abc")
     val = await valkey_client.get(b"\x80foo")
     assert val == b"\x80abc"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_decoding_non_utf8_pipeline_args(valkey_client):
     p = valkey_client.pipeline()
     p.set(b"\x80blah", "boo")
@@ -109,7 +106,7 @@ async def test_decoding_non_utf8_pipeline_args(valkey_client):
     assert response_list[3] == b"\x80abc"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_long_command(valkey_client):
     length = 1000
     val_list = await valkey_client.mget(*range(length))
@@ -118,7 +115,7 @@ async def test_long_command(valkey_client):
         assert val is None
 
 
-@pytest.mark.snapshot(wait_for_num_traces=3, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=3)
 async def test_override_service_name(valkey_client):
     with override_config("valkey", dict(service_name="myvalkey")):
         val = await valkey_client.get("cheese")
@@ -130,7 +127,7 @@ async def test_override_service_name(valkey_client):
         assert val == "my-cheese"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced(valkey_client):
     p = valkey_client.pipeline(transaction=False)
     p.set("blah", "boo")
@@ -147,7 +144,7 @@ async def test_pipeline_traced(valkey_client):
     assert response_list[3].decode() == "bar"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced_context_manager_transaction(valkey_client):
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
@@ -172,7 +169,7 @@ async def test_pipeline_traced_context_manager_transaction(valkey_client):
     assert get_2.decode() == "bar"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(valkey_client):
     with tracer.trace("web-request", service="test"):
         p1 = await valkey_client.pipeline(transaction=False)
@@ -194,14 +191,14 @@ async def test_two_traced_pipelines(valkey_client):
 
 
 async def test_parenting(valkey_client, snapshot_context):
-    with snapshot_context(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES):
+    with snapshot_context(wait_for_num_traces=1):
         with tracer.trace("web-request", service="test"):
             await valkey_client.set("blah", "boo")
             await valkey_client.get("blah")
 
 
 async def test_client_name(snapshot_context):
-    with snapshot_context(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES):
+    with snapshot_context(wait_for_num_traces=1):
         with tracer.trace("web-request", service="test"):
             valkey_client = get_valkey_instance(10, client_name="testing-client-name")
             await valkey_client.get("blah")

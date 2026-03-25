@@ -6,8 +6,6 @@ import pytest
 from tests.integration.utils import AGENT_VERSION
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
@@ -71,7 +69,7 @@ class _Class:
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -106,7 +104,7 @@ async def _async_test_method2():
     await asyncio.sleep(0.01)
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_ddtrace_run_trace_methods_async(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TRACE_METHODS"] = (
@@ -138,7 +136,7 @@ asyncio.run(main())
     assert out == b""
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_ddtrace_run_trace_methods_async_nested(ddtrace_run_python_code_in_subprocess):
     """
     This test ensures that async spans remain open for the duration of nested awaits

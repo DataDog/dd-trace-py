@@ -22,7 +22,7 @@ from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate", "meta._dd.svc_src"]
+snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate"]
 
 rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
 

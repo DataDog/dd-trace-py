@@ -32,7 +32,6 @@ SNAPSHOT_IGNORES = [
     "metrics.process_id",
     "duration",
     "start",
-    "meta._dd.svc_src",
 ]
 SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["meta.http.useragent"]
 

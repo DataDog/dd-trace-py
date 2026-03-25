@@ -833,7 +833,6 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         "meta.celery.correlation_id",
         "meta.celery.hostname",
         "meta.celery.reply_to",
-        "meta._dd.svc_src",
     ]
 )
 def test_distributed_tracing_propagation_no_producer_span(

@@ -13,9 +13,6 @@ from tests.utils import override_config
 from ..config import REDIS_CONFIG
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 @pytest.fixture(autouse=True)
 async def traced_aredis():
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
@@ -53,14 +50,14 @@ def test_patching():
 
 @pytest.mark.asyncio
 async def test_long_command(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         await r.mget(*range(1000))
 
 
 @pytest.mark.skip(reason="No traces sent to the test agent")
 @pytest.mark.subprocess(env=dict(DD_AREDIS_CMD_MAX_LENGTH="10"), ddtrace_run=True)
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cmd_max_length_env():
     import asyncio
 
@@ -78,28 +75,28 @@ def test_cmd_max_length_env():
 @pytest.mark.asyncio
 async def test_cmd_max_length(snapshot_context):
     with override_config("aredis", dict(cmd_max_length=7)):
-        with snapshot_context(ignores=SNAPSHOT_IGNORES):
+        with snapshot_context():
             r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
             await r.get("here-is-a-long-key")
 
 
 @pytest.mark.asyncio
 async def test_basics(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         await r.get("cheese")
 
 
 @pytest.mark.asyncio
 async def test_unicode(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         await r.get("😐")
 
 
 @pytest.mark.asyncio
 async def test_pipeline_traced(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         p = await r.pipeline(transaction=False)
         await p.set("blah", 32)
@@ -110,7 +107,7 @@ async def test_pipeline_traced(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_pipeline_immediate(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         p = await r.pipeline()
         await p.set("a", 1)
@@ -164,7 +161,7 @@ if __name__ == "__main__":
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import asyncio
 
@@ -186,7 +183,7 @@ def test_full_command_in_resource_env():
     asyncio.run(traced_client())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 @pytest.mark.asyncio
 async def test_full_command_in_resource_config(tracer, traced_aredis):
     with override_config("aredis", dict(resource_only_command=False)):

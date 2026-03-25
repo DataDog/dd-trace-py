@@ -33,7 +33,6 @@ RAY_SNAPSHOT_IGNORES = [
     # Base service sometimes gets set to a different value in CI than in the local environment,
     # ignore it to make the tests pass in both environments
     "meta._dd.base_service",
-    "meta._dd.svc_src",
     "meta._dd.hostname",
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",

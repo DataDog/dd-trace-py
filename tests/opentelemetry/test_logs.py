@@ -16,9 +16,6 @@ except ImportError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 def create_mock_grpc_server():
     """Create a mock gRPC server for testing OpenTelemetry logs exporter."""
     import grpc
@@ -513,7 +510,7 @@ def test_otel_trace_log_correlation():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_logs_does_not_generate_client_grpc_spans():
     """
@@ -542,7 +539,7 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"}
 )

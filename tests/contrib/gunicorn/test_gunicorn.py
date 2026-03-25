@@ -194,7 +194,7 @@ def test_span_schematization(ddtrace_tmp_path):
                 token="tests.contrib.gunicorn.test_gunicorn.test_span_schematization[{}-{}]".format(
                     service_name, schema_version
                 ),
-                ignores=["meta.result_class", "meta._dd.svc_src"],
+                ignores=["meta.result_class"],
             ):
                 with gunicorn_server(gunicorn_settings, ddtrace_tmp_path) as context:
                     _, client = context

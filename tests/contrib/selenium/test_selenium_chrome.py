@@ -42,7 +42,6 @@ SELENIUM_SNAPSHOT_IGNORES = [
     "metrics.process_id",
     "duration",
     "start",
-    "meta._dd.svc_src",
 ]
 
 

@@ -10,12 +10,7 @@ from tests.webclient import Client
 
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
-SNAPSHOT_IGNORES = [
-    "meta.messaging.message_id",
-    "span_links.tracestate",
-    "span_links.trace_id_high",
-    "meta._dd.svc_src",
-]
+SNAPSHOT_IGNORES = ["meta.messaging.message_id", "span_links.tracestate", "span_links.trace_id_high"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ENTITY_TYPES = ["queue", "topic"]
 ASYNC_OPTIONS = [False, True]

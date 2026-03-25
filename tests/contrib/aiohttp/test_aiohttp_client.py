@@ -12,8 +12,6 @@ from tests.utils import override_http_config
 from ..config import HTTPBIN_CONFIG
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
 SOCKET = "{}:{}".format(HOST, PORT)
@@ -55,7 +53,7 @@ def patch_aiohttp_client():
 
 @pytest.mark.asyncio
 async def test_200_request(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_200) as resp:
                 assert resp.status == 200
@@ -63,7 +61,7 @@ async def test_200_request(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_auth_200_request(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_AUTH_200) as resp:
                 assert resp.status == 200
@@ -71,7 +69,7 @@ async def test_auth_200_request(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_200_request_post(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         async with aiohttp.ClientSession() as session:
             async with session.post(URL_200) as resp:
                 assert resp.status == 200
@@ -79,7 +77,7 @@ async def test_200_request_post(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_500_request(snapshot_context):
-    with snapshot_context(ignores=["meta.http.status_msg"] + SNAPSHOT_IGNORES):
+    with snapshot_context(ignores=["meta.http.status_msg"]):
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_500) as resp:
                 assert resp.status == 500
@@ -122,7 +120,7 @@ asyncio.run(test())
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_configure_global_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
     default/v0/v1 schemas: When only setting DD_SERVICE
@@ -150,7 +148,7 @@ asyncio.run(test())
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
     default (v0 schema): When only setting DD_SERVICE
@@ -183,7 +181,7 @@ async def test_configure_service_name_split_by_domain(snapshot_context):
         We set the service name to the url host
     """
     with override_config("aiohttp_client", {"split_by_domain": True}):
-        with snapshot_context(ignores=SNAPSHOT_IGNORES):
+        with snapshot_context():
             async with aiohttp.ClientSession() as session:
                 async with session.get(URL_200) as resp:
                     assert resp.status == 200
@@ -196,7 +194,7 @@ async def test_trace_query_string(snapshot_context):
         The query string is included as a tag on the span
     """
     with override_http_config("aiohttp_client", {"trace_query_string": True}):
-        with snapshot_context(ignores=["meta.http.status_msg"] + SNAPSHOT_IGNORES):
+        with snapshot_context(ignores=["meta.http.status_msg"]):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     "%s/?k1=v1&k2=v2" % URL_200,
@@ -210,7 +208,7 @@ async def test_trace_query_string(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_trace_parenting(snapshot_context, tracer):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         with tracer.trace("parent"):
             async with aiohttp.ClientSession() as session:
                 async with session.get(URL_200) as resp:
@@ -219,7 +217,7 @@ async def test_trace_parenting(snapshot_context, tracer):
 
 @pytest.mark.asyncio
 async def test_trace_multiple(snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_200) as resp:
                 assert resp.status == 200

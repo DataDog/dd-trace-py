@@ -4,12 +4,10 @@ from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
-@snapshot(ignores=SNAPSHOT_IGNORES)
+@snapshot()
 def test_context_multiprocess(run_python_code_in_subprocess):
     # Testing example from our docs:
     # https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-across-processes

@@ -21,7 +21,6 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai-chat.parameters.max_completion_tokens"
     "meta.langchain.request.openai-chat.parameters.max_tokens",
     "meta.langchain.request.api_key",
-    "meta._dd.svc_src",
 ]
 
 
@@ -150,19 +149,19 @@ async def test_openai_chat_model_async_generate(langchain_core, langchain_openai
     )
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, openai_url):
     embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embeddings.embed_query(text="foo")
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot
 def test_openai_embedding_document(langchain_openai, openai_url):
     embeddings = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot
 def test_vectorstore_similarity_search(langchain_in_memory_vectorstore):
     vectorstore = langchain_in_memory_vectorstore
     vectorstore.similarity_search("What is the capital of France?", k=1)
@@ -268,7 +267,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_u
     await chain.abatch(inputs=["chickens"])
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot
 def test_lcel_chain_non_dict_input(langchain_core):
     """
     Tests that non-dict inputs (specifically also non-string) are stringified properly
@@ -454,7 +453,7 @@ async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core,
 
 @pytest.mark.snapshot(
     # tool description is generated differently is some langchain_core versions
-    ignores=["meta.langchain.request.tool.description", "meta._dd.svc_src"],
+    ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
 def test_base_tool_invoke(langchain_core):
@@ -484,7 +483,7 @@ def test_base_tool_invoke(langchain_core):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     # tool description is generated differently is some langchain_core versions
-    ignores=["meta.langchain.request.tool.description", "meta._dd.svc_src"],
+    ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
 async def test_base_tool_ainvoke(langchain_core):
@@ -515,7 +514,7 @@ async def test_base_tool_ainvoke(langchain_core):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     # tool description is generated differently is some langchain_core versions
-    ignores=["meta.langchain.request.tool.description", "meta.langchain.request.config", "meta._dd.svc_src"],
+    ignores=["meta.langchain.request.tool.description", "meta.langchain.request.config"],
 )
 def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     """
@@ -542,7 +541,7 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     calculator.invoke("2", config={"unserializable": object()})
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message", "meta._dd.svc_src"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from unittest import mock
 

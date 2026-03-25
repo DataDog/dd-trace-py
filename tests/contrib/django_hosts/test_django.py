@@ -1,10 +1,7 @@
 import pytest
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 def test_django_hosts_request(client):
     """
     When using django_hosts

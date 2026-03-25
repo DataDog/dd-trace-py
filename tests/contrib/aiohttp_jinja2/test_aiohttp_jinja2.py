@@ -9,8 +9,6 @@ import tests.contrib.aiohttp.conftest  # noqa:F401
 
 VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 
 async def test_template_rendering(untraced_app_jinja, test_spans, aiohttp_client):
     client = await aiohttp_client(untraced_app_jinja)
@@ -33,7 +31,7 @@ async def test_template_rendering(untraced_app_jinja, test_spans, aiohttp_client
 
 
 async def test_template_rendering_snapshot(untraced_app_jinja, aiohttp_client, snapshot_context):
-    with snapshot_context(ignores=SNAPSHOT_IGNORES):
+    with snapshot_context():
         client = await aiohttp_client(untraced_app_jinja)
         # it should trace a template rendering
         request = await client.request("GET", "/template/")
@@ -46,7 +44,7 @@ async def test_template_rendering_snapshot_patched_server(
     snapshot_context,
 ):
     # Ignore meta.http.url tag as the port is not fixed on the server
-    with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"] + SNAPSHOT_IGNORES):
+    with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"]):
         client = await aiohttp_client(patched_app_jinja)
         # it should trace a template rendering
         request = await client.request("GET", "/template/")

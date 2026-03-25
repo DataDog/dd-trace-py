@@ -19,8 +19,6 @@ from .utils import PyramidTestCase
 
 SERVER_PORT = 8000
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 
 def includeme(config):
     pass
@@ -289,7 +287,7 @@ def pyramid_client(snapshot, pyramid_app):
         "ddtrace-run python tests/contrib/pyramid/app/app.py",
     ],
 )
-@pytest.mark.snapshot(ignores=["meta.http.useragent"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200

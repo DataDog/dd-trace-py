@@ -27,7 +27,6 @@ SNAPSHOT_IGNORES = [
     "metrics.process_id",
     "duration",
     "start",
-    "meta._dd.svc_src",
 ]
 
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]

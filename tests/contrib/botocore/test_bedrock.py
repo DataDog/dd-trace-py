@@ -11,10 +11,7 @@ from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_ai21_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["ai21"]), _MODELS["ai21"]
     with request_vcr.use_cassette("ai21_invoke.yaml"):
@@ -22,7 +19,7 @@ def test_ai21_invoke(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_amazon_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["amazon"]), _MODELS["amazon"]
     with request_vcr.use_cassette("amazon_invoke.yaml"):
@@ -30,7 +27,7 @@ def test_amazon_invoke(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_anthropic_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic"]), _MODELS["anthropic"]
     with request_vcr.use_cassette("anthropic_invoke.yaml"):
@@ -38,7 +35,7 @@ def test_anthropic_invoke(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_anthropic_message_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
     model = "us." + model
@@ -47,7 +44,7 @@ def test_anthropic_message_invoke(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cohere_invoke_single_output(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["cohere"]), _MODELS["cohere"]
     with request_vcr.use_cassette("cohere_invoke_single_output.yaml"):
@@ -55,7 +52,7 @@ def test_cohere_invoke_single_output(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_invoke_multi_output.yaml"):
         body = json.dumps(
@@ -74,7 +71,7 @@ def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_meta_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with get_request_vcr().use_cassette("meta_invoke.yaml"):
@@ -82,7 +79,7 @@ def test_meta_invoke(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
     body = json.dumps(_REQUEST_BODIES["amazon"])
     model = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
@@ -91,7 +88,7 @@ def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_amazon_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["amazon"]), _MODELS["amazon"]
     with request_vcr.use_cassette("amazon_invoke_stream.yaml"):
@@ -100,7 +97,7 @@ def test_amazon_invoke_stream(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_anthropic_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic"]), _MODELS["anthropic"]
     with request_vcr.use_cassette("anthropic_invoke_stream.yaml"):
@@ -109,7 +106,7 @@ def test_anthropic_invoke_stream(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
     with request_vcr.use_cassette("anthropic_message_invoke_stream.yaml"):
@@ -118,7 +115,7 @@ def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
     body = json.dumps(
         {
@@ -139,7 +136,7 @@ def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cohere_invoke_stream_multi_output(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_invoke_stream_multi_output.yaml"):
         body = json.dumps(
@@ -159,7 +156,7 @@ def test_cohere_invoke_stream_multi_output(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 @pytest.mark.xfail
 def test_meta_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
@@ -169,7 +166,7 @@ def test_meta_invoke_stream(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_auth_error(bedrock_client, request_vcr):
     import botocore
 
@@ -179,9 +176,7 @@ def test_auth_error(bedrock_client, request_vcr):
             bedrock_client.invoke_model(body=body, modelId=model)
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"])
 def test_read_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
@@ -194,7 +189,7 @@ def test_read_error(bedrock_client, request_vcr):
                 response.get("body").read()
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_readlines_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
@@ -207,7 +202,7 @@ def test_readlines_error(bedrock_client, request_vcr):
                 response.get("body").readlines()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_amazon_embedding(bedrock_client, request_vcr):
     body = json.dumps({"inputText": "Hello World!"})
     model = "amazon.titan-embed-text-v1"
@@ -216,7 +211,7 @@ def test_amazon_embedding(bedrock_client, request_vcr):
         json.loads(response.get("body").read())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_cohere_embedding(bedrock_client, request_vcr):
     body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
     model = "cohere.embed-english-v3"
@@ -226,14 +221,14 @@ def test_cohere_embedding(bedrock_client, request_vcr):
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_converse(bedrock_client, request_vcr):
     with request_vcr.use_cassette("bedrock_converse.yaml"):
         bedrock_client.converse(**create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool))
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_converse_stream(bedrock_client, request_vcr):
     with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
         response = bedrock_client.converse_stream(

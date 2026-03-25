@@ -21,10 +21,7 @@ from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 from .test_logs import EXPORTER_VERSION
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_span_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-root") as root:
         time.sleep(0.02)
@@ -47,7 +44,7 @@ def test_otel_span_parenting(oteltracer):
         orphan1.end()
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_ddtrace_mixed_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-top-level"):
         with ddtrace.tracer.trace("ddtrace-top-level"):
@@ -62,7 +59,7 @@ def test_otel_ddtrace_mixed_parenting(oteltracer):
                         time.sleep(0.02)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_multithreading(oteltracer):
     def target(parent_context):
         ctx = opentelemetry.trace.set_span_in_context(opentelemetry.trace.NonRecordingSpan(parent_context))
@@ -104,7 +101,7 @@ def _subprocess_task(parent_span_context, errors):
         ddtracer.flush()
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_otel_trace_across_fork():
     import multiprocessing
@@ -128,7 +125,7 @@ def test_otel_trace_across_fork():
     assert errors.empty(), errors.get()
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
 @pytest.mark.subprocess(
     env={"DD_TRACE_OTEL_ENABLED": "true"},
     parametrize={"SAMPLING_DECISION": [MANUAL_KEEP_KEY, MANUAL_DROP_KEY]},
@@ -159,7 +156,7 @@ def test_sampling_decisions_across_processes():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_otel_trace_multiple_coroutines(oteltracer):
     async def coro(i):
         with oteltracer.start_as_current_span("corountine %s" % (i,)):
@@ -280,7 +277,7 @@ def test_providers_are_set():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.skipif(
     OTEL_VERSION < (1, 24),
     reason="otel start_as_current_span decorator is in beta and is unstable with earlier versions of the api",

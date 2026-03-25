@@ -18,8 +18,6 @@ AIOMYSQL_CONFIG = dict(MYSQL_CONFIG)
 AIOMYSQL_CONFIG["db"] = AIOMYSQL_CONFIG["database"]
 del AIOMYSQL_CONFIG["database"]
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 
 @pytest.fixture(autouse=True)
 def patch_aiomysql():
@@ -44,7 +42,7 @@ async def snapshot_conn(tracer):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"] + SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 async def test_queries(snapshot_conn):
     db = snapshot_conn
     q = "select 'Jellysmack'"
@@ -97,7 +95,7 @@ async def test_patch_unpatch(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
     """
     v0: When a user specifies a service for the app
@@ -126,7 +124,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
     """
     v1: When a user specifies a service for the app
@@ -155,7 +153,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
     """
     v1: When a user specifies nothing for a service,
@@ -182,7 +180,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 @pytest.mark.parametrize("version", ["v0", "v1"])
 async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
     """

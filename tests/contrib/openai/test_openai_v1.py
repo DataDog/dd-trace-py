@@ -17,22 +17,6 @@ pytestmark = pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 0), reason="This module only tests openai >= 1.0"
 )
 
-_IGNORE_GLOBAL = ["meta._dd.svc_src"]
-_IGNORE_COMMON = _IGNORE_GLOBAL + ["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"]
-_IGNORE_WITH_REQUEST_USER = _IGNORE_COMMON + ["meta.openai.request.user"]
-_IGNORE_AZURE = _IGNORE_GLOBAL + [
-    "meta.http.useragent",
-    "meta.openai.api_base",
-    "meta.openai.api_type",
-    "meta.openai.api_version",
-]
-_IGNORE_ERROR = _IGNORE_COMMON + ["meta.error.stack", "meta.error.type", "meta.error.message"]
-_IGNORE_FILE_CREATE = _IGNORE_WITH_REQUEST_USER + [
-    "meta.openai.request.user_provided_filename",
-    "meta.openai.response.filename",
-]
-_IGNORE_USERAGENT_ONLY = _IGNORE_GLOBAL + ["meta.http.useragent"]
-
 
 @pytest.fixture(scope="session")
 def openai_vcr():
@@ -43,7 +27,7 @@ def openai_vcr():
 def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_list.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -54,7 +38,7 @@ def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
 def test_model_list_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list_pagination",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_list.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -70,7 +54,7 @@ def test_model_list_pagination(api_key_in_env, request_api_key, openai, openai_v
 async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_alist.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -81,7 +65,7 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
 async def test_model_alist_pagination(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_alist_pagination",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_alist.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -97,7 +81,7 @@ async def test_model_alist_pagination(api_key_in_env, request_api_key, openai, o
 def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_retrieve",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_retrieve.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -108,7 +92,7 @@ def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, sna
 async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_retrieve",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_retrieve.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -119,7 +103,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("completion.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -153,7 +137,7 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_ll
 async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("completion_async.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -217,7 +201,7 @@ def test_global_tags(openai_vcr, openai, test_spans):
 def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("completion.yaml"):
             client = openai.OpenAI()
@@ -260,7 +244,7 @@ async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_chat_completion",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("chat_completion.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -275,7 +259,7 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
-    ignores=_IGNORE_COMMON,
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
@@ -292,7 +276,12 @@ def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0")
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
-    ignores=_IGNORE_COMMON + ["meta.openai.response.choices.0.finish_reason"],
+    ignores=[
+        "meta.http.useragent",
+        "meta.openai.api_type",
+        "meta.openai.api_base",
+        "meta.openai.response.choices.0.finish_reason",
+    ],
 )
 def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_tool_call.yaml"):
@@ -308,7 +297,11 @@ def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_image_input",
-    ignores=_IGNORE_COMMON,
+    ignores=[
+        "meta.http.useragent",
+        "meta.openai.api_type",
+        "meta.openai.api_base",
+    ],
 )
 def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
     image_url = (
@@ -337,7 +330,7 @@ def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
 def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_chat_completion",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("chat_completion.yaml"):
             client = openai.OpenAI()
@@ -394,7 +387,7 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spa
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_chat_completion",
-        ignores=_IGNORE_COMMON + ["meta._dd.p.tid"],
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta._dd.p.tid"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -411,7 +404,7 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
 def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_create",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("image_create.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -428,7 +421,7 @@ def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snaps
 async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_create",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("image_create.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -445,7 +438,7 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
 #  during the payload decoding. We'll need to migrate those tests over once we can address this.
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_image_b64_json_response",
-    ignores=_IGNORE_COMMON,
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("image_create_b64_json.yaml"):
@@ -463,7 +456,7 @@ def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
 def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_embedding",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("embedding.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -472,7 +465,7 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_string_array",
-    ignores=_IGNORE_COMMON,
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("embedding_string_array.yaml"):
@@ -484,7 +477,7 @@ def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_token_array",
-    ignores=_IGNORE_COMMON,
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("embedding_token_array.yaml"):
@@ -494,7 +487,7 @@ def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_array_of_token_arrays",
-    ignores=_IGNORE_COMMON,
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("embedding_array_of_token_arrays.yaml"):
@@ -510,7 +503,7 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_embedding",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("embedding.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -525,7 +518,7 @@ async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, s
 def test_file_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_list",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_list.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -536,7 +529,7 @@ def test_file_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
 async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_list",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_list.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -547,7 +540,14 @@ async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, s
 def test_file_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_create",
-        ignores=_IGNORE_FILE_CREATE,
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.api_type",
+            "meta.openai.api_base",
+            "meta.openai.request.user",
+            "meta.openai.request.user_provided_filename",
+            "meta.openai.response.filename",
+        ],
     ):
         with openai_vcr.use_cassette("file_create.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -561,7 +561,14 @@ def test_file_create(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
 async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_create",
-        ignores=_IGNORE_FILE_CREATE,
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.api_type",
+            "meta.openai.api_base",
+            "meta.openai.request.user",
+            "meta.openai.request.user_provided_filename",
+            "meta.openai.response.filename",
+        ],
     ):
         with openai_vcr.use_cassette("file_create.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -575,7 +582,7 @@ async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr,
 def test_file_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_delete",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_delete.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -588,7 +595,7 @@ def test_file_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
 async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_delete",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_delete.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -601,7 +608,7 @@ async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr,
 def test_file_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_retrieve",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_retrieve.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -614,7 +621,7 @@ def test_file_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snap
 async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_retrieve",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("file_retrieve.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -627,7 +634,7 @@ async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vc
 def test_file_download(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_download",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("file_download.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -640,7 +647,7 @@ def test_file_download(api_key_in_env, request_api_key, openai, openai_vcr, snap
 async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_download",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("file_download.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -653,7 +660,7 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
 def test_model_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_delete",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_delete.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -666,7 +673,7 @@ def test_model_delete(api_key_in_env, request_api_key, openai, openai_vcr, snaps
 async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_delete",
-        ignores=_IGNORE_WITH_REQUEST_USER,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("model_delete.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -679,7 +686,7 @@ async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr
 def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_create_moderation",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -693,7 +700,7 @@ def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, 
 async def test_acreate_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_create_moderation",
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
@@ -705,7 +712,14 @@ async def test_acreate_moderation(api_key_in_env, request_api_key, openai, opena
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_misuse",
-    ignores=_IGNORE_ERROR,
+    ignores=[
+        "meta.http.useragent",
+        "meta.error.stack",
+        "meta.error.type",
+        "meta.openai.api_type",
+        "meta.openai.api_base",
+        "meta.error.message",
+    ],
 )
 def test_misuse(openai, snapshot_tracer):
     with pytest.raises(TypeError):
@@ -715,7 +729,14 @@ def test_misuse(openai, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_span_finish_on_stream_error",
-    ignores=_IGNORE_ERROR,
+    ignores=[
+        "meta.http.useragent",
+        "meta.error.stack",
+        "meta.openai.api_type",
+        "meta.openai.api_base",
+        "meta.error.type",
+        "meta.error.message",
+    ],
 )
 def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
@@ -731,7 +752,7 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
             )
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
@@ -739,7 +760,7 @@ def test_completion_stream(openai, openai_vcr, snapshot_tracer):
         _ = [c for c in resp]
 
 
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 async def test_completion_async_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
@@ -751,7 +772,7 @@ async def test_completion_async_stream(openai, openai_vcr, snapshot_tracer):
     parse_version(openai_module.version.VERSION) < (1, 6, 0),
     reason="Streamed response context managers are only available v1.6.0+",
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream_context_manager(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
@@ -762,7 +783,7 @@ def test_completion_stream_context_manager(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
     """Assert that streamed token chunk extraction logic works automatically."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
@@ -780,7 +801,7 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 async def test_chat_completion_async_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.AsyncOpenAI()
@@ -800,7 +821,7 @@ async def test_chat_completion_async_stream(openai, openai_vcr, snapshot_tracer)
     parse_version(openai_module.version.VERSION) < (1, 26, 0),
     reason="Streamed response context managers are only available v1.6.0+, tokens available 1.26.0+",
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.AsyncOpenAI()
@@ -817,7 +838,7 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=_IGNORE_USERAGENT_ONLY, async_mode=False
+    token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses httpx for its synchronous requests.
@@ -856,7 +877,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai_v1.test_integration_async",
-    ignores=_IGNORE_USERAGENT_ONLY,
+    ignores=["meta.http.useragent"],
     async_mode=False,
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
@@ -903,7 +924,7 @@ asyncio.run(task())
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
-    ignores=_IGNORE_AZURE,
+    ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
@@ -928,7 +949,14 @@ def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapsh
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
-    ignores=_IGNORE_AZURE + ["meta.openai.response.id", "metrics.openai.response.created"],
+    ignores=[
+        "meta.http.useragent",
+        "meta.openai.api_base",
+        "meta.openai.api_type",
+        "meta.openai.api_version",
+        "meta.openai.response.id",
+        "metrics.openai.response.created",
+    ],
 )
 async def test_azure_openai_acompletion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
@@ -953,7 +981,7 @@ async def test_azure_openai_acompletion(openai, azure_openai_config, openai_vcr,
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
-    ignores=_IGNORE_AZURE,
+    ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 def test_azure_openai_chat_completion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_chat_completion.yaml"):
@@ -978,7 +1006,7 @@ def test_azure_openai_chat_completion(openai, azure_openai_config, openai_vcr, s
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
-    ignores=_IGNORE_AZURE,
+    ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 async def test_azure_openai_chat_acompletion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_chat_completion.yaml"):
@@ -1003,7 +1031,7 @@ async def test_azure_openai_chat_acompletion(openai, azure_openai_config, openai
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
-    ignores=_IGNORE_AZURE,
+    ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
@@ -1025,7 +1053,7 @@ def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapsho
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
-    ignores=_IGNORE_AZURE,
+    ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
@@ -1057,7 +1085,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     with snapshot_context(
         token="tests.contrib.openai.test_openai_v1.test_integration_service_name[%s-%s]"
         % (service_name, schema_version),
-        ignores=_IGNORE_COMMON,
+        ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
     ):
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(
@@ -1124,7 +1152,6 @@ async def test_openai_asyncio_cancellation(openai):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response",
-    ignores=_IGNORE_GLOBAL,
 )
 def test_response(openai, openai_vcr, snapshot_tracer):
     """Ensure llmobs records are emitted for response endpoints when configured."""
@@ -1142,7 +1169,6 @@ def test_response(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_tools",
-    ignores=_IGNORE_GLOBAL,
 )
 def test_response_tools(openai, openai_vcr, snapshot_tracer):
     """Ensure tools are recorded for response endpoints when configured."""
@@ -1157,7 +1183,7 @@ def test_response_tools(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_error",
-    ignores=_IGNORE_GLOBAL + ["meta.error.stack"],
+    ignores=["meta.error.stack"],
 )
 def test_response_error(openai, openai_vcr, snapshot_tracer):
     """Assert errors when an invalid model is used."""
@@ -1176,7 +1202,6 @@ def test_response_error(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response",
-    ignores=_IGNORE_GLOBAL,
 )
 async def test_aresponse(openai, openai_vcr, snapshot_tracer):
     """Assert spans are created with async client."""
@@ -1197,7 +1222,6 @@ async def test_aresponse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_stream",
-    ignores=_IGNORE_GLOBAL,
 )
 def test_response_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
@@ -1215,7 +1239,6 @@ def test_response_stream(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_tools_stream",
-    ignores=_IGNORE_GLOBAL,
 )
 def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_tools_stream.yaml"):
@@ -1231,7 +1254,6 @@ def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_stream",
-    ignores=_IGNORE_GLOBAL,
 )
 async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
@@ -1244,7 +1266,7 @@ async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
         _ = [c async for c in resp]
 
 
-@pytest.mark.snapshot(ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot
 def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapshot_tracer):
     client = openai.OpenAI()
     with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1254,9 +1276,7 @@ def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapsho
         assert resp is None
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_empty_streamed_chat_completion_resp_returns", ignores=_IGNORE_GLOBAL
-)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_chat_completion_resp_returns")
 async def test_empty_streamed_chat_completion_resp_returns_async(openai, openai_vcr, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1266,7 +1286,7 @@ async def test_empty_streamed_chat_completion_resp_returns_async(openai, openai_
         assert resp is None
 
 
-@pytest.mark.snapshot(ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot
 def test_empty_streamed_completion_resp_returns(openai, snapshot_tracer):
     client = openai.OpenAI()
     with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1282,9 +1302,7 @@ def test_empty_streamed_completion_resp_returns(openai, snapshot_tracer):
         assert resp is None
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_empty_streamed_completion_resp_returns", ignores=_IGNORE_GLOBAL
-)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_completion_resp_returns")
 async def test_empty_streamed_completion_resp_returns_async(openai, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1303,7 +1321,7 @@ async def test_empty_streamed_completion_resp_returns_async(openai, snapshot_tra
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
-@pytest.mark.snapshot(ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot
 def test_empty_streamed_response_resp_returns(openai, snapshot_tracer):
     client = openai.OpenAI()
     with mock.patch.object(client.responses, "_post", return_value=None):
@@ -1318,9 +1336,7 @@ def test_empty_streamed_response_resp_returns(openai, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
-@pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai_v1.test_empty_streamed_response_resp_returns", ignores=_IGNORE_GLOBAL
-)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_response_resp_returns")
 async def test_empty_streamed_response_resp_returns_async(openai, snapshot_tracer):
     client = openai.AsyncOpenAI()
     with mock.patch.object(client.responses, "_post", return_value=None):
@@ -1335,7 +1351,7 @@ async def test_empty_streamed_response_resp_returns_async(openai, snapshot_trace
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
     from pydantic import BaseModel
 
@@ -1362,7 +1378,7 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
     from pydantic import BaseModel
 
@@ -1389,7 +1405,7 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 def test_response_parse(openai, openai_vcr, snapshot_tracer):
     from pydantic import BaseModel
 
@@ -1413,7 +1429,7 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
 )
-@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse", ignores=_IGNORE_GLOBAL)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
     from pydantic import BaseModel
 

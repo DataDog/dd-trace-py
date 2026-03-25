@@ -12,9 +12,6 @@ from tests.contrib.vertexai.utils import weather_tool
 from tests.utils import override_global_config
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 def test_global_tags(vertexai, test_spans):
     """
     When the global config UST tags are set
@@ -40,7 +37,7 @@ def test_global_tags(vertexai, test_spans):
     assert span.get_tag("vertexai.request.model") == "gemini-1.5-flash"
 
 
-@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion")
 def test_vertexai_completion(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -54,7 +51,7 @@ def test_vertexai_completion(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error",
-    ignores=["meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack", "meta.error.message"],
 )
 def test_vertexai_completion_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -69,9 +66,7 @@ def test_vertexai_completion_error(vertexai):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool")
 def test_vertexai_completion_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
@@ -83,9 +78,7 @@ def test_vertexai_completion_tool(vertexai):
     )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages", ignores=SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages")
 def test_vertexai_completion_multiple_messages(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -101,9 +94,7 @@ def test_vertexai_completion_multiple_messages(vertexai):
     )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt", ignores=SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt")
 def test_vertexai_completion_system_prompt(vertexai):
     llm = vertexai.generative_models.GenerativeModel(
         "gemini-1.5-flash",
@@ -120,9 +111,7 @@ def test_vertexai_completion_system_prompt(vertexai):
     )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream", ignores=SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream")
 def test_vertexai_completion_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["stream_generate_content"] = [
@@ -141,7 +130,7 @@ def test_vertexai_completion_stream(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error",
-    ignores=["meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack", "meta.error.message"],
 )
 def test_vertexai_completion_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -161,9 +150,7 @@ def test_vertexai_completion_stream_error(vertexai):
             pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool", ignores=SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool")
 def test_vertexai_completion_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_client.responses["stream_generate_content"] = [
@@ -180,9 +167,7 @@ def test_vertexai_completion_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"])
 async def test_vertexai_completion_async(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["generate_content"].append(
@@ -198,7 +183,7 @@ async def test_vertexai_completion_async(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error",
-    ignores=["meta.error.stack", "meta.error.message", "resource"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack", "meta.error.message", "resource"],
 )
 async def test_vertexai_completion_async_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -215,9 +200,7 @@ async def test_vertexai_completion_async_error(vertexai):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"])
 async def test_vertexai_completion_async_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
@@ -230,8 +213,7 @@ async def test_vertexai_completion_async_tool(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream", ignores=["resource"]
 )
 async def test_vertexai_completion_async_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -251,7 +233,7 @@ async def test_vertexai_completion_async_stream(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error",
-    ignores=["meta.error.stack", "meta.error.message", "resource"] + SNAPSHOT_IGNORES,
+    ignores=["meta.error.stack", "meta.error.message", "resource"],
 )
 async def test_vertexai_completion_async_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -272,8 +254,7 @@ async def test_vertexai_completion_async_stream_error(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool", ignores=["resource"]
 )
 async def test_vertexai_completion_async_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -291,9 +272,7 @@ async def test_vertexai_completion_async_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"])
 def test_vertexai_chat(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -307,8 +286,7 @@ def test_vertexai_chat(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_multiple_messages", ignores=["resource"]
 )
 def test_vertexai_chat_history(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -334,7 +312,7 @@ def test_vertexai_chat_history(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error",
-    ignores=["resource", "meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["resource", "meta.error.stack", "meta.error.message"],
 )
 def test_vertexai_chat_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -350,9 +328,7 @@ def test_vertexai_chat_error(vertexai):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"])
 def test_vertexai_chat_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
@@ -366,8 +342,7 @@ def test_vertexai_chat_tool(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_system_prompt", ignores=["resource"]
 )
 def test_vertexai_chat_system_prompt(vertexai):
     llm = vertexai.generative_models.GenerativeModel(
@@ -387,8 +362,7 @@ def test_vertexai_chat_system_prompt(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream", ignores=["resource"]
 )
 def test_vertexai_chat_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -409,7 +383,7 @@ def test_vertexai_chat_stream(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error",
-    ignores=["resource", "meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["resource", "meta.error.stack", "meta.error.message"],
 )
 def test_vertexai_chat_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -431,8 +405,7 @@ def test_vertexai_chat_stream_error(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool", ignores=["resource"]
 )
 def test_vertexai_chat_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -451,9 +424,7 @@ def test_vertexai_chat_stream_tool(vertexai):
         pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"])
 async def test_vertexai_chat_async(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
     llm._prediction_async_client.responses["generate_content"].append(
@@ -470,7 +441,7 @@ async def test_vertexai_chat_async(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error",
-    ignores=["resource", "meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["resource", "meta.error.stack", "meta.error.message"],
 )
 async def test_vertexai_chat_async_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -488,9 +459,7 @@ async def test_vertexai_chat_async_error(vertexai):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"] + SNAPSHOT_IGNORES
-)
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_tool", ignores=["resource"])
 async def test_vertexai_chat_async_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
     llm._prediction_async_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
@@ -504,8 +473,7 @@ async def test_vertexai_chat_async_tool(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream", ignores=["resource"]
 )
 async def test_vertexai_chat_async_stream(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -526,7 +494,7 @@ async def test_vertexai_chat_async_stream(vertexai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_error",
-    ignores=["resource", "meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
+    ignores=["resource", "meta.error.stack", "meta.error.message"],
 )
 async def test_vertexai_chat_async_stream_error(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -548,8 +516,7 @@ async def test_vertexai_chat_async_stream_error(vertexai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool",
-    ignores=["resource"] + SNAPSHOT_IGNORES,
+    token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_stream_tool", ignores=["resource"]
 )
 async def test_vertexai_chat_async_stream_tool(vertexai):
     llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")

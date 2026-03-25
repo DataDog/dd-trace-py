@@ -14,10 +14,9 @@ from tests.utils import snapshot
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-IGNORES = ["meta._dd.svc_src"]
 
 
-@snapshot(include_tracer=True, ignores=IGNORES)
+@snapshot(include_tracer=True)
 @pytest.mark.subprocess()
 def test_single_trace_single_span(tracer):
     from ddtrace.trace import tracer
@@ -33,7 +32,7 @@ def test_single_trace_single_span(tracer):
 
 
 @pytest.mark.subprocess()
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 def test_flush_spans_before_writer_recreate():
     """
     Test that spans are flushed before the writer is recreated.
@@ -55,7 +54,7 @@ def test_flush_spans_before_writer_recreate():
     long_running_span.finish()
 
 
-@snapshot(include_tracer=True, ignores=IGNORES)
+@snapshot(include_tracer=True)
 @pytest.mark.subprocess()
 def test_multiple_traces(tracer):
     from ddtrace.trace import tracer
@@ -76,7 +75,7 @@ def test_multiple_traces(tracer):
     tracer.flush()
 
 
-@snapshot(include_tracer=True, ignores=IGNORES)
+@snapshot(include_tracer=True)
 @pytest.mark.subprocess(
     token="tests.integration.test_integration_snapshots.test_filters",
 )
@@ -106,7 +105,7 @@ def test_filters():
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
 @pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
-@snapshot(async_mode=False, ignores=IGNORES)
+@snapshot(async_mode=False)
 def test_synchronous_writer(writer_class):
     import os
 
@@ -135,7 +134,7 @@ def test_synchronous_writer(writer_class):
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False, ignores=IGNORES)
+@snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
@@ -165,7 +164,7 @@ def test_tracer_trace_across_popen():
     PYTHON_VERSION_INFO >= (3, 14),
     reason="The default multiprocessing start_method 'forkserver' causes this test to fail",
 )
-@snapshot(async_mode=False, ignores=IGNORES)
+@snapshot(async_mode=False)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
@@ -199,7 +198,7 @@ def test_tracer_trace_across_multiple_popens():
     tracer.flush()
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @pytest.mark.subprocess()
 def test_wrong_span_name_type_not_sent():
     """Span names should be a text type.
@@ -215,7 +214,7 @@ def test_wrong_span_name_type_not_sent():
         assert span.name == ""
 
 
-@snapshot(ignores=IGNORES)
+@snapshot()
 @pytest.mark.subprocess()
 def test_wrong_service_type_not_sent():
     """Span service should be a text type.
@@ -288,7 +287,7 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_war
 
 
 @pytest.mark.subprocess()
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
     from ddtrace.constants import _SAMPLING_PRIORITY_KEY
     from ddtrace.constants import AUTO_KEEP
@@ -304,7 +303,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
 # Override the token so that both parameterizations of the test use the same snapshot
 # (The snapshots should be equivalent)
-@snapshot(token_override="tests.integration.test_integration_snapshots.test_env_vars", ignores=IGNORES)
+@snapshot(token_override="tests.integration.test_integration_snapshots.test_env_vars")
 @pytest.mark.parametrize("use_ddtracerun", [True, False])
 def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess):
     """Ensure environment variable config is respected by ddtrace-run usages as well as regular."""
@@ -333,7 +332,7 @@ tracer.trace("test-op").finish()
     )
 
 
-@pytest.mark.snapshot(token="tests.integration.test_integration_snapshots.test_snapshot_skip", ignores=IGNORES)
+@pytest.mark.snapshot(token="tests.integration.test_integration_snapshots.test_snapshot_skip")
 def test_snapshot_skip():
     pytest.skip("Test that snapshot tests can be skipped")
     with tracer.trace("test"):
@@ -341,7 +340,7 @@ def test_snapshot_skip():
 
 
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
     from ddtrace import tracer
 
@@ -355,7 +354,7 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 def test_encode_span_with_large_string_attributes(encoding):
     from ddtrace import tracer
 
@@ -365,7 +364,7 @@ def test_encode_span_with_large_string_attributes(encoding):
 
 
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot()
 def test_encode_span_with_large_unicode_string_attributes(encoding):
     from ddtrace import tracer
 
@@ -374,7 +373,7 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
             span.set_tag(key="å" * 25001, value="ä" * 2000)
 
 
-@pytest.mark.snapshot(ignores=IGNORES)
+@pytest.mark.snapshot
 @pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
 def test_aggregator_partial_flush_finished_counter_out_of_sync():
     """Regression test for IndexError when num_finished counter is out of sync with finished spans."""
@@ -460,7 +459,7 @@ except KeyboardInterrupt:
 
     with snapshot_context(
         token=token,
-        ignores=["meta._dd.base_service", "meta._dd.svc_src"],
+        ignores=["meta._dd.base_service"],
         variants=variants,
     ):
         # Copy environment INSIDE snapshot_context so it includes the test session token

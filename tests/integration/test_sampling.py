@@ -6,15 +6,13 @@ import pytest
 from tests.integration.utils import AGENT_VERSION
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
 USING_NATIVE_WRITER = os.environ.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess()
 def test_sampling_with_defaults():
     from ddtrace.trace import tracer
@@ -23,7 +21,7 @@ def test_sampling_with_defaults():
         tracer.trace("child").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_RATE_LIMIT": "3"},
     err=b"DD_TRACE_RATE_LIMIT is set to 3 and DD_TRACE_SAMPLING_RULES is not set. "
@@ -76,7 +74,7 @@ def test_unsupported_sampling_mechanism():
     )
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": "0"}])})
 def test_extended_sampling_string_sample_rate():
     from ddtrace.trace import tracer
@@ -84,7 +82,7 @@ def test_extended_sampling_string_sample_rate():
     tracer.trace("should_not_send").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
 def test_extended_sampling_resource():
     from ddtrace.trace import tracer
@@ -94,7 +92,7 @@ def test_extended_sampling_resource():
     tracer.trace("should_send", resource="something else").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": TAGS}])})
 def test_extended_sampling_tags():
     from ddtrace.trace import tracer
@@ -106,7 +104,7 @@ def test_extended_sampling_tags():
     tracer.trace("should_send").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag1": "mycool*"}}])})
 def test_extended_sampling_tags_glob():
     from ddtrace.trace import tracer
@@ -118,7 +116,7 @@ def test_extended_sampling_tags_glob():
     tracer.trace("should_send").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": "BANANA"}])})
 def test_extended_sampling_tags_glob_insensitive_case_match():
     from ddtrace.trace import tracer
@@ -129,7 +127,7 @@ def test_extended_sampling_tags_glob_insensitive_case_match():
     tracer.trace("should_send2", resource="ban").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": TAGS}])}
 )
@@ -147,7 +145,7 @@ def test_extended_sampling_tags_and_resource():
     tracer.trace("should_send3", resource=RESOURCE).finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": {"test": None}}])}
 )
@@ -164,7 +162,7 @@ def test_extended_sampling_w_None_meta():
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": {"test": 123}}])}
 )
@@ -183,7 +181,7 @@ def test_extended_sampling_w_metrics(tracer):
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_SAMPLING_RULES": json.dumps(
@@ -202,7 +200,7 @@ def test_extended_sampling_glob_multi_rule():
     tracer.trace(name="web.reqUEst", service="wEbServer").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": "mycoolre$ou*", "tags": TAGS}])}
 )
@@ -220,7 +218,7 @@ def test_extended_sampling_tags_and_resource_glob():
     tracer.trace("should_send3", resource=RESOURCE).finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "service": "mycoolser????", "tags": TAGS}])}
 )
@@ -237,7 +235,7 @@ def test_extended_sampling_tags_and_service_glob():
     tracer.trace("should_send3", service="mycoolservice").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "name": "mycoolna*", "tags": TAGS}])}
 )
@@ -254,7 +252,7 @@ def test_extended_sampling_tags_and_name_glob():
     tracer.trace(name="mycoolname").finish()
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_SAMPLING_RULES": json.dumps(
@@ -277,7 +275,7 @@ def test_extended_sampling_tags_partial_match():
         span.set_tag("tag2", "banana")
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag1": "2*"}}])})
 def test_extended_sampling_float_special_case_do_not_match():
     """A float with a non-zero decimal and a tag with a pattern
@@ -289,7 +287,7 @@ def test_extended_sampling_float_special_case_do_not_match():
         span.set_tag("tag", 20.1)
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_SAMPLING_RULES": json.dumps(
@@ -373,7 +371,7 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",
@@ -416,7 +414,7 @@ def test_single_span_and_trace_sampling_match_non_root_span():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",

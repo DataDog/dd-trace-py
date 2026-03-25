@@ -16,9 +16,6 @@ from tests.contrib.aws_lambda.handlers import timeout_handler
 from tests.utils import override_env
 
 
-SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
-
-
 class LambdaContext:
     def __init__(self, remaining_time_in_millis=300):
         self.invoked_function_arn = "arn:aws:lambda:us-east-1:000000000000:function:fake-function-name"
@@ -60,7 +57,7 @@ def override_env_and_patch(env):
 
 
 @pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_timeout_traces(context, customApmFlushDeadline):
     env = get_env(
         {
@@ -74,7 +71,7 @@ def test_timeout_traces(context, customApmFlushDeadline):
         datadog(timeout_handler)({}, context())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_continue_on_early_trace_ending(context):
     """
     These scenario expects no timeout error being tagged on the root span
@@ -91,7 +88,7 @@ def test_continue_on_early_trace_ending(context):
         datadog(finishing_spans_early_handler)({}, context())
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_file_patching(context):
     env = get_env(
         {
@@ -105,7 +102,7 @@ async def test_file_patching(context):
         assert result == {"success": True}
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 async def test_module_patching(mocker, context):
     mocker.patch("datadog_lambda.wrapper._LambdaDecorator._before")
     mocker.patch("datadog_lambda.wrapper._LambdaDecorator._after")
@@ -130,7 +127,7 @@ async def test_module_patching(mocker, context):
         (instance_handler_with_code, "instance_handler_with_code"),
     ],
 )
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.snapshot
 def test_class_based_handlers(context, handler, function_name):
     env = get_env(
         {
