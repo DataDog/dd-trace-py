@@ -31,6 +31,7 @@ impl SpanLink {
     const SPAN_POINTER_KIND: &'static str = "span-pointer";
 
     #[new]
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (trace_id, span_id, tracestate = None, flags = None, attributes = None, _dropped_attributes = 0, _skip_validation = false))]
     fn __new__(
         py: Python<'_>,
@@ -176,12 +177,14 @@ impl SpanLink {
                     .into_pyobject(py)?
                     .into_any()
                     .unbind(),
-                <pyo3::Bound<'_, pyo3::types::PyBool> as Clone>::clone(&pyo3::types::PyBool::new(py, true)).unbind().into_any(), // _skip_validation=True
+                <pyo3::Bound<'_, pyo3::types::PyBool> as Clone>::clone(&pyo3::types::PyBool::new(
+                    py, true,
+                ))
+                .unbind()
+                .into_any(), // _skip_validation=True
             ],
         )?;
-        Ok(
-            PyTuple::new(py, &[cls.into_any().unbind(), args.into_any().unbind()])?.unbind(),
-        )
+        Ok(PyTuple::new(py, &[cls.into_any().unbind(), args.into_any().unbind()])?.unbind())
     }
 
     #[classmethod]
@@ -220,7 +223,7 @@ impl SpanLink {
             attributes: attrs.unbind(),
             _dropped_attributes: 0,
         };
-        Ok(Py::new(py, link)?)
+        Py::new(py, link)
     }
 }
 

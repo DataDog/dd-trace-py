@@ -20,7 +20,11 @@ pub fn is_sequence(obj: &Bound<'_, PyAny>) -> bool {
 
 /// Python-facing flatten_key_value (registered as pyfunction)
 #[pyo3::pyfunction]
-pub fn flatten_key_value(py: Python<'_>, root_key: &str, value: &Bound<'_, PyAny>) -> PyResult<pyo3::Py<PyDict>> {
+pub fn flatten_key_value(
+    py: Python<'_>,
+    root_key: &str,
+    value: &Bound<'_, PyAny>,
+) -> PyResult<pyo3::Py<PyDict>> {
     let result = PyDict::new(py);
     flatten_into(py, &result, root_key, value)?;
     Ok(result.unbind())
