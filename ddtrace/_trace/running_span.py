@@ -1,4 +1,3 @@
-import atexit
 from contextlib import contextmanager
 from itertools import chain
 import sys
@@ -13,6 +12,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import PARTIAL_VERSION
 from ddtrace.constants import WAS_LONG_RUNNING
+from ddtrace.internal import atexit
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
@@ -31,6 +31,7 @@ class RunningSpanManager:
         # Register cleanup on process exit
         try:
             atexit.register(self._cleanup_on_exit)
+            atexit.register_on_exit_signal(self._cleanup_on_exit)
         except BaseException:
             log.debug("SpanManager initializing during shutdown", exc_info=True)
             pass
