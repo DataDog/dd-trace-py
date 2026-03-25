@@ -572,7 +572,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.12"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                         "zope-event": "==5.0",
                         "zope-interface": "==7.2",
                     },
