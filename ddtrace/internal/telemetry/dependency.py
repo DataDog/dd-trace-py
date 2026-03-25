@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 from typing import Any
-from typing import List
 from typing import Optional
 
 
@@ -65,7 +64,7 @@ class DependencyEntry:
     version: str
     # AIDEV-NOTE: metadata is None (not []) by default to avoid allocating an
     # empty list for every dependency. Most deps never receive metadata.
-    metadata: Optional[List[ReachabilityMetadata]] = None
+    metadata: Optional[list[ReachabilityMetadata]] = None
     _initial_report_sent: bool = field(default=False, repr=False, compare=False)
     _unsent_count: int = field(default=0, repr=False, compare=False)
 

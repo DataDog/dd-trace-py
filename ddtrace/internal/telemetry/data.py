@@ -2,7 +2,6 @@ import platform
 import sys
 import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any
 from typing import Iterable  # noqa:F401
 
 from ddtrace.internal import process_tags
