@@ -11,6 +11,7 @@ from shutil import which
 import subprocess
 from tempfile import TemporaryDirectory
 from typing import Generator  # noqa:F401
+from typing import Mapping  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -432,7 +433,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     return tags
 
 
-def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
+def extract_user_git_metadata(env: Optional[Mapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
     env = _env_module.dd_environ if env is None else env
 
