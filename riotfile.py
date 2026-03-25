@@ -1466,6 +1466,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pyyaml": "==6.0.1",
+                # pip==26.0.0 removed the --global-option install arg
+                "pip": "<26",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "false",
@@ -2490,6 +2492,8 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2511,6 +2515,8 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -3176,6 +3182,8 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "mlflow[default]": ["~=3.9.0", latest],
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
         ),
         Venv(
@@ -3272,6 +3280,10 @@ venv = Venv(
         Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
+            pkgs={
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.11"),
