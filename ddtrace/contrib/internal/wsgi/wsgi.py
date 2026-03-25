@@ -168,6 +168,7 @@ class _DDWSGIMiddlewareBase(object):
                         content, status, headers = blocked_view()
                         start_response(str(status), headers)
                         closing_iterable = [content]
+                        core.dispatch("wsgi.app.exception", (ctx,))
                     else:
                         core.dispatch("wsgi.app.exception", (ctx,))
                         raise

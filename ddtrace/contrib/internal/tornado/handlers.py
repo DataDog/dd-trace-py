@@ -100,7 +100,8 @@ async def execute(func, handler, args, kwargs):
                     ).tornado_future
                     if dispatch_res and dispatch_res.value is not None:
                         return await dispatch_res.value
-                raise
+                else:
+                    raise
 
 
 def _find_route(initial_rule_set, request):
