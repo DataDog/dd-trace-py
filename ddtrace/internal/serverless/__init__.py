@@ -1,6 +1,7 @@
-import os
 from os import environ
 from os import path
+
+from ddtrace.internal.settings import env
 
 
 def in_aws_lambda():
@@ -35,5 +36,6 @@ def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function."""
     return (
-        os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
+        env.dd_environ.get("FUNCTIONS_WORKER_RUNTIME", "") != ""
+        and env.dd_environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
     )
