@@ -9,7 +9,6 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.version import __version__
 
 
@@ -51,11 +50,7 @@ class DynamicInstrumentationConfig(DDConfig):
     __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    _is_agentless = DDConfig.d(
-        bool,
-        lambda _: ddconfig._ci_visibility_agentless_enabled
-        and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true")),
-    )
+    _is_agentless = DDConfig.d(bool, lambda _: ddconfig._ci_visibility_agentless_enabled)
     _intake_url = DDConfig.d(
         str,
         lambda c: (
