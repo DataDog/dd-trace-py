@@ -112,3 +112,31 @@ def test_ancestor_runtime_id():
     assert exit_code == 42
 
     assert runtime.get_ancestor_runtime_id() is None
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"}, err=None)
+def test_parent_runtime_id():
+    """get_parent_runtime_id() tracks the immediate parent process, not the root."""
+    import os
+
+    from ddtrace.internal import runtime
+
+    root_id = runtime.get_runtime_id()
+    assert runtime.get_parent_runtime_id() is None
+
+    child = os.fork()
+    if child == 0:
+        child_id = runtime.get_runtime_id()
+        assert runtime.get_parent_runtime_id() == root_id
+
+        grandchild = os.fork()
+        if grandchild == 0:
+            assert runtime.get_parent_runtime_id() == child_id
+            os._exit(42)
+
+        _, status = os.waitpid(grandchild, 0)
+        assert os.WEXITSTATUS(status) == 42
+        os._exit(42)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WEXITSTATUS(status) == 42
