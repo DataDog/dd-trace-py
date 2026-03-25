@@ -988,7 +988,7 @@ if PydanticEvaluator is not None:
         :return: A callable function that can be used as an evaluator
         """
 
-        def wrapped_evaluator(
+        async def wrapped_evaluator(
             eval_context: SummaryEvaluatorContext,
         ) -> JSONType:
             cases = []
