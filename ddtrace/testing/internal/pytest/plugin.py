@@ -29,6 +29,9 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
+from ddtrace.testing.internal.pytest.flaky_snapshot import is_known_flaky_test
+from ddtrace.testing.internal.pytest.flaky_snapshot import known_flaky_probe_context
+from ddtrace.testing.internal.pytest.flaky_snapshot import maybe_disable_debugger_started_for_known_flaky
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
@@ -241,6 +244,9 @@ class TestOptPlugin:
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
+        self._known_flaky_debugger_started_here = False
+        self._known_flaky_probe_serial = 0
+
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
@@ -314,6 +320,9 @@ class TestOptPlugin:
             self.manager.writer.put_item(self.session)
 
         self.manager.finish()
+
+        maybe_disable_debugger_started_for_known_flaky(self._known_flaky_debugger_started_here)
+        self._known_flaky_debugger_started_here = False
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -462,16 +471,36 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
+    def _mark_debugger_started_for_known_flaky(self) -> None:
+        self._known_flaky_debugger_started_here = True
+
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
         test = self.tests_by_nodeid[item.nodeid]
+        test_ref = item_to_test_ref(item)
+
         test_run = test.make_test_run()
         test_run.start()
 
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
-        reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
+        if is_known_flaky_test(self.manager, test_ref):
+            self._known_flaky_probe_serial += 1
+            with known_flaky_probe_context(
+                item,
+                self._known_flaky_probe_serial,
+                self._mark_debugger_started_for_known_flaky,
+            ) as probe_result:
+                reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
+            if probe_result and "snapshot_id" in probe_result:
+                test_run.tags[TestTag.KNOWN_FLAKY_DEBUG_INFO_CAPTURED] = "true"
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_ID] = probe_result["snapshot_id"]
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_FILE] = probe_result["file"]
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_LINE] = probe_result["line"]
+        else:
+            reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
+
         self._set_test_run_data(test_run, item, context)
 
         TelemetryAPI.get().record_test_finished(

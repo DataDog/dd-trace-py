@@ -18,6 +18,7 @@ from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import KnownTestInfo
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -46,6 +47,40 @@ def _get_known_tests_max_pages() -> int:
         )
         return _DEFAULT_KNOWN_TESTS_MAX_PAGES
     return value
+
+
+def _known_test_entry_to_info(raw: t.Any, suite_ref: SuiteRef) -> t.Optional[tuple[TestRef, KnownTestInfo]]:
+    """Map one libraries-tests list entry to (TestRef, KnownTestInfo). Supports legacy string names."""
+    if isinstance(raw, str):
+        return (TestRef(suite_ref, raw), KnownTestInfo())
+
+    if isinstance(raw, dict):
+        name = raw.get("name")
+        if name is None:
+            name = raw.get("test_name")
+        if not name:
+            log.warning(
+                "Known tests entry missing name/test_name for suite %s/%s", suite_ref.module.name, suite_ref.name
+            )
+            return None
+        is_flaky = bool(raw.get("is_flaky", False))
+        return (TestRef(suite_ref, str(name)), KnownTestInfo(is_flaky=is_flaky))
+
+    log.warning(
+        "Unknown known tests entry type %s for suite %s/%s",
+        type(raw).__name__,
+        suite_ref.module.name,
+        suite_ref.name,
+    )
+    return None
+
+
+def _merge_known_test(acc: dict[TestRef, KnownTestInfo], test_ref: TestRef, info: KnownTestInfo) -> None:
+    prev = acc.get(test_ref)
+    if prev is None:
+        acc[test_ref] = info
+    else:
+        acc[test_ref] = KnownTestInfo(is_flaky=prev.is_flaky or info.is_flaky)
 
 
 class APIClient:
@@ -124,7 +159,7 @@ class APIClient:
         self.telemetry_api.record_settings(settings)
         return settings
 
-    def get_known_tests(self) -> set[TestRef]:
+    def get_known_tests(self) -> dict[TestRef, KnownTestInfo]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -133,7 +168,7 @@ class APIClient:
         )
 
         page_state: t.Optional[str] = None
-        known_test_ids: set[TestRef] = set()
+        known_tests: dict[TestRef, KnownTestInfo] = {}
         max_pages = _get_known_tests_max_pages()
 
         for page_number in range(max_pages):
@@ -159,7 +194,7 @@ class APIClient:
             except KeyError as e:
                 log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
                 telemetry.record_error(ErrorType.UNKNOWN)
-                return set()
+                return {}
 
             try:
                 result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
@@ -167,7 +202,7 @@ class APIClient:
 
             except Exception as e:
                 log.warning("Error getting known tests from API: %s", e)
-                return set()
+                return {}
 
             try:
                 attributes = result.parsed_response["data"]["attributes"]
@@ -178,7 +213,11 @@ class APIClient:
                     for suite, tests in suites.items():
                         suite_ref = SuiteRef(module_ref, suite)
                         for test in tests:
-                            known_test_ids.add(TestRef(suite_ref, test))
+                            parsed = _known_test_entry_to_info(test, suite_ref)
+                            if parsed is None:
+                                continue
+                            tr, info = parsed
+                            _merge_known_test(known_tests, tr, info)
 
                 page_info = attributes.get("page_info")
                 if not page_info:
@@ -186,7 +225,7 @@ class APIClient:
                 if not isinstance(page_info, dict):
                     log.warning("Known tests response page_info is not a dict")
                     telemetry.record_error(ErrorType.BAD_JSON)
-                    return set()
+                    return {}
 
                 has_next = page_info.get("has_next")
                 if not has_next:
@@ -196,19 +235,19 @@ class APIClient:
                 if not page_state:
                     log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
                     telemetry.record_error(ErrorType.BAD_JSON)
-                    return set()
+                    return {}
 
             except Exception:
                 log.warning("Error getting known tests from API")
                 telemetry.record_error(ErrorType.BAD_JSON)
-                return set()
+                return {}
         else:
             log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
-            return set()
+            return {}
 
-        self.telemetry_api.record_known_tests_count(len(known_test_ids))
-        return known_test_ids
+        self.telemetry_api.record_known_tests_count(len(known_tests))
+        return known_tests
 
     def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(

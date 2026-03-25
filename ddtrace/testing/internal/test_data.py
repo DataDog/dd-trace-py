@@ -36,6 +36,14 @@ class TestRef:
     __test__ = False
 
 
+@dataclass(frozen=True)
+class KnownTestInfo:
+    """Metadata returned with known tests from the libraries-tests API."""
+
+    is_flaky: bool = False
+    __test__ = False
+
+
 class TestStatus(Enum):
     PASS = "pass"  # nosec: B105
     FAIL = "fail"
@@ -453,5 +461,13 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+
+    # Known-flaky snapshot correlation tags (same contract as JS tracer DI integration).
+    # The DI snapshot carries dd.trace_id/dd.span_id linking snapshot → test span.
+    # These tags on the test span link test span → snapshot (index 0; Exception Replay uses 1+).
+    KNOWN_FLAKY_DEBUG_INFO_CAPTURED = "error.debug_info_captured"
+    KNOWN_FLAKY_SNAPSHOT_ID = "_dd.debug.error.0.snapshot_id"
+    KNOWN_FLAKY_SNAPSHOT_FILE = "_dd.debug.error.0.file"
+    KNOWN_FLAKY_SNAPSHOT_LINE = "_dd.debug.error.0.line"
 
     __test__ = False

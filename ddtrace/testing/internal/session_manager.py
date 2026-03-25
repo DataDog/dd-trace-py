@@ -20,6 +20,7 @@ from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import KnownTestInfo
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -82,7 +83,11 @@ class SessionManager:
         self.override_settings_with_env_vars()
         self.show_settings()
 
-        self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+        if self.settings.known_tests_enabled:
+            self.known_tests_by_ref: dict[TestRef, KnownTestInfo] = self.api_client.get_known_tests()
+        else:
+            self.known_tests_by_ref = {}
+        self.known_tests = frozenset(self.known_tests_by_ref.keys())
         self.test_properties = (
             self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
         )
