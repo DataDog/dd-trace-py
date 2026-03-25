@@ -38,6 +38,11 @@ def _make_simple_pydantic_evaluator():
                 return False
             return ctx.output == ctx.expected_output
 
+        async def evaluate_async(self, ctx: EvaluatorContext) -> bool:
+            if ctx.expected_output is None:
+                return False
+            return ctx.output == ctx.expected_output
+
     return SimplePydanticEvaluator()
 
 
@@ -525,6 +530,9 @@ def _make_scalar_report_evaluator(return_value=2.71):
     @dataclass
     class ScalarReportEvaluator(ReportEvaluator):
         def evaluate(self, ctx: ReportEvaluatorContext) -> ScalarResult:
+            return ScalarResult(title="summary_metric", value=return_value)
+
+        async def evaluate_async(self, ctx: ReportEvaluatorContext) -> ScalarResult:
             return ScalarResult(title="summary_metric", value=return_value)
 
     return ScalarReportEvaluator()

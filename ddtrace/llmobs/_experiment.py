@@ -2490,7 +2490,18 @@ class Experiment:
                         eval_result = await summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = await summary_evaluator(context)
+                        else:
+                            eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
