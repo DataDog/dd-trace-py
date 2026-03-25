@@ -3,7 +3,6 @@ from hashlib import sha256
 import random
 from typing import Any
 from typing import NamedTuple
-from typing import Optional
 
 from ddtrace._trace._span_link import SpanLinkKind  # noqa: F401 - kept for backward compat
 from ddtrace._trace.telemetry import record_span_pointer_calculation_issue

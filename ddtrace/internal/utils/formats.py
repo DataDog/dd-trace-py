@@ -6,6 +6,8 @@ from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
+from ddtrace.internal.native._native import is_sequence  # noqa: F401
 
 from ..compat import ensure_text
 
@@ -124,10 +126,6 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
             break
 
     return " ".join(out)
-
-
-from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
-from ddtrace.internal.native._native import is_sequence  # noqa: F401
 
 
 def format_trace_id(trace_id: int) -> str:
