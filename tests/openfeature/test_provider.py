@@ -83,10 +83,10 @@ class TestBooleanFlagResolution:
 
         result = provider.resolve_boolean_details("non-existent-flag", False)
 
-        assert result.value is False
-        assert result.reason == Reason.ERROR
-        assert result.variant is None
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value is False, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.variant is None, result.variant
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
     def test_resolve_boolean_flag_not_found_in_config(self, provider):
         """Should return ERROR with FLAG_NOT_FOUND when flag not in existing config."""
@@ -97,10 +97,10 @@ class TestBooleanFlagResolution:
         # Request a flag that doesn't exist in the config
         result = provider.resolve_boolean_details("non-existent-flag", False)
 
-        assert result.value is False
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.FLAG_NOT_FOUND
-        assert result.variant is None
+        assert result.value is False, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.FLAG_NOT_FOUND, result.error_code
+        assert result.variant is None, result.variant
 
     def test_resolve_boolean_flag_disabled(self, provider):
         """Should return default value when flag is disabled."""
@@ -146,9 +146,9 @@ class TestStringFlagResolution:
 
         result = provider.resolve_string_details("non-existent-flag", "default")
 
-        assert result.value == "default"
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value == "default", result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
 class TestIntegerFlagResolution:
@@ -198,9 +198,9 @@ class TestFloatFlagResolution:
 
         result = provider.resolve_float_details("non-existent-flag", 1.0)
 
-        assert result.value == 1.0
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value == 1.0, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
 class TestObjectFlagResolution:
@@ -237,9 +237,9 @@ class TestObjectFlagResolution:
         default = {"default": True}
         result = provider.resolve_object_details("non-existent-flag", default)
 
-        assert result.value == default
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value == default, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
 class TestEvaluationContext:
@@ -350,9 +350,9 @@ class TestVariantHandling:
 
         result = provider.resolve_string_details("missing-flag", "default")
 
-        assert result.variant is None
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.variant is None, result.variant
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
     def test_default_variant_key(self, provider):
         """Should use 'default' as variant_key when not specified."""
@@ -393,9 +393,9 @@ class TestComplexScenarios:
 
         result = provider.resolve_boolean_details("any-flag", True)
 
-        assert result.value is True
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value is True, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
 class TestFlagKeyCornerCases:
@@ -450,9 +450,9 @@ class TestFlagKeyCornerCases:
         """Should handle empty string flag key gracefully with ERROR reason when no config."""
         result = provider.resolve_boolean_details("", False)
 
-        assert result.value is False
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value is False, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
     def test_flag_key_very_long(self, provider):
         """Should handle very long flag keys."""

@@ -60,13 +60,11 @@ class TestFlagEvalMetrics:
             # the metrics should be enabled and have a counter
             metrics = FlagEvalMetrics()
 
-            # If OTel is available, metrics should be enabled
             # The actual behavior depends on whether OTel is installed
             # We just verify the object is created without error
-            assert metrics is not None
-            # If enabled, counter should be set
+            assert metrics is not None, "If OTel is available, metrics should be enabled"
             if metrics._enabled:
-                assert metrics._counter is not None
+                assert metrics._counter is not None, "If metrics is enabled, counter should be set"
 
     def test_record_basic_attributes(self):
         """Record should emit metric with basic attributes."""
@@ -86,9 +84,9 @@ class TestFlagEvalMetrics:
         call_args = mock_counter.add.call_args
         assert call_args[0][0] == 1  # count
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_FLAG_KEY] == "test-flag"
-        assert attrs[ATTR_VARIANT] == "on"
-        assert attrs[ATTR_REASON] == "targeting_match"
+        assert attrs[ATTR_FLAG_KEY] == "test-flag", attrs.get(ATTR_FLAG_KEY)
+        assert attrs[ATTR_VARIANT] == "on", attrs.get(ATTR_VARIANT)
+        assert attrs[ATTR_REASON] == "targeting_match", attrs.get(ATTR_REASON)
         assert ATTR_ERROR_TYPE not in attrs
         assert ATTR_ALLOCATION_KEY not in attrs
 
@@ -109,7 +107,7 @@ class TestFlagEvalMetrics:
 
         call_args = mock_counter.add.call_args
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_ALLOCATION_KEY] == "default-allocation"
+        assert attrs[ATTR_ALLOCATION_KEY] == "default-allocation", attrs.get(ATTR_ALLOCATION_KEY)
 
     def test_record_with_error(self):
         """Record should include error.type when error_code is present."""
@@ -128,7 +126,7 @@ class TestFlagEvalMetrics:
 
         call_args = mock_counter.add.call_args
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_ERROR_TYPE] == "flag_not_found"
+        assert attrs[ATTR_ERROR_TYPE] == "flag_not_found", attrs.get(ATTR_ERROR_TYPE)
 
     def test_record_empty_allocation_key_not_included(self):
         """Empty allocation_key should not be included in attributes."""
@@ -189,9 +187,9 @@ class TestFlagEvalMetrics:
         mock_counter.add.assert_called_once()
         call_args = mock_counter.add.call_args
         attrs = call_args[1]["attributes"]
-        assert attrs[ATTR_FLAG_KEY] == "disabled-flag"
-        assert attrs[ATTR_VARIANT] == ""
-        assert attrs[ATTR_REASON] == "disabled"
+        assert attrs[ATTR_FLAG_KEY] == "disabled-flag", attrs.get(ATTR_FLAG_KEY)
+        assert attrs[ATTR_VARIANT] == "", attrs.get(ATTR_VARIANT)
+        assert attrs[ATTR_REASON] == "disabled", attrs.get(ATTR_REASON)
         assert ATTR_ERROR_TYPE not in attrs
 
     def test_record_multiple_evaluations(self):
@@ -229,7 +227,7 @@ class TestFlagEvalMetrics:
         # Verify each call has the correct flag_key
         calls = mock_counter.add.call_args_list
         flag_keys = {call[1]["attributes"][ATTR_FLAG_KEY] for call in calls}
-        assert flag_keys == {"flag-a", "flag-b"}
+        assert flag_keys == {"flag-a", "flag-b"}, flag_keys
 
     def test_record_all_error_types(self):
         """All error types should be recorded correctly."""
@@ -259,7 +257,7 @@ class TestFlagEvalMetrics:
         # Verify each call has the correct error.type
         calls = mock_counter.add.call_args_list
         error_types = {call[1]["attributes"][ATTR_ERROR_TYPE] for call in calls}
-        assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}
+        assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}, error_types
 
 
 class TestFlagEvalHook:
@@ -315,7 +313,7 @@ class TestFlagEvalHook:
 
         mock_metrics.record.assert_called_once()
         call_kwargs = mock_metrics.record.call_args[1]
-        assert call_kwargs["error_code"] == ErrorCode.FLAG_NOT_FOUND
+        assert call_kwargs["error_code"] == ErrorCode.FLAG_NOT_FOUND, call_kwargs.get("error_code")
 
     def test_finally_after_without_allocation_key(self):
         """finally_after should handle missing allocation_key."""
@@ -337,7 +335,7 @@ class TestFlagEvalHook:
         hook.finally_after(hook_context, details, {})
 
         call_kwargs = mock_metrics.record.call_args[1]
-        assert call_kwargs["allocation_key"] is None
+        assert call_kwargs["allocation_key"] is None, call_kwargs.get("allocation_key")
 
 
 class TestProviderHooksIntegration:
@@ -392,9 +390,11 @@ class TestProviderHooksIntegration:
 
         result = provider.resolve_string_details("test-flag", "default")
 
-        assert result.value == "hello"
-        assert METADATA_ALLOCATION_KEY in result.flag_metadata
-        assert result.flag_metadata[METADATA_ALLOCATION_KEY] == "allocation-default"
+        assert result.value == "hello", result.value
+        assert METADATA_ALLOCATION_KEY in result.flag_metadata, result.flag_metadata
+        assert result.flag_metadata[METADATA_ALLOCATION_KEY] == "allocation-default", result.flag_metadata.get(
+            METADATA_ALLOCATION_KEY
+        )
 
 
 class TestMetricsWithRealOTel:
@@ -420,15 +420,15 @@ class TestMetricsWithRealOTel:
 
         # Should not raise
         result = provider.resolve_boolean_details("test-flag", False)
-        assert result.value is True
+        assert result.value is True, result.value
 
     def test_metrics_record_on_error(self, provider):
         """Metrics should be recorded even on evaluation errors."""
         # No config set - will result in ERROR reason with PROVIDER_NOT_READY
         result = provider.resolve_boolean_details("non-existent", False)
-        assert result.value is False
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.PROVIDER_NOT_READY
+        assert result.value is False, result.value
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
     def test_disabled_flag_records_disabled_reason(self, provider):
         """Disabled flag should record DISABLED reason in metrics."""
@@ -437,8 +437,8 @@ class TestMetricsWithRealOTel:
 
         result = provider.resolve_boolean_details("disabled-flag", False)
 
-        assert result.value is False  # Returns default when disabled
-        assert result.reason == Reason.DISABLED
+        assert result.value is False, result.value  # Returns default when disabled
+        assert result.reason == Reason.DISABLED, result.reason
 
     def test_type_conversion_error_records_type_mismatch(self, provider):
         """Type mismatch should record error.type=type_mismatch in metrics.
@@ -454,6 +454,6 @@ class TestMetricsWithRealOTel:
         # Request it as a boolean - should result in TYPE_MISMATCH
         result = provider.resolve_boolean_details("string-flag", False)
 
-        assert result.value is False  # Returns default on error
-        assert result.reason == Reason.ERROR
-        assert result.error_code == ErrorCode.TYPE_MISMATCH
+        assert result.value is False, result.value  # Returns default on error
+        assert result.reason == Reason.ERROR, result.reason
+        assert result.error_code == ErrorCode.TYPE_MISMATCH, result.error_code
