@@ -31,7 +31,6 @@ suites:
       - '@testing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
-    runner: riot
     snapshot: true
   dd_coverage:
     parallelism: 3
@@ -41,7 +40,6 @@ suites:
       - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
-    runner: riot
     snapshot: true
   pytest:
     venvs_per_job: 2
@@ -58,7 +56,6 @@ suites:
       - tests/contrib/pytest/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
     pattern: 'pytest$'
   pytest_benchmark:
@@ -77,7 +74,6 @@ suites:
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
   pytest_bdd:
     venvs_per_job: 3
@@ -95,7 +91,6 @@ suites:
       - tests/contrib/pytest_bdd/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
   pytest_flaky:
     venvs_per_job: 3
@@ -113,7 +108,6 @@ suites:
       - tests/contrib/pytest_flaky/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
     pattern: 'pytest:flaky'
   testing:
@@ -130,7 +124,6 @@ suites:
       - '@testing'
       - tests/testing/*
       - tests/contrib/internal/coverage/*
-    runner: riot
     snapshot: true
   selenium:
     parallelism: 2
@@ -146,7 +139,6 @@ suites:
       - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
-    runner: riot
     snapshot: true
   unittest:
     parallelism: 2
@@ -158,5 +150,4 @@ suites:
       - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
-    runner: riot
     snapshot: true
