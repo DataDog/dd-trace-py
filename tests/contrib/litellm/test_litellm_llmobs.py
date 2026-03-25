@@ -280,7 +280,7 @@ class TestLLMObsLiteLLM:
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="gpt-3.5-turbo",
-            model_provider="unknown",
+            model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
             metadata={
