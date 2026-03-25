@@ -2215,8 +2215,9 @@ MUL: "*"
                 {
                     "role": "reasoning",
                     "content": (
-                        '{"summary": [], "encrypted_content": null, '
-                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                        '{"encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b", '
+                        '"summary": []}'
                     ),
                 },
                 {

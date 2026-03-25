@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where streamed Anthropic responses with generic content block types
+    were not captured in output messages.
+  - |
+    LLM Observability: Fixes an issue where streamed Anthropic responses reported ``input_tokens`` from the
+    initial ``message_start`` chunk instead of the final ``message_delta`` chunk, which contains the
+    accurate cumulative input token count.
+  - |
+    LLM Observability: Fixes an issue where tool_result message content in Anthropic responses were not captured.
