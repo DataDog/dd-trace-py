@@ -134,10 +134,10 @@ components:
     - ddtrace/contrib/internal/loguru/*
   mako:
     - ddtrace/contrib/internal/mako/*
-  mariadb:
-    - ddtrace/contrib/internal/mariadb/*
   mlflow:
     - ddtrace/contrib/internal/mlflow/*
+  mariadb:
+    - ddtrace/contrib/internal/mariadb/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:
