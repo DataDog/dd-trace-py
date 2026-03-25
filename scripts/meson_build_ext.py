@@ -199,7 +199,7 @@ def cmd_cmake(args):
     install_dir.mkdir(parents=True, exist_ok=True)
 
     # Build directory alongside source
-    build_dir = src_root / ".mesonbuild" / "cmake" / component_name
+    build_dir = src_root / ".mesonbuild" / "cmake" / component_name / args.build_key
     build_dir.mkdir(parents=True, exist_ok=True)
 
     python_root = Path(args.py_prefix).resolve()
@@ -494,6 +494,7 @@ def main():
     p_cmake.add_argument("--py-prefix", required=True)
     p_cmake.add_argument("--ext-suffix", required=True)
     p_cmake.add_argument("--build-type", default="RelWithDebInfo")
+    p_cmake.add_argument("--build-key", required=True)
     p_cmake.add_argument("--cargo-target-dir", default="")
     p_cmake.add_argument("--rust-headers-dir", default="")
     p_cmake.add_argument("--component-name", required=True)

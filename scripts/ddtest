@@ -56,6 +56,18 @@ fi
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
+RIOT_ENV_ARGS=()
+RIOT_INSTALL_CMD='if [ -n "${DD_TEST_RIOT_INSTALL_SOURCE:-}" ]; then python -m pip uninstall -y riot >/dev/null 2>&1 || true; python -m pip install --disable-pip-version-check --no-deps "${DD_TEST_RIOT_INSTALL_SOURCE}"; fi'
+DEFAULT_RIOT_INSTALL_SOURCE="git+https://github.com/DataDog/riot.git@dfdafadac3f22d8ce61472a4c6f4916b891a2638"
+if [ -z "${DD_TEST_RIOT_INSTALL_SOURCE+x}" ]; then
+    # AIDEV-NOTE: Local ddtest runs should exercise the same temporary Riot
+    # override as GitLab until the testrunner image is rebuilt with the fix.
+    DD_TEST_RIOT_INSTALL_SOURCE="$DEFAULT_RIOT_INSTALL_SOURCE"
+fi
+if [ -n "${DD_TEST_RIOT_INSTALL_SOURCE:-}" ]; then
+    RIOT_ENV_ARGS+=("-e" "DD_TEST_RIOT_INSTALL_SOURCE=${DD_TEST_RIOT_INSTALL_SOURCE}")
+fi
+
 # Generate a per-run compose project name from the project root path so that
 # concurrent runs in different worktrees get isolated compose projects.
 if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
@@ -71,7 +83,8 @@ fi
 
 docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
+       "${RIOT_ENV_ARGS[@]}" \
        --rm \
        -i \
        testrunner \
-       bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+       bash -c "(git config --global --add safe.directory /home/bits/project || true) && ($RIOT_INSTALL_CMD) && $CMD"

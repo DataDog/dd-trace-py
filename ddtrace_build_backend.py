@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import sys
+import sysconfig
 from typing import Any
 
 import mesonpy
@@ -32,10 +34,31 @@ def _build_system_cache_key() -> str:
     return digest.hexdigest()[:12]
 
 
+def _python_build_cache_key() -> str:
+    digest = hashlib.sha256()
+    for value in (
+        sys.version,
+        str(Path(sys.executable).resolve()),
+        sys.implementation.cache_tag or "",
+        sysconfig.get_config_var("SOABI") or "",
+        sysconfig.get_config_var("EXT_SUFFIX") or "",
+    ):
+        digest.update(value.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()[:12]
+
+
 def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any, Any]:
     settings = dict(config_settings or {})
     if "build-dir" not in settings and "builddir" not in settings:
-        settings["build-dir"] = "build/mesonpy-" + mesonpy._tags.get_abi_tag() + "-" + _build_system_cache_key()
+        settings["build-dir"] = (
+            "build/mesonpy-"
+            + mesonpy._tags.get_abi_tag()
+            + "-"
+            + _python_build_cache_key()
+            + "-"
+            + _build_system_cache_key()
+        )
     return settings
 
 

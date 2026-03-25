@@ -70,6 +70,25 @@ py_prefix = run_command(
   check: true,
 ).stdout().strip()
 
+py_build_key = run_command(
+  py,
+  [
+    '-c',
+    'import hashlib, pathlib, sys, sysconfig; '
+    + 'digest = hashlib.sha256(); '
+    + 'parts = ('
+    + 'sys.version, '
+    + 'str(pathlib.Path(sys.executable).resolve()), '
+    + 'sys.implementation.cache_tag or "", '
+    + 'sysconfig.get_config_var("SOABI") or "", '
+    + 'sysconfig.get_config_var("EXT_SUFFIX") or ""'
+    + '); '
+    + '[(digest.update(part.encode("utf-8")), digest.update(b"\\0")) for part in parts]; '
+    + 'print(digest.hexdigest()[:12])',
+  ],
+  check: true,
+).stdout().strip()
+
 src_root = meson.project_source_root()
 build_root = meson.project_build_root()
 
@@ -239,7 +258,7 @@ endif
 
 build_helper = files('scripts/meson_build_ext.py')
 
-cargo_target_dir = src_root / 'src' / 'native' / ('target' + py_ver_parts[0] + '.' + py_ver_parts[1])
+cargo_target_dir = src_root / 'src' / 'native' / ('target' + py_ver_parts[0] + '.' + py_ver_parts[1] + '-' + py_build_key)
 
 rust_features = 'stats,ffe'
 if is_unix and is_64bit
@@ -290,6 +309,7 @@ if is_unix and is_64bit
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
       '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+      '--build-key', py_build_key,
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'dd_wrapper',
@@ -317,6 +337,7 @@ if is_unix and is_64bit
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
       '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+      '--build-key', py_build_key,
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'memalloc',
@@ -345,6 +366,7 @@ if is_unix and is_64bit
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
       '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+      '--build-key', py_build_key,
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'ddup',
@@ -373,6 +395,7 @@ if is_unix and is_64bit
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
       '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+      '--build-key', py_build_key,
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'stack',
@@ -402,6 +425,7 @@ iast_stamp = custom_target(
     '--py-prefix', py_prefix,
     '--ext-suffix', ext_suffix,
     '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+    '--build-key', py_build_key,
     '--component-name', 'iast_native',
   ],
   build_by_default: true,

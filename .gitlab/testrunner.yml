@@ -13,6 +13,13 @@ variables:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
+    - |
+      # AIDEV-NOTE: This opt-in override lets CI validate Riot fixes against the
+      # pinned testrunner image before a replacement image is built.
+      if [ -n "${DD_TEST_RIOT_INSTALL_SOURCE:-}" ]; then
+        python -m pip uninstall -y riot || true
+        python -m pip install --disable-pip-version-check --no-deps "${DD_TEST_RIOT_INSTALL_SOURCE}"
+      fi
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
