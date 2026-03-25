@@ -48,7 +48,12 @@ RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /fuzz_binaries.
 
 ENV LSAN_OPTIONS="suppressions=/fuzzer/builds/lsan.supp"
 
-CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
+# The fuzzydog runner overrides the CMD, so we do not need to worry about passing
+# all existing targets here (we just need to pass one that exists for the image
+# to build successfully).
+# If you are running this image locally, use the command at the top of this file
+# and pick the target you want to run.
+CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_frame_create", \
      "--type", "libfuzzer", \
      "--team", "profiling-python", \
      "--build-path", "/fuzzer/builds/", \
