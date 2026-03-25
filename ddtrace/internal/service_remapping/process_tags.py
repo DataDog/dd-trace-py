@@ -1,34 +1,28 @@
 import os
 from pathlib import Path
-import re
-import struct
 import sys
-import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
-from ddtrace.internal.utils.cache import callonce
-from ddtrace.internal.utils.fnv import fnv1_64
+
+from .base_hash import _recompute_base_hash
+from .base_hash import _retrieve_container_tags_hash
+from .constants import _ALLOWED_CHARS
+from .constants import _CONSECUTIVE_UNDERSCORES_PATTERN
+from .constants import ENTRYPOINT_BASEDIR_TAG
+from .constants import ENTRYPOINT_NAME_TAG
+from .constants import ENTRYPOINT_TYPE_SCRIPT
+from .constants import ENTRYPOINT_TYPE_TAG
+from .constants import ENTRYPOINT_WORKDIR_TAG
+from .constants import MAX_LENGTH
+from .constants import SVC_AUTO_TAG
+from .constants import SVC_USER_TAG
 
 
 log = get_logger(__name__)
-
-ENTRYPOINT_NAME_TAG = "entrypoint.name"
-ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
-ENTRYPOINT_TYPE_TAG = "entrypoint.type"
-ENTRYPOINT_TYPE_SCRIPT = "script"
-ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
-SVC_USER_TAG = "svc.user"
-SVC_AUTO_TAG = "svc.auto"
-INFO_RETRY_MAX_ATTEMPTS = 3
-
-_CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
-_ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
-MAX_LENGTH = 100
 
 
 def normalize_tag_value(value: str) -> str:
@@ -97,61 +91,6 @@ def _initialize_process_tags() -> None:
     global process_tags
     global process_tags_list
     process_tags, process_tags_list = generate_process_tags()  # type: ignore
-
-
-base_hash, base_hash_bytes = None, b""
-_container_tags_hash = ""
-
-
-def _recompute_base_hash() -> None:
-    if not process_tags_config.enabled:
-        return
-
-    global base_hash
-    global base_hash_bytes
-    if "process_tags" not in globals():
-        _initialize_process_tags()
-
-    # if process tags are enabled, they cannot be None, that is why we add type: ignore
-    b = bytes(process_tags, encoding="utf-8") + bytes(_container_tags_hash, encoding="utf-8")  # type: ignore
-    base_hash = fnv1_64(b)
-    base_hash_bytes = struct.pack("<Q", base_hash)
-
-
-def compute_base_hash(container_tags_hash):
-    if not process_tags_config.enabled:
-        return
-
-    global _container_tags_hash
-    if _container_tags_hash == container_tags_hash:
-        return
-    _container_tags_hash = container_tags_hash
-    _recompute_base_hash()
-
-
-core.on("container_tags_hash.retrieved", compute_base_hash)
-
-
-@callonce
-def _retrieve_container_tags_hash() -> None:
-    if not process_tags_config.enabled:
-        return
-
-    def _fetch():
-        from ddtrace.internal import agent
-        from ddtrace.internal.utils.retry import retry
-
-        @retry(after=[0.5] * (INFO_RETRY_MAX_ATTEMPTS - 1))
-        def _fetch_info():
-            agent.info()
-
-        try:
-            _fetch_info()
-        except Exception:
-            log.debug("failed to fetch container tags hash from agent /info endpoint", exc_info=True)
-
-    t = threading.Thread(target=_fetch, daemon=True)
-    t.start()
 
 
 def __getattr__(name: str) -> Any:

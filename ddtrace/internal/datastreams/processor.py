@@ -12,10 +12,11 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
-from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.service_remapping import base_hash
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -416,7 +417,7 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+        b = get_bytes(self.service) + get_bytes(self.env) + base_hash.base_hash_bytes
 
         for t in tags:
             b += get_bytes(t)

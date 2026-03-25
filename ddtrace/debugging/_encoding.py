@@ -16,9 +16,9 @@ from typing import Union
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
 

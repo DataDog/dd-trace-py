@@ -130,12 +130,12 @@ def test_dbm_propagation_full_mode():
     )
 )
 def test_dbm_not_propagating_base_hash_when_deactivated():
-    from ddtrace.internal import process_tags
     from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.internal.service_remapping.base_hash import compute_base_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    process_tags.compute_base_hash("abc123")
+    compute_base_hash("abc123")
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
@@ -164,12 +164,13 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
 def test_dbm_propagating_base_hash_when_activated():
     import re
 
-    from ddtrace.internal import process_tags
     from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.internal.service_remapping import base_hash
+    from ddtrace.internal.service_remapping.base_hash import compute_base_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    process_tags.compute_base_hash("abc123")
+    compute_base_hash("abc123")
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
@@ -189,7 +190,7 @@ def test_dbm_propagating_base_hash_when_activated():
         if match:
             ddsh_value = match.group(1)
 
-        assert dbspan._meta[PROPAGATED_HASH] == str(process_tags.base_hash)
+        assert dbspan._meta[PROPAGATED_HASH] == str(base_hash.base_hash)
         assert ddsh_value == dbspan._meta[PROPAGATED_HASH]
 
 
@@ -204,13 +205,14 @@ def test_dbm_propagating_base_hash_when_activated():
     )
 )
 def test_dbm_not_propagating_when_process_tags_disabled():
-    from ddtrace.internal import process_tags
     from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.internal.service_remapping import base_hash
+    from ddtrace.internal.service_remapping.base_hash import compute_base_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    process_tags.compute_base_hash("abc123")
-    assert process_tags.base_hash is None
+    compute_base_hash("abc123")
+    assert base_hash.base_hash is None
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
