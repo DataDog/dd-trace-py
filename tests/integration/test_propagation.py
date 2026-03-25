@@ -6,6 +6,8 @@ from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
@@ -32,7 +34,7 @@ def test_trace_tags_multispan():
     gc.finish()
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_sampling_decision_downstream():
     """
     Ensures that set_tag(MANUAL_DROP_KEY) on a span causes the sampling decision meta and sampling priority metric

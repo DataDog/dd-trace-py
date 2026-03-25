@@ -17,6 +17,7 @@ from tests.utils import process_tag_reload
 
 TEST_SCRIPT_PATH = "/path/to/test_script.py"
 TEST_WORKDIR_PATH = "/path/to/workdir"
+IGNORES = ["meta._dd.svc_src"]
 
 
 @pytest.mark.parametrize(
@@ -93,7 +94,7 @@ class TestProcessTags(TracerTestCase):
         process_tags.process_tags_list = self._original_process_tags_list
         super().tearDown()
 
-    @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=IGNORES)
     def test_process_tags_activated(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             process_tag_reload()
@@ -102,7 +103,7 @@ class TestProcessTags(TracerTestCase):
                 with self.tracer.trace("child"):
                     pass
 
-    @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=IGNORES)
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="foobar"))
     def test_process_tags_user_defined_service(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
@@ -112,7 +113,7 @@ class TestProcessTags(TracerTestCase):
                 with self.tracer.trace("child"):
                     pass
 
-    @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=IGNORES)
     def test_process_tags_edge_case(self):
         with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             process_tag_reload()
@@ -120,7 +121,7 @@ class TestProcessTags(TracerTestCase):
             with self.tracer.trace("span"):
                 pass
 
-    @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=IGNORES)
     def test_process_tags_error(self):
         with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             with self.override_global_config(dict(_telemetry_enabled=False)):
@@ -145,7 +146,7 @@ class TestProcessTags(TracerTestCase):
                     )
                     assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
 
-    @pytest.mark.snapshot
+    @pytest.mark.snapshot(ignores=IGNORES)
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
     def test_process_tags_partial_flush(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):

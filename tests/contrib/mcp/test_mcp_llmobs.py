@@ -62,13 +62,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
     assert client_events[0] == _expected_llmobs_non_llm_span_event(
         client_span,
         span_kind="tool",
-        input_value=json.dumps({"operation": "add", "a": 20, "b": 22}, sort_keys=True),
+        input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
         output_value=json.dumps(
             {
                 "content": [{"type": "text", "annotations": {}, "meta": {}, "text": '{\n  "result": 42\n}'}],
                 "isError": False,
-            },
-            sort_keys=True,
+            }
         ),
         tags={
             "service": "mcptest",
@@ -94,8 +93,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
                 "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
-            },
-            sort_keys=True,
+            }
         ),
         output_value=json.dumps(
             {
@@ -103,8 +101,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
                 "content": [{"type": "text", "text": '{\n  "result": 42\n}', "annotations": None, "meta": None}],
                 "structuredContent": None,
                 "isError": False,
-            },
-            sort_keys=True,
+            }
         ),
         tags={
             "service": "mcptest",
@@ -179,7 +176,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
     assert server_span.error
 
     # assert the error client span manually
-    assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"}, sort_keys=True)
+    assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"})
     assert client_events[0]["meta"]["output"]["value"] == json.dumps(
         {
             "content": [
@@ -191,8 +188,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 }
             ],
             "isError": True,
-        },
-        sort_keys=True,
+        }
     )
     assert client_events[0]["meta"]["error"]["message"] == "Error executing tool failing_tool: Tool execution failed"
     assert client_events[0]["status"] == "error"
@@ -214,8 +210,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
-            },
-            sort_keys=True,
+            }
         ),
         output_value=json.dumps(
             {
@@ -230,8 +225,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 ],
                 "structuredContent": None,
                 "isError": True,
-            },
-            sort_keys=True,
+            }
         ),
         tags={
             "service": "mcptest",

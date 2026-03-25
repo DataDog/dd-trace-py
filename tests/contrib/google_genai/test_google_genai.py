@@ -8,6 +8,9 @@ from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 def test_global_tags(mock_generate_content, genai_client, test_spans):
     """
     When the global config UST tags are set
@@ -32,7 +35,10 @@ def test_global_tags(mock_generate_content, genai_client, test_spans):
 
 
 def test_google_genai_generate_content(mock_generate_content, genai_client, snapshot_context):
-    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content"):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
+        ignores=SNAPSHOT_IGNORES,
+    ):
         genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -43,7 +49,7 @@ def test_google_genai_generate_content(mock_generate_content, genai_client, snap
 def test_google_genai_generate_content_error(mock_generate_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-        ignores=["meta.error.stack", "meta.error.message"],
+        ignores=["meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             genai_client.models.generate_content(
@@ -56,7 +62,8 @@ def test_google_genai_generate_content_error(mock_generate_content, genai_client
 
 def test_google_genai_generate_content_stream(mock_generate_content_stream, genai_client, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream"
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
+        ignores=SNAPSHOT_IGNORES,
     ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -70,7 +77,7 @@ def test_google_genai_generate_content_stream(mock_generate_content_stream, gena
 def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-        ignores=["meta.error.stack", "meta.error.message"],
+        ignores=["meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             response = genai_client.models.generate_content_stream(
@@ -86,7 +93,7 @@ def test_google_genai_generate_content_stream_error(mock_generate_content_stream
 async def test_google_genai_generate_content_async(mock_async_generate_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
-        ignores=["resource"],
+        ignores=["resource"] + SNAPSHOT_IGNORES,
     ):
         await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -98,7 +105,7 @@ async def test_google_genai_generate_content_async(mock_async_generate_content, 
 async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-        ignores=["resource", "meta.error.message", "meta.error.stack"],
+        ignores=["resource", "meta.error.message", "meta.error.stack"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.generate_content(
@@ -114,7 +121,7 @@ async def test_google_genai_generate_content_async_stream(
 ):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-        ignores=["resource"],
+        ignores=["resource"] + SNAPSHOT_IGNORES,
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -130,7 +137,7 @@ async def test_google_genai_generate_content_async_stream_error(
 ):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-        ignores=["resource", "meta.error.message", "meta.error.stack"],
+        ignores=["resource", "meta.error.message", "meta.error.stack"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             response = await genai_client.aio.models.generate_content_stream(
@@ -181,7 +188,8 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
 
 def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai_client, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools",
+        ignores=SNAPSHOT_IGNORES,
     ):
         response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -228,7 +236,9 @@ def test_google_genai_generate_content_with_tools(mock_generate_content_with_too
 
 
 def test_google_genai_embed_content(mock_embed_content, genai_client, snapshot_context):
-    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content"):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content", ignores=SNAPSHOT_IGNORES
+    ):
         genai_client.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
@@ -239,7 +249,7 @@ def test_google_genai_embed_content(mock_embed_content, genai_client, snapshot_c
 def test_google_genai_embed_content_error(mock_embed_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content_error",
-        ignores=["meta.error.stack", "meta.error.message"],
+        ignores=["meta.error.stack", "meta.error.message"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             genai_client.models.embed_content(
@@ -253,7 +263,7 @@ def test_google_genai_embed_content_error(mock_embed_content, genai_client, snap
 async def test_google_genai_embed_content_async(mock_async_embed_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content",
-        ignores=["resource"],
+        ignores=["resource"] + SNAPSHOT_IGNORES,
     ):
         await genai_client.aio.models.embed_content(
             model="text-embedding-004",
@@ -265,7 +275,7 @@ async def test_google_genai_embed_content_async(mock_async_embed_content, genai_
 async def test_google_genai_embed_content_async_error(mock_async_embed_content, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content_error",
-        ignores=["resource", "meta.error.message", "meta.error.stack"],
+        ignores=["resource", "meta.error.message", "meta.error.stack"] + SNAPSHOT_IGNORES,
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.embed_content(
@@ -331,6 +341,9 @@ def test_normalize_contents_google_genai(contents, expected):
 
 
 def test_google_genai_chat_send_message(mock_generate_content, genai_client, snapshot_context):
-    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message",
+        ignores=SNAPSHOT_IGNORES,
+    ):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")
         chat.send_message("tell me a story")

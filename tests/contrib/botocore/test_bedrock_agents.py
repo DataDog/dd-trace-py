@@ -6,7 +6,10 @@ from tests.contrib.botocore.bedrock_utils import AGENT_INPUT
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
 
 
-@pytest.mark.snapshot
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_agent_invoke(bedrock_agent_client, request_vcr):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
@@ -21,7 +24,7 @@ def test_agent_invoke(bedrock_agent_client, request_vcr):
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 36, 0), reason="Streaming configurations not supported in this boto3 version")
-@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock_agents.test_agent_invoke")
+@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock_agents.test_agent_invoke", ignores=SNAPSHOT_IGNORES)
 def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(

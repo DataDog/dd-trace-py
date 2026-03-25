@@ -14,6 +14,9 @@ from tests.utils import override_config
 from ..redis.utils import find_redis_span
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 @pytest.fixture()
 def redis_client():
     patch()
@@ -220,7 +223,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cmd_max_length(redis_client):
     with override_config("rediscluster", dict(cmd_max_length=7)):
         redis_client.get("here-is-a-long-key")
@@ -228,7 +231,7 @@ def test_cmd_max_length(redis_client):
 
 @pytest.mark.skip(reason="No traces sent to the test agent")
 @pytest.mark.subprocess(env=dict(DD_REDISCLUSTER_CMD_MAX_LENGTH="10"), ddtrace_run=True)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cmd_max_length_env():
     from tests.contrib.rediscluster.test import _get_test_client
 
@@ -237,7 +240,7 @@ def test_cmd_max_length_env():
 
 
 @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false", DD_TRACE_REDIS_ENABLED="0"))
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_full_command_in_resource_env():
     import ddtrace.auto  # noqa
 
@@ -255,7 +258,7 @@ def test_full_command_in_resource_env():
         p.execute()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_full_command_in_resource_config(tracer, redis_client):
     with override_config("rediscluster", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

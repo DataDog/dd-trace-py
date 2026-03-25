@@ -131,7 +131,7 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
-        input_value=json.dumps([{"content": "What is the capital of France?"}], sort_keys=True),
+        input_value=json.dumps([{"content": "What is the capital of France?"}]),
     )
 
     # span created from request with non-proxy URL should result in an LLM span
@@ -185,7 +185,7 @@ def test_llmobs_openai_chat_model_proxy(
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
-        input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}], sort_keys=True),
+        input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}]),
         metadata={"temperature": 0.0, "max_tokens": 256},
     )
 
@@ -403,7 +403,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
     assert len(llmobs_events) == 2
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
-        input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}], sort_keys=True),
+        input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}]),
         span_links=True,
     )
     assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -445,20 +445,20 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
     events_by_span_id = {e["span_id"]: e for e in llmobs_events}
     assert events_by_span_id[str(trace[0].span_id)] == _expected_langchain_llmobs_chain_span(
         trace[0],
-        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
+        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
         output_value=mock.ANY,
         span_links=True,
     )
     assert events_by_span_id[str(trace[1].span_id)] == _expected_langchain_llmobs_chain_span(
         trace[1],
-        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
+        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
         output_value=mock.ANY,
         span_links=True,
     )
     assert events_by_span_id[str(trace[2].span_id)] == _expected_llmobs_non_llm_span_event(
         trace[2],
         span_kind="task",
-        input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}, sort_keys=True),
+        input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}),
         output_value="Spanish",
         span_links=True,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
@@ -505,7 +505,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
     assert len(llmobs_events) == 3
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
-        input_value=json.dumps(["chickens", "pigs"], sort_keys=True),
+        input_value=json.dumps(["chickens", "pigs"]),
         output_value=mock.ANY,
         span_links=True,
     )
@@ -603,10 +603,9 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
                     "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
                     "input": "What's the powerhouse of the cell?",
                 }
-            ],
-            sort_keys=True,
+            ]
         ),
-        output_value=json.dumps(["assistant", "Mitochondria"], sort_keys=True),
+        output_value=json.dumps(["assistant", "Mitochondria"]),
         span_links=True,
     )
     assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -788,7 +787,7 @@ def test_llmobs_streamed_chain(
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
-        input_value=json.dumps({"input": "how can langsmith help with testing?"}, sort_keys=True),
+        input_value=json.dumps({"input": "how can langsmith help with testing?"}),
         output_value=mock.ANY,
         span_links=True,
     )
@@ -862,7 +861,7 @@ def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer, te
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         span_kind="task",
-        input_value=json.dumps({"a": 1, "b": 2}, sort_keys=True),
+        input_value=json.dumps({"a": 1, "b": 2}),
         output_value="3",
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
@@ -881,7 +880,7 @@ async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tra
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         span_kind="task",
-        input_value=json.dumps({"a": 1, "b": 2}, sort_keys=True),
+        input_value=json.dumps({"a": 1, "b": 2}),
         output_value="3",
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
@@ -904,9 +903,9 @@ def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
     assert llmobs_events[0]["name"] == "add_batch"
     assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
     assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
-        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}], sort_keys=True
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
     )
-    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11], sort_keys=True)
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
 
     # assert all children have batch as the parent
     # however, order of children is not guaranteed
@@ -940,9 +939,9 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
     assert llmobs_events[0]["name"] == "add_batch"
     assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
     assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
-        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}], sort_keys=True
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
     )
-    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11], sort_keys=True)
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
 
     # assert all children have batch as the parent
     # however, order of children is not guaranteed

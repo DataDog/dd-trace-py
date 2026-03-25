@@ -21,6 +21,9 @@ from ddtrace.internal.utils.version import parse_version
 from tests.utils import TracerTestCase
 
 
+SNAPSHOT_IGNORES = ["meta._dd.svc_src"]
+
+
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
 BOTOCORE_VERSION = parse_version(botocore.__version__)
 
@@ -508,7 +511,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert "_datadog" not in data
 
 
-@pytest.mark.snapshot(ignores=["meta.aws.requestid"])
+@pytest.mark.snapshot(ignores=["meta.aws.requestid"] + SNAPSHOT_IGNORES)
 @pytest.mark.subprocess(
     env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_JINJA2_ENABLED": "false"}, ddtrace_run=True, err=None
 )

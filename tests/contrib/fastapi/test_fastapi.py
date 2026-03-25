@@ -766,7 +766,8 @@ def test_tracing_in_middleware(snapshot_app_with_middleware):
     variants={
         "6_9": (0, 60) <= parse_version(fastapi.__version__) < (0, 90),
         "9": parse_version(fastapi.__version__) >= (0, 90),  # 0.90+ has an extra serialize step
-    }
+    },
+    ignores=["meta._dd.svc_src"],
 )
 def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
     service_override, schema_version, expected_service, expected_operation = schema_tuples

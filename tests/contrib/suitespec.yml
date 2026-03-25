@@ -134,10 +134,10 @@ components:
     - ddtrace/contrib/internal/loguru/*
   mako:
     - ddtrace/contrib/internal/mako/*
-  mlflow:
-    - ddtrace/contrib/internal/mlflow/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
+  mlflow:
+    - ddtrace/contrib/internal/mlflow/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:
@@ -921,18 +921,6 @@ suites:
       - tests/contrib/mako/*
     runner: riot
     snapshot: true
-  mlflow:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mlflow'
-      - tests/contrib/mlflow/*
-      - tests/snapshots/tests.contrib.mlflow.*
-    runner: riot
-    snapshot: true
   mariadb:
     paths:
       - '@bootstrap'
@@ -948,6 +936,17 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+  mlflow:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+    runner: riot
+    snapshot: true
   molten:
     parallelism: 1
     paths:
