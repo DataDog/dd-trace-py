@@ -1,3 +1,4 @@
+import logging
 import platform
 import sys
 import sysconfig
@@ -12,7 +13,9 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
-from .dependency import DependencyEntry
+
+
+log = logging.getLogger(__name__)
 
 
 def _format_version_info(vi: "sys._version_info") -> str:
@@ -70,9 +73,7 @@ def _get_application(key: tuple[str, str, str]) -> dict:
     return application
 
 
-def update_imported_dependencies(
-    already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
-) -> list[dict[str, str]]:
+def update_imported_dependencies(already_imported: dict[str, str], new_modules: Iterable[str]) -> list[dict[str, str]]:
     deps = []
 
     for module_name in new_modules:
@@ -87,7 +88,9 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        already_imported[name] = DependencyEntry(name=name, version=version)
+        if not version:
+            log.debug("Empty version for dependency %s (module: %s)", name, module_name)
+        already_imported[name] = version
         deps.append({"name": name, "version": version})
 
     return deps

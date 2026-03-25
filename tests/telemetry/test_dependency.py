@@ -26,7 +26,7 @@ class TestReachabilityMetadata:
     def test_sent_tracking(self):
         meta = ReachabilityMetadata(type="reachability", value={"id": "CVE-1"})
         assert meta.is_sent is False
-        meta.mark_sent()
+        meta._mark_sent()
         assert meta.is_sent is True
 
 
@@ -65,10 +65,16 @@ class TestDependencyEntry:
         meta1 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1", "reached": True})
         meta2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1", "reached": True})
         meta3 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2", "reached": True})
-        entry.add_metadata(meta1)
-        entry.add_metadata(meta2)  # duplicate
-        entry.add_metadata(meta3)
+        assert entry.add_metadata(meta1) is True
+        assert entry.add_metadata(meta2) is False  # duplicate
+        assert entry.add_metadata(meta3) is True
         assert len(entry.metadata) == 2
+
+    def test_add_metadata_rejects_no_cve_id(self):
+        entry = DependencyEntry(name="pkg", version="1.0")
+        meta = ReachabilityMetadata(type="reachability", value={"reached": True})
+        assert entry.add_metadata(meta) is False
+        assert entry.metadata is None
 
     def test_needs_report_new_entry(self):
         entry = DependencyEntry(name="pkg", version="1.0")
@@ -98,7 +104,7 @@ class TestDependencyEntry:
         m2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2"})
         entry.add_metadata(m1)
         entry.add_metadata(m2)
-        m1.mark_sent()
+        m1._mark_sent()
         unsent = entry.get_unsent_metadata()
         assert len(unsent) == 1
         assert unsent[0].value["id"] == "CVE-2"
@@ -109,7 +115,7 @@ class TestDependencyEntry:
         m2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2"})
         entry.add_metadata(m1)
         entry.add_metadata(m2)
-        m1.mark_sent()
+        m1._mark_sent()
         result = entry.to_telemetry_dict(include_all_metadata=False)
         assert len(result["metadata"]) == 1
         parsed = json.loads(result["metadata"][0]["value"])
@@ -121,7 +127,7 @@ class TestDependencyEntry:
         m2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2"})
         entry.add_metadata(m1)
         entry.add_metadata(m2)
-        m1.mark_sent()
+        m1._mark_sent()
         result = entry.to_telemetry_dict(include_all_metadata=True)
         assert len(result["metadata"]) == 2
 
@@ -155,6 +161,43 @@ class TestAttachReachabilityMetadata:
 
     def test_attach_deduplicates_same_cve(self):
         deps = {"requests": DependencyEntry(name="requests", version="2.28.0")}
-        attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1)
-        attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1)
+        assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1) is True
+        assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1) is False
         assert len(deps["requests"].metadata) == 1
+
+
+class TestWriterAttachDependencyMetadata:
+    """Writer-level tests for attach_dependency_metadata (with locking and lazy upgrade)."""
+
+    def test_attach_upgrades_str_to_entry(self):
+        """When a dependency is stored as a plain version string, attach upgrades it."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._imported_dependencies = {"requests": "2.28.0"}
+
+        result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
+
+        assert result is True
+        entry = writer._imported_dependencies["requests"]
+        assert isinstance(entry, DependencyEntry)
+        assert entry.name == "requests"
+        assert entry.version == "2.28.0"
+        assert len(entry.metadata) == 1
+
+    def test_attach_returns_false_for_unknown_package(self):
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._imported_dependencies = {"requests": "2.28.0"}
+
+        result = writer.attach_dependency_metadata("flask", "CVE-1", True, "mod", "func", 1)
+
+        assert result is False
+        assert "flask" not in writer._imported_dependencies

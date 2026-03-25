@@ -8,8 +8,12 @@ dependencies and their associated vulnerability metadata.
 from dataclasses import dataclass
 from dataclasses import field
 import json
+import logging
 from typing import Any
 from typing import Optional
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,9 +34,19 @@ class ReachabilityMetadata:
 
         The value field is JSON-stringified per the telemetry contract.
         """
-        return {"type": self.type, "value": json.dumps(self.value, separators=(",", ":"))}
+        try:
+            serialized_value = json.dumps(self.value, separators=(",", ":"))
+        except (TypeError, ValueError):
+            log.debug("Failed to serialize reachability metadata value: %s", self.value)
+            serialized_value = "{}"
+        return {"type": self.type, "value": serialized_value}
 
-    def mark_sent(self) -> None:
+    def _mark_sent(self) -> None:
+        """Mark this metadata entry as sent. Internal use only.
+
+        Use DependencyEntry.mark_all_metadata_sent() to mark entries and
+        keep the parent's bookkeeping consistent.
+        """
         self._sent = True
 
     @property
@@ -44,11 +58,16 @@ class ReachabilityMetadata:
 class DependencyEntry:
     """Tracks a dependency and its optional reachability metadata.
 
-    Used as the value type in TelemetryWriter._imported_dependencies.
-    Both telemetry and SCA can interact with this model:
+    Used as the value type in TelemetryWriter._imported_dependencies
+    when SCA runtime reachability is active.  Both telemetry and SCA can
+    interact with this model:
     - Telemetry creates entries on first import (no metadata).
     - SCA attaches metadata when a vulnerable symbol executes.
     - Telemetry re-reports the dependency when unsent metadata exists.
+
+    AIDEV-TODO: mark_initial_sent(), to_telemetry_dict(), and the
+    metadata re-reporting logic are intentionally unused in the writer
+    until the follow-up SCA PR wires them behind DD_APPSEC_SCA_ENABLED.
 
     Attributes:
         name: Distribution/package name.
@@ -56,8 +75,6 @@ class DependencyEntry:
         metadata: Optional list of reachability metadata entries.
             None when no metadata has been attached (the common case),
             avoiding the cost of an empty list per entry.
-        _unsent_count: Number of metadata entries not yet sent.
-            Tracked as a counter to make has_unsent_metadata() O(1).
     """
 
     name: str
@@ -66,15 +83,16 @@ class DependencyEntry:
     # empty list for every dependency. Most deps never receive metadata.
     metadata: Optional[list[ReachabilityMetadata]] = None
     _initial_report_sent: bool = field(default=False, repr=False, compare=False)
-    _unsent_count: int = field(default=0, repr=False, compare=False)
 
     def has_unsent_metadata(self) -> bool:
-        """True if any metadata entry has not been sent yet. O(1)."""
-        return self._unsent_count > 0
+        """True if any metadata entry has not been sent yet."""
+        if self.metadata is None:
+            return False
+        return any(not m.is_sent for m in self.metadata)
 
     def needs_report(self) -> bool:
         """True if this dependency has never been reported, or has new unsent metadata."""
-        return not self._initial_report_sent or self._unsent_count > 0
+        return not self._initial_report_sent or self.has_unsent_metadata()
 
     def get_unsent_metadata(self) -> list[ReachabilityMetadata]:
         if self.metadata is None:
@@ -88,20 +106,26 @@ class DependencyEntry:
         if self.metadata is None:
             return
         for m in self.metadata:
-            m.mark_sent()
-        self._unsent_count = 0
+            m._mark_sent()
 
-    def add_metadata(self, meta: ReachabilityMetadata) -> None:
-        """Add metadata entry, deduplicating by CVE id."""
+    def add_metadata(self, meta: ReachabilityMetadata) -> bool:
+        """Add metadata entry, deduplicating by CVE id.
+
+        Returns:
+            True if the metadata was added, False if it was a duplicate or
+            had no CVE id.
+        """
         cve_id = meta.value.get("id")
+        if cve_id is None:
+            log.debug("Ignoring reachability metadata with no CVE id for %s", self.name)
+            return False
         if self.metadata is None:
             self.metadata = []
-        if cve_id is not None:
-            for existing in self.metadata:
-                if existing.value.get("id") == cve_id:
-                    return
+        for existing in self.metadata:
+            if existing.value.get("id") == cve_id:
+                return False
         self.metadata.append(meta)
-        self._unsent_count += 1
+        return True
 
     def to_telemetry_dict(self, include_all_metadata: bool = False) -> dict[str, Any]:
         """Serialize for the telemetry wire format.
@@ -137,10 +161,12 @@ def attach_reachability_metadata(
     The caller must hold the appropriate lock (e.g. TelemetryWriter._service_lock).
 
     Returns:
-        True if metadata was attached, False if the package is not tracked.
+        True if metadata was attached, False if the package is not tracked
+        or the CVE was already recorded.
     """
     entry = imported_dependencies.get(package_name)
     if entry is None:
+        log.debug("Cannot attach metadata: package %r not yet tracked", package_name)
         return False
 
     meta = ReachabilityMetadata(
@@ -153,5 +179,4 @@ def attach_reachability_metadata(
             "line": line,
         },
     )
-    entry.add_metadata(meta)
-    return True
+    return entry.add_metadata(meta)
