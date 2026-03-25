@@ -2431,16 +2431,6 @@ class Experiment:
                             metadata=metadata_list,
                         )
                         eval_result = await summary_evaluator.evaluate(context)
-                    elif _is_pydantic_report_evaluator(summary_evaluator):
-                        evaluator_name = summary_evaluator.name
-                        context = SummaryEvaluatorContext(
-                            inputs=inputs,
-                            outputs=outputs,
-                            expected_outputs=expected_outputs,
-                            evaluation_results=eval_results_by_name,
-                            metadata=metadata_list,
-                        )
-                        eval_result = summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
                         eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
@@ -2456,15 +2446,8 @@ class Experiment:
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
                         evaluator_name = summary_evaluator.__name__
-                        try:
-                            eval_result = await asyncio.to_thread(
-                                summary_evaluator,
-                                inputs,
-                                outputs,
-                                expected_outputs,
-                                eval_results_by_name,
-                            )
-                        except Exception as e:
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
                             context = SummaryEvaluatorContext(
                                 inputs=inputs,
                                 outputs=outputs,
@@ -2473,6 +2456,14 @@ class Experiment:
                                 metadata=metadata_list,
                             )
                             eval_result = summary_evaluator(context)
+                        else:
+                            eval_result = await asyncio.to_thread(
+                                summary_evaluator,
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                            )
                     eval_result_value = eval_result
                 except Exception as e:
                     self._has_errors = True
