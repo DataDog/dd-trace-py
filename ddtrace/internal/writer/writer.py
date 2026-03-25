@@ -942,7 +942,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     @staticmethod
     def _parse_otlp_headers() -> list:
         """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs."""
-        raw = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", "")
+        raw = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS") or os.environ.get("OTEL_EXPORTER_OTLP_HEADERS") or ""
         headers = []
         for item in raw.split(","):
             item = item.strip()

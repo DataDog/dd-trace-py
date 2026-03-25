@@ -350,6 +350,18 @@ class TraceExporterBuilder:
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
         """
         ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
+        """
+        ...
     def build(self) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.

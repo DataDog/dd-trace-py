@@ -4,6 +4,7 @@ from itertools import chain
 import logging
 from threading import RLock
 from typing import Optional
+from typing import Union
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import OtelParentBasedAlwaysOnSampler
@@ -125,11 +126,14 @@ class TraceSamplingProcessor(TraceProcessor):
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
         from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+        from ddtrace.internal.settings._opentelemetry import otel_config
 
-        if _is_otlp_traces_exporter_enabled(None):
-            self.sampler = OtelParentBasedAlwaysOnSampler()
+        sampler: Union[DatadogSampler, OtelParentBasedAlwaysOnSampler]
+        if _is_otlp_traces_exporter_enabled(otel_config.exporter):
+            sampler = OtelParentBasedAlwaysOnSampler()
         else:
-            self.sampler = DatadogSampler()
+            sampler = DatadogSampler()
+        self.sampler = sampler
         self.apm_opt_out = apm_opt_out
 
     @property
