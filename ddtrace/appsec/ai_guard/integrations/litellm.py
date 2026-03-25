@@ -12,10 +12,14 @@ from litellm.proxy.common_utils.callback_utils import add_guardrail_to_applied_g
 from litellm.types.guardrails import GuardrailEventHooks
 from litellm.types.llms.openai import AllMessageValues
 from litellm.types.utils import CallTypes
-from litellm.types.utils import CallTypesLiteral
 from litellm.types.utils import Choices
 from litellm.types.utils import LLMResponseTypes
 from litellm.types.utils import ModelResponse
+
+try:
+    from litellm.types.utils import CallTypesLiteral
+except ImportError:
+    CallTypesLiteral = str  # type: ignore[assignment,misc]
 
 
 if TYPE_CHECKING:
@@ -131,7 +135,6 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
     @staticmethod
     def _convert_response_messages(choices: list[Choices]) -> list[Message]:
         result: list[Message] = []
-        fc_counter = 0
 
         for choice in choices:
             message = choice.message
@@ -152,8 +155,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
                         )
                     )
             if message.function_call:
-                synthetic_id = f"fc_{fc_counter}"
-                fc_counter += 1
+                synthetic_id = f"fc_{id(message.function_call):x}"
                 tool_calls.append(
                     ToolCall(
                         id=synthetic_id,
