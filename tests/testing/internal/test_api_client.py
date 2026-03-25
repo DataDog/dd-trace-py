@@ -18,7 +18,6 @@ from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import KnownTestInfo
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -337,15 +336,15 @@ class TestAPIClientGetKnownTests:
         ]
 
         assert known_tests == {
-            TestRef(SuiteRef(ModuleRef("some-module"), "test_simple.py"), "test_01"): KnownTestInfo(),
-            TestRef(SuiteRef(ModuleRef("some-module"), "test_simple.py"), "test_02"): KnownTestInfo(),
-            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_01"): KnownTestInfo(),
-            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_02"): KnownTestInfo(),
-            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"): KnownTestInfo(),
+            TestRef(SuiteRef(ModuleRef("some-module"), "test_simple.py"), "test_01"),
+            TestRef(SuiteRef(ModuleRef("some-module"), "test_simple.py"), "test_02"),
+            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_01"),
+            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_02"),
+            TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
-    def test_get_known_tests_dict_entries_is_flaky_backward_compatible_strings(self, mock_telemetry: Mock) -> None:
-        """Object entries carry is_flaky; legacy string entries default to not flaky."""
+    def test_get_known_tests_dict_entries_and_legacy_strings(self, mock_telemetry: Mock) -> None:
+        """Both legacy string entries and object entries with name/test_name keys are parsed."""
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/libraries/tests",
@@ -356,8 +355,8 @@ class TestAPIClientGetKnownTests:
                                 "mod": {
                                     "s.py": [
                                         "plain",
-                                        {"name": "marked_flaky", "is_flaky": True},
-                                        {"test_name": "alt_key", "is_flaky": False},
+                                        {"name": "by_name"},
+                                        {"test_name": "by_test_name"},
                                     ],
                                 }
                             }
@@ -388,9 +387,9 @@ class TestAPIClientGetKnownTests:
             known_tests = api_client.get_known_tests()
         ref = SuiteRef(ModuleRef("mod"), "s.py")
         assert known_tests == {
-            TestRef(ref, "plain"): KnownTestInfo(),
-            TestRef(ref, "marked_flaky"): KnownTestInfo(is_flaky=True),
-            TestRef(ref, "alt_key"): KnownTestInfo(),
+            TestRef(ref, "plain"),
+            TestRef(ref, "by_name"),
+            TestRef(ref, "by_test_name"),
         }
 
     def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
@@ -446,8 +445,8 @@ class TestAPIClientGetKnownTests:
             "page_state": "cursor-page-1"
         }
         assert known_tests == {
-            TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"): KnownTestInfo(),
-            TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"): KnownTestInfo(),
+            TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
+            TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
 
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
@@ -518,7 +517,7 @@ class TestAPIClientGetKnownTests:
 
         assert mock_connector.post_json.call_count == 2, "should stop after max_pages=2, not request page 3"
         assert "Known tests pagination exceeded max pages: 2" in caplog.text
-        assert known_tests == {}
+        assert known_tests == set()
 
     def test_get_known_tests_max_pages_zero_uses_default(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -558,7 +557,7 @@ class TestAPIClientGetKnownTests:
                 known_tests = api_client.get_known_tests()
         assert "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive" in caplog.text
         _tr = TestRef(SuiteRef(ModuleRef("m"), "s.py"), "t")
-        assert known_tests == {_tr: KnownTestInfo()}
+        assert known_tests == {_tr}
 
     def test_get_known_tests_page_info_non_dict_returns_empty_and_records_error(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
@@ -599,7 +598,7 @@ class TestAPIClientGetKnownTests:
             with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
                 known_tests = api_client.get_known_tests()
         assert "page_info is not a dict" in caplog.text
-        assert known_tests == {}
+        assert known_tests == set()
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
@@ -628,7 +627,7 @@ class TestAPIClientGetKnownTests:
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
 
-        assert known_tests == {}
+        assert known_tests == set()
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -665,7 +664,7 @@ class TestAPIClientGetKnownTests:
 
         assert "Error getting known tests from API: No can do" in caplog.text
 
-        assert known_tests == {}
+        assert known_tests == set()
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -700,7 +699,7 @@ class TestAPIClientGetKnownTests:
 
         assert "Error getting known tests from API" in caplog.text
 
-        assert known_tests == {}
+        assert known_tests == set()
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)

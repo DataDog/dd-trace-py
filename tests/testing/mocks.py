@@ -31,7 +31,6 @@ from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
 from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.test_data import KnownTestInfo
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -42,14 +41,6 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestOptWriter
-
-
-def _coerce_known_tests_mapping(
-    tests: t.Union[set[TestRef], dict[TestRef, KnownTestInfo]],
-) -> dict[TestRef, KnownTestInfo]:
-    if isinstance(tests, dict):
-        return dict(tests)
-    return {ref: KnownTestInfo() for ref in tests}
 
 
 def get_mock_git_instance() -> Mock:
@@ -116,7 +107,7 @@ class SessionManagerMockBuilder:
         self._settings = MockDefaults.settings()
         self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
         self._test_properties: dict[TestRef, TestProperties] = {}
-        self._known_tests: dict[TestRef, KnownTestInfo] = {}
+        self._known_tests: set[TestRef] = set()
         self._known_commits: list[str] = []
         self._workspace_path = "/fake/workspace"
         self._retry_handlers: list[Mock] = []
@@ -151,11 +142,9 @@ class SessionManagerMockBuilder:
         self._test_properties = properties
         return self
 
-    def with_known_tests(
-        self, tests: t.Union[set[TestRef], dict[TestRef, KnownTestInfo]]
-    ) -> "SessionManagerMockBuilder":
-        """Set known tests (legacy set of refs or mapping with per-test metadata)."""
-        self._known_tests = _coerce_known_tests_mapping(tests)
+    def with_known_tests(self, tests: set[TestRef]) -> "SessionManagerMockBuilder":
+        """Set known tests."""
+        self._known_tests = set(tests)
         return self
 
     def with_workspace_path(self, path: str) -> "SessionManagerMockBuilder":
@@ -184,8 +173,7 @@ class SessionManagerMockBuilder:
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
-        mock_manager.known_tests = frozenset(self._known_tests.keys())
-        mock_manager.known_tests_by_ref = dict(self._known_tests)
+        mock_manager.known_tests = frozenset(self._known_tests)
 
         return mock_manager
 
@@ -203,7 +191,7 @@ class SessionManagerMockBuilder:
             # Configure API client mock
             mock_client = Mock()
             mock_client.get_settings.return_value = self._settings
-            mock_client.get_known_tests.return_value = dict(self._known_tests)
+            mock_client.get_known_tests.return_value = set(self._known_tests)
             mock_client.get_test_management_properties.return_value = self._test_properties
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
@@ -365,7 +353,8 @@ class APIClientMockBuilder:
         self._known_tests_enabled = False
         self._coverage_report_upload_enabled = False
         self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
-        self._known_tests: dict[TestRef, KnownTestInfo] = {}
+        self._known_tests: set[TestRef] = set()
+        self._test_properties: dict[TestRef, TestProperties] = {}
 
     def with_skipping_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable test skipping."""
@@ -400,12 +389,17 @@ class APIClientMockBuilder:
     def with_known_tests(
         self,
         enabled: bool = True,
-        tests: t.Optional[t.Union[set[TestRef], dict[TestRef, KnownTestInfo]]] = None,
+        tests: t.Optional[set[TestRef]] = None,
     ) -> "APIClientMockBuilder":
         """Configure known tests."""
         self._known_tests_enabled = enabled
         if tests is not None:
-            self._known_tests = _coerce_known_tests_mapping(tests)
+            self._known_tests = set(tests)
+        return self
+
+    def with_test_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
+        """Configure test management properties."""
+        self._test_properties = properties
         return self
 
     def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "APIClientMockBuilder":
@@ -432,8 +426,8 @@ class APIClientMockBuilder:
             itr_enabled=self._skipping_enabled,
         )
 
-        mock_client.get_known_tests.return_value = dict(self._known_tests)
-        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_tests.return_value = set(self._known_tests)
+        mock_client.get_test_management_properties.return_value = self._test_properties
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
         mock_client.get_skippable_tests.return_value = (
@@ -560,7 +554,8 @@ def mock_api_client_settings(
     known_tests_enabled: bool = False,
     coverage_report_upload_enabled: bool = False,
     skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
-    known_tests: t.Optional[t.Union[set[TestRef], dict[TestRef, KnownTestInfo]]] = None,
+    known_tests: t.Optional[set[TestRef]] = None,
+    test_properties: t.Optional[dict[TestRef, TestProperties]] = None,
     coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
@@ -580,6 +575,8 @@ def mock_api_client_settings(
         builder = builder.with_coverage_report_upload_enabled()
     if known_tests_enabled:
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
+    if test_properties is not None:
+        builder = builder.with_test_properties(test_properties)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
 

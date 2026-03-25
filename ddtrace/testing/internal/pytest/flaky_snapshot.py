@@ -1,7 +1,7 @@
 """
 Entry snapshots for tests flagged as flaky in the known-tests (libraries-tests) API.
 
-When ``KnownTestInfo.is_flaky`` is true for a test, we register a Dynamic
+When ``TestProperties.quarantined`` is true for a test, we register a Dynamic
 Instrumentation snapshot probe on the test function for each run and capture
 the snapshot UUID so it can be correlated with the test span.
 
@@ -61,11 +61,11 @@ class KnownFlakyProbeResult(t.TypedDict, total=False):
 
 
 def is_known_flaky_test(manager: SessionManager, test_ref: TestRef) -> bool:
-    """True if known-tests data marks this test as flaky."""
-    if not manager.settings.known_tests_enabled:
+    """True if test management marks this test as quarantined."""
+    if not manager.settings.test_management.enabled:
         return False
-    info = manager.known_tests_by_ref.get(test_ref)
-    return info is not None and info.is_flaky
+    props = manager.test_properties.get(test_ref)
+    return props is not None and props.quarantined
 
 
 def _resolve_test_function(item: pytest.Item) -> t.Any:

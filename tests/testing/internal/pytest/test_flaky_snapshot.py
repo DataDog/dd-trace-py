@@ -6,7 +6,7 @@ from _pytest.pytester import Pytester
 
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.testing.internal.pytest.flaky_snapshot import is_known_flaky_test
-from ddtrace.testing.internal.test_data import KnownTestInfo
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -27,33 +27,33 @@ def _ref(name: str = "test_it") -> TestRef:
 # =============================================================================
 
 
-def test_is_known_flaky_false_when_disabled():
+def test_is_known_flaky_false_when_test_management_disabled():
     mgr = MagicMock()
-    mgr.settings.known_tests_enabled = False
-    mgr.known_tests_by_ref = {_ref(): KnownTestInfo(is_flaky=True)}
+    mgr.settings.test_management.enabled = False
+    mgr.test_properties = {_ref(): TestProperties(quarantined=True)}
     assert is_known_flaky_test(mgr, _ref()) is False
 
 
-def test_is_known_flaky_false_when_not_in_map():
+def test_is_known_flaky_false_when_not_in_properties():
     mgr = MagicMock()
-    mgr.settings.known_tests_enabled = True
-    mgr.known_tests_by_ref = {}
+    mgr.settings.test_management.enabled = True
+    mgr.test_properties = {}
     assert is_known_flaky_test(mgr, _ref()) is False
 
 
-def test_is_known_flaky_false_when_not_flaky():
+def test_is_known_flaky_false_when_not_quarantined():
     mgr = MagicMock()
-    mgr.settings.known_tests_enabled = True
+    mgr.settings.test_management.enabled = True
     r = _ref()
-    mgr.known_tests_by_ref = {r: KnownTestInfo(is_flaky=False)}
+    mgr.test_properties = {r: TestProperties(quarantined=False)}
     assert is_known_flaky_test(mgr, r) is False
 
 
-def test_is_known_flaky_true():
+def test_is_known_flaky_true_when_quarantined():
     mgr = MagicMock()
-    mgr.settings.known_tests_enabled = True
+    mgr.settings.test_management.enabled = True
     r = _ref()
-    mgr.known_tests_by_ref = {r: KnownTestInfo(is_flaky=True)}
+    mgr.test_properties = {r: TestProperties(quarantined=True)}
     assert is_known_flaky_test(mgr, r) is True
 
 
@@ -115,7 +115,7 @@ class TestKnownFlakySnapshotIntegration:
             SuiteRef(ModuleRef(""), "test_state_leak.py"),
             "test_b_flaky_depends_on_clean_state",
         )
-        known_tests = {flaky_ref: KnownTestInfo(is_flaky=True)}
+        test_properties = {flaky_ref: TestProperties(quarantined=True)}
 
         # Mock DI: track which probes are registered.
         registered_probes: list = []
@@ -140,8 +140,8 @@ class TestKnownFlakySnapshotIntegration:
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(
-                    known_tests_enabled=True,
-                    known_tests=known_tests,
+                    test_management_enabled=True,
+                    test_properties=test_properties,
                 ),
             ),
             setup_standard_mocks(),
@@ -155,10 +155,10 @@ class TestKnownFlakySnapshotIntegration:
             MockUploader.get_collector.return_value = mock_collector
 
             with EventCapture.capture() as events:
-                result = pytester.inline_run("--ddtrace", "-v")
+                result = pytester.inline_run("--ddtrace", "-v", "-p", "no:randomly")
 
-        # test_a_pollutes_state passes; test_b_flaky_depends_on_clean_state fails.
-        assert_stats(result, passed=1, failed=1)
+        # test_a_pollutes_state passes; test_b_flaky_depends_on_clean_state fails but is quarantined.
+        assert_stats(result, passed=1, quarantined=1)
 
         # --- Probe was registered exactly once ---
         assert len(registered_probes) == 1
@@ -172,8 +172,8 @@ class TestKnownFlakySnapshotIntegration:
         assert meta.get(TestTag.KNOWN_FLAKY_SNAPSHOT_FILE) != ""
         assert meta.get(TestTag.KNOWN_FLAKY_SNAPSHOT_LINE) != ""
 
-        # The span also records the test outcome for backend correlation.
-        assert meta.get("test.status") == "fail"
+        # The quarantined test's xfail wrapping converts the failure to an xfail (skip in span status).
+        assert meta.get("test.status") == "skip"
 
         # --- Non-flaky test span has none of these tags ---
         [normal_event] = list(events.events_by_test_name("test_a_pollutes_state"))

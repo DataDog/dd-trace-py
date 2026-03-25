@@ -36,14 +36,6 @@ class TestRef:
     __test__ = False
 
 
-@dataclass(frozen=True)
-class KnownTestInfo:
-    """Metadata returned with known tests from the libraries-tests API."""
-
-    is_flaky: bool = False
-    __test__ = False
-
-
 class TestStatus(Enum):
     PASS = "pass"  # nosec: B105
     FAIL = "fail"
