@@ -8,11 +8,11 @@ def post_preload() -> None:
     pass
 
 
-def enabled():
+def enabled() -> bool:
     return config.enabled
 
 
-def start():
+def start() -> None:
     from ddtrace.internal import symbol_db
 
     symbol_db.bootstrap()
