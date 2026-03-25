@@ -613,22 +613,29 @@ def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
     """
     if PydanticReportEvaluator is None:
         return False
-    if isinstance(evaluator, PydanticReportEvaluator):
-        from typing import Annotated, Union, get_args, get_origin, get_type_hints
+    if not isinstance(evaluator, PydanticReportEvaluator):
+        return False
+    import types
+    from typing import Annotated
+    from typing import Union
+    from typing import get_args
+    from typing import get_origin
+    from typing import get_type_hints
 
-        hint = get_type_hints(evaluator.evaluate)["return"]
-        while get_origin(hint) is Annotated:
-            hint = get_args(hint)[0]
-        # hint should be the union of confusion matrix, precision/recall, ScalarResult, etc.
-        args = get_args(hint) if get_origin(hint) in (Union, type(Union)) or str(get_origin(hint)) == "typing.Union" else (hint,)
-        # Python 3.10+: union might be types.UnionType; handle with typing.get_args(hint) for X | Y | Z
-        scalar_ok = any(
-            arg is PydanticScalarResult or (isinstance(arg, type) and issubclass(arg, PydanticScalarResult))
-            for arg in (get_args(hint) if hint is not PydanticScalarResult else (hint,))
-        ) and len(args) == 1
-        
-        return scalar_ok
-    return False
+    hint = get_type_hints(evaluator.evaluate)["return"]
+    while get_origin(hint) is Annotated:
+        hint = get_args(hint)[0]
+    origin = get_origin(hint)
+    if origin is Union or (getattr(types, "UnionType", None) is not None and origin is types.UnionType):
+        members = get_args(hint)
+    else:
+        members = (hint,)
+    if len(members) != 1:
+        return False
+    only = members[0]
+    return only is PydanticScalarResult or (
+        isinstance(only, type) and issubclass(only, PydanticScalarResult)
+    )
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -900,11 +907,10 @@ if PydanticEvaluator is not None:
             cases = []
             eval_results = eval_context.evaluation_results
             eval_names = eval_results.keys()
-            assertions = dict()
-            scores = dict()
-            labels = dict()
             for idx, input_data in enumerate(eval_context.inputs):
-
+                assertions = dict()
+                scores = dict()
+                labels = dict()
                 for eval_name in eval_names:
                     if isinstance(eval_results[eval_name][idx], bool):
                         assertions[eval_name] = eval_results[eval_name][idx]
@@ -988,11 +994,10 @@ if PydanticEvaluator is not None:
             cases = []
             eval_results = eval_context.evaluation_results
             eval_names = eval_results.keys()
-            assertions = dict()
-            scores = dict()
-            labels = dict()
             for idx, input_data in enumerate(eval_context.inputs):
-
+                assertions = dict()
+                scores = dict()
+                labels = dict()
                 for eval_name in eval_names:
                     if isinstance(eval_results[eval_name][idx], bool):
                         assertions[eval_name] = eval_results[eval_name][idx]

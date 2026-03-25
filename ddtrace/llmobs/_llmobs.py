@@ -1642,6 +1642,15 @@ class LLMObs(Service):
                 evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration, eval_name_count)
                 eval_names[eval_name] = eval_name_count + 1
                 continue
+        if summary_evaluators and not all(
+            callable(summary_evaluator)
+            or isinstance(summary_evaluator, (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator))
+            or _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
         if summary_evaluators:
             for idx, summary_evaluator in enumerate(summary_evaluators):
                 if _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator):
@@ -1651,7 +1660,9 @@ class LLMObs(Service):
                     if current_span is not None and current_span.duration_ns is not None:
                         duration = current_span.duration_ns
                         total_duration = current_span.duration_ns
-                    summary_evaluators[idx] = _pydantic_async_report_evaluator_wrapper(summary_evaluator, duration, total_duration)
+                    summary_evaluators[idx] = _pydantic_async_report_evaluator_wrapper(
+                        summary_evaluator, duration, total_duration
+                    )
                     continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
         return Experiment(
