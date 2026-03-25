@@ -6,6 +6,7 @@ from .. import forksafe
 
 
 __all__ = [
+    "get_ancestor_runtime_id",
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",

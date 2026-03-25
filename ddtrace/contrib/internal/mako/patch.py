@@ -65,10 +65,9 @@ def _wrap_render(wrapped, instance, args, kwargs):
     with tracer.trace(
         func_name(wrapped), int_service(pin, config.mako, schematize_service_name("mako")), span_type=SpanTypes.TEMPLATE
     ) as span:
-        span._set_tag_str(COMPONENT, "mako")
+        span._set_attribute(COMPONENT, "mako")
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)
         finally:

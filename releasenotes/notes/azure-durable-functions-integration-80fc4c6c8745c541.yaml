@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    azure_durable_functions: Add tracing support for Azure Durable Functions.
+    This integration traces durable activity and entity functions.

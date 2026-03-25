@@ -1,0 +1,168 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-durable-func",
+    "resource": "GET /api/startactivity",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6981be8d00000000",
+      "aas.function.name": "start_activity",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "GET",
+      "http.route": "/api/startactivity",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7072/api/startactivity",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "d9c2e4a35aeb421ca8f4196c7d45a6f1",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1405.0
+    },
+    "duration": 1216397292,
+    "start": 1770110605174766961
+  },
+     {
+       "name": "aiohttp.request",
+       "service": "test-durable-func",
+       "resource": "aiohttp.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "component": "aiohttp_client",
+         "http.method": "POST",
+         "http.status_code": "202",
+         "http.status_msg": "Accepted",
+         "http.url": "http://127.0.0.1:17071/durabletask/orchestrators/activity_orchestrator",
+         "out.host": "127.0.0.1",
+         "span.kind": "client",
+         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "duration": 131553792,
+       "start": 1770110605175859044
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "test-durable-func",
+          "resource": "TCPConnector.connect",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "meta": {
+            "_dd.p.tid": "6981be8d00000000",
+            "component": "aiohttp"
+          },
+          "duration": 1331250,
+          "start": 1770110605178443253
+        },
+     {
+       "name": "aiohttp.request",
+       "service": "test-durable-func",
+       "resource": "aiohttp.request",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.p.tid": "6981be8d00000000",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "202",
+         "http.status_msg": "Accepted",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
+         "out.host": "127.0.0.1",
+         "span.kind": "client",
+         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "duration": 60587292,
+       "start": 1770110605309143086
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "test-durable-func",
+          "resource": "TCPConnector.connect",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 3,
+          "meta": {
+            "_dd.p.tid": "6981be8d00000000",
+            "component": "aiohttp"
+          },
+          "duration": 384834,
+          "start": 1770110605309441544
+        },
+     {
+       "name": "aiohttp.request",
+       "service": "test-durable-func",
+       "resource": "aiohttp.request",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.p.tid": "6981be8d00000000",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.status_msg": "OK",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
+         "out.host": "127.0.0.1",
+         "span.kind": "client",
+         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+       },
+       "duration": 15842791,
+       "start": 1770110606374362420
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "test-durable-func",
+          "resource": "TCPConnector.connect",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 4,
+          "meta": {
+            "_dd.p.tid": "6981be8d00000000",
+            "component": "aiohttp"
+          },
+          "duration": 453125,
+          "start": 1770110606374682628
+        }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-durable-func",
+    "resource": "Activity durable_activity",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6981be8d00000000",
+      "aas.function.name": "durable_activity",
+      "aas.function.trigger": "Activity",
+      "component": "azure_functions",
+      "language": "python",
+      "runtime-id": "d9c2e4a35aeb421ca8f4196c7d45a6f1",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1405.0
+    },
+    "duration": 53583,
+    "start": 1770110605603371961
+  }]]

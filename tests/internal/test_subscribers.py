@@ -28,7 +28,7 @@ def reset_event_hub():
 
 
 @dataclass
-class TestEvent(Event):
+class SubscriberEvent(Event):
     event_name = "test.subscriber.event"
 
 
@@ -36,15 +36,17 @@ def test_base_subscriber():
     """Test that a direct BaseSubscriber receives dispatched events."""
 
     class DirectSubscriber(Subscriber):
-        event_names = (TestEvent.event_name,)
+        event_names = (SubscriberEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
-    core.dispatch_event(TestEvent())
+    core.dispatch_event(SubscriberEvent())
 
-    assert called == [TestEvent.event_name], "subscriber should be called once with the event name; got %r" % (called,)
+    assert called == [SubscriberEvent.event_name], "subscriber should be called once with the event name; got %r" % (
+        called,
+    )
 
 
 def test_base_subscriber_inheritance():
@@ -56,13 +58,13 @@ def test_base_subscriber_inheritance():
             called.append("parent")
 
     class ChildSubscriber(ParentSubscriber):
-        event_names = (TestEvent.event_name,)
+        event_names = (SubscriberEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append("child")
 
-    core.dispatch_event(TestEvent())
+    core.dispatch_event(SubscriberEvent())
 
     assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
 
@@ -71,24 +73,24 @@ def test_base_subscriber_multiple_event_names():
     """Test that a Subscriber can register for and handle multiple events."""
 
     @dataclass
-    class TestEventOne(Event):
+    class SubscriberEventOne(Event):
         event_name = "test.subscriber.event.one"
 
     @dataclass
-    class TestEventTwo(Event):
+    class SubscriberEventTwo(Event):
         event_name = "test.subscriber.event.two"
 
     class MultiEventSubscriber(Subscriber):
-        event_names = (TestEventOne.event_name, TestEventTwo.event_name)
+        event_names = (SubscriberEventOne.event_name, SubscriberEventTwo.event_name)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
-    core.dispatch_event(TestEventOne())
-    core.dispatch_event(TestEventTwo())
+    core.dispatch_event(SubscriberEventOne())
+    core.dispatch_event(SubscriberEventTwo())
 
-    assert called == [TestEventOne.event_name, TestEventTwo.event_name], (
+    assert called == [SubscriberEventOne.event_name, SubscriberEventTwo.event_name], (
         "subscriber should listen to both events in dispatch order; got %r" % (called,)
     )
 
@@ -235,7 +237,7 @@ def test_span_context_event_with_custom_fields(test_spans):
         @classmethod
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
             span = ctx.span
-            span.set_metric("http.status_code", ctx.event.status_code)
+            span._set_attribute("http.status_code", ctx.event.status_code)
 
     with core.context_with_event(TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200)):
         pass
@@ -266,7 +268,7 @@ def test_span_context_event_inheritance(test_spans):
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
-            span._set_tag_str("http.url", ctx.event.url)
+            span._set_attribute("http.url", ctx.event.url)
 
     @dataclass
     class HTTPClientEvent(BaseHTTPEvent):
@@ -280,7 +282,7 @@ def test_span_context_event_inheritance(test_spans):
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
-            span._set_tag_str("http.method", ctx.event.method)
+            span._set_attribute("http.method", ctx.event.method)
 
     with core.context_with_event(HTTPClientEvent(url="http://example.com", component="http", method="GET")):
         pass

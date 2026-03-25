@@ -63,7 +63,7 @@ async def execute(func, handler, args, kwargs):
 
             http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
             if http_route is not None and isinstance(http_route, str):
-                req_span._set_tag_str("http.route", http_route)
+                req_span._set_attribute("http.route", http_route)
             setattr(request, REQUEST_SPAN_KEY, req_span)
             trace_utils.set_http_meta(
                 req_span,
