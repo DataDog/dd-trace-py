@@ -406,6 +406,15 @@ def login_user_sdk():
     return "login failure", 401
 
 
+@app.route("/exception-group-block", methods=["GET"])
+def exception_group_block():
+    """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+    from ddtrace.appsec._utils import Block_config
+    from ddtrace.internal._exceptions import BlockingException
+
+    raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
+
+
 @app.route("/buggy_endpoint/", methods=None)
 def buggy_endpoint():
     return ""

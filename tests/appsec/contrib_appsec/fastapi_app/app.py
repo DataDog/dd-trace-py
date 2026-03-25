@@ -405,6 +405,14 @@ def get_app():
             payload = {"error": repr(e)}
         return payload
 
+    @app.get("/exception-group-block")
+    async def exception_group_block():
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
+
     @app.get("/login/")
     async def login_user(request: Request):
         """manual instrumentation login endpoint"""
