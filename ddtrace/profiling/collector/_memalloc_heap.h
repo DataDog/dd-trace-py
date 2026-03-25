@@ -47,14 +47,13 @@ class heap_tracker_t
      * function accesses the heap tracker data structures. It must be called with the
      * GIL held and must not make any C Python API calls. The traceback is deleted
      * internally if found. */
-    [[gnu::always_inline]] inline void untrack_no_cpython(void* ptr);
+    MEMALLOC_ALWAYS_INLINE void untrack_no_cpython(void* ptr);
 
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
      * to the current allocated_memory value. */
-    [[nodiscard]] [[gnu::always_inline]] inline bool should_sample_no_cpython(size_t size,
-                                                                              uint64_t* allocated_memory_val);
+    [[nodiscard]] MEMALLOC_ALWAYS_INLINE bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
@@ -113,7 +112,7 @@ class heap_tracker_t
  * Both are on the critical per-allocation/per-free path and must be inlined
  * at every call site, including cross-TU callers that include this header. */
 
-inline bool
+MEMALLOC_ALWAYS_INLINE bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
@@ -137,7 +136,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
     return true;
 }
 
-inline void
+MEMALLOC_ALWAYS_INLINE void
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
@@ -171,7 +170,7 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
 /* Inline fast path for tracking an allocation.
  * For ~99.99% of allocations should_sample_no_cpython returns false and this
  * entire function compiles down to a counter increment + comparison. */
-[[gnu::always_inline]] inline void
+MEMALLOC_ALWAYS_INLINE void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     if (heap_tracker_t::instance == nullptr) {
@@ -188,7 +187,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 /* Inline fast path for untracking a freed pointer.
  * For most frees the pointer is not tracked; inlining lets the compiler keep
  * the common path (hash-miss → return) entirely in the caller's code. */
-[[gnu::always_inline]] inline void
+MEMALLOC_ALWAYS_INLINE void
 memalloc_heap_untrack_no_cpython(void* ptr)
 {
     if (heap_tracker_t::instance != nullptr) {
