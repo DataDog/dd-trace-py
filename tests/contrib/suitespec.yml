@@ -221,7 +221,6 @@ suites:
       - '@tracing'
       - '@botocore'
       - tests/contrib/aiobotocore/*
-    runner: riot
     services:
       - moto
     env:
@@ -240,7 +239,6 @@ suites:
       - tests/contrib/aiohttp_jinja2/*
       - tests/snapshots/tests.contrib.aiohttp_jinja2.*
       - tests/snapshots/tests.{suite}.*
-    runner: riot
     services:
       - httpbin
     snapshot: true
@@ -256,7 +254,6 @@ suites:
       - tests/contrib/aiomysql/*
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
-    runner: riot
     services:
       - mysql
     snapshot: true
@@ -274,7 +271,6 @@ suites:
       - '@datastreams'
       - tests/contrib/aiokafka/*
       - tests/snapshots/tests.contrib.aiokafka.*
-    runner: riot
     services:
       - kafka
     snapshot: true
@@ -289,7 +285,6 @@ suites:
       - '@aiopg'
       - tests/contrib/aiopg/*
       - tests/contrib/shared_tests_async.py
-    runner: riot
     snapshot: true
     services:
       - postgres
@@ -303,7 +298,6 @@ suites:
       - '@tracing'
       - '@algoliasearch'
       - tests/contrib/algoliasearch/*
-    runner: riot
     snapshot: true
   aredis:
     parallelism: 1
@@ -316,7 +310,6 @@ suites:
       - tests/contrib/aredis/*
       - tests/snapshots/tests.{suite}.*
     pattern: aredis$
-    runner: riot
     services:
       - redis
     snapshot: true
@@ -332,7 +325,6 @@ suites:
       - '@asgi'
       - tests/contrib/asgi/*
     pattern: asgi$
-    runner: riot
     snapshot: true
   asyncpg:
     parallelism: 2
@@ -345,7 +337,6 @@ suites:
       - tests/contrib/asyncpg/*
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
-    runner: riot
     snapshot: true
     services:
       - postgres
@@ -358,7 +349,6 @@ suites:
       - '@tracing'
       - tests/contrib/asynctest/*
     pattern: asynctest$
-    runner: riot
   avro:
     parallelism: 1
     paths:
@@ -368,7 +358,6 @@ suites:
       - '@tracing'
       - '@avro'
       - tests/contrib/avro/*
-    runner: riot
     snapshot: true
   aws_lambda:
     parallelism: 2
@@ -380,7 +369,6 @@ suites:
       - '@aws_lambda'
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
-    runner: riot
     snapshot: true
   azure_eventhubs:
     parallelism: 4
@@ -392,7 +380,6 @@ suites:
       - '@azure_eventhubs'
       - tests/contrib/azure_eventhubs/*
       - tests/snapshots/tests.contrib.azure_eventhubs.*
-    runner: riot
     snapshot: true
     services:
       - azurite
@@ -407,7 +394,6 @@ suites:
       - '@azure_durable_functions'
       - tests/contrib/azure_durable_functions/*
       - tests/snapshots/tests.contrib.azure_durable_functions.*
-    runner: riot
     snapshot: true
     services:
       - azurite
@@ -422,7 +408,6 @@ suites:
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
     pattern: ^azure_functions$
-    runner: riot
     snapshot: true
     services:
       - azurite
@@ -438,7 +423,6 @@ suites:
       - tests/contrib/azure_functions_eventhubs/*
       - tests/snapshots/tests.contrib.azure_functions_eventhubs.*
     pattern: azure_functions:eventhubs
-    runner: riot
     snapshot: true
     services:
       - azurite
@@ -455,7 +439,6 @@ suites:
       - tests/contrib/azure_functions_servicebus/*
       - tests/snapshots/tests.contrib.azure_functions_servicebus.*
     pattern: azure_functions:servicebus
-    runner: riot
     snapshot: true
     services:
       - azurite
@@ -471,7 +454,6 @@ suites:
       - '@azure_servicebus'
       - tests/contrib/azure_servicebus/*
       - tests/snapshots/tests.contrib.azure_servicebus.*
-    runner: riot
     snapshot: true
     services:
       - azuresqledge
@@ -490,7 +472,6 @@ suites:
       - tests/contrib/boto/*
       - tests/snapshots/tests.contrib.botocore*
     pattern: ^botocore$
-    runner: riot
     snapshot: true
     services:
       - localstack
@@ -503,7 +484,6 @@ suites:
       - '@tracing'
       - '@bottle'
       - tests/contrib/bottle/*
-    runner: riot
     snapshot: true
   celery:
     env:
@@ -519,7 +499,6 @@ suites:
       - '@tracing'
       - '@celery'
       - tests/contrib/celery/*
-    runner: riot
     services:
       - rabbitmq
       - redis
@@ -534,7 +513,6 @@ suites:
       - '@cherrypy'
       - tests/contrib/cherrypy/*
       - tests/snapshots/tests.{suite}.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   consul:
@@ -546,7 +524,6 @@ suites:
       - '@tracing'
       - '@consul'
       - tests/contrib/consul/*
-    runner: riot
     snapshot: true
     services:
       - consul
@@ -558,7 +535,6 @@ suites:
       - '@tracing'
       - '@datastreams'
       - tests/datastreams/*
-    runner: riot
   ddtrace_api:
     parallelism: 1
     paths:
@@ -567,7 +543,6 @@ suites:
       - '@tracing'
       - '@ddtrace_api'
       - tests/contrib/ddtrace_api/*
-    runner: riot
     snapshot: true
   django:
     parallelism: 6
@@ -592,7 +567,6 @@ suites:
       - tests/contrib/django_celery/*
       - tests/snapshots/tests.{suite}.*
     pattern: ^(django|django:celery)$
-    runner: riot
     services:
       - postgres
       - memcached
@@ -611,7 +585,6 @@ suites:
       - tests/contrib/django_hosts/*
       - tests/contrib/django_hosts/django_app/*
     pattern: django:django_hosts
-    runner: riot
     snapshot: true
   django:djangorestframework:
     parallelism: 2
@@ -628,7 +601,6 @@ suites:
       - tests/contrib/djangorestframework/*
       - tests/contrib/djangorestframework/app/*
     pattern: django:djangorestframework
-    runner: riot
     services:
       - memcached
       - redis
@@ -641,7 +613,6 @@ suites:
       - '@tracing'
       - '@dogpile_cache'
       - tests/contrib/dogpile_cache/*
-    runner: riot
     snapshot: true
     venvs_per_job: 3
   dramatiq:
@@ -656,7 +627,6 @@ suites:
       - '@dramatiq'
       - tests/contrib/dramatiq/*
       - tests/snapshots/tests.contrib.dramatiq.*
-    runner: riot
     services:
       - redis
       - rabbitmq
@@ -674,7 +644,6 @@ suites:
       - '@elasticsearch'
       - tests/contrib/elasticsearch/*
       - tests/snapshots/tests.{suite}.*
-    runner: riot
     services:
       - opensearch
       - elasticsearch
@@ -687,7 +656,6 @@ suites:
       - '@tracing'
       - '@falcon'
       - tests/contrib/falcon/*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   fastapi:
@@ -703,7 +671,6 @@ suites:
       - tests/contrib/fastapi/*
       - tests/snapshots/tests.contrib.starlette.*
       - tests/snapshots/tests.{suite}.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   flask:
@@ -726,7 +693,6 @@ suites:
       - tests/contrib/flask_autopatch/*
       - tests/contrib/flask_cache/*
       - tests/snapshots/tests.contrib.flask.*
-    runner: riot
     services:
       - memcached
       - redis
@@ -739,7 +705,6 @@ suites:
       - '@tracing'
       - '@gevent'
       - tests/contrib/gevent/*
-    runner: riot
     snapshot: false
     venvs_per_job: 2
   google_cloud_pubsub:
@@ -754,7 +719,6 @@ suites:
       - '@google_cloud_pubsub'
       - tests/contrib/google_cloud_pubsub/*
       - tests/snapshots/tests.contrib.google_cloud_pubsub.*
-    runner: riot
     services:
       - pubsub
     snapshot: true
@@ -769,7 +733,6 @@ suites:
       - '@graphql'
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
-    runner: riot
     snapshot: true
   graphql:
     parallelism: 1
@@ -782,7 +745,6 @@ suites:
       - tests/contrib/graphql/*
       - tests/snapshots/tests.contrib.graphql.*
     pattern: graphql$
-    runner: riot
     snapshot: true
   grpc:
     paths:
@@ -794,7 +756,6 @@ suites:
       - tests/contrib/grpc/*
       - tests/contrib/grpc_aio/*
       - tests/snapshots/tests.contrib.grpc.*
-    runner: riot
     snapshot: true
     venvs_per_job: 3
   gunicorn:
@@ -807,7 +768,6 @@ suites:
       - '@gunicorn'
       - tests/contrib/gunicorn/*
       - tests/snapshots/tests.contrib.gunicorn.*
-    runner: riot
     snapshot: true
   httplib:
     paths:
@@ -817,7 +777,6 @@ suites:
       - '@tracing'
       - '@httplib'
       - tests/contrib/httplib/*
-    runner: riot
     services:
       - httpbin
     snapshot: true
@@ -832,7 +791,6 @@ suites:
       - '@httpx'
       - tests/contrib/httpx/*
       - tests/snapshots/tests.contrib.httpx.*
-    runner: riot
     services:
       - httpbin
     snapshot: true
@@ -844,7 +802,6 @@ suites:
       - '@tracing'
       - '@integration_registry'
       - tests/contrib/integration_registry/*
-    runner: riot
     snapshot: false
     parallelism: 1
   jinja2:
@@ -856,7 +813,6 @@ suites:
       - '@tracing'
       - '@jinja2'
       - tests/contrib/jinja2/*
-    runner: riot
     snapshot: true
   kafka:
     env:
@@ -872,7 +828,6 @@ suites:
       - '@datastreams'
       - tests/contrib/kafka/*
       - tests/snapshots/tests.contrib.kafka.*
-    runner: riot
     services:
       - kafka
     snapshot: true
@@ -886,7 +841,6 @@ suites:
       - '@kombu'
       - '@datastreams'
       - tests/contrib/kombu/*
-    runner: riot
     services:
       - rabbitmq
     snapshot: true
@@ -898,7 +852,6 @@ suites:
       - '@tracing'
       - '@logbook'
       - tests/contrib/logbook/*
-    runner: riot
     snapshot: true
   loguru:
     parallelism: 1
@@ -908,7 +861,6 @@ suites:
       - '@tracing'
       - '@loguru'
       - tests/contrib/loguru/*
-    runner: riot
     snapshot: true
   mako:
     parallelism: 1
@@ -919,19 +871,6 @@ suites:
       - '@tracing'
       - '@mako'
       - tests/contrib/mako/*
-    runner: riot
-    snapshot: true
-  mlflow:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mlflow'
-      - tests/contrib/mlflow/*
-      - tests/snapshots/tests.contrib.mlflow.*
-    runner: riot
     snapshot: true
   mariadb:
     paths:
@@ -943,11 +882,21 @@ suites:
       - '@mariadb'
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
-    runner: riot
     services:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+  mlflow:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+      - tests/snapshots/tests.contrib.mlflow.*
+    snapshot: true
   molten:
     parallelism: 1
     paths:
@@ -957,7 +906,6 @@ suites:
       - '@tracing'
       - '@molten'
       - tests/contrib/molten/*
-    runner: riot
     snapshot: true
   mysqlpython:
     paths:
@@ -971,7 +919,6 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     pattern: mysqldb$
-    runner: riot
     skip: true
     services:
       - mysql
@@ -984,7 +931,6 @@ suites:
       - '@opentelemetry'
       - tests/opentelemetry/*
       - tests/snapshots/tests.opentelemetry.*
-    runner: riot
     snapshot: true
   protobuf:
     parallelism: 1
@@ -995,7 +941,6 @@ suites:
       - '@tracing'
       - '@protobuf'
       - tests/contrib/protobuf/*
-    runner: riot
     snapshot: true
   psycopg:
     paths:
@@ -1010,7 +955,6 @@ suites:
       - tests/snapshots/tests.contrib.psycopg.*
       - tests/snapshots/tests.contrib.psycopg2.*
       - tests/contrib/shared_tests.py
-    runner: riot
     services:
       - postgres
     snapshot: true
@@ -1024,7 +968,6 @@ suites:
       - '@tracing'
       - '@pylibmc'
       - tests/contrib/pylibmc/*
-    runner: riot
     services:
       - memcached
     snapshot: true
@@ -1037,7 +980,6 @@ suites:
       - '@tracing'
       - '@pymemcache'
       - tests/contrib/pymemcache/*
-    runner: riot
     services:
       - memcached
     snapshot: true
@@ -1049,7 +991,6 @@ suites:
       - '@contrib'
       - '@mongo'
       - tests/contrib/pymongo/*
-    runner: riot
     services:
       - mongo
     snapshot: true
@@ -1066,7 +1007,6 @@ suites:
       - tests/contrib/pymysql/*
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
-    runner: riot
     services:
       - mysql
     snapshot: true
@@ -1079,7 +1019,6 @@ suites:
       - '@tracing'
       - '@pynamodb'
       - tests/contrib/pynamodb/*
-    runner: riot
     snapshot: true
   pyodbc:
     parallelism: 1
@@ -1091,7 +1030,6 @@ suites:
       - '@pyodbc'
       - '@dbapi'
       - tests/contrib/pyodbc/*
-    runner: riot
     snapshot: true
   pyramid:
     parallelism: 1
@@ -1103,7 +1041,6 @@ suites:
       - '@pyramid'
       - tests/contrib/pyramid/*
       - tests/snapshots/tests.contrib.pyramid.*
-    runner: riot
     snapshot: true
   ray:
     parallelism: 3
@@ -1115,7 +1052,6 @@ suites:
       - '@ray'
       - tests/contrib/ray/*
       - tests/snapshots/tests.contrib.ray.*
-    runner: riot
     snapshot: true
   redis:
     parallelism: 5
@@ -1128,7 +1064,6 @@ suites:
       - tests/contrib/redis/*
       - tests/snapshots/tests.contrib.redis.*
     pattern: ^redis$
-    runner: riot
     services:
       - rediscluster
       - redis
@@ -1143,7 +1078,6 @@ suites:
       - '@redis'
       - tests/contrib/rediscluster/*
       - tests/snapshots/tests.contrib.rediscluster.*
-    runner: riot
     services:
       - redis
       - rediscluster
@@ -1157,7 +1091,6 @@ suites:
       - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
-    runner: riot
     services:
       - httpbin
     snapshot: true
@@ -1171,7 +1104,6 @@ suites:
       - '@rq'
       - tests/contrib/rq/*
       - tests/snapshots/tests.contrib.rq.*
-    runner: riot
     services:
       - redis
     snapshot: true
@@ -1185,7 +1117,6 @@ suites:
       - '@asyncio'
       - tests/contrib/sanic/*
       - tests/snapshots/tests.contrib.sanic.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   snowflake:
@@ -1198,7 +1129,6 @@ suites:
       - '@snowflake'
       - tests/contrib/snowflake/*
       - tests/snapshots/tests.contrib.snowflake.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   sourcecode:
@@ -1209,7 +1139,6 @@ suites:
       - '@contrib'
       - '@sourcecode'
       - tests/sourcecode/*
-    runner: riot
   sqlalchemy:
     parallelism: 1
     paths:
@@ -1220,7 +1149,6 @@ suites:
       - '@sqlalchemy'
       - '@dbapi'
       - tests/contrib/sqlalchemy/*
-    runner: riot
     services:
       - postgres
       - mysql
@@ -1235,7 +1163,6 @@ suites:
       - '@starlette'
       - '@asgi'
       - tests/contrib/starlette/*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   stdlib:
@@ -1257,7 +1184,6 @@ suites:
       - tests/contrib/dbapi/*
       - tests/contrib/dbapi_async/*
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
-    runner: riot
     snapshot: true
   structlog:
     parallelism: 1
@@ -1267,7 +1193,6 @@ suites:
       - '@tracing'
       - '@structlog'
       - tests/contrib/structlog/*
-    runner: riot
     snapshot: true
   subprocess:
     parallelism: 2
@@ -1279,7 +1204,6 @@ suites:
       - '@subprocess'
       - '@appsec'
       - tests/contrib/subprocess/*
-    runner: riot
   logging:
     parallelism: 1
     paths:
@@ -1289,7 +1213,6 @@ suites:
       - '@tracing'
       - '@logging'
       - tests/contrib/logging/*
-    runner: riot
     snapshot: true
   tornado:
     parallelism: 1
@@ -1301,7 +1224,6 @@ suites:
       - '@tornado'
       - '@futures'
       - tests/contrib/tornado/*
-    runner: riot
     snapshot: true
   urllib3:
     parallelism: 1
@@ -1316,7 +1238,6 @@ suites:
       - '@urllib3'
       - tests/contrib/urllib3/*
       - tests/snapshots/tests.contrib.urllib3.*
-    runner: riot
     services:
       - httpbin
     snapshot: true
@@ -1329,7 +1250,6 @@ suites:
       - '@tracing'
       - '@vertica'
       - tests/contrib/vertica/*
-    runner: riot
     skip: true # Vertica tests are flaky
   wsgi:
     parallelism: 1
@@ -1343,7 +1263,6 @@ suites:
       - tests/contrib/django/test_django_wsgi.py
       - tests/contrib/uwsgi/__init__.py
       - tests/snapshots/tests.contrib.wsgi.*
-    runner: riot
     snapshot: true
   yaaredis:
     parallelism: 1
@@ -1356,7 +1275,6 @@ suites:
       - tests/contrib/yaaredis/*
       - tests/snapshots/tests.contrib.yaaredis.*
     pattern: yaaredis$
-    runner: riot
     services:
       - redis
     snapshot: true
@@ -1371,7 +1289,6 @@ suites:
       - tests/contrib/valkey/*
       - tests/snapshots/tests.contrib.valkey.*
     pattern: ^valkey*
-    runner: riot
     services:
       - valkeycluster
       - valkey
