@@ -15,12 +15,12 @@ def reset_event_hub():
 
 
 @dataclass
-class TestEvent(Event):
+class BaseEvent(Event):
     event_name = "test.event"
 
 
 @dataclass
-class TestEventWithAttributes(Event):
+class BaseEventWithAttributes(Event):
     event_name = "test.event"
     foo: str
     bar: int
@@ -31,13 +31,13 @@ def test_dispatch_event():
 
     called = []
 
-    def on_event(event_instance: TestEvent):
+    def on_event(event_instance: BaseEvent):
         called.append(event_instance.event_name)
 
-    core.on(TestEvent.event_name, on_event)
-    core.dispatch_event(TestEvent())
+    core.on(BaseEvent.event_name, on_event)
+    core.dispatch_event(BaseEvent())
 
-    assert called == [TestEvent.event_name], (
+    assert called == [BaseEvent.event_name], (
         "dispatching an event should call the handler once with the event name; got %r" % (called,)
     )
 
@@ -47,12 +47,12 @@ def test_dispatch_event_using_attributes():
 
     called = []
 
-    def on_event(event_instance: TestEventWithAttributes):
+    def on_event(event_instance: BaseEventWithAttributes):
         called.append(event_instance.foo)
         called.append(event_instance.bar)
 
-    core.on(TestEventWithAttributes.event_name, on_event)
-    core.dispatch_event(TestEventWithAttributes(foo="test", bar=0))
+    core.on(BaseEventWithAttributes.event_name, on_event)
+    core.dispatch_event(BaseEventWithAttributes(foo="test", bar=0))
 
     assert called == ["test", 0], "event attributes are wrongy populated; got %r" % (called,)
 
@@ -62,12 +62,12 @@ def test_dispatch_event_missing_attribute():
 
     called = []
 
-    def on_event(event_instance: TestEventWithAttributes):
+    def on_event(event_instance: BaseEventWithAttributes):
         called.append(event_instance.foo)
         called.append(event_instance.bar)
 
-    core.on(TestEventWithAttributes.event_name, on_event)
+    core.on(BaseEventWithAttributes.event_name, on_event)
     with pytest.raises(TypeError):
-        core.dispatch_event(TestEventWithAttributes(foo="test"))
+        core.dispatch_event(BaseEventWithAttributes(foo="test"))  # pyright: ignore[reportCallIssue]
 
     assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)
