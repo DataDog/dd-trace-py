@@ -17,18 +17,10 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include(AnalysisFunc)
 
-# Link against the pre-built libdd_wrapper shared library.
-if(DEFINED DD_WRAPPER_DIR)
-    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-else()
-    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
-endif()
-
-# Import the pre-built library as an imported target
-add_library(dd_wrapper SHARED IMPORTED)
-set_target_properties(
-    dd_wrapper PROPERTIES IMPORTED_LOCATION "${DD_WRAPPER_LIB}" INTERFACE_INCLUDE_DIRECTORIES
-                                                                "${CMAKE_CURRENT_SOURCE_DIR}/../dd_wrapper/include")
+# Link against dd_wrapper (already a real target when building via scikit-build-core; imported from LIB_INSTALL_DIR /
+# NATIVE_EXTENSION_LOCATION for standalone builds).
+include(ProfExtensionHelpers)
+dd_import_dd_wrapper()
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -87,11 +79,7 @@ elseif(UNIX)
     endif()
 endif()
 
-target_include_directories(
-    ${EXTENSION_NAME}
-    PRIVATE ../dd_wrapper/include
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
-            ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+target_include_directories(${EXTENSION_NAME} PRIVATE ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 

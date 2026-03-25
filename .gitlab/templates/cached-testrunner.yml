@@ -14,12 +14,12 @@
 
     source $EXT_CACHE_VENV/bin/activate
     python -m pip install cmake setuptools_rust Cython
-    python scripts/ext_cache.py restore
+    python scripts/build/ext_cache.py restore
     deactivate
   after_script: |
     set -e -o pipefail
     source $EXT_CACHE_VENV/bin/activate
-    python scripts/ext_cache.py save
+    python scripts/build/ext_cache.py save
     deactivate
     bash .gitlab/scripts/generate-core-backtraces.sh
   cache:

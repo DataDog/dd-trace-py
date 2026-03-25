@@ -5,17 +5,39 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build"
+# All cmake binary trees go under the top-level build/ directory (gitignored by /build/).
+BUILD_DIR="${REPO_ROOT}/build/profiling-clang-tidy"
 
 echo "Script dir: ${SCRIPT_DIR}"
 echo "Repo root: ${REPO_ROOT}"
 
-# Build the rust native library first (required for cmake to find it)
-echo "Building rust native library..."
-pushd "${REPO_ROOT}"
-pip install setuptools_rust
-python3 setup.py build_rust --inplace
-popd
+# Build the rust native library first (required for cmake to find it).
+# Set CARGO_TARGET_DIR so that FindLibNative.cmake can locate the generated C
+# headers (datadog/profiling.h etc.) via $ENV{CARGO_TARGET_DIR}/include.
+export CARGO_TARGET_DIR="${REPO_ROOT}/src/native/target"
+echo "Building rust native library (CARGO_TARGET_DIR=${CARGO_TARGET_DIR})..."
+cargo build --release \
+    --manifest-path "${REPO_ROOT}/src/native/Cargo.toml" \
+    --features profiling,crashtracker,stats,ffe
+
+# Dedup Rust-generated C headers so downstream C++ code can include them without
+# multiple-definition errors (mirrors the RunDedupHeaders.cmake POST_BUILD step
+# used by the scikit-build-core build path).
+_dedup_exe=$(command -v dedup_headers 2>/dev/null || true)
+if [ -z "${_dedup_exe}" ] && [ -x "${HOME}/.cargo/bin/dedup_headers" ]; then
+    _dedup_exe="${HOME}/.cargo/bin/dedup_headers"
+fi
+if [ -z "${_dedup_exe}" ]; then
+    echo "dedup_headers not found — installing from libdatadog..."
+    cargo install --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
+    _dedup_exe="${HOME}/.cargo/bin/dedup_headers"
+fi
+_host_triple=$(rustc -vV 2>/dev/null | grep '^host:' | awk '{print $2}')
+cmake \
+    "-DHEADERS_DIR=${CARGO_TARGET_DIR}/include/datadog" \
+    "-DDEDUP_HEADERS_EXE=${_dedup_exe}" \
+    "-DNATIVE_LIB=${CARGO_TARGET_DIR}/${_host_triple}/release/lib_native.so" \
+    -P "${REPO_ROOT}/cmake/RunDedupHeaders.cmake"
 
 # Configure cmake for dd_wrapper to generate compile_commands.json
 echo "Configuring cmake for dd_wrapper..."
@@ -41,6 +63,7 @@ cmake \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
     -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
     -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
+    -DDatadog_INCLUDE_DIRS="${BUILD_DIR}/dd_wrapper/include" \
     "${SCRIPT_DIR}/stack"
 popd
 

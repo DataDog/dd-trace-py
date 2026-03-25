@@ -21,9 +21,9 @@ components:
     - .gitlab-ci.yml
     - .gitlab/*
   $setup:
-    - setup.py
     - setup.cfg
     - pyproject.toml
+    - CMakeLists.txt
   bootstrap:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
@@ -163,9 +163,9 @@ suites:
     venvs_per_job: 1
     paths:
       - 'ddtrace/*'
-      - 'setup.py'
       - 'setup.cfg'
       - 'pyproject.toml'
+      - 'CMakeLists.txt'
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
   integration_agent:

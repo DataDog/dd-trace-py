@@ -701,7 +701,7 @@ class TelemetryTestSession(object):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method: str, url: str) -> tuple[int, bytes]:
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:  # type: ignore[return]
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034

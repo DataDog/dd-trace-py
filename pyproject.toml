@@ -1,11 +1,65 @@
 [build-system]
 requires = [
+    "scikit-build-core>=0.10",
     "cython",
-    "cmake>=3.24.2,<3.28",
-    "setuptools-rust<2",
+    "ninja",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
-build-backend = "setuptools.build_meta"
+build-backend = "build_backend"
+backend-path = ["."]
+
+[tool.scikit-build]
+# Pin the build directory to a stable, version-tagged path so successive
+# `pip install -e .` calls reuse the same cmake binary tree (incremental builds).
+build-dir = "build/cmake-{wheel_tag}"
+# AIDEV-NOTE: Do NOT set cmake.version here; scikit-build-core selects cmake.
+#
+# Incremental-build design (--no-build-isolation):
+# Use `pip install --no-build-isolation -e .` for normal development rebuilds.
+# build_backend.py creates/reuses build/build-env-{wheel_tag}/ with cmake,
+# ninja, scikit-build-core, and cython at STABLE paths before delegating to
+# scikit_build_core.  pip is then run with --no-build-isolation so those same
+# stable-path tools are used; Ninja rule hashes never change between builds.
+# Result: ~7s steady-state incremental builds (vs ~30s with pip isolation).
+# `scripts/build/timed_build.py` is a debug-only wrapper that additionally
+# parses the Ninja log to produce a per-category timing summary; use it only
+# when diagnosing build performance, not as a substitute for pip directly.
+#
+# Two additional optimisations keep incremental builds fast:
+#   1. Abseil: pre-installed to build/<tag>/absl-install/ after the first
+#      full build; subsequent configures use find_package(absl) instead of
+#      FetchContent, eliminating Abseil subproject re-configure.
+#   2. dedup_headers fingerprint: cmake/RunDedupHeaders.cmake skips header
+#      post-processing when lib_native.dylib hasn't changed, preventing
+#      timestamp updates that would otherwise trigger C++ recompilation.
+build.verbose = true
+# AIDEV-NOTE: redirect editable mode (the scikit-build-core default) creates a
+# custom finder that runs cmake --install into the venv's site-packages.  This
+# is fine for the base venv, but riot's test venvs find ddtrace via pytest's
+# conftest.py mechanism (source tree on sys.path), not through an editable
+# install.  To support this, build_backend.py's build_editable wrapper runs a
+# second cmake --install with the source tree as prefix after the normal
+# editable install, placing .so files in the source tree alongside .py files.
+# This mirrors the old setup.py build_ext --inplace behaviour.
+# Defaults can be overridden via env vars mapped to cmake defines below.
+cmake.build-type = "RelWithDebInfo"
+wheel.packages = ["ddtrace"]
+
+# ── cibuildwheel ──────────────────────────────────────────────────────────────
+# When building macOS wheels on an arm64 host for x86_64 (cross-compilation),
+# Corrosion/Cargo needs the x86_64-apple-darwin Rust target installed.  This
+# before-all step is idempotent and runs on every macOS cibuildwheel invocation
+# (both native and cross-compiled), ensuring the target is always present.
+# aarch64-apple-darwin is included so that arm64 targets also work cleanly when
+# running cibuildwheel for arm64 on an x86_64 host.
+[tool.cibuildwheel.macos]
+before-all = "rustup target add x86_64-apple-darwin aarch64-apple-darwin || true"
+
+[tool.scikit-build.cmake.define]
+DD_COMPILE_MODE     = {env = "DD_COMPILE_MODE",     default = "RelWithDebInfo"}
+DD_FAST_BUILD       = {env = "DD_FAST_BUILD",       default = "OFF"}
+DD_USE_SCCACHE      = {env = "DD_USE_SCCACHE",      default = "OFF"}
+DD_SERVERLESS_BUILD = {env = "DD_SERVERLESS_BUILD", default = "OFF"}
 
 [project]
 name = "ddtrace"

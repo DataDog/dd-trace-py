@@ -1,15 +1,11 @@
 cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
 
-set(APP_NAME _native)
-option(BUILD_MACOS "Build for MacOS" OFF)
-if(DEFINED ENV{CIBUILDWHEEL} OR DEFINED ENV{CIBW_BUILD})
-    option(NATIVE_TESTING "Disable test subdirectories and targets" OFF)
-else()
-    option(NATIVE_TESTING "Load test subdirectories and targets" ON)
-endif()
+# AIDEV-NOTE: This CMakeLists.txt is used exclusively to build the native C++ unit tests (appsec_iast_native riot venv).
+# The _native Python extension itself is now built via AbslExtension in setup.py, so there is no pybind11_add_module /
+# install() here.
 
-project(${APP_NAME})
+project(_native_tests)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -24,34 +20,15 @@ add_compile_options(
     -Wall
     -Wno-unknown-pragmas
     -U_FORTIFY_SOURCE
-    -g) # Add debug symbols always, it will be stripped in release/minsizerel by cmake
+    -g)
 
-if(BUILD_MACOS)
-    # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
-    message(STATUS "Compile options for MacOS")
+if(APPLE)
     add_link_options(-ldl -undefined dynamic_lookup)
-else()
-    message(STATUS "Compile options for Linux/Win")
-endif(BUILD_MACOS)
-unset(BUILD_MACOS CACHE)
+endif()
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
-    message("==============================================================")
-    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("=====================================")
-    message("WARNING: Debug mode: not using abseil")
-    message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
-    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
-    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
+# In Release/RelWithDebInfo builds NDEBUG is defined and taint_range.h selects absl::node_hash_map, so we need Abseil.
+# In Debug builds NDEBUG is not set and std::unordered_map is used, so Abseil is skipped.
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(FETCHCONTENT_UPDATES_DISCONNECTED
         ON
         CACHE BOOL "" FORCE)
@@ -89,51 +66,17 @@ file(
     "taint_tracking/*.h"
     "utils/*.h")
 
-# Find ICU library (not needed for now) find_package(ICU REQUIRED COMPONENTS uc i18n)  # 'uc' for the common library,
-# 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
-# ${ICU_LIBRARIES})
-
-# Debug messages
-message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
-message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
-message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
-# message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
-
 # For pybind11 3.0: Use legacy Python detection (compatible with wheel building)
 set(PYBIND11_FINDPYTHON OFF)
 
 add_subdirectory(_vendor/pybind11)
-if(NATIVE_TESTING)
-    find_package(
-        Python3
-        COMPONENTS Interpreter Development
-        REQUIRED)
-    # Legacy variables expected elsewhere in the project/tests
-    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
-    set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
-    set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
 
-    add_subdirectory(tests EXCLUDE_FROM_ALL)
-endif()
+find_package(
+    Python3
+    COMPONENTS Interpreter Development
+    REQUIRED)
+set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
+set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
 
-# Set verbose mode so compiler and args are shown
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
-pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
-get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
-
-# target_link_libraries(_native PRIVATE ${ICU_LIBS})
-
-if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
-   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
-                                                                                          STREQUAL "false")))
-    target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
-endif()
-
-install(
-    TARGETS _native
-    DESTINATION LIBRARY
-    DESTINATION ${LIB_INSTALL_DIR}
-    ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-    RUNTIME DESTINATION ${LIB_INSTALL_DIR})
+add_subdirectory(tests EXCLUDE_FROM_ALL)

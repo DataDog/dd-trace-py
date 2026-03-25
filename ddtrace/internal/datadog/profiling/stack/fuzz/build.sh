@@ -42,9 +42,9 @@ if ! command -v cargo &> /dev/null; then
     . "$HOME/.cargo/env"
 fi
 
-pip3 install setuptools_rust cython cmake --break-system-packages 2>/dev/null || \
-    pip3 install setuptools_rust cython cmake
-(cd "${REPO_ROOT}" && python3 setup.py build_rust --inplace)
+cargo build --release \
+    --manifest-path "${REPO_ROOT}/src/native/Cargo.toml" \
+    --features profiling,crashtracker,stats,ffe
 
 # Derive key paths (same variables as build_standalone.sh)
 EXTENSION_SUFFIX="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")"

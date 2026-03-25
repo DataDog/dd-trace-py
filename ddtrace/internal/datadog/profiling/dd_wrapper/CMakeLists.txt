@@ -26,21 +26,41 @@ include(FindCppcheck)
 include(FindInfer)
 include(CheckSymbolExists)
 
-find_package(LibNative)
 find_package(Python3 COMPONENTS Interpreter Development.Module)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
-# the parent scope.
+# Standalone build (build_standalone.sh) vs subdirectory build (scikit-build-core).
+#
+# Subdirectory path: the top-level cmake sets Datadog_INCLUDE_DIRS (to Corrosion's cargo output include dir) and creates
+# _native as a Corrosion INTERFACE target before adding this subdirectory.  We propagate those variables back up so
+# sibling subdirectories can also see them.
+#
+# Standalone path: nothing above us sets Datadog_INCLUDE_DIRS or _native.  We must load FindLibNative.cmake ourselves to
+# (a) create the _native IMPORTED target pointing at the pre-built _native.so from NATIVE_EXTENSION_LOCATION, and (b)
+# copy the Rust-generated headers (found via CARGO_TARGET_DIR env var) into the cmake binary tree so that downstream
+# compile steps can find datadog/profiling.h.
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    # Subdirectory: propagate libdatadog variables to parent scope.
     set(Datadog_INCLUDE_DIRS
         ${Datadog_INCLUDE_DIRS}
         PARENT_SCOPE)
     set(Datadog_LIBRARIES
         ${Datadog_LIBRARIES}
         PARENT_SCOPE)
+else()
+    # Standalone: import _native and its Rust-generated C headers.
+    include(FindLibNative)
+    # FindLibNative.cmake sets DEST_INCLUDE_DIR (headers copied into cmake binary tree) and creates the _native IMPORTED
+    # target with INTERFACE_INCLUDE_DIRECTORIES. Mirror Datadog_INCLUDE_DIRS so the explicit target_include_directories
+    # below works.
+    set(Datadog_INCLUDE_DIRS "${DEST_INCLUDE_DIR}")
+    # Also mirror PYTHON_EXT_SUFFIX from EXTENSION_SUFFIX so the patchelf POST_BUILD step (which replaces the
+    # lib_native.so NEEDED entry) can find it.
+    if(DEFINED EXTENSION_SUFFIX AND NOT DEFINED PYTHON_EXT_SUFFIX)
+        set(PYTHON_EXT_SUFFIX "${EXTENSION_SUFFIX}")
+    endif()
 endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -74,7 +94,8 @@ add_ddup_config(dd_wrapper)
 # Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
 set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
 
-target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+target_include_directories(dd_wrapper PUBLIC include)
+target_include_directories(dd_wrapper PRIVATE ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 
@@ -114,17 +135,37 @@ if(APPLE)
     # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
     set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../../native;@loader_path/../../native"
                                                 INSTALL_RPATH "@loader_path/../../../native;@loader_path/../../native")
-    # Add a post-build step to fix the library dependency to use @rpath
+    # Cargo embeds its own install name (e.g. the full path or "lib_native.dylib") into the dylib. The linker copies
+    # that name as a NEEDED entry into dd_wrapper.  Use otool to discover the actual embedded name at build time, then
+    # replace it with the @rpath-relative Python name.
     add_custom_command(
         TARGET dd_wrapper
         POST_BUILD
-        COMMAND install_name_tool -change "_native${EXTENSION_SUFFIX}" "@rpath/_native${EXTENSION_SUFFIX}"
-                $<TARGET_FILE:dd_wrapper>
-        COMMENT "Fixing library dependency to use @rpath")
+        COMMAND
+            bash -c "old=$(otool -L $<TARGET_FILE:dd_wrapper> | awk '/_native/{print $1}' | head -1); \
+             if [ -n \"$old\" ]; then \
+               install_name_tool -change \"$old\" \"@rpath/_native${EXTENSION_SUFFIX}\" $<TARGET_FILE:dd_wrapper>; \
+             fi"
+        COMMENT "Fixing _native library dependency in dd_wrapper to use @rpath")
 else()
     # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
     set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native"
                                                 INSTALL_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native")
+    # Corrosion names the Rust output lib_native.so, but the Python-visible file is installed as _native<EXT_SUFFIX>.
+    # Use patchelf to update the NEEDED entry so libdd_wrapper.so resolves at runtime without a lib_native.so stub.
+    # PYTHON_EXT_SUFFIX is set by the top-level CMakeLists.txt.
+    find_program(PATCHELF_EXECUTABLE patchelf)
+    if(PATCHELF_EXECUTABLE AND PYTHON_EXT_SUFFIX)
+        add_custom_command(
+            TARGET dd_wrapper
+            POST_BUILD
+            COMMAND "${PATCHELF_EXECUTABLE}" --replace-needed "lib_native.so" "_native${PYTHON_EXT_SUFFIX}"
+                    $<TARGET_FILE:dd_wrapper>
+            COMMENT "Patching lib_native.so → _native${PYTHON_EXT_SUFFIX} in libdd_wrapper")
+    else()
+        message(STATUS "patchelf not found or PYTHON_EXT_SUFFIX unset — "
+                       "libdd_wrapper.so will require lib_native.so at runtime")
+    endif()
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.

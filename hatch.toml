@@ -107,16 +107,9 @@ ci-deps-check = [
 [envs.clean]
 detached = true
 python = "3.10"
-# setup.py requires these at import time; needed to run python setup.py clean --all
-dependencies = [
-    "cython",
-    "cmake>=3.24.2,<3.28",
-    "setuptools-rust<2",
-    "setuptools-scm[toml]>=4",
-]
 
 [envs.clean.scripts]
 all = [
-    "python setup.py clean --all",
+    "python scripts/build/clean.py",
 ]
 

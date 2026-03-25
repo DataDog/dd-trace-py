@@ -546,7 +546,7 @@ lib_injection_tests:
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
 # Run on PRs where files in the native Profiling build graph changed.
-# build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
+# build_standalone.sh compiles Rust (cargo build) then builds C++ tests
 # via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
 # Extension-based patterns keep Python and docs out automatically; non-extension
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
@@ -580,8 +580,8 @@ profiling_native:
         - src/native/**/*.toml
         - src/native/**/Cargo.lock
         # Top-level build config
-        - setup.py
         - pyproject.toml
+        - CMakeLists.txt
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

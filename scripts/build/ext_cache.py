@@ -1,23 +1,24 @@
 import argparse
+import ast
 from pathlib import Path
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 import typing as t
 
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
+ROOT = HERE.parent.parent
 CACHE = ROOT / ".ext_cache"
 
 
 def invoke_ext_hashes():
-    output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
+    output = subprocess.check_output([sys.executable, HERE / "ext_hashes.py"])  # nosec B603
     results = []
     for line in output.decode().splitlines():
         if not line.startswith("#EXTHASH:"):
             continue
-        ext_name, ext_hash, ext_target = t.cast(tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
+        ext_name, ext_hash, ext_target = t.cast(tuple[str, str, str], ast.literal_eval(line.split(":", 1)[-1].strip()))
         results.append((ext_name, ext_hash, ext_target))
     return results
 

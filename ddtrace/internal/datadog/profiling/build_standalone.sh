@@ -4,7 +4,9 @@ set -euo pipefail
 ### Useful globals
 MY_DIR=$(dirname $(realpath $0))
 MY_NAME="$0"
-BUILD_DIR="build"
+REPO_ROOT=$(realpath "${MY_DIR}/../../../..")
+# All cmake binary trees go under the top-level build/ directory (gitignored by /build/).
+BUILD_DIR="${REPO_ROOT}/build/profiling-standalone"
 BUILD_MODE="Debug"
 
 ### Compiler discovery
@@ -384,8 +386,99 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    pip3 install cmake setuptools_rust cython
-    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
+    local _cargo_profile="release"
+    if [ "${BUILD_MODE}" = "Debug" ]; then _cargo_profile="debug"; fi
+    local _profile_flag="--release"
+    if [ "${BUILD_MODE}" = "Debug" ]; then _profile_flag=""; fi
+
+    # Set CARGO_TARGET_DIR so FindLibNative.cmake can locate the generated C
+    # headers (datadog/profiling.h etc.) via $ENV{CARGO_TARGET_DIR}/include.
+    # Use the version-tagged path that matches the legacy setup.py convention so
+    # that existing build trees are reused when both build systems co-exist.
+    local _py_ver
+    _py_ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    export CARGO_TARGET_DIR="${MY_DIR}/../../../../src/native/target${_py_ver}"
+
+    cargo build ${_profile_flag} \
+        --manifest-path "${MY_DIR}/../../../../src/native/Cargo.toml" \
+        --features profiling,crashtracker,stats,ffe
+
+    # FindLibNative.cmake creates a cmake IMPORTED target whose IMPORTED_LOCATION
+    # points to NATIVE_EXTENSION_LOCATION/_native<EXT_SUFFIX>.  CMake tracks this
+    # file as a build dependency, so it must exist before cmake configures the
+    # dd_wrapper build.  Copy the Cargo artifact there now, renaming it from the
+    # Cargo output name (lib_native.so / lib_native.dylib) to the Python ABI name.
+    local _ext_suffix
+    _ext_suffix=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+    local _native_dest="${MY_DIR}/../../native/_native${_ext_suffix}"
+    local _host_triple
+    _host_triple=$(rustc -vV 2>/dev/null | grep '^host:' | awk '{print $2}')
+    local _cargo_lib=""
+    # When cargo builds natively (no --target flag) output is at <target_dir>/<profile>/;
+    # when cross-compiling (--target <triple>) it is at <target_dir>/<triple>/<profile>/.
+    # Check the native path first, then the triple-qualified path.
+    for _prefix in "${CARGO_TARGET_DIR}" "${CARGO_TARGET_DIR}/${_host_triple}"; do
+        for _ext in so dylib; do
+            local _candidate="${_prefix}/${_cargo_profile}/lib_native.${_ext}"
+            if [ -f "${_candidate}" ]; then
+                _cargo_lib="${_candidate}"
+                break 2
+            fi
+        done
+    done
+    if [ -z "${_cargo_lib}" ]; then
+        echo "Error: could not find Rust artifact under ${CARGO_TARGET_DIR}/${_host_triple}/${_cargo_profile}/"
+        exit 1
+    fi
+    mkdir -p "$(dirname "${_native_dest}")"
+    cp "${_cargo_lib}" "${_native_dest}"
+    echo "Installed Rust extension: ${_native_dest}"
+}
+
+# Run dedup_headers on the Rust-generated C headers so that dd_wrapper can include them without
+# multiple-definition errors (the same post-processing that RunDedupHeaders.cmake does in the
+# scikit-build-core build path).
+run_dedup_headers() {
+    local _headers_dir="${CARGO_TARGET_DIR}/include/datadog"
+    if [ ! -d "${_headers_dir}" ]; then
+        echo "dedup_headers: ${_headers_dir} does not exist, skipping"
+        return 0
+    fi
+
+    # Find or install dedup_headers.
+    local _dedup_exe
+    _dedup_exe=$(command -v dedup_headers 2>/dev/null || echo "")
+    if [ -z "${_dedup_exe}" ] && [ -x "${HOME}/.cargo/bin/dedup_headers" ]; then
+        _dedup_exe="${HOME}/.cargo/bin/dedup_headers"
+    fi
+    if [ -z "${_dedup_exe}" ]; then
+        echo "dedup_headers not found in PATH or ~/.cargo/bin — installing from libdatadog..."
+        cargo install --git https://github.com/DataDog/libdatadog --bin dedup_headers tools \
+            || { echo "Failed to install dedup_headers"; return 1; }
+        _dedup_exe="${HOME}/.cargo/bin/dedup_headers"
+    fi
+
+    # Determine native lib path: <CARGO_TARGET_DIR>/<host_triple>/<profile>/lib_native.{so,dylib}
+    local _cargo_profile="release"
+    if [ "${BUILD_MODE}" = "Debug" ]; then _cargo_profile="debug"; fi
+    local _host_triple
+    _host_triple=$(rustc -vV 2>/dev/null | grep '^host:' | awk '{print $2}')
+    local _native_lib=""
+    for _ext in so dylib; do
+        local _candidate="${CARGO_TARGET_DIR}/${_host_triple}/${_cargo_profile}/lib_native.${_ext}"
+        if [ -f "${_candidate}" ]; then
+            _native_lib="${_candidate}"
+            break
+        fi
+    done
+
+    echo "Running dedup_headers on ${_headers_dir}"
+    cmake \
+        "-DHEADERS_DIR=${_headers_dir}" \
+        "-DDEDUP_HEADERS_EXE=${_dedup_exe}" \
+        "-DNATIVE_LIB=${_native_lib}" \
+        -P "${MY_DIR}/../../../../cmake/RunDedupHeaders.cmake" \
+        || { echo "dedup_headers step failed"; return 1; }
 }
 
 ### ENTRYPOINT
@@ -412,6 +505,7 @@ print_cmake_args
 print_ctest_args
 
 build_rust
+run_dedup_headers
 
 run_cmake "dd_wrapper"
 
@@ -419,6 +513,12 @@ run_cmake "dd_wrapper"
 pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
 cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
 popd
+
+# The Rust-generated C headers (datadog/profiling.h etc.) are copied by
+# FindLibNative.cmake into the dd_wrapper cmake binary tree under include/.
+# Pass that path to downstream targets (stack, ddup) so their compilers can
+# find the headers without each having to re-run FindLibNative.
+cmake_args+=("-DDatadog_INCLUDE_DIRS=${BUILD_DIR}/dd_wrapper/include")
 
 # Run cmake
 for target in "${targets[@]}"; do
