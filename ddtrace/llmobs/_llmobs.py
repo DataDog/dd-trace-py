@@ -430,6 +430,7 @@ def _build_span_meta(
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
+    SHUTDOWN_TIMEOUT = 5
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
@@ -913,6 +914,8 @@ class LLMObs(Service):
         try:
             self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
+            self._llmobs_span_writer.join(self.SHUTDOWN_TIMEOUT)
+            self._llmobs_eval_metric_writer.join(self.SHUTDOWN_TIMEOUT)
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
@@ -1079,6 +1082,7 @@ class LLMObs(Service):
             )
 
             atexit.register(cls.disable)
+            atexit.register_on_exit_signal(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug(

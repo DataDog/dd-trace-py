@@ -133,6 +133,44 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
+def test_shutdown_timeout_default():
+    assert llmobs_service.SHUTDOWN_TIMEOUT == 5
+
+
+@mock.patch("ddtrace.llmobs._llmobs.atexit.register_on_exit_signal")
+def test_enable_registers_sigterm_handler(mock_register_on_exit_signal, tracer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable(_tracer=tracer)
+        mock_register_on_exit_signal.assert_called_once_with(llmobs_service.disable)
+        llmobs_service.disable()
+
+
+def test_sigterm_disables_llmobs(tracer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        with mock.patch("ddtrace.llmobs._llmobs.atexit.register_on_exit_signal") as mock_register:
+            llmobs_service.enable(_tracer=tracer)
+        # Invoke the registered function directly, bypassing the OS signal chain
+        # (which would re-raise SIGTERM and kill the process)
+        registered_fn = mock_register.call_args[0][0]
+        registered_fn()
+        assert llmobs_service.enabled is False
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+
+
+def test_sigterm_joins_writers_with_shutdown_timeout(tracer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        llmobs_service.enable(_tracer=tracer)
+        span_writer = llmobs_service._instance._llmobs_span_writer
+        eval_writer = llmobs_service._instance._llmobs_eval_metric_writer
+        with mock.patch.object(span_writer, "join") as mock_span_join, mock.patch.object(
+            eval_writer, "join"
+        ) as mock_eval_join:
+            llmobs_service.disable()
+        mock_span_join.assert_called_once_with(llmobs_service.SHUTDOWN_TIMEOUT)
+        mock_eval_join.assert_called_once_with(llmobs_service.SHUTDOWN_TIMEOUT)
+
+
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         with pytest.raises(ValueError):

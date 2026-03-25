@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: LLMObs writers now register a SIGTERM signal handler so that buffered
+    spans and evaluation metrics are flushed before the process exits. Previously, pods
+    receiving SIGTERM (for example, during a Kubernetes rolling deployment) would silently drop
+    any spans that had not yet been sent. The writer shutdown timeout defaults to 5 seconds.
