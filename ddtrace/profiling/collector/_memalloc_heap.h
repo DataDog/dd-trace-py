@@ -120,11 +120,11 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
     *allocated_memory_val = allocated_memory;
 
     /* Check if we have enough sample or not */
-    if (allocated_memory < current_sample_size) {
+    if (MEMALLOC_LIKELY(allocated_memory < current_sample_size)) {
         return false;
     }
 
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
+    if (MEMALLOC_UNLIKELY(allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT)) {
         /* TODO(nick) this is vestigial from the original array-based
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
@@ -142,7 +142,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
+    if (MEMALLOC_UNLIKELY(!node.empty())) {
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
@@ -173,11 +173,11 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
 MEMALLOC_ALWAYS_INLINE void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    if (heap_tracker_t::instance == nullptr) {
+    if (MEMALLOC_UNLIKELY(heap_tracker_t::instance == nullptr)) {
         return;
     }
     uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+    if (MEMALLOC_LIKELY(!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val))) {
         return;
     }
     /* Slow path — reached only when a sample is due (~0.01% of allocations) */
@@ -190,7 +190,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 MEMALLOC_ALWAYS_INLINE void
 memalloc_heap_untrack_no_cpython(void* ptr)
 {
-    if (heap_tracker_t::instance != nullptr) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->untrack_no_cpython(ptr);
     }
 }
