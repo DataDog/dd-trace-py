@@ -73,14 +73,8 @@ def _get_application(key: tuple[str, str, str]) -> dict:
 
 def update_imported_dependencies(
     already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
-) -> list[DependencyEntry]:
-    """Detect new dependencies from imported modules and register them.
-
-    Returns newly created DependencyEntry objects (not dicts) so callers
-    can mark them as sent and serialize in a single pass, avoiding a
-    second lookup by name.
-    """
-    new_entries: list[DependencyEntry] = []
+) -> list[dict[str, str]]:
+    deps = []
 
     for module_name in new_modules:
         dists = get_module_distribution_versions(module_name)
@@ -94,11 +88,10 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        entry = DependencyEntry(name=name, version=version)
-        already_imported[name] = entry
-        new_entries.append(entry)
+        already_imported[name] = DependencyEntry(name=name, version=version)
+        deps.append({"name": name, "version": version})
 
-    return new_entries
+    return deps
 
 
 def get_application(service: str, version: str, env: str) -> dict:
