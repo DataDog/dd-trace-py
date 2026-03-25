@@ -4356,13 +4356,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={
-                        "litellm": "==1.46.1",
+                        "litellm[proxy]": "==1.46.1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "litellm": "==1.80.16",
+                        "litellm[proxy]": "==1.80.16",
                     },
                 ),
             ],
