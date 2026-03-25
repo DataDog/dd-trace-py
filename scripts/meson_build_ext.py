@@ -241,6 +241,30 @@ def _clean_stale_cmake_build_dir(build_dir: Path, cmake_src_dir: Path) -> None:
     shutil.rmtree(build_dir, ignore_errors=True)
 
 
+def _cmake_parallel_args():
+    configured_parallel = os.getenv("CMAKE_BUILD_PARALLEL_LEVEL")
+    if configured_parallel:
+        try:
+            parallel = int(configured_parallel)
+        except ValueError:
+            print(
+                f"[meson_build_ext] WARNING: ignoring invalid CMAKE_BUILD_PARALLEL_LEVEL={configured_parallel!r}",
+                flush=True,
+            )
+        else:
+            if parallel > 0:
+                # AIDEV-NOTE: GitLab package jobs cap nested CMake concurrency via
+                # CMAKE_BUILD_PARALLEL_LEVEL to keep the large IAST C++ build from
+                # being OOM-killed. Respect it here instead of forcing host CPU count.
+                return ["--parallel", str(parallel)]
+            print(
+                f"[meson_build_ext] WARNING: ignoring non-positive CMAKE_BUILD_PARALLEL_LEVEL={configured_parallel!r}",
+                flush=True,
+            )
+
+    return ["--parallel", str(os.cpu_count() or 4)]
+
+
 def cmd_cmake(args):
     """Build a CMake extension component."""
     cmake = get_cmake_binary()
@@ -318,8 +342,7 @@ def cmd_cmake(args):
     run(cmake_args)
 
     # Build
-    parallel = os.cpu_count() or 4
-    build_args = [cmake, "--build", str(build_dir), "--config", build_type, f"-j{parallel}"]
+    build_args = [cmake, "--build", str(build_dir), "--config", build_type, *_cmake_parallel_args()]
     run(build_args)
 
     # Install
