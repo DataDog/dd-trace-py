@@ -91,7 +91,7 @@ class Integration:
         """Updates the integration with the new dependency versions."""
         # skip if the integration is not an external package
         if not self.is_external_package:
-            return
+            return False
 
         # update the dependency info
         changed = False
@@ -127,7 +127,7 @@ class Integration:
             changed = prev != self.tested_versions_by_dependency or changed
         return changed
 
-    def _update_dependency_versions(self, dep_name: str, dep_version: str) -> bool:
+    def _update_dependency_versions(self, dep_name: str, dep_version: str) -> dict[str, str]:
         """Updates the dependency versions for the integration."""
         if dep_name not in self.tested_versions_by_dependency:
             return {"min": dep_version, "max": dep_version}
