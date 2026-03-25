@@ -12,4 +12,3 @@ suites:
       - '@core'
       - '@tracing'
       - tests/errortracking/*
-    runner: riot
