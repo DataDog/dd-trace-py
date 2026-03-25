@@ -73,7 +73,7 @@ std::unique_ptr<traceback_t>
 heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
-    if (MEMALLOC_LIKELY(!pool.empty())) {
+    if (!pool.empty()) {
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
@@ -88,7 +88,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
 void
 heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 {
-    if (MEMALLOC_UNLIKELY(!tb)) {
+    if (!tb) {
         return;
     }
 
@@ -96,7 +96,7 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     tb->sample.clear();
 
     /* Try to return the traceback to the pool */
-    if (MEMALLOC_LIKELY(pool.size() < POOL_CAPACITY)) {
+    if (pool.size() < POOL_CAPACITY) {
         pool.push_back(std::move(tb));
     }
     /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
@@ -224,7 +224,7 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
     /* Skip tracking if we're already inside the malloc hook on this thread.
      * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
-    if (MEMALLOC_UNLIKELY(!guard)) {
+    if (!guard) {
         return;
     }
 
@@ -259,7 +259,7 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
        of sample live allocations stays close to the actual heap size */
 
     // Check that instance is valid before creating traceback
-    if (MEMALLOC_UNLIKELY(!heap_tracker_t::instance)) {
+    if (!heap_tracker_t::instance) {
         return;
     }
 
@@ -278,7 +278,7 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
     tb->sample.push_heap(allocated_memory_val);
 
     // Check that instance is still valid after GIL release in constructor
-    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
+    if (heap_tracker_t::instance != nullptr) {
         heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
@@ -287,7 +287,7 @@ memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
 void
 memalloc_heap_no_cpython(void)
 {
-    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
+    if (heap_tracker_t::instance != nullptr) {
         heap_tracker_t::instance->export_heap_no_cpython();
     }
 }
@@ -295,7 +295,7 @@ memalloc_heap_no_cpython(void)
 void
 memalloc_heap_postfork_child(void)
 {
-    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
+    if (heap_tracker_t::instance != nullptr) {
         heap_tracker_t::instance->postfork_child();
     }
 }
