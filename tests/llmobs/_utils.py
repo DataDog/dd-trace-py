@@ -623,6 +623,7 @@ def _oversized_retrieval_event():
 
 def expected_ragas_trace_tags():
     return [
+        "_dd.svc_src:m",
         "version:",
         "env:",
         "service:tests.llmobs",
