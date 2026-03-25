@@ -1,5 +1,3 @@
-import os
-
 import aiohttp
 import wrapt
 from yarl import URL
@@ -26,10 +24,9 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 log = get_logger(__name__)
-
 
 # Server config
 config._add(
@@ -45,9 +42,9 @@ config._add(
 config._add(
     "aiohttp_client",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
+        distributed_tracing=asbool(env.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=config._http_client_tag_query_string,
-        split_by_domain=asbool(os.getenv("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
+        split_by_domain=asbool(env.getenv("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
     ),
 )
 

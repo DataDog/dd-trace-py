@@ -1,5 +1,3 @@
-import os
-
 # 3p
 import rediscluster
 import wrapt
@@ -24,7 +22,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
 #      but in `1.x.x` `__version__` is a tuple and `VERSION` does not exist
@@ -34,8 +32,8 @@ config._add(
     "rediscluster",
     dict(
         _default_service=schematize_service_name("rediscluster"),
-        cmd_max_length=int(os.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        cmd_max_length=int(env.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(env.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 

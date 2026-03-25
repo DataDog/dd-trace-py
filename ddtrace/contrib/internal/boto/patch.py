@@ -1,5 +1,4 @@
 import inspect
-import os
 
 from boto import __version__
 import boto.connection
@@ -22,7 +21,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
@@ -40,11 +39,10 @@ AWS_AUTH_ARGS_NAME = (
 AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
 AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 
-
 config._add(
     "boto",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(env.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 

@@ -20,13 +20,14 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=os.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(sensitive_wildcards=env.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
 
 

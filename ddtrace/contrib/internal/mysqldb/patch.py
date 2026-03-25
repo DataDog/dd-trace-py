@@ -1,5 +1,3 @@
-import os
-
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
@@ -22,7 +20,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 config._add(
     "mysqldb",
@@ -30,8 +28,8 @@ config._add(
         _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
+        trace_fetch_methods=asbool(env.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(env.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )

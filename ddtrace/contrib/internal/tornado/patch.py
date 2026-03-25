@@ -1,5 +1,3 @@
-import os
-
 import tornado
 from wrapt import wrap_function_wrapper as _w
 
@@ -11,18 +9,18 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 from . import application
 from . import decorators
 from . import handlers
 from . import template
 
-
 config._add(
     "tornado",
     dict(
         _default_service=schematize_service_name(config._get_service("tornado-web")),
-        distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(env.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

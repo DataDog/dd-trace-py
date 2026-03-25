@@ -1,4 +1,3 @@
-import os
 from time import time_ns
 
 import aiokafka
@@ -27,13 +26,13 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-
+from ddtrace.internal.settings import env
 
 config._add(
     "aiokafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(env.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
     ),
 )
 

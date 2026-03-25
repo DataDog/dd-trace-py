@@ -1,5 +1,3 @@
-import os
-
 import wrapt
 import yaaredis
 
@@ -15,14 +13,14 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor.debtcollector import deprecate
-
+from ddtrace.internal.settings import env
 
 config._add(
     "yaaredis",
     dict(
         _default_service=schematize_service_name("redis"),
-        cmd_max_length=int(os.getenv("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        cmd_max_length=int(env.getenv("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(env.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 

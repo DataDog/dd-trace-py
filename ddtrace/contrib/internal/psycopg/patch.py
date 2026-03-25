@@ -1,6 +1,5 @@
 from importlib import import_module
 import inspect
-import os
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -22,7 +21,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-
+from ddtrace.internal.settings import env
 
 # These will be initialized lazily to avoid circular imports
 _original_connect = None
@@ -61,12 +60,12 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
         trace_fetch_methods=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+            env.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
+            or env.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
         ),
         trace_connect=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+            env.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
+            or env.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",

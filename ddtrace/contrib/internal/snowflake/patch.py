@@ -1,5 +1,3 @@
-import os
-
 import wrapt
 
 from ddtrace import config
@@ -11,7 +9,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-
+from ddtrace.internal.settings import env
 
 config._add(
     "snowflake",
@@ -23,7 +21,7 @@ config._add(
         # `sql.query` whereas other dbapi-compliant integrations are set to
         # `<integration>.query`.
         _dbapi_span_name_prefix="sql",
-        trace_fetch_methods=asbool(os.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

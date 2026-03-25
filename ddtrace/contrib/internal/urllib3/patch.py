@@ -1,4 +1,3 @@
-import os
 from urllib import parse
 
 import urllib3
@@ -23,7 +22,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 # Ports which, if set, will not be used in hostnames/service names
 DROP_PORTS = (80, 443)
@@ -33,9 +32,9 @@ config._add(
     "urllib3",
     {
         "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(env.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
+        "split_by_domain": asbool(env.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 

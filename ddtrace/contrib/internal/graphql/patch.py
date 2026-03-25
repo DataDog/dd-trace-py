@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Iterable
 from io import StringIO
-import os
 import re
 import sys
 import traceback
@@ -36,7 +35,7 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 _graphql_version_str = graphql.__version__
 _graphql_version = parse_version(_graphql_version_str)
@@ -67,11 +66,10 @@ config._add(
     "graphql",
     dict(
         _default_service=schematize_service_name("graphql"),
-        resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
-        _error_extensions=_parse_error_extensions(os.getenv("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
+        resolvers_enabled=asbool(env.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
+        _error_extensions=_parse_error_extensions(env.getenv("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
     ),
 )
-
 
 _GRAPHQL_SOURCE = "graphql.source"
 _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"

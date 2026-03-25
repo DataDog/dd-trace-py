@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Awaitable
 from typing import Optional
@@ -22,9 +21,9 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.internal.settings import env
 
 from .utils import httpx_url_to_str
-
 
 HTTPX_VERSION = parse_version(httpx.__version__)
 HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
@@ -37,8 +36,8 @@ def get_version() -> str:
 config._add(
     "httpx",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
-        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
+        "distributed_tracing": asbool(env.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(env.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )

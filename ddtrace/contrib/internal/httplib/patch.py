@@ -1,6 +1,5 @@
 import functools
 import http.client as httplib
-import os
 import sys
 from urllib import parse
 
@@ -22,18 +21,17 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-
+from ddtrace.internal.settings import env
 
 span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
 
-
 config._add(
     "httplib",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(env.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )

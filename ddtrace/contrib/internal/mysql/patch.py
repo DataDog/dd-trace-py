@@ -1,5 +1,3 @@
-import os
-
 import mysql.connector
 import wrapt
 
@@ -15,7 +13,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-
+from ddtrace.internal.settings import env
 
 config._add(
     "mysql",
@@ -23,7 +21,7 @@ config._add(
         _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )

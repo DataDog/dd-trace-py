@@ -16,7 +16,6 @@ ignores:
   - "ddtrace/appsec/**"
   - "ddtrace/bootstrap/**"
   - "ddtrace/commands/**"
-  - "ddtrace/contrib/internal/**"
   - "ddtrace/ext/**"
   - "ddtrace/internal/ci_visibility/**"
   - "ddtrace/internal/core/**"
