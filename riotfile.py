@@ -4354,15 +4354,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "litellm[proxy]": "==1.46.1",
+                        "litellm[proxy]": "==1.78.5",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "litellm[proxy]": "==1.80.16",
+                        "litellm[proxy]": ">=1.82.6",
                     },
                 ),
             ],
