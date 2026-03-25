@@ -112,8 +112,7 @@ from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordRaw
-from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
@@ -1182,7 +1181,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecordRaw]] = None,
+        records: Optional[list[DatasetRecordNew]] = None,
         bulk_upload: bool = False,
         deduplicate: bool = True,
     ) -> Dataset:
@@ -1216,6 +1215,7 @@ class LLMObs(Service):
             else:
                 num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 batch_size = math.ceil(len(records) / num_batches)
+                batch_size = min(batch_size, ds.BATCH_UPDATE_MAX_RECORDS)
                 log.debug(
                     "batched upload num_batches :%d, batch_size: %d",
                     num_batches,
@@ -1289,7 +1289,7 @@ class LLMObs(Service):
                     raise ValueError(f"ID column '{id_column}' not found in CSV header")
 
                 for row in rows:
-                    record: DatasetRecordRaw = {
+                    record: DatasetRecordNew = {
                         "input_data": {col: row[col] for col in input_data_columns},
                         "expected_output": {col: row[col] for col in expected_output_columns},
                         "metadata": {col: row[col] for col in metadata_columns},
@@ -1318,7 +1318,7 @@ class LLMObs(Service):
     def _prompt_optimization(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: Callable[[JSONType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
         evaluators: Sequence[EvaluatorType],
@@ -1684,7 +1684,7 @@ class LLMObs(Service):
     def _run_for_experiment(
         cls,
         experiment_id: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: Callable[[JSONType, Optional[ConfigType]], JSONType],
         dataset_records: list[DatasetRecord],
         evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
         jobs: int = 1,
