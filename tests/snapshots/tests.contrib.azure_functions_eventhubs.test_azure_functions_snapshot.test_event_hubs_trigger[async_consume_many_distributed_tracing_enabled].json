@@ -64,6 +64,7 @@
       "component": "azure_functions",
       "http.method": "POST",
       "http.route": "/api/sendeventbatch",
+      "http.status_code": "200",
       "http.url": "http://0.0.0.0:7071/api/sendeventbatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
@@ -74,7 +75,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 33630
     },
     "duration": 518065167,

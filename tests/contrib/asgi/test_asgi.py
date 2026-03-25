@@ -176,7 +176,7 @@ async def test_basic_asgi(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 0
-    assert request_span.get_metric("http.status_code") == 200
+    assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
@@ -312,7 +312,7 @@ async def test_double_callable_asgi(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 0
-    assert request_span.get_metric("http.status_code") == 200
+    assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
@@ -344,7 +344,7 @@ async def test_query_string(scope, test_spans):
         assert request_span.name == "asgi.request"
         assert request_span.span_type == "web"
         assert request_span.error == 0
-        assert request_span.get_metric("http.status_code") == 200
+        assert request_span.get_tag("http.status_code") == "200"
         assert request_span.get_tag("component") == "asgi"
         assert request_span.get_tag("span.kind") == "server"
         _check_span_tags(scope, request_span)
@@ -365,7 +365,7 @@ async def test_asgi_error(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_metric("http.status_code") == 500
+    assert request_span.get_tag("http.status_code") == "500"
     assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "asgi"
@@ -389,7 +389,7 @@ async def test_asgi_500(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_metric("http.status_code") == 500
+    assert request_span.get_tag("http.status_code") == "500"
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
 
@@ -412,7 +412,7 @@ async def test_asgi_error_custom(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_metric("http.status_code") == 501
+    assert request_span.get_tag("http.status_code") == "501"
     assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "asgi"
@@ -452,7 +452,7 @@ async def test_distributed_tracing(scope, test_spans):
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
     assert request_span.error == 0
-    assert request_span.get_metric("http.status_code") == 200
+    assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)

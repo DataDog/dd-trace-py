@@ -14,6 +14,7 @@
       "_dd.peer.service.source": "out.host",
       "component": "httpx",
       "http.method": "GET",
+      "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "language": "python",
@@ -27,7 +28,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 82222.0
     },
     "duration": 11425958,
@@ -48,13 +48,11 @@
          "component": "fastapi",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
+         "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
          "http.version": "1.1",
          "span.kind": "server"
-       },
-       "metrics": {
-         "http.status_code": 200
        },
        "duration": 6706792,
        "start": 1771927356353242137
@@ -73,13 +71,11 @@
             "_dd.svc_src": "fastapi",
             "component": "fastapi",
             "http.method": "GET",
+            "http.status_code": "200",
             "http.url": "http://testserver/sub-app/hello/name",
             "http.useragent": "testclient",
             "http.version": "1.1",
             "span.kind": "server"
-          },
-          "metrics": {
-            "http.status_code": 200
           },
           "duration": 6169791,
           "start": 1771927356353799179

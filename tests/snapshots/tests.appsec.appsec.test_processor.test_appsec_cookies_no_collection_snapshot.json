@@ -21,6 +21,7 @@
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
       "appsec.event": "true",
+      "http.status_code": "404",
       "language": "python",
       "runtime-id": "3a46ead67f3f49e39073d61d171bae9c"
     },
@@ -33,7 +34,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "http.status_code": 404,
       "process_id": 12318.0
     },
     "duration": 9651000,

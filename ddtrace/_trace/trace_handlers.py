@@ -253,9 +253,9 @@ def _on_web_framework_finish_request(
 def _set_inferred_proxy_tags(span, status_code):
     if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
         inferred_span = span._parent
-        status_code = status_code if status_code else span._get_attribute("http.status_code")
+        status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
-            inferred_span._set_attribute("http.status_code", int(status_code))
+            inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
             if ERROR_MSG in span._meta.keys():
@@ -667,7 +667,7 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
     # If we have a status code, and the status code is not an error,
     #   then ignore the exception being raised
-    status_code = span._get_numeric_attribute(http.STATUS_CODE)
+    status_code = span.get_tag(http.STATUS_CODE)
     if status_code and not is_error_code_fn(int(status_code)):
         span._ignore_exception(exception_type)
 

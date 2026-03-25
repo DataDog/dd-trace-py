@@ -36,13 +36,11 @@
          "_dd.p.tid": "654a694400000000",
          "component": "aiohttp_client",
          "http.method": "GET",
+         "http.status_code": "200",
          "http.status_msg": "OK",
          "http.url": "http://localhost:8001/status/200",
          "out.host": "localhost",
          "span.kind": "client"
-       },
-       "metrics": {
-         "http.status_code": 200
        },
        "duration": 2486123,
        "start": 1691160523136422028

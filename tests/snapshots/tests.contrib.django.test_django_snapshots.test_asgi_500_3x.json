@@ -21,6 +21,7 @@
       "django.view": "error-500",
       "http.method": "GET",
       "http.route": "^error-500/$",
+      "http.status_code": "500",
       "http.url": "http://localhost:8000/error-500/",
       "http.useragent": "python-requests/2.32.3",
       "http.version": "1.1",
@@ -33,7 +34,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 500,
       "process_id": 44304.0
     },
     "duration": 46212667,

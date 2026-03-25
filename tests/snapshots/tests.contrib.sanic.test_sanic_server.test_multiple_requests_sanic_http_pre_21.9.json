@@ -15,6 +15,7 @@
       "_dd.svc_src": "sanic",
       "component": "sanic",
       "http.method": "GET",
+      "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
@@ -26,7 +27,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 83553
     },
     "duration": 39547333,
@@ -65,6 +65,7 @@
       "_dd.svc_src": "sanic",
       "component": "sanic",
       "http.method": "GET",
+      "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
       "http.useragent": "python-requests/2.28.2",
       "language": "python",
@@ -76,7 +77,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 83553
     },
     "duration": 39160708,

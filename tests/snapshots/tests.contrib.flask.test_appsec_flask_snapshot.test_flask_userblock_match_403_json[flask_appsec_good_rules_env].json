@@ -36,6 +36,7 @@
       "http.response.headers.content-length": "196",
       "http.response.headers.content-type": "application/json",
       "http.route": "/checkuser/<user_id>",
+      "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/checkuser/123456",
       "http.useragent": "python-requests/2.32.3",
       "language": "python",
@@ -54,7 +55,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "http.status_code": 403,
       "process_id": 70552.0
     },
     "duration": 12498709,
@@ -157,10 +157,8 @@
             "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/flask/patch.py\", line 574, in _patched_request\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_werkzeug20_urllib3~10_pytest-randomly_importlib_metadata_flask-openapi3_flask~10_itsdangerous210_markupsafe20/lib/python3.9/site-packages/flask/app.py\", line 1936, in dispatch_request\n    return self.view_functions[rule.endpoint](**req.view_args)\n  File \"/home/bits/project/ddtrace/contrib/internal/flask/wrappers.py\", line 78, in patch_func\n    return _wrap_call(\n  File \"/home/bits/project/ddtrace/contrib/internal/flask/wrappers.py\", line 69, in _wrap_call\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/flask/app.py\", line 63, in checkuser\n    block_request_if_user_blocked(user_id)\n  File \"/home/bits/project/ddtrace/appsec/_trace_utils.py\", line 374, in block_request_if_user_blocked\n    _asm_request_context.block_request()\n  File \"/home/bits/project/ddtrace/appsec/_asm_request_context.py\", line 471, in block_request\n    _callable()\n  File \"/home/bits/project/ddtrace/contrib/internal/flask/patch.py\", line 553, in _block_request_callable\n    abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=403))\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_werkzeug20_urllib3~10_pytest-randomly_importlib_metadata_flask-openapi3_flask~10_itsdangerous210_markupsafe20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 822, in abort\n    return _aborter(status, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_blinker_requests_werkzeug20_urllib3~10_pytest-randomly_importlib_metadata_flask-openapi3_flask~10_itsdangerous210_markupsafe20/lib/python3.9/site-packages/werkzeug/exceptions.py\", line 804, in __call__\n    raise HTTPException(response=code)\nwerkzeug.exceptions.HTTPException: ??? Unknown Error: None\n",
             "error.type": "werkzeug.exceptions.HTTPException",
             "http.method": "GET",
+            "http.status_code": "403",
             "http.useragent": "python-requests/2.32.3"
-          },
-          "metrics": {
-            "http.status_code": 403
           },
           "duration": 9758458,
           "start": 1772484727426912259

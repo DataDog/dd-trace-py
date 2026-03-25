@@ -20,6 +20,7 @@
       "aws.sqs.queue_name": "test_queue",
       "aws_service": "sqs",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
@@ -31,7 +32,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 58703.0,
       "retry_attempts": 0.0
     },
@@ -61,6 +61,7 @@
       "aws_account": "123456789012",
       "aws_service": "sqs",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
@@ -72,7 +73,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 58703.0,
       "retry_attempts": 0.0
     },
@@ -102,6 +102,7 @@
       "aws_account": "123456789012",
       "aws_service": "sqs",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
@@ -113,7 +114,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 58703.0,
       "retry_attempts": 0.0
     },
@@ -143,6 +143,7 @@
       "aws_account": "123456789012",
       "aws_service": "sqs",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
@@ -154,7 +155,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 58703.0,
       "retry_attempts": 0.0
     },

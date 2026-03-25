@@ -9,5 +9,8 @@ constraints:
     regex: '^(http\.STATUS_CODE|"http\.status_code")$'
 fix: $X._set_attribute($KEY, $VALUE)
 note: |
-  `set_tag(http.STATUS_CODE, value)` has a special case that coerces value to str().
-  This coercion is legacy; internal callers should use `_set_attribute` directly.
+  `_set_attribute(http.STATUS_CODE, value)` coerces the value to str() and stores it in
+  `_meta` (not `_metrics`), preserving the behavior required by the trace agent.
+  Callers may pass int or str values; coercion is handled internally.
+  Use `_set_attribute` instead of `set_tag` to avoid the broader `set_tag` overhead
+  and to prepare for Rust migration.

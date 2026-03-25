@@ -20,6 +20,7 @@
       "django.view": "tests.contrib.django_hosts.views.index",
       "http.method": "GET",
       "http.route": "^$",
+      "http.status_code": "200",
       "http.url": "http://app.example.org/",
       "language": "python",
       "runtime-id": "efaf76d2017949e0bf9970f2fd9356fe",
@@ -30,7 +31,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 45846.0
     },
     "duration": 14550333,

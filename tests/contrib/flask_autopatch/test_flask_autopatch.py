@@ -101,7 +101,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Request tags
         for tag in ["flask.version", "http.url", "http.method", "http.status_code", "flask.endpoint", "flask.url_rule"]:
-            assert req_span._get_attribute(tag) is not None
+            assert tag in req_span.get_tags()
 
         self.assertEqual(req_span.get_tag("flask.endpoint"), "index")
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/")

@@ -29,6 +29,7 @@
       "http.response.headers.content-length": "1",
       "http.response.headers.content-type": "text/html; charset=utf-8",
       "http.route": "/executions/subcommunicatenoshell",
+      "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/executions/subcommunicatenoshell",
       "http.useragent": "python-requests/2.32.3",
       "language": "python",
@@ -46,7 +47,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 70604.0
     },
     "duration": 29621583,

@@ -71,7 +71,7 @@ def _span_aggr_key(span: Span) -> SpanAggrKey:
     service = span.service or ""
     resource = span.resource or ""
     _type = span.span_type or ""
-    status_code = span._get_numeric_attribute("http.status_code") or 0
+    status_code = span.get_tag("http.status_code") or 0
     method = span.get_tag("http.method") or ""
     endpoint = span.get_tag("http.endpoint") or span.get_tag("http.route") or ""
     synthetics = span.context.dd_origin == "synthetics"

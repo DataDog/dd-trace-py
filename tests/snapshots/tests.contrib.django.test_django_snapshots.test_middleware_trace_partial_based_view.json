@@ -20,6 +20,7 @@
       "django.view": "partial-view",
       "http.method": "GET",
       "http.route": "^partial-view/$",
+      "http.status_code": "200",
       "http.url": "http://testserver/partial-view/",
       "language": "python",
       "runtime-id": "5f1251d265904185ae371a48d5cfc7f4",
@@ -30,7 +31,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 19970
     },
     "duration": 1751125,

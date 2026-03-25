@@ -797,10 +797,10 @@ def test_set_http_meta_headers_useragent(  # noqa:F811
 def test_bad_http_code(mock_log, span, int_config, val, bad):
     trace_utils.set_http_meta(span, int_config, status_code=val)
     if bad:
-        assert http.STATUS_CODE not in span._get_attributes()
+        assert http.STATUS_CODE not in span.get_tags()
         mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
     else:
-        assert span.get_metric(http.STATUS_CODE) == int(val)
+        assert span.get_tag(http.STATUS_CODE) == str(val)
 
 
 @pytest.mark.parametrize(

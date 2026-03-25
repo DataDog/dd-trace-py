@@ -30,6 +30,7 @@
       "http.request.headers.x-real-ip": "8.8.4.4",
       "http.response.headers.content-length": "1666",
       "http.response.headers.content-type": "text/html",
+      "http.status_code": "403",
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.32.3",
       "language": "python",
@@ -44,7 +45,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "http.status_code": 403,
       "process_id": 70670.0
     },
     "duration": 5404209,

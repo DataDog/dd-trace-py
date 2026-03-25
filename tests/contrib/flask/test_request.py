@@ -1094,7 +1094,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         req_span = spans[0]
         assert req_span.resource == "GET /helloworld"
-        assert req_span.get_metric("http.status_code") == 500
+        assert req_span.get_tag("http.status_code") == "500"
 
     def test_http_response_header_tracing(self):
         @self.app.route("/response_headers")

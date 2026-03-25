@@ -16,6 +16,7 @@
       "component": "fastapi",
       "http.method": "POST",
       "http.route": "/items/",
+      "http.status_code": "200",
       "http.url": "http://testserver/items/",
       "http.useragent": "testclient",
       "http.version": "1.1",
@@ -27,7 +28,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 82094.0
     },
     "duration": 4980458,
@@ -66,6 +66,7 @@
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/items/{item_id}",
+      "http.status_code": "200",
       "http.url": "http://testserver/items/test_id",
       "http.useragent": "testclient",
       "http.version": "1.1",
@@ -77,7 +78,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 200,
       "process_id": 82094.0
     },
     "duration": 1678666,

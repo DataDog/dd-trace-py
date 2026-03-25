@@ -119,7 +119,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == "POST"
-            assert s.get_metric(http.STATUS_CODE) == 200
+            assert s.get_tag(http.STATUS_CODE) == "200"
             assert s.get_tag(http.URL) == URL_200
             assert s.get_tag("http.request.headers.accept") == "*"
             assert s.get_tag("component") == "urllib3"
@@ -155,7 +155,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         s = spans[0]
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag(http.URL) == URL_200
-        assert s.get_metric(http.STATUS_CODE) == 200
+        assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == HOST
@@ -175,7 +175,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_metric(http.STATUS_CODE) == 200
+        assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag(http.URL) == URL_200_QS
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"
@@ -192,7 +192,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == "POST"
-        assert s.get_metric(http.STATUS_CODE) == 500
+        assert s.get_tag(http.STATUS_CODE) == "500"
         assert s.get_tag(http.URL) == URL_500
         assert s.get_tag("component") == "urllib3"
         assert s.get_tag("span.kind") == "client"

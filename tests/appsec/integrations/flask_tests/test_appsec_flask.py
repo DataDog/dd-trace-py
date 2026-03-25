@@ -53,7 +53,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, "default")
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(http.STATUS_CODE) == 403
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
@@ -76,7 +76,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert triggers is not None
             block_id = triggers[0].get("security_response_id", "default")
             assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
-            assert root_span.get_metric(http.STATUS_CODE) == 403
+            assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
             assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")

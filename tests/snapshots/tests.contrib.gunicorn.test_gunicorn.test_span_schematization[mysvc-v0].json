@@ -13,6 +13,7 @@
       "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
       "http.method": "GET",
+      "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://0.0.0.0:8080/",
       "language": "python",
@@ -23,7 +24,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 56380
     },
     "duration": 461856,

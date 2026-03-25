@@ -74,8 +74,8 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
             return
 
-        status = span._get_numeric_attribute(http.STATUS_CODE)
-        is_404 = status == 404
+        status = span.get_tag(http.STATUS_CODE)
+        is_404 = status == "404" or status == 404
 
         route = span.get_tag(http.ROUTE)
 

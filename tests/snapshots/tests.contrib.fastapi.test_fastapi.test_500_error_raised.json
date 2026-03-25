@@ -19,6 +19,7 @@
       "error.type": "builtins.RuntimeError",
       "http.method": "GET",
       "http.route": "/500",
+      "http.status_code": "500",
       "http.url": "http://testserver/500",
       "http.useragent": "testclient",
       "http.version": "1.1",
@@ -30,7 +31,6 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "http.status_code": 500,
       "process_id": 82094.0
     },
     "duration": 2016375,

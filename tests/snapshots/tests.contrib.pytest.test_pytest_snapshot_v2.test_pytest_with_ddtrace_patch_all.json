@@ -66,6 +66,7 @@
          "_dd.p.tid": "68ee770800000000",
          "component": "httpx",
          "http.method": "GET",
+         "http.status_code": "404",
          "http.url": "http://localhost:9126/bad_path.cgi",
          "http.useragent": "python-httpx/0.27.2",
          "language": "python",
@@ -82,8 +83,7 @@
          "_dd.measured": 1,
          "_dd.py.partial_flush": 1,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "http.status_code": 404
+         "_sampling_priority_v1": 1
        },
        "duration": 2281958,
        "start": 1760458504724846917

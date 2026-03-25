@@ -60,7 +60,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
         assert body_parsed == constants.BLOCKED_RESPONSE_JSON
-        assert root.get_metric(http.STATUS_CODE) == 403
+        assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(http.USER_AGENT) == "fooagent"
@@ -82,7 +82,7 @@ def test_create_new_user(client, test_spans, tracer):
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 200
         assert result.content == b"OK"
-        assert root.get_metric(http.STATUS_CODE) == 200
+        assert root.get_tag(http.STATUS_CODE) == "200"
         assert root.get_tag(http.URL) == "http://testserver/appsec/signup/?login=john&<redacted>", root.get_tag(
             http.URL
         )
@@ -111,7 +111,7 @@ def test_request_userblock_200(client, test_spans, tracer):
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _ALLOWED_USER
         )
         assert result.status_code == 200
-        assert root.get_metric(http.STATUS_CODE) == 200
+        assert root.get_tag(http.STATUS_CODE) == "200"
 
 
 def test_request_userblock_403(client, test_spans, tracer):
@@ -125,7 +125,7 @@ def test_request_userblock_403(client, test_spans, tracer):
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
         assert body_parsed == constants.BLOCKED_RESPONSE_JSON, (body_parsed, constants.BLOCKED_RESPONSE_JSON)
-        assert root.get_metric(http.STATUS_CODE) == 403
+        assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
         assert root.get_tag(http.METHOD) == "GET"
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"

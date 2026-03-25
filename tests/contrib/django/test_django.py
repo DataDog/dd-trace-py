@@ -78,6 +78,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         "django.user.is_authenticated": "False",
         "django.view": "tests.contrib.django.views.index",
         "http.method": "GET",
+        "http.status_code": "200",
         "http.url": "http://testserver/",
     }
     if django.VERSION >= (2, 2, 0):
@@ -92,7 +93,6 @@ def test_django_v2XX_request_root_span(client, test_spans):
         span_type="web",
         error=0,
         meta=meta,
-        metrics={"http.status_code": 200},
     )
 
 
@@ -120,6 +120,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
         "django.user.is_authenticated": "False",
         "django.view": "tests.contrib.django.views.alter_resource",
         "http.method": "GET",
+        "http.status_code": "200",
         "http.url": "http://testserver/alter-resource/",
     }
     if django.VERSION >= (2, 2, 0):
@@ -134,7 +135,6 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
         span_type="web",
         error=0,
         meta=meta,
-        metrics={"http.status_code": 200},
     )
 
 
@@ -201,7 +201,7 @@ def test_disallowed_host(client, test_spans):
         assert b"Bad Request (400)" in resp.content
 
     root_span = test_spans.get_root_span()
-    assert root_span.get_metric("http.status_code") == 400
+    assert root_span.get_tag("http.status_code") == "400"
     assert root_span.get_tag("http.url") == "http://testserver/"
 
 
@@ -352,9 +352,9 @@ def test_django_request_not_found(client, test_spans):
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
             "django.response.class": "django.http.response.HttpResponseNotFound",
             "http.method": "GET",
+            "http.status_code": "404",
             "http.url": "http://testserver/unknown/endpoint",
         },
-        metrics={"http.status_code": 404},
     )
 
 
@@ -379,7 +379,7 @@ def test_middleware_trace_error_500(client, test_spans):
     # Test the root span
     span = test_spans.get_root_span()
     assert span.error == 1
-    assert span.get_metric("http.status_code") == 500
+    assert span.get_tag("http.status_code") == "500"
     assert span.get_tag(http.URL) == "http://testserver/error-500/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^error-500/$"
@@ -516,7 +516,7 @@ def test_lambda_based_view(client, test_spans):
     assert client.get("/lambda-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_metric("http.status_code") == 200
+    assert span.get_tag("http.status_code") == "200"
     assert span.get_tag(http.URL) == "http://testserver/lambda-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^lambda-view/$"
@@ -593,7 +593,7 @@ def test_middleware_trace_function_based_view(client, test_spans):
     assert client.get("/fn-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_metric("http.status_code") == 200
+    assert span.get_tag("http.status_code") == "200"
     assert span.get_tag(http.URL) == "http://testserver/fn-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^fn-view/$"
@@ -606,7 +606,7 @@ def test_middleware_trace_errors(client, test_spans):
     assert client.get("/fail-view/").status_code == 403
 
     span = test_spans.get_root_span()
-    assert span.get_metric("http.status_code") == 403
+    assert span.get_tag("http.status_code") == "403"
     assert span.get_tag(http.URL) == "http://testserver/fail-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^fail-view/$"
@@ -619,7 +619,7 @@ def test_middleware_trace_staticmethod(client, test_spans):
     assert client.get("/static-method-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_metric("http.status_code") == 200
+    assert span.get_tag("http.status_code") == "200"
     assert span.get_tag(http.URL) == "http://testserver/static-method-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^static-method-view/$"
@@ -2617,6 +2617,7 @@ class TestWSGI:
             "django.user.is_authenticated": "False",
             "django.view": "tests.contrib.django.views.index",
             "http.method": "GET",
+            "http.status_code": "200",
             "http.url": "http://testserver/",
             "span.kind": "server",
         }
@@ -2632,7 +2633,6 @@ class TestWSGI:
             span_type="web",
             error=0,
             meta=meta,
-            metrics={"http.status_code": 200},
         )
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):
@@ -2654,7 +2654,7 @@ class TestWSGI:
         root = test_spans.get_root_span()
 
         assert root.error == 1
-        assert root.get_metric("http.status_code") == 500
+        assert root.get_tag("http.status_code") == "500"
         assert root.get_tag(http.URL) == "http://testserver/error-500/"
         assert root.get_tag("django.response.class") == "django.http.response.HttpResponseServerError"
         if django.VERSION >= (2, 2, 0):

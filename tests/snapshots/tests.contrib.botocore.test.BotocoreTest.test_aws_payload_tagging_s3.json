@@ -23,6 +23,7 @@
       "aws.response.body.RetryAttempts": "0",
       "aws_service": "s3",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "region": "us-west-2",
       "runtime-id": "010e1ba41dc54c378179fd51445afc77",
@@ -33,7 +34,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 94950.0,
       "retry_attempts": 0
     },
@@ -65,6 +65,7 @@
       "aws.response.body.RetryAttempts": "0",
       "aws_service": "s3",
       "component": "botocore",
+      "http.status_code": "200",
       "language": "python",
       "region": "us-west-2",
       "runtime-id": "010e1ba41dc54c378179fd51445afc77",
@@ -75,7 +76,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "http.status_code": 200,
       "process_id": 3979,
       "retry_attempts": 0
     },
