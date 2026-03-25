@@ -104,6 +104,35 @@ def test_uploader_502_error():
         uploader._write(b'{"test": "data"}', "/debugger/v1/input")
 
 
+def test_agentless_uploader(monkeypatch):
+    """Test SignalUploader in agentless CI mode (no HTTP requests are made)."""
+    from ddtrace.debugging._config import di_config
+    from ddtrace.debugging._signal.model import SignalTrack
+
+    # Force re-evaluation of derived values on the singleton
+    monkeypatch.setattr(di_config, "_is_agentless", True)
+    monkeypatch.setattr(di_config, "_api_key", "test-api-key")
+    monkeypatch.setattr(di_config, "_intake_url", "https://http-intake.logs.datadoghq.eu")
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    # Prevent any accidental HTTP request
+    uploader._connect = lambda: (_ for _ in ()).throw(AssertionError("unexpected HTTP request"))
+
+    # Agentless mode: endpoint should be /api/v2/logs for both tracks
+    assert uploader._tracks[SignalTrack.LOGS].endpoint == "/api/v2/logs"
+    assert uploader._tracks[SignalTrack.SNAPSHOT].endpoint == "/api/v2/logs"
+
+    # API key must be in headers
+    assert uploader._headers.get("DD-API-KEY") == "test-api-key"
+
+    # State should be _online (skipping agent check)
+    assert uploader._state == uploader._online
+
+    # info_check should return True regardless of agent_info
+    assert uploader.info_check(None) is True
+    assert uploader.info_check({}) is True
+
+
 def test_info_check_endpoint_selection():
     """Test info_check endpoint selection and fallback behavior for both LOGS and SNAPSHOT tracks."""
     from ddtrace.debugging._signal.model import SignalTrack

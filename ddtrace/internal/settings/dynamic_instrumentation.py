@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import re
 import typing as t
@@ -8,7 +9,11 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.version import __version__
+
+
+AGENTLESS_LOGS_INTAKE_HOST_PREFIX = "http-intake.logs"
 
 
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
@@ -46,7 +51,30 @@ class DynamicInstrumentationConfig(DDConfig):
     __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
+    # In agentless CI mode with test replay enabled, DI logs go directly to the logs intake.
+    # DD_TEST_FAILED_TEST_REPLAY_ENABLED controls test DI (defaults to enabled)
+    _is_agentless = DDConfig.d(
+        bool,
+        lambda _: (
+            asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false"))
+            and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true"))
+        ),
+    )
+    _intake_url = DDConfig.d(
+        str,
+        lambda _: (
+            "https://{}.{}".format(
+                AGENTLESS_LOGS_INTAKE_HOST_PREFIX,
+                os.getenv("DD_SITE", "datadoghq.com"),
+            )
+            if (
+                asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false"))
+                and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true"))
+            )
+            else agent_config.trace_agent_url
+        ),
+    )
+    _api_key = DDConfig.d(str, lambda _: os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY", "")))
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
     tags = DDConfig.d(str, _derive_tags)
@@ -120,9 +148,11 @@ class DynamicInstrumentationConfig(DDConfig):
 
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
-        lambda c: re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
-        if c.redacted_types
-        else None,
+        lambda c: (
+            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+            if c.redacted_types
+            else None
+        ),
     )
 
     redaction_excluded_identifiers = DDConfig.v(

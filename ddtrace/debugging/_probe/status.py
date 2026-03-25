@@ -38,8 +38,12 @@ class ProbeStatusLogger:
             attempts=self.RETRY_ATTEMPTS,
         )(self._write_payload)
 
-        if di_config._tags_in_qs and di_config.tags:
-            self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
+        if di_config._is_agentless:
+            self._endpoint = "/api/v2/logs"
+        else:
+            self._endpoint = self.ENDPOINT
+            if di_config._tags_in_qs and di_config.tags:
+                self._endpoint += f"?ddtags={quote(di_config.tags)}"
 
     def _payload(
         self, probe: Probe, status: str, message: str, timestamp: float, error: t.Optional[ErrorInfo] = None
@@ -79,7 +83,7 @@ class ProbeStatusLogger:
             with self._connect() as conn:
                 conn.request(
                     "POST",
-                    "/debugger/v1/diagnostics",
+                    self._endpoint,
                     body,
                     headers=headers,
                 )
@@ -107,18 +111,26 @@ class ProbeStatusLogger:
             msgs.append(self._queue.get_nowait())
 
         try:
-            self._write_payload_with_backoff(
-                multipart(
-                    parts=[
-                        FormData(
-                            name="event",
-                            filename="event.json",
-                            data=f"[{','.join(msgs)}]",
-                            content_type="json",
-                        )
-                    ]
+            if di_config._is_agentless:
+                body = f"[{','.join(msgs)}]".encode("utf-8")
+                headers = {
+                    "Content-Type": "application/json",
+                    "DD-API-KEY": di_config._api_key,
+                }
+                self._write_payload_with_backoff((body, headers))
+            else:
+                self._write_payload_with_backoff(
+                    multipart(
+                        parts=[
+                            FormData(
+                                name="event",
+                                filename="event.json",
+                                data=f"[{','.join(msgs)}]",
+                                content_type="json",
+                            )
+                        ]
+                    )
                 )
-            )
         except Exception:
             log.error("Failed to write probe status after retries", exc_info=True)
 
