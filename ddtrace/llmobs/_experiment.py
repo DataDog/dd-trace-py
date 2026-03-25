@@ -936,9 +936,6 @@ if PydanticEvaluator is not None:
                 experiment_metadata=eval_context.metadata,
             )
             result = evaluator.evaluate(report_eval_context)
-            # return json.dumps(result.__dict__, indent=4)
-            print(f"result: {result}")
-            print(f"result.value: {result.value}")
             return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
@@ -979,6 +976,58 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 0) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            assertions = dict()
+            scores = dict()
+            labels = dict()
+            for idx, input_data in enumerate(eval_context.inputs):
+
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(eval_results[eval_name][idx], int):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(PydanticReportCase(
+                    name=f"case_{idx}",
+                    inputs=input_data,
+                    metadata=eval_context.metadata,
+                    expected_output=eval_context.expected_outputs[idx],
+                    output=eval_context.outputs[idx],
+                    assertions=assertions,
+                    scores=scores,
+                    labels=labels,
+                    task_duration=duration,
+                    total_duration=total_duration,
+                    attributes={},
+                    metrics={},
+                ))
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = await evaluator.evaluate_async(report_eval_context)
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
+        return wrapped_evaluator
 else:
 
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -993,6 +1042,9 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
 
 class Project(TypedDict):
     name: str

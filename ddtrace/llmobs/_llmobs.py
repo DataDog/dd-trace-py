@@ -129,6 +129,7 @@ from ddtrace.llmobs._experiment import _is_pydantic_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator_with_scalar_result
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -1650,7 +1651,7 @@ class LLMObs(Service):
                     if current_span is not None and current_span.duration_ns is not None:
                         duration = current_span.duration_ns
                         total_duration = current_span.duration_ns
-                    summary_evaluators[idx] = _pydantic_report_async_evaluator_wrapper(summary_evaluator, duration, total_duration)
+                    summary_evaluators[idx] = _pydantic_async_report_evaluator_wrapper(summary_evaluator, duration, total_duration)
                     continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
         return Experiment(
