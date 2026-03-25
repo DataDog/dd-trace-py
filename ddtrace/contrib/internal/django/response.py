@@ -51,7 +51,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
     metadata: dict[str, str] = {}
     query: str = ""
     try:
-        metadata = {http.STATUS_CODE: 403, http.METHOD: request.method}
+        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
         if query and config_django.trace_query_string:
