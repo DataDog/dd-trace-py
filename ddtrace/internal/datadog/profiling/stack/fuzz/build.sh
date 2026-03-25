@@ -2,17 +2,19 @@
 set -eo pipefail
 
 FUZZ_TARGETS=(
+    fuzz_echion_frame_create
     fuzz_echion_frame_read
     fuzz_echion_greenlet
     fuzz_echion_interp
     fuzz_echion_long
     fuzz_echion_mirrors
     fuzz_echion_pyunicode
-    fuzz_echion_remote_read
     fuzz_echion_stacks
     fuzz_echion_strings
     fuzz_echion_task_unwind
     fuzz_echion_tasks
+    fuzz_echion_thread_unwind
+    fuzz_echion_thread_unwind_tasks
 )
 BUILD_DIR=/tmp/fuzz/build
 MANIFEST_FILE="/fuzz_binaries.txt"
