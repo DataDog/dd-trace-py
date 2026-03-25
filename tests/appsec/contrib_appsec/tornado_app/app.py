@@ -476,9 +476,9 @@ class RedirectHttpxAsyncHandler(BaseHandler):
 class ExceptionGroupBlockHandler(BaseHandler):
     async def get(self) -> None:
         """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
-        if sys.version_info < (3, 11):
+        if sys.version_info < (3, 11) or self.get_query_argument("block", "") != "true":
             self.set_header("Content-Type", "text/html")
-            self.write("not supported")
+            self.write("ok")
             return
 
         from ddtrace.appsec._utils import Block_config

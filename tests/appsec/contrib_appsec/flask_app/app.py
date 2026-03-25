@@ -410,8 +410,8 @@ def login_user_sdk():
 @app.route("/exception-group-block", methods=["GET"])
 def exception_group_block():
     """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
-    if sys.version_info < (3, 11):
-        return "not supported", 200
+    if sys.version_info < (3, 11) or request.args.get("block") != "true":
+        return "ok", 200
 
     from ddtrace.appsec._utils import Block_config
     from ddtrace.internal._exceptions import BlockingException

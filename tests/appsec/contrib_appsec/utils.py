@@ -639,7 +639,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         """Test that BlockingException wrapped in BaseExceptionGroup is properly caught and returns 403."""
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
-            response = interface.client.get("/exception-group-block")
+            response = interface.client.get("/exception-group-block?block=true")
             assert (st := self.status(response)) == 403, f"expected 403 but got {st}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])

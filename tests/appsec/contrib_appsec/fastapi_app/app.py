@@ -407,10 +407,10 @@ def get_app():
         return payload
 
     @app.get("/exception-group-block")
-    async def exception_group_block():
+    async def exception_group_block(request: Request):
         """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
-        if sys.version_info < (3, 11):
-            return HTMLResponse("not supported", status_code=200)
+        if sys.version_info < (3, 11) or request.query_params.get("block") != "true":
+            return HTMLResponse("ok", status_code=200)
 
         from ddtrace.appsec._utils import Block_config
         from ddtrace.internal._exceptions import BlockingException
