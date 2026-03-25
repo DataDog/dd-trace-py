@@ -474,6 +474,7 @@ class Tracer(object):
             else:
                 service = config.service
 
+        # Update the service name based on any mapping
         if service is not None:
             service = config.service_mapping.get(service, service)
 
