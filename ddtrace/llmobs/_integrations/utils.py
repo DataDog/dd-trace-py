@@ -327,7 +327,11 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
-        content = str(_get_attr(m, "content", ""))
+        raw_content = _get_attr(m, "content", "")
+        if isinstance(raw_content, list):
+            content = _extract_chat_content_parts(raw_content)
+        else:
+            content = str(raw_content) if raw_content else ""
         role = str(_get_attr(m, "role", ""))
         processed_message: Message = Message(content=content, role=role)
         tool_call_id = _get_attr(m, "tool_call_id", None)
@@ -819,6 +823,28 @@ def _extract_content_item_text(content_item: Any) -> str:
         return str(text) if text else ""
 
     return ""
+
+
+def _extract_chat_content_parts(content_parts: list) -> str:
+    """Extract text from OpenAI Chat API multimodal content parts.
+
+    Handles content part types used by the Chat Completions API:
+    - {"type": "text", "text": "..."}
+    - {"type": "image_url", "image_url": {"url": "..."}}
+    - {"type": "input_audio", ...}
+    """
+    texts = []
+    for part in content_parts:
+        part_type = _get_attr(part, "type", "")
+        if part_type == "text":
+            text = _get_attr(part, "text", "")
+            if text:
+                texts.append(str(text))
+        elif part_type == "image_url":
+            texts.append(IMAGE_FALLBACK_MARKER)
+        elif part_type == "input_audio":
+            texts.append("[audio]")
+    return "\n".join(texts)
 
 
 def _normalize_prompt_variables(variables: dict[str, Any]) -> dict[str, Any]:

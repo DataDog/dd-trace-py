@@ -1,3 +1,4 @@
+from ddtrace.llmobs._integrations.utils import _extract_chat_content_parts
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 
@@ -161,6 +162,58 @@ def test_normalize_prompt_variables():
     assert result["file_name"] == "report.pdf"
     assert result["file_data"] == "[file]"
     assert result["file_fallback"] == "[file]"
+
+
+class TestExtractChatContentParts:
+    def test_text_only(self):
+        parts = [{"type": "text", "text": "Hello world"}]
+        assert _extract_chat_content_parts(parts) == "Hello world"
+
+    def test_multiple_text_parts(self):
+        parts = [
+            {"type": "text", "text": "First part"},
+            {"type": "text", "text": "Second part"},
+        ]
+        assert _extract_chat_content_parts(parts) == "First part\nSecond part"
+
+    def test_text_and_image_url(self):
+        parts = [
+            {"type": "text", "text": "Describe this image"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/img.png"}},
+        ]
+        assert _extract_chat_content_parts(parts) == "Describe this image\n[image]"
+
+    def test_image_url_only(self):
+        parts = [{"type": "image_url", "image_url": {"url": "https://example.com/img.png"}}]
+        assert _extract_chat_content_parts(parts) == "[image]"
+
+    def test_input_audio(self):
+        parts = [
+            {"type": "text", "text": "Transcribe this"},
+            {"type": "input_audio", "input_audio": {"data": "base64data", "format": "wav"}},
+        ]
+        assert _extract_chat_content_parts(parts) == "Transcribe this\n[audio]"
+
+    def test_empty_list(self):
+        assert _extract_chat_content_parts([]) == ""
+
+    def test_empty_text(self):
+        parts = [{"type": "text", "text": ""}]
+        assert _extract_chat_content_parts(parts) == ""
+
+    def test_pydantic_like_objects(self):
+        """Simulate Pydantic model objects with attribute access (like OpenAI SDK models)."""
+
+        class ContentPart:
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+
+        parts = [
+            ContentPart(type="text", text="Return an integer up to 10."),
+            ContentPart(type="image_url", image_url=ContentPart(url="https://example.com/img.png")),
+        ]
+        assert _extract_chat_content_parts(parts) == "Return an integer up to 10.\n[image]"
 
 
 def test_extract_chat_template_with_falsy_values():
