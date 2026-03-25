@@ -99,6 +99,8 @@ build_root = meson.project_build_root()
 # Install pure Python package via install_subdir.
 # meson-python collects everything installed to the prefix and packages it.
 # The exclude lists keep binary sources and large vendored C/C++ out of the wheel.
+# Shared libraries are excluded here and installed explicitly from the Meson
+# build graph below so clean wheels do not depend on source-tree side effects.
 install_subdir(
   'ddtrace',
   install_dir: py.get_install_dir(),
@@ -119,6 +121,13 @@ install_subdir(
     '**/*.h',
     '**/*.hh',
     '**/*.hpp',
+    # Shared libraries are installed from Meson targets, not copied from the
+    # source tree. This prevents dirty worktrees from leaking stale binaries
+    # into clean wheel builds.
+    '**/*.so',
+    '**/*.dylib',
+    '**/*.pyd',
+    '**/*.dll',
     # Rust sources
     '**/*.rs',
     '**/*.toml',
@@ -246,14 +255,9 @@ endif
 # ================================================================
 # Complex Extensions via custom_target (Rust + CMake)
 #
-# Design: each custom_target writes its built .so DIRECTLY into the
-# source tree at the canonical location (mirroring how setup.py works
-# for editable/in-place builds).  The target produces a stamp file so
-# meson can track completion and enforce ordering.
-#
-# install_subdir('ddtrace', …) installs the full ddtrace tree at install
-# time, by which point the build steps have already populated the .so
-# files.  No install_data or install_rename gymnastics needed.
+# Design: each custom_target writes its built binary into the Meson build
+# directory and installs it explicitly. This keeps wheel/editable builds
+# deterministic and avoids depending on pre-existing source-tree artifacts.
 # ================================================================
 
 build_helper = files('scripts/meson_build_ext.py')
@@ -266,12 +270,12 @@ if is_unix and is_64bit
 endif
 
 native_so = '_native' + ext_suffix
-native_out = src_root / 'ddtrace/internal/native' / native_so
+profiling_install_dir = py.get_install_dir() / 'ddtrace/internal/datadog/profiling'
 
 # --- Rust extension: ddtrace.internal.native._native ---
 rust_stamp = custom_target(
   '_native_rust',
-  output: ['_native_rust.stamp'],
+  output: [native_so],
   command: [
     py, build_helper, 'rust',
     '--src-root', src_root,
@@ -279,32 +283,30 @@ rust_stamp = custom_target(
     '--manifest', src_root / 'src/native/Cargo.toml',
     '--features', rust_features,
     '--ext-suffix', ext_suffix,
-    '--output', native_out,
-    '--stamp', '@OUTPUT0@',
+    '--output', '@OUTPUT0@',
     '--python', py.full_path(),
     '--host', host,
   ],
   build_by_default: true,
-  install: false,
+  install: true,
+  install_dir: py.get_install_dir() / 'ddtrace/internal/native',
 )
 
 if is_unix and is_64bit
   rust_headers_dir = cargo_target_dir / 'include'
-  profiling_dir = src_root / 'ddtrace/internal/datadog/profiling'
 
   # --- libdd_wrapper shared library ---
-  wrapper_out = profiling_dir / ('libdd_wrapper' + ext_suffix)
+  wrapper_so = 'libdd_wrapper' + ext_suffix
 
   libdd_wrapper_stamp = custom_target(
     'libdd_wrapper',
-    output: ['libdd_wrapper.stamp'],
+    output: [wrapper_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
       '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/dd_wrapper',
-      '--output', wrapper_out,
-      '--install-dir', profiling_dir,
-      '--stamp', '@OUTPUT0@',
+      '--output', '@OUTPUT0@',
+      '--install-dir', '@OUTDIR@',
       '--python', py.full_path(),
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
@@ -313,26 +315,26 @@ if is_unix and is_64bit
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'dd_wrapper',
-      '--native-ext-dir', src_root / 'ddtrace/internal/native',
+      '--native-ext-dir', build_root,
     ],
     depends: [rust_stamp],
     build_by_default: true,
-    install: false,
+    install: true,
+    install_dir: profiling_install_dir,
   )
 
   # --- _memalloc ---
-  memalloc_out = src_root / 'ddtrace/profiling/collector' / ('_memalloc' + ext_suffix)
+  memalloc_so = '_memalloc' + ext_suffix
 
   memalloc_stamp = custom_target(
     '_memalloc',
-    output: ['_memalloc.stamp'],
+    output: [memalloc_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
       '--cmake-src-dir', src_root / 'ddtrace/profiling/collector',
-      '--output', memalloc_out,
-      '--install-dir', src_root / 'ddtrace/profiling/collector',
-      '--stamp', '@OUTPUT0@',
+      '--output', '@OUTPUT0@',
+      '--install-dir', '@OUTDIR@',
       '--python', py.full_path(),
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
@@ -341,27 +343,27 @@ if is_unix and is_64bit
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'memalloc',
-      '--native-ext-dir', src_root / 'ddtrace/internal/native',
-      '--dd-wrapper-dir', profiling_dir,
+      '--native-ext-dir', build_root,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
-    install: false,
+    install: true,
+    install_dir: py.get_install_dir() / 'ddtrace/profiling/collector',
   )
 
   # --- _ddup ---
-  ddup_out = src_root / 'ddtrace/internal/datadog/profiling/ddup' / ('_ddup' + ext_suffix)
+  ddup_so = '_ddup' + ext_suffix
 
   ddup_stamp = custom_target(
     '_ddup',
-    output: ['_ddup.stamp'],
+    output: [ddup_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
       '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/ddup',
-      '--output', ddup_out,
-      '--install-dir', src_root / 'ddtrace/internal/datadog/profiling/ddup',
-      '--stamp', '@OUTPUT0@',
+      '--output', '@OUTPUT0@',
+      '--install-dir', '@OUTDIR@',
       '--python', py.full_path(),
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
@@ -370,27 +372,27 @@ if is_unix and is_64bit
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'ddup',
-      '--native-ext-dir', src_root / 'ddtrace/internal/native',
-      '--dd-wrapper-dir', profiling_dir,
+      '--native-ext-dir', build_root,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
-    install: false,
+    install: true,
+    install_dir: py.get_install_dir() / 'ddtrace/internal/datadog/profiling/ddup',
   )
 
   # --- _stack ---
-  stack_out = src_root / 'ddtrace/internal/datadog/profiling/stack' / ('_stack' + ext_suffix)
+  stack_so = '_stack' + ext_suffix
 
   stack_stamp = custom_target(
     '_stack',
-    output: ['_stack.stamp'],
+    output: [stack_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
       '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/stack',
-      '--output', stack_out,
-      '--install-dir', src_root / 'ddtrace/internal/datadog/profiling/stack',
-      '--stamp', '@OUTPUT0@',
+      '--output', '@OUTPUT0@',
+      '--install-dir', '@OUTDIR@',
       '--python', py.full_path(),
       '--py-prefix', py_prefix,
       '--ext-suffix', ext_suffix,
@@ -399,28 +401,28 @@ if is_unix and is_64bit
       '--cargo-target-dir', cargo_target_dir,
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'stack',
-      '--native-ext-dir', src_root / 'ddtrace/internal/native',
-      '--dd-wrapper-dir', profiling_dir,
+      '--native-ext-dir', build_root,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
-    install: false,
+    install: true,
+    install_dir: py.get_install_dir() / 'ddtrace/internal/datadog/profiling/stack',
   )
 endif
 
 # --- IAST taint tracking: _native (standalone pybind11+Abseil) ---
-iast_native_out = src_root / 'ddtrace/appsec/_iast/_taint_tracking' / native_so
+iast_native_build_so = 'native_iast_raw' + ext_suffix
 
 iast_stamp = custom_target(
   '_iast_native',
-  output: ['_iast_native.stamp'],
+  output: [iast_native_build_so],
   command: [
     py, build_helper, 'cmake',
     '--src-root', src_root,
     '--cmake-src-dir', src_root / 'ddtrace/appsec/_iast/_taint_tracking',
-    '--output', iast_native_out,
-    '--install-dir', src_root / 'ddtrace/appsec/_iast/_taint_tracking',
-    '--stamp', '@OUTPUT0@',
+    '--output', '@OUTPUT0@',
+    '--install-dir', '@OUTDIR@',
     '--python', py.full_path(),
     '--py-prefix', py_prefix,
     '--ext-suffix', ext_suffix,
@@ -429,7 +431,15 @@ iast_stamp = custom_target(
     '--component-name', 'iast_native',
   ],
   build_by_default: true,
-  install: false,
+  install: true,
+  install_dir: py.get_install_dir() / '.meson-native',
+)
+
+meson.add_install_script(
+  py,
+  files('scripts/meson_install_iast_native.py'),
+  '--ext-suffix', ext_suffix,
+  '--py-install-dir', py.get_install_dir(),
 )
 
 # --- psutil vendor extension ---
@@ -443,28 +453,46 @@ else
   psutil_so_name = '_psutil_posix' + ext_suffix
 endif
 
-psutil_out = src_root / 'ddtrace/vendor/psutil' / psutil_so_name
-
 psutil_stamp = custom_target(
   'psutil_vendor',
-  output: ['psutil_vendor.stamp'],
+  output: [psutil_so_name],
   command: [
     py, build_helper, 'psutil',
     '--src-root', src_root,
-    '--output', psutil_out,
-    '--stamp', '@OUTPUT0@',
+    '--output', '@OUTPUT0@',
     '--python', py.full_path(),
     '--ext-suffix', ext_suffix,
     '--host', host,
   ],
   build_by_default: true,
-  install: false,
+  install: true,
+  install_dir: py.get_install_dir() / 'ddtrace/vendor/psutil',
 )
 
 # --- libddwaf download ---
+if host == 'darwin'
+  libddwaf_ext = '.dylib'
+  libddwaf_arch_dir = cpu == 'aarch64' ? 'arm64' : 'x86_64'
+elif host == 'linux'
+  libddwaf_ext = '.so'
+  libddwaf_arch_dir = cpu == 'aarch64' ? 'aarch64' : 'x86_64'
+elif host == 'windows'
+  libddwaf_ext = '.dll'
+  if cpu == 'aarch64'
+    libddwaf_arch_dir = 'arm64'
+  elif cpu == 'x86'
+    libddwaf_arch_dir = 'win32'
+  else
+    libddwaf_arch_dir = 'x64'
+  endif
+else
+  libddwaf_ext = ''
+  libddwaf_arch_dir = ''
+endif
+
 libddwaf_stamp = custom_target(
   'libddwaf_download',
-  output: ['libddwaf.stamp'],
+  output: ['libddwaf' + libddwaf_ext],
   command: [
     py, build_helper, 'libddwaf',
     '--src-root', src_root,
@@ -473,5 +501,6 @@ libddwaf_stamp = custom_target(
     '--host', host,
   ],
   build_by_default: true,
-  install: false,
+  install: true,
+  install_dir: py.get_install_dir() / 'ddtrace/appsec/_ddwaf/libddwaf' / libddwaf_arch_dir / 'lib',
 )

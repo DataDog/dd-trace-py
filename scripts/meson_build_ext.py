@@ -16,11 +16,20 @@ import argparse
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 
 
 CURRENT_OS = platform.system()
+LIBDATADOG_REPO = "https://github.com/DataDog/libdatadog"
+
+
+def _resolve_path_arg(path_str: str) -> Path:
+    path = Path(path_str)
+    if path.is_absolute():
+        return path
+    return (Path.cwd() / path).resolve()
 
 
 def get_cmake_binary():
@@ -50,7 +59,7 @@ def cmd_rust(args):
     """Build the Rust (_native) PyO3 extension via cargo."""
     cargo_target_dir = Path(args.cargo_target_dir)
     manifest = Path(args.manifest)
-    output = Path(args.output)
+    output = _resolve_path_arg(args.output)
     features = args.features
     python = args.python
     host = args.host
@@ -128,12 +137,8 @@ def cmd_rust(args):
     if "profiling" in (features or ""):
         include_dir = cargo_target_dir / "include" / "datadog"
         if include_dir.exists():
-            _ensure_dedup_headers()
-            dedup = shutil.which("dedup_headers")
-            if dedup:
-                run([dedup, "common.h", "profiling.h"], cwd=str(include_dir))
-            else:
-                print("[meson_build_ext] WARNING: dedup_headers not found, skipping")
+            dedup = _ensure_dedup_headers(manifest, Path(args.src_root))
+            run([dedup, "common.h", "profiling.h"], cwd=str(include_dir))
         else:
             print(f"[meson_build_ext] WARNING: Include dir not found: {include_dir}")
 
@@ -149,29 +154,91 @@ def _write_stamp(args):
         stamp_path.write_text("done\n")
 
 
-def _ensure_dedup_headers():
-    """Install dedup_headers if not already available."""
-    if shutil.which("dedup_headers"):
-        return
-    print("[meson_build_ext] Installing dedup_headers from libdatadog...")
+def _libdatadog_tools_rev(manifest: Path) -> str:
+    manifest_text = manifest.read_text(encoding="utf-8")
+    match = re.search(r'build_common\s*=\s*\{[^}]*\brev\s*=\s*"([^"]+)"', manifest_text, re.DOTALL)
+    if not match:
+        raise RuntimeError(f"Could not determine libdatadog tools revision from {manifest}")
+    return match.group(1)
+
+
+def _ensure_dedup_headers(manifest: Path, src_root: Path) -> str:
+    """Install a revision-pinned dedup_headers binary for the active libdatadog toolchain."""
+    libdatadog_rev = _libdatadog_tools_rev(manifest)
+    install_root = src_root / ".download_cache" / "tools" / f"libdatadog-{libdatadog_rev}"
+    dedup = install_root / "bin" / "dedup_headers"
+    if dedup.exists():
+        return str(dedup)
+
+    print(f"[meson_build_ext] Installing dedup_headers from libdatadog {libdatadog_rev}...")
     cargo = shutil.which("cargo") or "cargo"
+    install_root.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             cargo,
             "install",
             "--git",
-            "https://github.com/DataDog/libdatadog",
+            LIBDATADOG_REPO,
+            "--rev",
+            libdatadog_rev,
+            "--root",
+            str(install_root),
             "--bin",
             "dedup_headers",
             "tools",
         ],
         check=True,
     )
+    return str(dedup)
 
 
 # ---------------------------------------------------------------------------
 # CMake builds
 # ---------------------------------------------------------------------------
+
+
+def _clean_stale_fetchcontent_state(fetchcontent_dir: Path) -> None:
+    current_base_dir = str(fetchcontent_dir)
+    for cache_path in fetchcontent_dir.glob("*-subbuild/CMakeCache.txt"):
+        try:
+            cache_text = cache_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+
+        if current_base_dir in cache_text:
+            continue
+
+        dep_name = cache_path.parent.name[: -len("-subbuild")]
+        # AIDEV-NOTE: CMake FetchContent caches absolute checkout paths in the
+        # generated *-build / *-subbuild trees. GitLab reuses .download_cache
+        # across different workspace roots, so we must clear only the generated
+        # state for a dependency when the cached path no longer matches the
+        # current checkout. Keep *-src so the downloaded dependency itself is
+        # still reused.
+        for suffix in ("-subbuild", "-build"):
+            stale_dir = fetchcontent_dir / f"{dep_name}{suffix}"
+            if stale_dir.exists():
+                print(f"[meson_build_ext] Removing stale FetchContent state: {stale_dir}")
+                shutil.rmtree(stale_dir, ignore_errors=True)
+
+
+def _clean_stale_cmake_build_dir(build_dir: Path, cmake_src_dir: Path) -> None:
+    cache_path = build_dir / "CMakeCache.txt"
+    if not cache_path.exists():
+        return
+
+    try:
+        cache_text = cache_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return
+
+    current_build_dir = str(build_dir)
+    current_source_dir = str(cmake_src_dir)
+    if current_build_dir in cache_text and current_source_dir in cache_text:
+        return
+
+    print(f"[meson_build_ext] Removing stale CMake build dir: {build_dir}")
+    shutil.rmtree(build_dir, ignore_errors=True)
 
 
 def cmd_cmake(args):
@@ -190,8 +257,8 @@ def cmd_cmake(args):
 
     src_root = Path(args.src_root)
     cmake_src_dir = Path(args.cmake_src_dir)
-    output = Path(args.output)
-    install_dir = Path(args.install_dir)
+    output = _resolve_path_arg(args.output)
+    install_dir = _resolve_path_arg(args.install_dir)
     component_name = args.component_name
     build_type = args.build_type or "RelWithDebInfo"
 
@@ -200,6 +267,7 @@ def cmd_cmake(args):
 
     # Build directory alongside source
     build_dir = src_root / ".mesonbuild" / "cmake" / component_name / args.build_key
+    _clean_stale_cmake_build_dir(build_dir, cmake_src_dir)
     build_dir.mkdir(parents=True, exist_ok=True)
 
     python_root = Path(args.py_prefix).resolve()
@@ -220,6 +288,7 @@ def cmd_cmake(args):
     # FetchContent cache for Abseil etc.
     fetchcontent_dir = src_root / ".download_cache" / "_cmake_deps"
     fetchcontent_dir.mkdir(parents=True, exist_ok=True)
+    _clean_stale_fetchcontent_state(fetchcontent_dir)
     cmake_args.append(f"-DFETCHCONTENT_BASE_DIR={fetchcontent_dir}")
 
     # Native extension location (for dd_wrapper and extensions that need _native)
@@ -283,7 +352,7 @@ def cmd_psutil(args):
 
     src_root = Path(args.src_root)
     psutil_dir = src_root / "ddtrace" / "vendor" / "psutil"
-    output = Path(args.output)
+    output = _resolve_path_arg(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 
     build_dir = src_root / ".mesonbuild" / "psutil_build"
@@ -334,12 +403,22 @@ def cmd_psutil(args):
     else:
         pattern = "_psutil_*"
 
-    # Filter to only shared libraries (exclude .c/.h source files)
-    candidates = [
-        p for p in psutil_dir.glob(pattern) if p.suffix in (".so", ".pyd", ".dylib") or p.name.endswith(args.ext_suffix)
-    ]
-    if not candidates:
-        candidates = [p for p in psutil_dir.glob(f"*{args.ext_suffix}") if p.is_file()]
+    # Prefer the exact interpreter-specific filename first so stale binaries
+    # from a different Python version in the source tree are not accidentally
+    # copied and merely renamed for the current build.
+    exact_name = pattern.rstrip("*") + args.ext_suffix
+    exact_candidate = psutil_dir / exact_name
+    if exact_candidate.exists():
+        candidates = [exact_candidate]
+    else:
+        # Filter to only shared libraries (exclude .c/.h source files)
+        candidates = [
+            p
+            for p in psutil_dir.glob(pattern)
+            if p.suffix in (".so", ".pyd", ".dylib") or p.name.endswith(args.ext_suffix)
+        ]
+        if not candidates:
+            candidates = [p for p in psutil_dir.glob(f"*{args.ext_suffix}") if p.is_file()]
 
     if not candidates:
         print("[meson_build_ext] WARNING: psutil extension not found, skipping")
@@ -368,98 +447,78 @@ def cmd_libddwaf(args):
     from urllib.request import urlretrieve
 
     src_root = Path(args.src_root)
-    output = Path(args.output)
+    output = _resolve_path_arg(args.output)
     host = args.host.lower() if args.host else CURRENT_OS.lower()
 
     LIBDDWAF_VERSION = "1.30.1"
     URL_ROOT = "https://github.com/DataDog/libddwaf/releases/download"
-    DOWNLOAD_DIR = src_root / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
     CACHE_DIR = src_root / ".download_cache"
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    machine = platform.machine().lower()
 
     # Determine OS name for URL
-    # AIDEV-NOTE: Do NOT add an early-exit "already downloaded" check here.
-    # The per-arch check inside the loop (arch_dir.is_dir()) handles skipping
-    # correctly. A global check based on DOWNLOAD_DIR.exists() would incorrectly
-    # skip the Linux aarch64 download when macOS arm64 artifacts are already
-    # present (e.g., when running tests inside Docker on a macOS host).
+    # AIDEV-NOTE: Keep the cache keyed by the resolved host/arch archive name.
+    # Linux and macOS can share the same .download_cache across local + Docker
+    # builds, so coarse "already downloaded" checks are not specific enough.
     if host == "darwin":
         os_name = "darwin"
         suffix = ".dylib"
-        archs = ["arm64", "x86_64"]
+        arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
     elif host == "linux":
         os_name = "linux"
         suffix = ".so"
-        archs = ["aarch64", "x86_64"]
+        arch = "aarch64" if machine in ("arm64", "aarch64") else "x86_64"
     elif host == "windows":
         os_name = "windows"
         suffix = ".dll"
-        archs = ["arm64", "win32", "x64"]
+        if machine in ("arm64", "aarch64"):
+            arch = "arm64"
+        elif machine in ("x86", "i386", "i686"):
+            arch = "win32"
+        else:
+            arch = "x64"
     else:
         print(f"[meson_build_ext] WARNING: unsupported host '{host}', skipping libddwaf download")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text("skipped\n")
-        return
+        raise RuntimeError(f"Unsupported host for libddwaf download: {host}")
 
-    # Only download the matching architecture
-    machine = platform.machine().lower()
-    if host == "darwin":
-        if machine in ("arm64", "aarch64"):
-            archs = ["arm64"]
-        else:
-            archs = ["x86_64"]
-    elif host == "linux":
-        if machine in ("arm64", "aarch64"):
-            archs = ["aarch64"]
-        else:
-            archs = ["x86_64"]
+    if host == "linux":
+        archive_name = f"libddwaf-{LIBDDWAF_VERSION}-{arch}-linux-musl.tar.gz"
+    else:
+        archive_name = f"libddwaf-{LIBDDWAF_VERSION}-{os_name}-{arch}.tar.gz"
 
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    url = f"{URL_ROOT}/{LIBDDWAF_VERSION}/{archive_name}"
+    cached = CACHE_DIR / archive_name
 
-    for arch in archs:
-        arch_dir = DOWNLOAD_DIR / arch
-        if arch_dir.is_dir() and any(arch_dir.iterdir()):
-            print(f"[meson_build_ext] libddwaf/{arch} already present, skipping")
-            continue
+    if not cached.exists():
+        print(f"[meson_build_ext] Downloading {archive_name} to {cached}")
+        urlretrieve(url, str(cached))
+    else:
+        print(f"[meson_build_ext] Using cached {cached}")
 
-        if host == "linux":
-            archive_name = f"libddwaf-{LIBDDWAF_VERSION}-{arch}-linux-musl.tar.gz"
-        else:
-            archive_name = f"libddwaf-{LIBDDWAF_VERSION}-{os_name}-{arch}.tar.gz"
+    extract_root = CACHE_DIR / "_libddwaf_extract" / f"{host}-{arch}"
+    if extract_root.exists():
+        shutil.rmtree(extract_root, ignore_errors=True)
+    extract_root.mkdir(parents=True, exist_ok=True)
 
-        url = f"{URL_ROOT}/{LIBDDWAF_VERSION}/{archive_name}"
-        cached = CACHE_DIR / archive_name
+    with tarfile.open(str(cached), "r:gz") as tar:
+        members = [m for m in tar.getmembers() if m.name.endswith((suffix, ".so", ".dylib", ".dll"))]
+        tar.extractall(members=members, path=str(extract_root))
 
-        if not cached.exists():
-            print(f"[meson_build_ext] Downloading {archive_name} to {cached}")
-            urlretrieve(url, str(cached))
-        else:
-            print(f"[meson_build_ext] Using cached {cached}")
+    candidates = sorted(extract_root.rglob(f"*{suffix}"))
+    if not candidates:
+        raise RuntimeError(f"Could not find libddwaf shared library in {extract_root}")
 
-        # Extract dynamic libraries from the tarball
-        package_dir = f"libddwaf-{LIBDDWAF_VERSION}-{os_name}-{arch}"
-        if host == "linux":
-            package_dir = f"libddwaf-{LIBDDWAF_VERSION}-{arch}-linux-musl"
+    lib_src = None
+    for candidate in candidates:
+        if candidate.name in {f"libddwaf{suffix}", f"ddwaf{suffix}"}:
+            lib_src = candidate
+            break
+    if lib_src is None:
+        lib_src = candidates[0]
 
-        with tarfile.open(str(cached), "r:gz") as tar:
-            members = [m for m in tar.getmembers() if m.name.endswith((suffix, ".so"))]
-            tar.extractall(members=members, path=str(src_root))
-
-        extracted_dir = src_root / package_dir
-        if extracted_dir.exists():
-            extracted_dir.rename(arch_dir)
-
-        # Rename ddwaf.xxx → libddwaf.xxx
-        lib_dir = arch_dir / "lib"
-        if lib_dir.exists():
-            for f in lib_dir.iterdir():
-                if f.name.startswith("ddwaf") and not f.name.startswith("libddwaf"):
-                    f.rename(lib_dir / ("lib" + f.name))
-
-    print(f"[meson_build_ext] libddwaf downloaded to {DOWNLOAD_DIR}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("downloaded\n")
-    print(f"[meson_build_ext] libddwaf download stamp written: {output}")
+    shutil.copy2(lib_src, output)
+    print(f"[meson_build_ext] libddwaf copied: {lib_src} → {output}")
 
 
 # ---------------------------------------------------------------------------
@@ -525,19 +584,7 @@ def main():
         "psutil": cmd_psutil,
         "libddwaf": cmd_libddwaf,
     }
-    try:
-        dispatch[args.subcommand](args)
-    except subprocess.CalledProcessError as e:
-        # Check if the component is optional (stamp arg present means we can skip)
-        stamp = getattr(args, "stamp", None)
-        if stamp:
-            print(
-                f"[meson_build_ext] WARNING: {args.subcommand} build failed (exit {e.returncode}), "
-                f"writing skip stamp. Some functionality may be unavailable."
-            )
-            _write_stamp(args)
-        else:
-            raise
+    dispatch[args.subcommand](args)
 
 
 if __name__ == "__main__":

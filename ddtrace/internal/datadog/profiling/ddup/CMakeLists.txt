@@ -17,9 +17,12 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include(AnalysisFunc)
 
-# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
-# via NATIVE_EXTENSION_LOCATION
-set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+# Link against the pre-built libdd_wrapper shared library.
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+else()
+    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+endif()
 
 # Import the pre-built library as an imported target
 add_library(dd_wrapper SHARED IMPORTED)
@@ -37,6 +40,12 @@ endif()
 # If we still don't have a Python executable, we can't continue
 if(NOT Python3_EXECUTABLE)
     message(FATAL_ERROR "Python executable not found")
+endif()
+
+if(DEFINED RUST_GENERATED_HEADERS_DIR)
+    set(NATIVE_HEADERS_DIR "${RUST_GENERATED_HEADERS_DIR}")
+else()
+    set(NATIVE_HEADERS_DIR "../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/")
 endif()
 
 # This sets some parameters for the target build
@@ -82,11 +91,8 @@ elseif(UNIX)
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 endif()
-target_include_directories(
-    ${EXTENSION_NAME}
-    PRIVATE ../dd_wrapper/include
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
-            ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${NATIVE_HEADERS_DIR}
+                                                     ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 

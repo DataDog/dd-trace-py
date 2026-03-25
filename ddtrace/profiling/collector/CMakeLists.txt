@@ -125,9 +125,13 @@ endif()
 # built for another Python version when the worktree contains multiple libdd_wrapper.cpython-*.so files. That makes
 # _memalloc unavailable at runtime while other profiling extensions still work, because only _memalloc was using
 # find_library() instead of the exact path.
-if(DEFINED NATIVE_EXTENSION_LOCATION)
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+elseif(DEFINED NATIVE_EXTENSION_LOCATION)
     set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+endif()
 
+if(DEFINED DD_WRAPPER_LIB)
     if(EXISTS "${DD_WRAPPER_LIB}")
         message(STATUS "Using libdd_wrapper: ${DD_WRAPPER_LIB}")
         target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE "${DD_WRAPPER_LIB}")

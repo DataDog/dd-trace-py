@@ -21,9 +21,10 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
-# via NATIVE_EXTENSION_LOCATION. For standalone builds, check LIB_INSTALL_DIR first.
-if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+# Link against the pre-built libdd_wrapper shared library.
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+elseif(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
     set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
 else()
     set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
@@ -46,6 +47,12 @@ find_package(Python3 COMPONENTS Interpreter Development)
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
+endif()
+
+if(DEFINED RUST_GENERATED_HEADERS_DIR)
+    set(NATIVE_HEADERS_DIR "${RUST_GENERATED_HEADERS_DIR}")
+else()
+    set(NATIVE_HEADERS_DIR "../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/")
 endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -98,10 +105,8 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
                               include)
-target_include_directories(
-    ${EXTENSION_NAME} SYSTEM
-    PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored include/util
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored
+                                                            include/util ${NATIVE_HEADERS_DIR})
 
 # Echion sources need to be given the current platform
 if(APPLE)

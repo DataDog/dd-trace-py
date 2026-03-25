@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import re
 import sys
 import sysconfig
 from typing import Any
+import zipfile
 
 import mesonpy
 import mesonpy._tags
@@ -14,7 +16,10 @@ _ROOT = Path(__file__).resolve().parent
 _BUILD_SYSTEM_FILES = (
     "meson.build",
     "scripts/meson_build_ext.py",
+    "scripts/meson_install_iast_native.py",
     "ddtrace/profiling/collector/CMakeLists.txt",
+    "ddtrace/appsec/_iast/_taint_tracking/CMakeLists.txt",
+    "ddtrace/internal/datadog/profiling/cmake/FindLibNative.cmake",
     "ddtrace/internal/datadog/profiling/dd_wrapper/CMakeLists.txt",
     "ddtrace/internal/datadog/profiling/ddup/CMakeLists.txt",
     "ddtrace/internal/datadog/profiling/stack/CMakeLists.txt",
@@ -28,6 +33,7 @@ _WHEEL_DEBUG_SETUP_ARGS = (
     "-Doptimization=3",
     "-Db_ndebug=true",
 )
+_EDITABLE_RUNTIME_REQUIRES = ("ninja",)
 
 
 def _build_system_cache_key() -> str:
@@ -121,6 +127,44 @@ def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any,
     return settings
 
 
+def _patch_editable_loader(loader_text: str) -> str:
+    patched, count = re.subn(
+        r"(?m)^(\s*)\[[^\n]*ninja[^\n]*\],$",
+        r"\1['ninja'],",
+        loader_text,
+        count=1,
+    )
+    if count != 1:
+        raise RuntimeError("Could not find editable loader ninja command to patch")
+    return patched
+
+
+def _patch_editable_metadata(metadata_text: str) -> str:
+    lines = metadata_text.splitlines()
+    existing = {line.partition(":")[2].strip() for line in lines if line.startswith("Requires-Dist:")}
+    for requirement in _EDITABLE_RUNTIME_REQUIRES:
+        if requirement not in existing:
+            lines.append(f"Requires-Dist: {requirement}")
+    return "\n".join(lines) + "\n"
+
+
+def _patch_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
+    wheel_path = Path(wheel_directory) / wheel_name
+    patched_path = wheel_path.with_suffix(".patched.whl")
+
+    with zipfile.ZipFile(wheel_path, "r") as src, zipfile.ZipFile(patched_path, "w") as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if info.filename.endswith("_ddtrace_editable_loader.py"):
+                data = _patch_editable_loader(data.decode("utf-8")).encode("utf-8")
+            elif info.filename.endswith(".dist-info/METADATA"):
+                data = _patch_editable_metadata(data.decode("utf-8")).encode("utf-8")
+            dst.writestr(info, data)
+
+    patched_path.replace(wheel_path)
+    return wheel_name
+
+
 get_requires_for_build_sdist = mesonpy.get_requires_for_build_sdist
 get_requires_for_build_wheel = mesonpy.get_requires_for_build_wheel
 get_requires_for_build_editable = mesonpy.get_requires_for_build_editable
@@ -148,8 +192,9 @@ def build_editable(
     config_settings: dict[Any, Any] | None = None,
     metadata_directory: str | None = None,
 ) -> str:
-    return mesonpy.build_editable(
+    wheel_name = mesonpy.build_editable(
         wheel_directory,
         _with_default_build_dir(config_settings),
         metadata_directory,
     )
+    return _patch_editable_wheel(wheel_directory, wheel_name)
