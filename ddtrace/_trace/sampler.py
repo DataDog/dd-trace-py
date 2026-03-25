@@ -218,19 +218,16 @@ class DatadogSampler:
 
 class OtelParentBasedAlwaysOnSampler:
     """
-    Implements the OpenTelemetry parentbased_always_on sampling strategy.
+    Implements the OpenTelemetry parentbased_always_on sampling strategy for root spans.
 
-    - If the span has an inherited sampling priority from a parent context,
-      that decision is honored (no override).
-    - For root spans (no parent sampling decision), always samples at rate 1.0.
-
-    Used as the default fallback sampler in OTLP export mode, where there is
-    no Datadog agent to provide sampling rates.
+    Used as the default fallback sampler in OTLP export mode, where there is no
+    Datadog agent to provide rate_by_service sampling rates. Parent-propagated
+    sampling decisions are honored by TraceSamplingProcessor before this sampler
+    is invoked, so this class only needs to handle root spans (no parent decision),
+    which are always sampled at 1.0.
     """
 
     def sample(self, span: Span) -> bool:
-        # TraceSamplingProcessor only calls sample() when priority is None,
-        # so we only need to handle the "no parent decision" case here.
         _set_sampling_tags(
             span,
             sampled=True,

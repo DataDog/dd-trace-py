@@ -63,6 +63,10 @@ def _derive_traces_protocol(config: "ExporterConfig"):
     return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
 
 
+def _derive_traces_timeout(config: "ExporterConfig"):
+    return get_config(["OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", "OTEL_EXPORTER_OTLP_TIMEOUT"], config.DEFAULT_TIMEOUT, int)
+
+
 def _derive_traces_endpoint(config: "ExporterConfig"):
     import os
 
@@ -122,6 +126,7 @@ class ExporterConfig(DDConfig):
 
     TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
+    TRACES_TIMEOUT = DDConfig.d(int, _derive_traces_timeout)
 
     @staticmethod
     def _get_default_endpoint(protocol: str, endpoint: str = ""):

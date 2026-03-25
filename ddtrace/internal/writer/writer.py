@@ -982,6 +982,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_headers = self._parse_otlp_headers()
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
+            builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:

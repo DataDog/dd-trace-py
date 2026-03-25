@@ -6,6 +6,7 @@ from threading import RLock
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import OtelParentBasedAlwaysOnSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
@@ -123,7 +124,6 @@ class TraceSamplingProcessor(TraceProcessor):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
-        from ddtrace._trace.sampler import OtelParentBasedAlwaysOnSampler
         from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 
         if _is_otlp_traces_exporter_enabled(None):
