@@ -11,7 +11,6 @@ from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import ImageURL
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import ToolCall
-from ddtrace.appsec.ai_guard.integrations.litellm import DatadogAIGuardConfigModel
 from ddtrace.appsec.ai_guard.integrations.litellm import DatadogAIGuardGuardrail
 from tests.appsec.ai_guard.litellm_guardrail.conftest import assistant_msg
 from tests.appsec.ai_guard.litellm_guardrail.conftest import function_msg
@@ -630,25 +629,3 @@ class TestAsyncHooks:
                     response=response,
                 )
             )
-
-
-# ---------------------------------------------------------------------------
-# TestConfig
-# ---------------------------------------------------------------------------
-
-
-class TestConfig:
-    """Tests for DatadogAIGuardConfigModel and DatadogAIGuardGuardrail init."""
-
-    def test_default_enable_blocking_is_true(self, guardrail):
-        assert guardrail._enable_blocking is True
-
-    def test_monitor_mode_enable_blocking_is_false(self, guardrail_monitor):
-        assert guardrail_monitor._enable_blocking is False
-
-    def test_config_model_enable_blocking_can_be_set_false(self):
-        model = DatadogAIGuardConfigModel(enable_blocking=False)
-        assert model.enable_blocking is False
-
-    def test_get_config_model_returns_correct_class(self, guardrail):
-        assert guardrail.get_config_model() is DatadogAIGuardConfigModel

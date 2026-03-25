@@ -11,13 +11,11 @@ from litellm.proxy._types import UserAPIKeyAuth
 from litellm.proxy.common_utils.callback_utils import add_guardrail_to_applied_guardrails_header
 from litellm.types.guardrails import GuardrailEventHooks
 from litellm.types.llms.openai import AllMessageValues
-from litellm.types.proxy.guardrails.guardrail_hooks.base import GuardrailConfigModel
 from litellm.types.utils import CallTypes
 from litellm.types.utils import CallTypesLiteral
 from litellm.types.utils import Choices
 from litellm.types.utils import LLMResponseTypes
 from litellm.types.utils import ModelResponse
-from pydantic import Field
 
 
 if TYPE_CHECKING:
@@ -33,20 +31,6 @@ from ddtrace.appsec.ai_guard import new_ai_guard_client
 
 
 GUARDRAIL_NAME = "datadog_ai_guard"
-GUARDRAIL_FRIENDLY_NAME = "Datadog AI Guard"
-
-
-class DatadogAIGuardConfigModel(GuardrailConfigModel):
-    """Configuration parameters for the Datadog AI Guard guardrail."""
-
-    enable_blocking: Optional[bool] = Field(
-        default=True,
-        description="Allow blocking when an unsafe operation is detected.",
-    )
-
-    @staticmethod
-    def ui_friendly_name() -> str:
-        return GUARDRAIL_FRIENDLY_NAME
 
 
 class DatadogAIGuardGuardrail(CustomGuardrail):
@@ -275,7 +259,3 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         if not self.should_run_guardrail(data=data, event_type=event_type):
             return data
         return await self._on_response(data, response)
-
-    @staticmethod
-    def get_config_model() -> Optional[type["GuardrailConfigModel"]]:
-        return DatadogAIGuardConfigModel
