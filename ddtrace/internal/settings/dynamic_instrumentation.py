@@ -51,26 +51,16 @@ class DynamicInstrumentationConfig(DDConfig):
     __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    # In agentless CI mode with test replay enabled, DI logs go directly to the logs intake.
-    # DD_TEST_FAILED_TEST_REPLAY_ENABLED controls test DI (defaults to enabled)
     _is_agentless = DDConfig.d(
         bool,
-        lambda _: (
-            asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false"))
-            and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true"))
-        ),
+        lambda _: ddconfig._ci_visibility_agentless_enabled
+        and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true")),
     )
     _intake_url = DDConfig.d(
         str,
-        lambda _: (
-            "https://{}.{}".format(
-                AGENTLESS_LOGS_INTAKE_HOST_PREFIX,
-                os.getenv("DD_SITE", "datadoghq.com"),
-            )
-            if (
-                asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false"))
-                and asbool(os.getenv("DD_TEST_FAILED_TEST_REPLAY_ENABLED", "true"))
-            )
+        lambda c: (
+            f"https://{AGENTLESS_LOGS_INTAKE_HOST_PREFIX}.{os.getenv('DD_SITE', 'datadoghq.com')}"
+            if c._is_agentless
             else agent_config.trace_agent_url
         ),
     )

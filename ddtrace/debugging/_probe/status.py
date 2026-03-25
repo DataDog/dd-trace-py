@@ -112,12 +112,12 @@ class ProbeStatusLogger:
 
         try:
             if di_config._is_agentless:
-                body = f"[{','.join(msgs)}]".encode("utf-8")
-                headers = {
-                    "Content-Type": "application/json",
-                    "DD-API-KEY": di_config._api_key,
-                }
-                self._write_payload_with_backoff((body, headers))
+                self._write_payload_with_backoff(
+                    (
+                        f"[{','.join(msgs)}]".encode("utf-8"),  # body
+                        {"Content-Type": "application/json", "DD-API-KEY": di_config._api_key},  # headers
+                    )
+                )
             else:
                 self._write_payload_with_backoff(
                     multipart(

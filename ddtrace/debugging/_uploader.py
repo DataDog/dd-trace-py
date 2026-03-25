@@ -71,10 +71,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
         )
 
-        if di_config._is_agentless:
-            initial_endpoint = "/api/v2/logs"
-        else:
-            initial_endpoint = f"/debugger/v2/input{endpoint_suffix}"  # start optimistically
+        initial_endpoint = "/api/v2/logs" if di_config._is_agentless else f"/debugger/v2/input{endpoint_suffix}"
 
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
@@ -95,13 +92,10 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
-        if di_config._is_agentless and di_config._api_key:
-            self._headers["DD-API-KEY"] = di_config._api_key
-
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         if di_config._is_agentless:
-            # Skip the agent check: go directly to online state
+            self._headers["DD-API-KEY"] = di_config._api_key
             self._state = self._online
 
         # Make it retry-able
