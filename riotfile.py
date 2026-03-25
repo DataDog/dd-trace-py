@@ -4346,5 +4346,26 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="ai_guard_litellm_guardrail",
+            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={
+                        "litellm": "==1.46.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm": "==1.80.16",
+                    },
+                ),
+            ],
+        ),
     ],
 )

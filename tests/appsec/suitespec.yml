@@ -430,3 +430,13 @@ suites:
     retry: 2
     runner: riot
     venvs_per_job: 1
+  ai_guard_litellm_guardrail:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/litellm_guardrail/*
+    retry: 2
+    runner: riot
+    venvs_per_job: 2
