@@ -8,7 +8,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.utils.cache import callonce
@@ -129,9 +128,6 @@ def compute_base_hash(container_tags_hash):
     _recompute_base_hash()
 
 
-core.on("container_tags_hash.retrieved", compute_base_hash)
-
-
 @callonce
 def _retrieve_container_tags_hash() -> None:
     if not process_tags_config.enabled:
@@ -154,8 +150,16 @@ def _retrieve_container_tags_hash() -> None:
     t.start()
 
 
+@callonce
+def _register_container_tags_hook():
+    from ddtrace.internal import core
+
+    core.on("container_tags_hash.retrieved", compute_base_hash)
+
+
 def __getattr__(name: str) -> Any:
     if "process_tags" in name:
+        _register_container_tags_hook()
         _retrieve_container_tags_hash()
         _initialize_process_tags()
         _recompute_base_hash()
