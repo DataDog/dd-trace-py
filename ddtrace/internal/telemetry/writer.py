@@ -162,6 +162,9 @@ class TelemetryWriter(PeriodicService):
         self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
         self._imported_dependencies: dict[str, DependencyEntry] = dict()
+        # AIDEV-NOTE: _dirty_dependencies tracks entry names with unsent metadata.
+        # This avoids O(n) scans of all entries in _report_dependencies.
+        self._dirty_dependencies: set[str] = set()
         self._modules_already_imported: set[str] = set()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
@@ -344,27 +347,30 @@ class TelemetryWriter(PeriodicService):
         with self._service_lock:
             # 1. Detect and process newly imported modules
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            new_dep_dicts: list[dict[str, Any]] = []
+            new_entries: list = []
             if newly_imported_deps:
-                new_dep_dicts = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+                new_entries = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
-            # Mark newly reported entries and flush any pre-attached metadata
-            for dep_dict in new_dep_dicts:
-                name = dep_dict["name"]
-                entry = self._imported_dependencies.get(name)
-                if entry is not None:
-                    entry.mark_initial_sent()
-                    entry.mark_all_metadata_sent()
+            # Build dicts and mark sent in a single pass (no second lookup)
+            result: list[dict[str, Any]] = []
+            for entry in new_entries:
+                result.append(entry.to_telemetry_dict())
+                entry.mark_initial_sent()
+                entry.mark_all_metadata_sent()
+                # Remove from dirty set if it was there (pre-attached metadata)
+                self._dirty_dependencies.discard(entry.name)
 
-            # 2. Check for already-reported dependencies with new unsent metadata
-            re_report_dicts: list[dict[str, Any]] = []
-            for entry in self._imported_dependencies.values():
-                if entry._initial_report_sent and entry.has_unsent_metadata():
-                    re_report_dicts.append(entry.to_telemetry_dict(include_all_metadata=False))
-                    entry.mark_all_metadata_sent()
+            # 2. Only check entries that were flagged dirty (O(dirty) not O(all))
+            if self._dirty_dependencies:
+                dirty_names = list(self._dirty_dependencies)
+                self._dirty_dependencies.clear()
+                for name in dirty_names:
+                    entry = self._imported_dependencies.get(name)
+                    if entry is not None and entry._initial_report_sent and entry.has_unsent_metadata():
+                        result.append(entry.to_telemetry_dict(include_all_metadata=False))
+                        entry.mark_all_metadata_sent()
 
-            combined = new_dep_dicts + re_report_dicts
-            return combined if combined else None
+            return result if result else None
 
     def attach_dependency_metadata(
         self,
@@ -384,9 +390,12 @@ class TelemetryWriter(PeriodicService):
             True if metadata was attached, False if the package is not yet tracked.
         """
         with self._service_lock:
-            return attach_reachability_metadata(
+            attached = attach_reachability_metadata(
                 self._imported_dependencies, package_name, cve_id, reached, path, method, line
             )
+            if attached:
+                self._dirty_dependencies.add(package_name)
+            return attached
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
@@ -725,6 +734,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace.flush()
         self._logs = set()
         self._imported_dependencies = {}
+        self._dirty_dependencies = set()
         self._queued_configs = []
         self._sent_configs = []
 

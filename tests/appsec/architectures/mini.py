@@ -23,9 +23,9 @@ update_imported_dependencies = ddtrace.internal.telemetry.writer.update_imported
 
 def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps):
     global _TELEMETRY_DEPENDENCIES
-    dependencies = update_imported_dependencies(imported_dependencies, newly_imported_deps)
-    _TELEMETRY_DEPENDENCIES.extend(dependencies)
-    return dependencies
+    entries = update_imported_dependencies(imported_dependencies, newly_imported_deps)
+    _TELEMETRY_DEPENDENCIES.extend(e.to_telemetry_dict() for e in entries)
+    return entries
 
 
 ddtrace.internal.telemetry.writer.update_imported_dependencies = wrap_update_imported_dependencies
@@ -63,10 +63,10 @@ def import_modules():
     from ddtrace.internal.telemetry.data import update_imported_dependencies  # noqa: E402
 
     newly_loaded = list(sys.modules.keys())
-    res = update_imported_dependencies(loaded, newly_loaded)
+    entries = update_imported_dependencies(loaded, newly_loaded)
 
     return {
-        "dependencies": res,
+        "dependencies": [e.to_telemetry_dict() for e in entries],
     }
 
 

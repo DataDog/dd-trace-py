@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 
-@dataclass
+@dataclass(slots=True)
 class ReachabilityMetadata:
     """A single reachability finding for a dependency.
 
@@ -39,7 +39,7 @@ class ReachabilityMetadata:
         return self._sent
 
 
-@dataclass
+@dataclass(slots=True)
 class DependencyEntry:
     """Tracks a dependency and its optional reachability metadata.
 
@@ -52,40 +52,55 @@ class DependencyEntry:
     Attributes:
         name: Distribution/package name.
         version: Package version string.
-        metadata: List of reachability metadata entries.
+        metadata: Optional list of reachability metadata entries.
+            None when no metadata has been attached (the common case),
+            avoiding the cost of an empty list per entry.
+        _unsent_count: Number of metadata entries not yet sent.
+            Tracked as a counter to make has_unsent_metadata() O(1).
     """
 
     name: str
     version: str
-    metadata: list[ReachabilityMetadata] = field(default_factory=list)
+    # AIDEV-NOTE: metadata is None (not []) by default to avoid allocating an
+    # empty list for every dependency. Most deps never receive metadata.
+    metadata: list[ReachabilityMetadata] | None = None
     _initial_report_sent: bool = field(default=False, repr=False, compare=False)
+    _unsent_count: int = field(default=0, repr=False, compare=False)
 
     def has_unsent_metadata(self) -> bool:
-        """True if any metadata entry has not been sent yet."""
-        return any(not m.is_sent for m in self.metadata)
+        """True if any metadata entry has not been sent yet. O(1)."""
+        return self._unsent_count > 0
 
     def needs_report(self) -> bool:
         """True if this dependency has never been reported, or has new unsent metadata."""
-        return not self._initial_report_sent or self.has_unsent_metadata()
+        return not self._initial_report_sent or self._unsent_count > 0
 
     def get_unsent_metadata(self) -> list[ReachabilityMetadata]:
+        if self.metadata is None:
+            return []
         return [m for m in self.metadata if not m.is_sent]
 
     def mark_initial_sent(self) -> None:
         self._initial_report_sent = True
 
     def mark_all_metadata_sent(self) -> None:
+        if self.metadata is None:
+            return
         for m in self.metadata:
             m.mark_sent()
+        self._unsent_count = 0
 
     def add_metadata(self, meta: ReachabilityMetadata) -> None:
         """Add metadata entry, deduplicating by CVE id."""
         cve_id = meta.value.get("id")
+        if self.metadata is None:
+            self.metadata = []
         if cve_id is not None:
             for existing in self.metadata:
                 if existing.value.get("id") == cve_id:
                     return
         self.metadata.append(meta)
+        self._unsent_count += 1
 
     def to_telemetry_dict(self, include_all_metadata: bool = False) -> dict[str, Any]:
         """Serialize for the telemetry wire format.
@@ -99,9 +114,10 @@ class DependencyEntry:
             The metadata key is omitted when there are no entries to include.
         """
         result: dict[str, Any] = {"name": self.name, "version": self.version}
-        entries = self.metadata if include_all_metadata else self.get_unsent_metadata()
-        if entries:
-            result["metadata"] = [m.to_telemetry_dict() for m in entries]
+        if self.metadata:
+            entries = self.metadata if include_all_metadata else self.get_unsent_metadata()
+            if entries:
+                result["metadata"] = [m.to_telemetry_dict() for m in entries]
         return result
 
 

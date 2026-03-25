@@ -73,8 +73,14 @@ def _get_application(key: tuple[str, str, str]) -> dict:
 
 def update_imported_dependencies(
     already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
-) -> list[dict[str, Any]]:
-    deps = []
+) -> list[DependencyEntry]:
+    """Detect new dependencies from imported modules and register them.
+
+    Returns newly created DependencyEntry objects (not dicts) so callers
+    can mark them as sent and serialize in a single pass, avoiding a
+    second lookup by name.
+    """
+    new_entries: list[DependencyEntry] = []
 
     for module_name in new_modules:
         dists = get_module_distribution_versions(module_name)
@@ -90,9 +96,9 @@ def update_imported_dependencies(
 
         entry = DependencyEntry(name=name, version=version)
         already_imported[name] = entry
-        deps.append(entry.to_telemetry_dict())
+        new_entries.append(entry)
 
-    return deps
+    return new_entries
 
 
 def get_application(service: str, version: str, env: str) -> dict:
