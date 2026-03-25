@@ -34,13 +34,11 @@ ignores:
   - "ddtrace/internal/runtime/**"
   - "ddtrace/internal/schema/**"
   - "ddtrace/internal/serverless/**"
-  - "ddtrace/internal/settings/**"
   - "ddtrace/internal/telemetry/**"
   - "ddtrace/internal/utils/**"
   - "ddtrace/internal/writer/**"
   - "ddtrace/llmobs/**"
   - "ddtrace/opentelemetry/**"
-  - "ddtrace/profiling/**"
   - "ddtrace/sourcecode/**"
 rule:
   any:
