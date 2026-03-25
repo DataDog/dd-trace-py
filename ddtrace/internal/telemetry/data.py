@@ -7,7 +7,6 @@ from typing import Iterable  # noqa:F401
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
-from ddtrace.internal.service_remapping import process_tags
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import __version__
 
@@ -62,6 +61,8 @@ def _get_application(key: tuple[str, str, str]) -> dict:
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
     }
+
+    from ddtrace.internal.service_remapping import process_tags
 
     if p_tags := process_tags.process_tags:
         application["process_tags"] = p_tags
