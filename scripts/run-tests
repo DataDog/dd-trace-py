@@ -598,17 +598,17 @@ class TestRunner:
                     lock_file = open(lock_path, "w")
                     try:
                         fcntl.flock(lock_file, fcntl.LOCK_EX)
-                        print(f"   🔒 Acquired build lock")
+                        print("   🔒 Acquired build lock")
                         result = subprocess.run(build_cmd, env=env, cwd=self.root)
                         if result.returncode != 0:
                             print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
                             suite_success = False
                             break
-                        print(f"   ✅ Venv built successfully")
+                        print("   ✅ Venv built successfully")
                     finally:
                         fcntl.flock(lock_file, fcntl.LOCK_UN)
                         lock_file.close()
-                        print(f"   🔓 Released build lock")
+                        print("   🔓 Released build lock")
 
             if not suite_success:
                 # Stop services and bail out
@@ -634,10 +634,17 @@ class TestRunner:
                     venv.hash,
                 ]
 
-                # Add riot args if provided (filter out -s/--skip-base-install since we already add it)
+                # Add riot args if provided, filtering out riot's -s/--skip-base-install
+                # (since we already add it) but only before the pytest separator "--".
+                # After "--", args belong to pytest where -s means something different
+                # (disable output capture).
                 if riot_args:
+                    past_pytest_separator = False
                     for arg in riot_args:
-                        if arg not in ("-s", "--skip-base-install"):
+                        if arg == "--":
+                            past_pytest_separator = True
+                            cmd.append(arg)
+                        elif past_pytest_separator or arg not in ("-s", "--skip-base-install"):
                             cmd.append(arg)
 
                 if dry_run:
