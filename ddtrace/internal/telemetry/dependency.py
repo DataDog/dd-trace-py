@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 from typing import Any
+from typing import List
+from typing import Optional
 
 
-@dataclass(slots=True)
+@dataclass
 class ReachabilityMetadata:
     """A single reachability finding for a dependency.
 
@@ -24,7 +26,7 @@ class ReachabilityMetadata:
     value: dict
     _sent: bool = field(default=False, repr=False, compare=False)
 
-    def to_telemetry_dict(self) -> dict[str, str]:
+    def to_telemetry_dict(self) -> dict:
         """Serialize for the telemetry wire format.
 
         The value field is JSON-stringified per the telemetry contract.
@@ -39,7 +41,7 @@ class ReachabilityMetadata:
         return self._sent
 
 
-@dataclass(slots=True)
+@dataclass
 class DependencyEntry:
     """Tracks a dependency and its optional reachability metadata.
 
@@ -63,7 +65,7 @@ class DependencyEntry:
     version: str
     # AIDEV-NOTE: metadata is None (not []) by default to avoid allocating an
     # empty list for every dependency. Most deps never receive metadata.
-    metadata: list[ReachabilityMetadata] | None = None
+    metadata: Optional[List[ReachabilityMetadata]] = None
     _initial_report_sent: bool = field(default=False, repr=False, compare=False)
     _unsent_count: int = field(default=0, repr=False, compare=False)
 
