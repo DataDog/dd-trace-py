@@ -143,9 +143,9 @@ def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
 
     The profiler requires threading support to run its background sampling thread.
     Without --enable-threads or --threads N, uwsgi runs in single-threaded mode
-    and the profiler cannot function. This test verifies that:
-    - The process exits with an error (non-zero exit code)
-    - The error message clearly indicates the threading requirement
+    and the profiler cannot function. This test verifies that the error message
+    clearly indicates the threading requirement. With ddtrace.auto, the error is
+    caught and logged but uwsgi keeps running, so we use a timeout to collect output.
     """
     proc = uwsgi()
     try:
