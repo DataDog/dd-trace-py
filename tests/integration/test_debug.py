@@ -85,8 +85,8 @@ def test_standard_tags():
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("sampling_rules") == []
-    assert f.get("global_tags") == ""
-    assert f.get("tracer_tags") == ""
+    assert f.get("global_tags") == "_dd.svc_src:m", f.get("global_tags")
+    assert f.get("tracer_tags") == "_dd.svc_src:m", f.get("tracer_tags")
 
     icfg = f.get("integrations", {})
     assert "django" not in icfg
@@ -158,9 +158,9 @@ class TestGlobalConfig(SubprocessTestCase):
             # regression: this used to cause an exception to be raised
             ddtrace.config.version = AgentWriter(intake_url="foobar")
             ddtrace.trace.tracer._generate_diagnostic_logs()
-        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls, (
-            mock_logger.mock_calls
-        )
+        assert (
+            mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+        ), mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
