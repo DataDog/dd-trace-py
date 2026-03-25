@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -475,6 +476,11 @@ class RedirectHttpxAsyncHandler(BaseHandler):
 class ExceptionGroupBlockHandler(BaseHandler):
     async def get(self) -> None:
         """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11):
+            self.set_header("Content-Type", "text/html")
+            self.write("not supported")
+            return
+
         from ddtrace.appsec._utils import Block_config
         from ddtrace.internal._exceptions import BlockingException
 

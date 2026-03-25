@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -408,6 +409,9 @@ def get_app():
     @app.get("/exception-group-block")
     async def exception_group_block():
         """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11):
+            return HTMLResponse("not supported", status_code=200)
+
         from ddtrace.appsec._utils import Block_config
         from ddtrace.internal._exceptions import BlockingException
 

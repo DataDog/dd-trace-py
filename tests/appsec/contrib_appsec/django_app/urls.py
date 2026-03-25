@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 import tempfile
 from typing import Optional
 
@@ -390,6 +391,9 @@ def login_user_sdk(request):
 @csrf_exempt
 def exception_group_block(request):
     """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+    if sys.version_info < (3, 11):
+        return HttpResponse("not supported", status=200)
+
     from ddtrace.appsec._utils import Block_config
     from ddtrace.internal._exceptions import BlockingException
 
