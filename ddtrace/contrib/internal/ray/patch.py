@@ -442,9 +442,9 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
+            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
-            set_service_and_source(span, os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME), config.ray)
             span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags_and_metrics(span)
 
