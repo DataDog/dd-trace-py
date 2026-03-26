@@ -10,24 +10,24 @@
     "meta": {
       "_dd.base_service": "x64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c53e4400000000",
+      "_dd.p.tid": "69c446e000000000",
       "_dd.svc_src": "azure_functions",
       "_dd.tags.process": "entrypoint.basedir:x64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:x64",
       "aas.function.name": "cosmosdbtrigger",
       "aas.function.trigger": "CosmosDB",
       "component": "azure_functions",
       "language": "python",
-      "runtime-id": "8cf9097af51c4b088f8a232cc3ff60eb",
+      "runtime-id": "840a4737caa7424facd39136b6587bb4",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 2481.0
+      "process_id": 2482.0
     },
-    "duration": 160583,
-    "start": 1774534212315821680
+    "duration": 67791,
+    "start": 1774470880455622800
   }],
 [
   {
@@ -41,7 +41,7 @@
     "meta": {
       "_dd.base_service": "x64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c53e3f00000000",
+      "_dd.p.tid": "69c446db00000000",
       "_dd.svc_src": "azure_functions",
       "_dd.tags.process": "entrypoint.basedir:x64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:x64",
       "aas.function.name": "UpsertItem",
@@ -53,17 +53,17 @@
       "http.url": "http://0.0.0.0:7071/api/upsert_item",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "8cf9097af51c4b088f8a232cc3ff60eb",
+      "runtime-id": "840a4737caa7424facd39136b6587bb4",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 2481.0
+      "process_id": 2482.0
     },
-    "duration": 86979167,
-    "start": 1774534207901418386
+    "duration": 76747500,
+    "start": 1774470875701597048
   },
      {
        "name": "requests.request",
@@ -87,8 +87,8 @@
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0
        },
-       "duration": 4881583,
-       "start": 1774534207972098803
+       "duration": 3635583,
+       "start": 1774470875765348506
      },
      {
        "name": "cosmosdb.query",
@@ -100,7 +100,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69c53e3f00000000",
+         "_dd.p.tid": "69c446db00000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
@@ -110,8 +110,8 @@
          "out.host": "http://localhost:8081/",
          "span.kind": "client"
        },
-       "duration": 3375834,
-       "start": 1774534207978766719
+       "duration": 2880791,
+       "start": 1774470875770480673
      },
         {
           "name": "requests.request",
@@ -123,7 +123,7 @@
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69c53e3f00000000",
+            "_dd.p.tid": "69c446db00000000",
             "component": "requests",
             "http.method": "GET",
             "http.status_code": "200",
@@ -136,8 +136,8 @@
             "_dd.measured": 1.0,
             "_dd.top_level": 1.0
           },
-          "duration": 2197333,
-          "start": 1774534207979605678
+          "duration": 1765333,
+          "start": 1774470875771334006
         },
      {
        "name": "cosmosdb.query",
@@ -149,7 +149,7 @@
        "type": "cosmosdb",
        "meta": {
          "_dd.base_service": "x64",
-         "_dd.p.tid": "69c53e3f00000000",
+         "_dd.p.tid": "69c446db00000000",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
@@ -159,8 +159,8 @@
          "out.host": "http://localhost:8081/",
          "span.kind": "client"
        },
-       "duration": 5678167,
-       "start": 1774534207982389469
+       "duration": 4523542,
+       "start": 1774470875773561964
      },
         {
           "name": "requests.request",
@@ -172,7 +172,7 @@
           "type": "http",
           "meta": {
             "_dd.base_service": "x64",
-            "_dd.p.tid": "69c53e3f00000000",
+            "_dd.p.tid": "69c446db00000000",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "201",
@@ -185,6 +185,6 @@
             "_dd.measured": 1.0,
             "_dd.top_level": 1.0
           },
-          "duration": 4584458,
-          "start": 1774534207983160386
+          "duration": 3654625,
+          "start": 1774470875774214923
         }]]

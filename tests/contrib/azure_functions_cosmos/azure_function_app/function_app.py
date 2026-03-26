@@ -13,6 +13,7 @@ app = func.FunctionApp()
 
 @app.route(route="upsert_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
+    print("upserting item")
     with CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False) as client:
         database = client.get_database_client(COSMOS_DATABASE_NAME)
         container = database.get_container_client(COSMOS_CONTAINER_NAME)
@@ -37,4 +38,9 @@ async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
     create_lease_container_if_not_exists=True,
 )
 def cosmos_trigger(documents: func.DocumentList):
-    pass
+    with open("/tmp/debug2.txt", "a") as f:
+        print("in trigger", file=f)
+        for doc in documents:
+            print(f"First document: {doc.to_json()}", file=f)
+        #print(documents, file=f)
+    # pass
