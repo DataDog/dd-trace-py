@@ -127,6 +127,7 @@ def _expected_llmobs_llm_span_event(
     tool_definitions=None,
     is_decorator=False,
     name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -162,6 +163,7 @@ def _expected_llmobs_llm_span_event(
         prompt_multimodal,
         is_decorator=is_decorator,
         name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -229,6 +231,7 @@ def _expected_llmobs_non_llm_span_event(
     prompt_multimodal=None,
     is_decorator=False,
     name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -260,6 +263,7 @@ def _expected_llmobs_non_llm_span_event(
         prompt_multimodal,
         is_decorator=is_decorator,
         name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -297,6 +301,7 @@ def _llmobs_base_span_event(
     prompt_multimodal=None,
     is_decorator=False,
     name=None,
+    parent_id=None,
 ):
     expected_tags = _expected_llmobs_tags(
         span, tags=tags, error=error, session_id=session_id, is_decorator=is_decorator
@@ -305,8 +310,9 @@ def _llmobs_base_span_event(
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
-    llmobs_parent = _get_nearest_llmobs_ancestor(span)
-    parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
+    if parent_id is None:
+        llmobs_parent = _get_nearest_llmobs_ancestor(span)
+        parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
