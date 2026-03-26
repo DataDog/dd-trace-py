@@ -99,6 +99,11 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        # Set kind before helpers so that input/output messages are routed correctly
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
+        )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
@@ -109,10 +114,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_response(span, kwargs, response, self)
         elif operation == "tool":
             self._llmobs_set_tags_from_tool(span, kwargs, response)
-        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
-        _annotate_llmobs_span_data(
-            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
-        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:

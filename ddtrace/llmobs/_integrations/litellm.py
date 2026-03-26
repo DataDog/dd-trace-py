@@ -67,6 +67,13 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
+        # Set kind before helpers so that input/output messages are routed correctly
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name or "", model_provider=model_provider, metrics=metrics
+        )
+
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
             openai_set_meta_tags_from_completion(span, kwargs, response, integration_name="litellm")
@@ -75,13 +82,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
-
-        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
-
-        metrics = self._extract_llmobs_metrics(response, span_kind)
-        _annotate_llmobs_span_data(
-            span, kind=span_kind, model_name=model_name or "", model_provider=model_provider, metrics=metrics
-        )
 
     def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
         metadata = get_llmobs_metadata(span) or {}
