@@ -14,6 +14,38 @@ Add all monkey-patching that needs to run by default here
 # to allow injecting a custom sitecustomize.py file into the Python process to
 # perform the correct initialisation for the library. All the actual
 # initialisation logic should be placed in preload.py.
+
+# AIDEV-NOTE: Activate meson-python's editable loader before importing ddtrace.
+# In riot prefix-venv subprocesses spawned via ddtrace-run (os.execl), the
+# ddtrace-editable.pth lives in the base venv's site-packages and is not
+# re-processed after riot's bootstrap .pth adds that directory to sys.path.
+# Directly importing _ddtrace_editable_loader triggers its install() side-effect,
+# which registers MesonpyMetaFinder in sys.meta_path so Cython/native extensions
+# like ddtrace.internal._encoding can be found before import ddtrace runs.
+# The subprocess cleanup prevents the transitive subprocess import (which the
+# editable loader imports at module level) from leaking into sys.modules for
+# processes that haven't imported it yet (e.g. test_auto).
+try:
+
+    def _activate_meson_editable_loader():
+        import sys
+
+        if any(hasattr(f, "_build_cmd") and hasattr(f, "_build_path") for f in sys.meta_path):
+            return  # MesonpyMetaFinder already active.
+        subprocess_was_present = "subprocess" in sys.modules
+        try:
+            import _ddtrace_editable_loader  # noqa: F401 — side-effect: calls install()
+        except ImportError:
+            pass
+        finally:
+            if not subprocess_was_present:
+                sys.modules.pop("subprocess", None)
+
+    _activate_meson_editable_loader()
+    del _activate_meson_editable_loader
+except Exception:
+    pass
+
 import ddtrace  # isort:skip
 import os  # noqa:F401
 import sys
