@@ -666,7 +666,7 @@ def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_e
         with llmobs.workflow("chat-workflow") as wf:
             # Simulate OTel-bridged span (non-LLM, child of root)
             child = llmobs._instance.tracer.start_span("gen_ai.chat", child_of=root, activate=False)
-            child._meta["gen_ai.system"] = "aws.bedrock"
+            child._set_attribute("gen_ai.system", "aws.bedrock")
             child.finish()
 
     # Root should have llmobs_trace_id
@@ -698,7 +698,7 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
         with llmobs._instance.tracer.trace("child_span"):
             pass
 
-    assert "llmobs_trace_id" not in span._meta
+    assert not span._has_attribute("llmobs_trace_id")
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])

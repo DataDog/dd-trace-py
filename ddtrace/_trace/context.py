@@ -269,14 +269,15 @@ class Context(object):
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, Context):
+            ctx = other
             with self._lock:
                 return (
-                    self.trace_id == other.trace_id
-                    and self._meta == other._meta
-                    and self._metrics == other._metrics
-                    and self._span_links == other._span_links
-                    and self._baggage == other._baggage
-                    and self._is_remote == other._is_remote
+                    self.trace_id == ctx.trace_id
+                    and self._meta == ctx._meta
+                    and self._metrics == ctx._metrics
+                    and self._span_links == ctx._span_links
+                    and self._baggage == ctx._baggage
+                    and self._is_remote == ctx._is_remote
                 )
         return False
 

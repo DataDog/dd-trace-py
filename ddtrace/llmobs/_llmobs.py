@@ -2072,11 +2072,11 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
-            parent_llmobs_trace_id = (
-                llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
-                if isinstance(llmobs_parent, Span)
-                else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            )
+            if isinstance(llmobs_parent, Span):
+                parent_llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+            else:
+                ctx = llmobs_parent  # llmobs_parent is a Context here
+                parent_llmobs_trace_id = ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )

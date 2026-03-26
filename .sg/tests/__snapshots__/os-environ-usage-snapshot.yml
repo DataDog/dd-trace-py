@@ -1,23 +1,5 @@
 id: os-environ-usage
 snapshots:
-  os.environ["HOME"]:
-    labels:
-    - source: os.environ
-      style: primary
-      start: 0
-      end: 10
-  os.environ.get("DEBUG", "false"):
-    labels:
-    - source: os.environ
-      style: primary
-      start: 0
-      end: 10
-  os.getenv("DEBUG"):
-    labels:
-    - source: os.getenv("DEBUG")
-      style: primary
-      start: 0
-      end: 18
   from os import environ:
     labels:
     - source: from os import environ
@@ -30,6 +12,24 @@ snapshots:
       style: primary
       start: 0
       end: 21
+  os.environ.get("DEBUG", "false"):
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  os.environ["HOME"]:
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  os.getenv("DEBUG"):
+    labels:
+    - source: os.getenv("DEBUG")
+      style: primary
+      start: 0
+      end: 18
   os.putenv("KEY", "value"):
     labels:
     - source: os.putenv("KEY", "value")
