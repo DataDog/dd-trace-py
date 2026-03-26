@@ -107,10 +107,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         model_provider = UNKNOWN_MODEL_PROVIDER
         if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
-        elif self._is_provider(span, "deepseek"):
-            model_provider = "deepseek"
         elif self._is_provider(span, "openai"):
             model_provider = "openai"
+        elif self._is_provider(span, "deepseek"):
+            model_provider = "deepseek"
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
