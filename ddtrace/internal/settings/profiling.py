@@ -313,6 +313,16 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_threads = DDConfig.v(
+        int,
+        "max_threads",
+        default=25,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help="Maximum number of threads to sample per cycle. Uses reservoir sampling when exceeded. 0 = unlimited.",
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
