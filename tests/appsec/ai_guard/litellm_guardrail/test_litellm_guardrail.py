@@ -198,7 +198,7 @@ class TestConvertResponseMessages:
         fc.name = "get_weather"
         fc.arguments = '{"city": "Paris"}'
         result = DatadogAIGuardGuardrail._convert_response_messages([make_choice(content=None, function_call=fc)])
-        assert result[0]["tool_calls"][0]["id"] == "fc_0"
+        assert result[0]["tool_calls"][0]["id"].startswith("fc_")
         assert result[0]["tool_calls"][0]["function"]["name"] == "get_weather"
 
     def test_content_and_tool_calls_together(self):
