@@ -62,6 +62,7 @@ def uwsgi(
 ) -> Generator[Callable[..., subprocess.Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -73,6 +74,8 @@ def uwsgi(
         socket_name,
         "--wsgi-file",
         uwsgi_app,
+        "--import",
+        "ddtrace.auto",
     ]
 
     try:
@@ -140,13 +143,18 @@ def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
 
     The profiler requires threading support to run its background sampling thread.
     Without --enable-threads or --threads N, uwsgi runs in single-threaded mode
-    and the profiler cannot function. This test verifies that:
-    - The process exits with an error (non-zero exit code)
-    - The error message clearly indicates the threading requirement
+    and the profiler cannot function. This test verifies that the error message
+    clearly indicates the threading requirement. With ddtrace.auto, the error is
+    caught and logged but uwsgi keeps running, so we use a timeout to collect output.
     """
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        # With --import, the error is printed but uwsgi keeps running.
+        # Force-kill the entire process group since we only need to check stdout.
+        os.killpg(proc.pid, signal.SIGKILL)
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -210,7 +218,14 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     unsupported. The test verifies the profiler rejects this with a clear error.
     """
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        # With --import, the error is printed but uwsgi keeps running with
+        # child processes. Without --master, SIGTERM may not propagate cleanly
+        # to children, so use SIGKILL to force-kill the entire process group.
+        os.killpg(proc.pid, signal.SIGKILL)
+        stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
@@ -274,7 +289,12 @@ def _wait_for_profile_samples(
             return samples
         time.sleep(interval)
 
-    assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
+    all_pprof = glob.glob(f"{filename_prefix}.*")
+    assert False, "Timed out waiting for %s samples for pid %d; all files with prefix: %s" % (
+        value_type,
+        pid,
+        all_pprof,
+    )
 
 
 def test_uwsgi_threads_processes_primary(
@@ -300,12 +320,10 @@ def test_uwsgi_threads_processes_primary(
     worker_pids = _get_worker_pids(proc.stdout, 2)
     # Give some time to child to actually startup
     time.sleep(3)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        _wait_for_profile_samples(filename, pid, "wall-time")
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
@@ -333,7 +351,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     # Give some time to child to actually startup and output a profile
     time.sleep(3)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     assert proc.wait() == 0
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
@@ -422,7 +440,7 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
     time.sleep(1)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     stdout, _ = proc.communicate()
     assert expected_warning in stdout
 
