@@ -98,6 +98,7 @@ def expected_llmobs_tool_span_events_agent_run(
         output_value='{"results": ["Found reference for: test"]}',
         metadata={"description": "A tiny search tool stub."},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="search_docs",
     )
 
     assert llmobs_event[1] == _expected_llmobs_non_llm_span_event(
@@ -107,6 +108,7 @@ def expected_llmobs_tool_span_events_agent_run(
         output_value='{"product": 15}',
         metadata={"description": "Simple arithmetic tool."},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="multiply",
     )
 
     assert llmobs_event[2] == _expected_llmobs_non_llm_span_event(
@@ -117,6 +119,7 @@ def expected_llmobs_tool_span_events_agent_run(
         error=error_type,
         input_value="Say hello",
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="test_agent",
         metadata={
             "_dd": {
                 "agent_manifest": {
@@ -154,6 +157,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
         output_value='{"results": ["Found reference for: recurring revenue"]}',
         metadata={"description": "A tiny search tool stub."},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="search_docs",
     )
 
     assert llmobs_event[1] == _expected_llmobs_non_llm_span_event(
@@ -164,6 +168,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
         error=error_type,
         input_value="Can you search for information about recurring revenue?",
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="test_agent",
         metadata={
             "_dd": {
                 "agent_manifest": {
@@ -196,9 +201,10 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
 def expected_llmobs_code_execution_event(llmobs_event, span):
     assert llmobs_event == _expected_llmobs_non_llm_span_event(
         span=span,
-        span_kind="code_execute",
+        span_kind="tool",
         input_value='print("hello world")',
         output_value="hello world\n",
         metadata={},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        name="Google ADK Code Execute",
     )

@@ -126,6 +126,7 @@ def _expected_llmobs_llm_span_event(
     span_links=False,
     tool_definitions=None,
     is_decorator=False,
+    name=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -160,6 +161,7 @@ def _expected_llmobs_llm_span_event(
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
         is_decorator=is_decorator,
+        name=name,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -226,6 +228,7 @@ def _expected_llmobs_non_llm_span_event(
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
     is_decorator=False,
+    name=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -256,6 +259,7 @@ def _expected_llmobs_non_llm_span_event(
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
         is_decorator=is_decorator,
+        name=name,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -292,6 +296,7 @@ def _llmobs_base_span_event(
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
     is_decorator=False,
+    name=None,
 ):
     expected_tags = _expected_llmobs_tags(
         span, tags=tags, error=error, session_id=session_id, is_decorator=is_decorator
@@ -306,7 +311,7 @@ def _llmobs_base_span_event(
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": parent_id,
-        "name": _get_span_name(span),
+        "name": name or _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
