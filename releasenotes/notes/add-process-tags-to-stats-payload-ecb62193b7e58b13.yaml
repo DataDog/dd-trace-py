@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    client-side stats: Add process tags to stats payload
+    tracing: Add process tags to client side stats payload
