@@ -51,7 +51,6 @@ def test_tracer_tags():
 def test_tracer_tags_config():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
-    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
     from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
@@ -73,7 +72,6 @@ def test_tracer_tags_config():
     assert values is not None
     assert set(values) == set(
         [
-            (_SERVICE_SOURCE, "m"),
             ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
             ("env", "my-env"),
             ("version", "1.5.4"),
@@ -86,7 +84,6 @@ def test_tracer_tags_config():
 def test_tracer_tags_service_from_code():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
-    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime import tag_collectors
     from ddtrace.trace import TraceFilter
 
@@ -113,7 +110,6 @@ def test_tracer_tags_service_from_code():
     assert values is not None
     assert values == [
         ("service", "my-service"),
-        (_SERVICE_SOURCE, "m"),
     ], values
 
 

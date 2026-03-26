@@ -85,8 +85,8 @@ def test_standard_tags():
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("sampling_rules") == []
-    assert f.get("global_tags") == "_dd.svc_src:m"
-    assert f.get("tracer_tags") == "_dd.svc_src:m"
+    assert f.get("global_tags") == ""
+    assert f.get("tracer_tags") == ""
 
     icfg = f.get("integrations", {})
     assert "django" not in icfg

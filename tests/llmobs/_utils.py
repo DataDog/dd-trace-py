@@ -77,7 +77,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
     expected_tags = [
-        "_dd.svc_src:{}".format(span.get_tag("_dd.svc_src")),
         "version:{}".format(tags.get("version", "")),
         "env:{}".format(tags.get("env", "")),
         "service:{}".format(tags.get("service", "tests.llmobs")),
@@ -623,7 +622,6 @@ def _oversized_retrieval_event():
 
 def expected_ragas_trace_tags():
     return [
-        "_dd.svc_src:m",
         "version:",
         "env:",
         "service:tests.llmobs",

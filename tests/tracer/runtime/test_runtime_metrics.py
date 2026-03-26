@@ -95,14 +95,13 @@ def test_runtime_platformv2_tags():
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
 def test_runtime_tags_usm():
-    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime.runtime_metrics import TracerTags
 
     tags = list(TracerTags())
-    assert len(tags) == 4, tags
+    assert len(tags) == 3, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["service", "version", "env", _SERVICE_SOURCE])
+    assert set(tags.keys()) == set(["service", "version", "env"])
     assert tags["service"] == "my-service"
     assert tags["env"] == "test-env"
     assert tags["version"] == "1.2.3"
@@ -124,17 +123,16 @@ def test_runtime_tags_dd_tags():
 
 @pytest.mark.subprocess()
 def test_runtime_tags_manual_tracer_tags():
-    from ddtrace.internal.constants import _SERVICE_SOURCE
     from ddtrace.internal.runtime.runtime_metrics import TracerTags
     from ddtrace.trace import tracer
 
     tracer.set_tags({"manual": "tag"})
 
     tags = list(TracerTags())
-    assert len(tags) == 3, tags
+    assert len(tags) == 2, tags
 
     tags = dict(tags)
-    assert set(tags.keys()) == set(["manual", "service", _SERVICE_SOURCE])
+    assert set(tags.keys()) == set(["manual", "service"])
     assert tags["manual"] == "tag"
 
 
