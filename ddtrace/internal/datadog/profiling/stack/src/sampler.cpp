@@ -410,10 +410,14 @@ Sampler::start()
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
 #ifdef __linux__
-    // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    auto thread_id = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    // If RLIMIT_STACK is unlimited, glibc's pthread_attr_setstacksize accepts
+    // RLIM_INFINITY (no upper-bound check) but pthread_create then fails to
+    // mmap() a stack of that size (ENOMEM).  Fall back to 8 MB -- the Linux
+    // default -- so the sampling thread is always created successfully.
+    const size_t stack_size = (stack_sz.rlim_cur == RLIM_INFINITY) ? 8ULL * 1024 * 1024 : stack_sz.rlim_cur;
+    auto thread_id = create_thread_with_stack(stack_size, this, ++thread_seq_num);
     if (thread_id == 0) {
         return false;
     }
