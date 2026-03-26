@@ -42,5 +42,8 @@ def setenv(env_name: str, value: Any) -> None:
 
 
 def unsetenv(env_name: str) -> None:
-    """Wrapper around del os.environ[key] — use instead of os.unsetenv."""
-    del os.environ[env_name]
+    """Wrapper around del os.environ[key] — use instead of os.unsetenv.
+
+    Uses pop() so that missing keys are a no-op, matching os.unsetenv semantics.
+    """
+    os.environ.pop(env_name, None)
