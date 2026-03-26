@@ -7,7 +7,7 @@ from typing import Union
 from filelock import FileLock
 import yaml
 
-from tests.contrib.integration_registry.registry_update_helpers.integration import Integration
+from .integration import Integration
 
 
 class IntegrationRegistryUpdater:
@@ -21,10 +21,8 @@ class IntegrationRegistryUpdater:
         if not self.project_root:
             raise RuntimeError("Could not determine project root directory.")
 
-        self.registry_yaml_path = self.project_root / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
-        self.registry_lock_path = (
-            self.project_root / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml.lock"
-        )
+        self.registry_yaml_path = self.project_root / "scripts" / "integration_registry" / "registry.yaml"
+        self.registry_lock_path = self.project_root / "scripts" / "integration_registry" / "registry.yaml.lock"
         self.lock_timeout_seconds = 15
         self.lock = FileLock(self.registry_lock_path, timeout=self.lock_timeout_seconds)
         self.raw_registry_data: dict[str, dict] = {}
