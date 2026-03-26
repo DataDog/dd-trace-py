@@ -292,7 +292,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     message_id = _extract_header_value(_POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, normalized)
     project_id, subscription_id = _parse_pubsub_resource_path(subscription_name)
 
-    propagated_context = tracer.current_trace_context()
+    propagated_context = tracer.current_trace_context() if config.google_cloud_pubsub.distributed_tracing_enabled else None
 
     span = tracer.start_span(
         "gcp.pubsub.receive",
