@@ -80,6 +80,7 @@ def _configure_rust_env(env):
                 f"[meson_build_ext] Rust musl host detected; setting RUSTFLAGS={env['RUSTFLAGS']}",
                 flush=True,
             )
+    return rust_host
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +112,7 @@ def cmd_rust(args):
     # Prefer stable toolchain to avoid nightly/MSRV mismatches
     if not env.get("RUSTUP_TOOLCHAIN"):
         env["RUSTUP_TOOLCHAIN"] = "stable"
-    _configure_rust_env(env)
+    rust_host = _configure_rust_env(env)
 
     # Build with cargo
     cargo_cmd = [
@@ -170,7 +171,7 @@ def cmd_rust(args):
     if "profiling" in (features or ""):
         include_dir = cargo_target_dir / "include" / "datadog"
         if include_dir.exists():
-            dedup = _ensure_dedup_headers(manifest, Path(args.src_root))
+            dedup = _ensure_dedup_headers(manifest, Path(args.src_root), rust_host)
             run([dedup, "common.h", "profiling.h"], cwd=str(include_dir))
         else:
             print(f"[meson_build_ext] WARNING: Include dir not found: {include_dir}")
@@ -195,15 +196,18 @@ def _libdatadog_tools_rev(manifest: Path) -> str:
     return match.group(1)
 
 
-def _ensure_dedup_headers(manifest: Path, src_root: Path) -> str:
+def _ensure_dedup_headers(manifest: Path, src_root: Path, rust_host: str) -> str:
     """Install a revision-pinned dedup_headers binary for the active libdatadog toolchain."""
     libdatadog_rev = _libdatadog_tools_rev(manifest)
-    install_root = src_root / ".download_cache" / "tools" / f"libdatadog-{libdatadog_rev}"
+    # AIDEV-NOTE: dedup_headers is a host executable, not a target artifact. GitLab
+    # reuses .download_cache across architectures, so the cache path must include the
+    # resolved host triple to avoid reusing an x86_64 binary on aarch64 (or vice versa).
+    install_root = src_root / ".download_cache" / "tools" / f"libdatadog-{libdatadog_rev}-{rust_host}"
     dedup = install_root / "bin" / "dedup_headers"
     if dedup.exists():
         return str(dedup)
 
-    print(f"[meson_build_ext] Installing dedup_headers from libdatadog {libdatadog_rev}...")
+    print(f"[meson_build_ext] Installing dedup_headers from libdatadog {libdatadog_rev} for {rust_host}...")
     cargo = shutil.which("cargo") or "cargo"
     install_root.mkdir(parents=True, exist_ok=True)
     subprocess.run(
