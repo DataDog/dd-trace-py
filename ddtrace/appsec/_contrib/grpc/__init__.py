@@ -19,6 +19,6 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
-def listen():
+def listen() -> None:
     core.on("grpc.server.response.message", _on_grpc_server_response)
     core.on("grpc.server.data", _on_grpc_server_data)
