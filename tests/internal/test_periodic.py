@@ -128,7 +128,13 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_forksafe_awakeable_periodic_service():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
     queue = [None]
     periodic_ran = Event()
 
@@ -165,6 +171,7 @@ def test_forksafe_awakeable_periodic_service():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not
@@ -175,6 +182,12 @@ def test_autorestart_false_service_restarts_in_parent_after_fork():
     restarted in the parent because _after_fork() checks __autorestart__ without
     knowing whether it is running in the child or in the parent.
     """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
     periodic_ran = Event()
 
     class MyService(periodic.PeriodicService):
@@ -361,6 +374,7 @@ def _get_native_thread_name():
     return None
 
 
+@pytest.mark.subprocess()
 def test_periodic_thread_stop_without_join_forksafe():
     """
     Dropping a PeriodicThread that was stop()'d without join() in a forked child
@@ -383,7 +397,12 @@ def test_periodic_thread_stop_without_join_forksafe():
     been reused.
     """
     import gc
+    import os
     import signal
+    from threading import Thread
+    from time import sleep
+
+    from ddtrace.internal import periodic
 
     def noop():
         pass

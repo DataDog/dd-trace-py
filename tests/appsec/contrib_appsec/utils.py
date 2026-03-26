@@ -634,6 +634,14 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert self.status(response) == 200
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="BaseExceptionGroup requires Python 3.11+")
+    def test_exception_group_blocking(self, interface: Interface, get_entry_span_tag, entry_span):
+        """Test that BlockingException wrapped in BaseExceptionGroup is properly caught and returns 403."""
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
+            self.update_tracer(interface)
+            response = interface.client.get("/exception-group-block?block=true")
+            assert (st := self.status(response)) == 403, f"expected 403 but got {st}"
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
         ("headers", "monitored", "bypassed"),
