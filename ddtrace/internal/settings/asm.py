@@ -49,7 +49,8 @@ def build_libddwaf_filename() -> str:
     """
     Build the filename of the libddwaf library to load.
     """
-    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
+    import sys
+
     FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
     ARCHI = machine().lower()
     # 32-bit-Python on 64-bit-Windows
@@ -60,9 +61,31 @@ def build_libddwaf_filename() -> str:
             ARCHI = "x86"
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
+
+    # Primary: source-tree / wheel-install path (works for pip install, setuptools editable)
+    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
+    source_path = os.path.join(
         _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
     )
+    if os.path.exists(source_path):
+        return source_path
+
+    # AIDEV-NOTE: meson-python editable installs place data files (including
+    # libddwaf.so) in the meson build directory, not the source tree.
+    # ctypes.CDLL() uses raw filesystem paths so MesonpyMetaFinder cannot
+    # redirect the lookup automatically.  We find the build directory via
+    # MesonpyMetaFinder._build_path, which is available in sys.meta_path
+    # after the editable .pth file has been processed.
+    rel_path = os.path.join(
+        "ddtrace", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
+    )
+    for finder in sys.meta_path:
+        if hasattr(finder, "_build_path"):
+            candidate = os.path.join(str(finder._build_path), rel_path)
+            if os.path.exists(candidate):
+                return candidate
+
+    return source_path  # Caller checks os.path.exists() via _asm_libddwaf_available
 
 
 class ASMConfig(DDConfig):
