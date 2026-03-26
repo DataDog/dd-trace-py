@@ -1,3 +1,4 @@
+import os
 import typing as t
 
 from ddtrace.internal.settings._agent import get_agent_hostname
@@ -59,6 +60,10 @@ def _derive_metrics_metric_reader_export_timeout(config: "ExporterConfig"):
     return get_config("OTEL_METRIC_EXPORT_TIMEOUT", config.DEFAULT_METRICS_METRIC_READER_EXPORT_TIMEOUT, int)
 
 
+def _derive_traces_headers(config: "ExporterConfig"):
+    return get_config("OTEL_EXPORTER_OTLP_TRACES_HEADERS", config.HEADERS)
+
+
 def _derive_traces_protocol(config: "ExporterConfig"):
     return get_config(["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], config.PROTOCOL)
 
@@ -68,11 +73,8 @@ def _derive_traces_timeout(config: "ExporterConfig"):
 
 
 def _derive_traces_endpoint(config: "ExporterConfig"):
-    import os
-
     # Signal-specific endpoint takes precedence (full URL, no path appended).
-    traces_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
-    if traces_endpoint:
+    if traces_endpoint := os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
     # Global endpoint is a base URL; append the traces signal path.
     global_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -83,8 +85,6 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
-    import os
-
     if os.environ.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
     return os.environ.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
@@ -128,6 +128,7 @@ class ExporterConfig(DDConfig):
 
     TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
+    TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)
     TRACES_TIMEOUT = DDConfig.d(int, _derive_traces_timeout)
 
     @staticmethod

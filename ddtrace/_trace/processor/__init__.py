@@ -4,6 +4,7 @@ from itertools import chain
 import logging
 from threading import RLock
 from typing import Optional
+
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex

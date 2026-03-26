@@ -214,5 +214,3 @@ class DatadogSampler:
             return SamplingMechanism.AGENT_RATE_BY_SERVICE
         else:
             return SamplingMechanism.DEFAULT
-
-
