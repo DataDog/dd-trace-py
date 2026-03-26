@@ -221,7 +221,14 @@ py.extension_module(
 # ================================================================
 
 # _threads: C++20 threading extension
-_threads_cpp_args = host == 'windows' ? ['/std:c++20', '/MT'] : ['-std=c++20', '-Wall', '-Wextra']
+# AIDEV-NOTE: Use compiler ID (not just host OS) to select the right flag style.
+# On Windows with MinGW/GCC, MSVC-style flags (/std:c++20, /MT) are treated as
+# linker input files and cause "file format not recognised" errors.  The
+# override_options below already requests c++20 from meson; the explicit
+# cpp_args are only needed for /MT (static CRT on MSVC) and warnings on GCC.
+cpp = meson.get_compiler('cpp')
+_is_msvc = cpp.get_id() in ['msvc', 'clang-cl']
+_threads_cpp_args = _is_msvc ? ['/MT'] : ['-std=c++20', '-Wall', '-Wextra']
 
 py.extension_module(
   '_threads',
@@ -412,35 +419,41 @@ if is_unix and is_64bit
 endif
 
 # --- IAST taint tracking: _native (standalone pybind11+Abseil) ---
-iast_native_build_so = 'native_iast_raw' + ext_suffix
+# AIDEV-NOTE: _native is not built on Windows, matching setup.py behaviour
+# (setup.py guards it with `if platform.system() not in ("Windows", "")`).
+# The pybind11 cmake build uses designated initialisers that require C++20 on
+# MSVC, and IAST is not supported on Windows anyway.
+if host != 'windows'
+  iast_native_build_so = 'native_iast_raw' + ext_suffix
 
-iast_stamp = custom_target(
-  '_iast_native',
-  output: [iast_native_build_so],
-  command: [
-    py, build_helper, 'cmake',
-    '--src-root', src_root,
-    '--cmake-src-dir', src_root / 'ddtrace/appsec/_iast/_taint_tracking',
-    '--output', '@OUTPUT0@',
-    '--install-dir', '@OUTDIR@',
-    '--python', py.full_path(),
-    '--py-prefix', py_prefix,
+  iast_stamp = custom_target(
+    '_iast_native',
+    output: [iast_native_build_so],
+    command: [
+      py, build_helper, 'cmake',
+      '--src-root', src_root,
+      '--cmake-src-dir', src_root / 'ddtrace/appsec/_iast/_taint_tracking',
+      '--output', '@OUTPUT0@',
+      '--install-dir', '@OUTDIR@',
+      '--python', py.full_path(),
+      '--py-prefix', py_prefix,
+      '--ext-suffix', ext_suffix,
+      '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
+      '--build-key', py_build_key,
+      '--component-name', 'iast_native',
+    ],
+    build_by_default: true,
+    install: true,
+    install_dir: py.get_install_dir() / '.meson-native',
+  )
+
+  meson.add_install_script(
+    py,
+    files('scripts/meson_install_iast_native.py'),
     '--ext-suffix', ext_suffix,
-    '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
-    '--build-key', py_build_key,
-    '--component-name', 'iast_native',
-  ],
-  build_by_default: true,
-  install: true,
-  install_dir: py.get_install_dir() / '.meson-native',
-)
-
-meson.add_install_script(
-  py,
-  files('scripts/meson_install_iast_native.py'),
-  '--ext-suffix', ext_suffix,
-  '--py-install-dir', py.get_install_dir(),
-)
+    '--py-install-dir', py.get_install_dir(),
+  )
+endif
 
 # --- psutil vendor extension ---
 if host == 'darwin'
