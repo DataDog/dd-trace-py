@@ -8,8 +8,8 @@
 #
 # Expected environment variables (set by .gitlab/fuzz.yml):
 #   FUZZ_IMAGE          – registry path, e.g. registry.ddbuild.io/dd-trace-py-fuzz
-#   PYTHON_VERSION      – e.g. "3.12"
-#   PYTHON_IMAGE_TAG    – e.g. "3.12.0"
+#   FUZZ_BASE_IMAGE     – pre-built base image ref, e.g. registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base
+#   PYTHON_VERSION      – e.g. "3.12" (must match a pyenv version in fuzz_base)
 #   CI_COMMIT_SHORT_SHA – short SHA from GitLab CI
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ MAX_PKG_NAME_LENGTH = 50
 @dataclass(frozen=True)
 class Config:
     fuzz_image: str
+    fuzz_base_image: str
     python_version: str
-    python_image_tag: str
     commit_short_sha: str
     git_sha: str
 
@@ -45,8 +45,8 @@ class Config:
         git_sha = git_sha.decode("utf-8") if isinstance(git_sha, bytes) else git_sha
         return cls(
             fuzz_image=os.environ["FUZZ_IMAGE"],
+            fuzz_base_image=os.environ["FUZZ_BASE_IMAGE"],
             python_version=os.environ["PYTHON_VERSION"],
-            python_image_tag=os.environ["PYTHON_IMAGE_TAG"],
             commit_short_sha=os.environ["CI_COMMIT_SHORT_SHA"],
             git_sha=git_sha,
         )
@@ -120,7 +120,9 @@ def build_and_push_image(config: Config) -> str:
             "-f",
             "docker/Dockerfile.fuzz",
             "--build-arg",
-            f"PYTHON_IMAGE_TAG={config.python_image_tag}",
+            f"FUZZ_BASE_IMAGE={config.fuzz_base_image}",
+            "--build-arg",
+            f"PYTHON_VERSION={config.python_version}",
             "-t",
             config.full_image_ref,
             "--push",
@@ -174,7 +176,9 @@ def extract_manifest(config: Config) -> list[FuzzBinary]:
             "-f",
             "docker/Dockerfile.fuzz",
             "--build-arg",
-            f"PYTHON_IMAGE_TAG={config.python_image_tag}",
+            f"FUZZ_BASE_IMAGE={config.fuzz_base_image}",
+            "--build-arg",
+            f"PYTHON_VERSION={config.python_version}",
             "--output",
             f"type=local,dest={output_dir}",
             ".",
