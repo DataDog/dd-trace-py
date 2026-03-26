@@ -19,6 +19,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 
 
 CURRENT_OS = platform.system()
@@ -83,6 +84,31 @@ def _configure_rust_env(env):
     return rust_host
 
 
+def _windows_target_info(ext_suffix: str = "", python_path: str = "") -> tuple[str, str, str]:
+    suffix = ext_suffix.lower()
+    normalized_python_path = python_path.lower()
+    # AIDEV-NOTE: Windows wheel jobs run on 64-bit hosts even for win32 builds.
+    # Derive target architecture from the extension tag / target interpreter, not
+    # platform.machine(), so Rust/CMake/libddwaf all build for the wheel target.
+    if "win32" in suffix or "windows-x86" in normalized_python_path:
+        return ("Win32", "i686-pc-windows-msvc", "win32")
+    if "win_arm64" in suffix or "windows-arm64" in normalized_python_path:
+        return ("ARM64", "aarch64-pc-windows-msvc", "arm64")
+    if "win_amd64" in suffix or "windows-x86_64" in normalized_python_path or "windows-amd64" in normalized_python_path:
+        return ("x64", "x86_64-pc-windows-msvc", "x64")
+    if sys.maxsize <= 2**32:
+        return ("Win32", "i686-pc-windows-msvc", "win32")
+
+    arch = platform.machine().lower()
+    if arch in ("amd64", "x86_64"):
+        return ("x64", "x86_64-pc-windows-msvc", "x64")
+    if arch in ("arm64", "aarch64"):
+        return ("ARM64", "aarch64-pc-windows-msvc", "arm64")
+    if arch in ("x86", "i386", "i686"):
+        return ("Win32", "i686-pc-windows-msvc", "win32")
+    raise RuntimeError(f"Unsupported Windows target architecture: ext_suffix={ext_suffix!r} python={python_path!r}")
+
+
 # ---------------------------------------------------------------------------
 # Rust build
 # ---------------------------------------------------------------------------
@@ -113,6 +139,9 @@ def cmd_rust(args):
     if not env.get("RUSTUP_TOOLCHAIN"):
         env["RUSTUP_TOOLCHAIN"] = "stable"
     rust_host = _configure_rust_env(env)
+    cargo_target = None
+    if host == "windows" or CURRENT_OS == "Windows":
+        _, cargo_target, _ = _windows_target_info(args.ext_suffix, python)
 
     # Build with cargo
     cargo_cmd = [
@@ -122,13 +151,18 @@ def cmd_rust(args):
         "--manifest-path",
         str(manifest),
     ]
+    if cargo_target:
+        cargo_cmd += ["--target", cargo_target]
     if features:
         cargo_cmd += ["--features", features]
 
     run(cargo_cmd, env=env)
 
     # Locate the built shared library in cargo's release directory
-    release_dir = cargo_target_dir / "release"
+    if cargo_target:
+        release_dir = cargo_target_dir / cargo_target / "release"
+    else:
+        release_dir = cargo_target_dir / "release"
 
     # Determine the library filename cargo produces
     if host == "darwin" or CURRENT_OS == "Darwin":
@@ -345,6 +379,9 @@ def cmd_cmake(args):
         f"-DEXTENSION_NAME={output.name}",  # full filename e.g. _memalloc.cpython-314-darwin.so
         f"-DEXTENSION_SUFFIX={args.ext_suffix}",
     ]
+    if CURRENT_OS == "Windows":
+        cmake_arch, _, _ = _windows_target_info(args.ext_suffix, args.python)
+        cmake_args.append(f"-A{cmake_arch}")
 
     # FetchContent cache for Abseil etc.
     fetchcontent_dir = src_root / ".download_cache" / "_cmake_deps"
@@ -531,12 +568,7 @@ def cmd_libddwaf(args):
     elif host == "windows":
         os_name = "windows"
         suffix = ".dll"
-        if machine in ("arm64", "aarch64"):
-            arch = "arm64"
-        elif machine in ("x86", "i386", "i686"):
-            arch = "win32"
-        else:
-            arch = "x64"
+        _, _, arch = _windows_target_info(python_path=args.python)
     else:
         print(f"[meson_build_ext] WARNING: unsupported host '{host}', skipping libddwaf download")
         raise RuntimeError(f"Unsupported host for libddwaf download: {host}")
