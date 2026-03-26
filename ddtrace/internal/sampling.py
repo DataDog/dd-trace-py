@@ -1,4 +1,5 @@
 import json
+import math
 from typing import Any
 from typing import Optional
 from typing import TypedDict
@@ -45,6 +46,17 @@ SAMPLING_MECHANISM_CONSTANTS = {
 }
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
+
+
+def _format_ksr(rate: float) -> str:
+    """Format a sampling rate for _dd.p.ksr: up to 6 decimal digits, trailing zeros stripped.
+
+    Uses explicit rounding via math.floor(x + 0.5) to avoid Python's banker's rounding
+    which would round 0.0000005 down to 0 instead of up to 0.000001.
+    """
+    rounded = math.floor(rate * 1e6 + 0.5) / 1e6
+    return f"{rounded:.6f}".rstrip("0").rstrip(".")
+
 
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
@@ -243,10 +255,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span._set_attribute(_SAMPLING_RULE_DECISION, sample_rate)
-        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span._set_attribute(_SAMPLING_AGENT_DECISION, sample_rate)
-        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
