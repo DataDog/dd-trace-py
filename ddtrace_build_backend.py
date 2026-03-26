@@ -140,6 +140,22 @@ def _patch_editable_loader(loader_text: str) -> str:
     )
     if count != 1:
         raise RuntimeError("Could not find editable loader ninja command to patch")
+
+    # AIDEV-NOTE: When sys.executable is not Python (e.g. in uWSGI worker
+    # processes where the embedding process binary is used), the rebuild command
+    # [sys.executable, '-m', 'ninja'] fails with a non-zero exit code.
+    # Instead of propagating an ImportError, fall through to reading the
+    # existing intro-install_plan.json in the build directory.  The plan was
+    # written by the initial `pip install -e .` run and still points to the
+    # pre-built artifacts, so imports succeed without any rebuild.
+    patched, count2 = re.subn(
+        r"(?m)^(\s+)except subprocess\.CalledProcessError as exc:\n(\s+)raise ImportError\([^)]+\) from exc",
+        r"\1except subprocess.CalledProcessError:\n\2pass  # rebuild failed; use existing build artifacts",
+        patched,
+        count=1,
+    )
+    if count2 != 1:
+        raise RuntimeError("Could not find editable loader CalledProcessError handler to patch")
     return patched
 
 
