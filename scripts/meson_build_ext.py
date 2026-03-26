@@ -23,6 +23,7 @@ import subprocess
 
 CURRENT_OS = platform.system()
 LIBDATADOG_REPO = "https://github.com/DataDog/libdatadog"
+MUSL_RUSTFLAGS = "-Ctarget-feature=-crt-static"
 
 
 def _resolve_path_arg(path_str: str) -> Path:
@@ -48,6 +49,37 @@ def get_cmake_binary():
 def run(cmd, **kwargs):
     print(f"[meson_build_ext] Running: {' '.join(str(c) for c in cmd)}", flush=True)
     subprocess.run([str(c) for c in cmd], check=True, **kwargs)
+
+
+def _rust_host_triple(env):
+    rustc = shutil.which("rustc") or "rustc"
+    result = subprocess.run(
+        [rustc, "-vV"],
+        check=True,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        if line.startswith("host:"):
+            return line.split(":", 1)[1].strip()
+    raise RuntimeError("Unable to determine Rust host triple from rustc -vV")
+
+
+def _configure_rust_env(env):
+    rust_host = _rust_host_triple(env)
+    if rust_host.endswith("-musl"):
+        existing_rustflags = env.get("RUSTFLAGS", "")
+        if MUSL_RUSTFLAGS not in existing_rustflags:
+            # AIDEV-NOTE: setuptools-rust forces -crt-static off for musl Python
+            # extensions so PyO3 can still emit the _native cdylib. Meson's
+            # plain cargo build path needs the same flag for musllinux wheels.
+            env["RUSTFLAGS"] = f"{MUSL_RUSTFLAGS} {existing_rustflags}".strip()
+            print(
+                f"[meson_build_ext] Rust musl host detected; setting RUSTFLAGS={env['RUSTFLAGS']}",
+                flush=True,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +111,7 @@ def cmd_rust(args):
     # Prefer stable toolchain to avoid nightly/MSRV mismatches
     if not env.get("RUSTUP_TOOLCHAIN"):
         env["RUSTUP_TOOLCHAIN"] = "stable"
+    _configure_rust_env(env)
 
     # Build with cargo
     cargo_cmd = [
