@@ -13,7 +13,6 @@ from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import DEFAULT_BUFFER_SIZE
 from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
