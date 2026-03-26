@@ -20,11 +20,13 @@ import re
 import shutil
 import subprocess
 import sys
+from typing import Optional
 
 
 CURRENT_OS = platform.system()
 LIBDATADOG_REPO = "https://github.com/DataDog/libdatadog"
 MUSL_RUSTFLAGS = "-Ctarget-feature=-crt-static"
+DEFAULT_CI_NESTED_PARALLELISM = 12
 
 
 def _resolve_path_arg(path_str: str) -> Path:
@@ -50,6 +52,40 @@ def get_cmake_binary():
 def run(cmd, **kwargs):
     print(f"[meson_build_ext] Running: {' '.join(str(c) for c in cmd)}", flush=True)
     subprocess.run([str(c) for c in cmd], check=True, **kwargs)
+
+
+def _parse_parallel_env(var_name: str) -> Optional[int]:
+    configured_parallel = os.getenv(var_name)
+    if not configured_parallel:
+        return None
+
+    try:
+        parallel = int(configured_parallel)
+    except ValueError:
+        print(f"[meson_build_ext] WARNING: ignoring invalid {var_name}={configured_parallel!r}", flush=True)
+        return None
+
+    if parallel <= 0:
+        print(f"[meson_build_ext] WARNING: ignoring non-positive {var_name}={configured_parallel!r}", flush=True)
+        return None
+
+    return parallel
+
+
+def _nested_build_parallelism(*env_var_names: str) -> int:
+    for env_var_name in env_var_names:
+        configured_parallel = _parse_parallel_env(env_var_name)
+        if configured_parallel is not None:
+            return configured_parallel
+
+    if os.getenv("GITLAB_CI") or os.getenv("CI"):
+        # AIDEV-NOTE: Some editable/build-isolation code paths in GitLab do not
+        # reliably propagate the package job's explicit parallelism env vars into
+        # nested helper invocations. Use the same conservative cap as CI config so
+        # Cargo/CMake do not fall back to host CPU count and OOM the runner.
+        return min(os.cpu_count() or DEFAULT_CI_NESTED_PARALLELISM, DEFAULT_CI_NESTED_PARALLELISM)
+
+    return os.cpu_count() or 4
 
 
 def _rust_host_triple(env):
@@ -138,6 +174,8 @@ def cmd_rust(args):
     # Prefer stable toolchain to avoid nightly/MSRV mismatches
     if not env.get("RUSTUP_TOOLCHAIN"):
         env["RUSTUP_TOOLCHAIN"] = "stable"
+    if "CARGO_BUILD_JOBS" not in env:
+        env["CARGO_BUILD_JOBS"] = str(_nested_build_parallelism("CARGO_BUILD_JOBS", "CMAKE_BUILD_PARALLEL_LEVEL"))
     rust_host = _configure_rust_env(env)
     cargo_target = None
     if host == "windows" or CURRENT_OS == "Windows":
@@ -313,27 +351,8 @@ def _clean_stale_cmake_build_dir(build_dir: Path, cmake_src_dir: Path) -> None:
 
 
 def _cmake_parallel_args():
-    configured_parallel = os.getenv("CMAKE_BUILD_PARALLEL_LEVEL")
-    if configured_parallel:
-        try:
-            parallel = int(configured_parallel)
-        except ValueError:
-            print(
-                f"[meson_build_ext] WARNING: ignoring invalid CMAKE_BUILD_PARALLEL_LEVEL={configured_parallel!r}",
-                flush=True,
-            )
-        else:
-            if parallel > 0:
-                # AIDEV-NOTE: GitLab package jobs cap nested CMake concurrency via
-                # CMAKE_BUILD_PARALLEL_LEVEL to keep the large IAST C++ build from
-                # being OOM-killed. Respect it here instead of forcing host CPU count.
-                return ["--parallel", str(parallel)]
-            print(
-                f"[meson_build_ext] WARNING: ignoring non-positive CMAKE_BUILD_PARALLEL_LEVEL={configured_parallel!r}",
-                flush=True,
-            )
-
-    return ["--parallel", str(os.cpu_count() or 4)]
+    parallel = _nested_build_parallelism("CMAKE_BUILD_PARALLEL_LEVEL", "CARGO_BUILD_JOBS")
+    return ["--parallel", str(parallel)]
 
 
 def cmd_cmake(args):
