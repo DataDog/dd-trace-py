@@ -74,7 +74,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_attribute("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
-        """Check if the client's base_url contains the given provider name."""
+        """Check if the traced operation is from the given provider."""
         base_url = None
         if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
             base_url = getattr(self._client, "_base_url", None)
