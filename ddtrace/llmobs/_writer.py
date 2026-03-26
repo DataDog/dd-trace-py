@@ -505,7 +505,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             update_record = cast(DatasetRecordUpdateWithId, record)
             tag_ops: _TagOperations = update_record.get("tag_operations", {})
             if tag_ops:
-                serialized: dict[str, Any] = {}
+                serialized: dict[str, JSONType] = {}
                 if "add" in tag_ops:
                     serialized["add"] = tag_ops["add"]
                 if "remove" in tag_ops:
@@ -517,7 +517,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             insert_record = cast(DatasetRecord, record)
             tags = insert_record.get("tags")
             if tags:
-                rj["tags"] = cast(list, tags)
+                rj["tags"] = tags
 
         return rj
 
