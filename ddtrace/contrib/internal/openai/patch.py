@@ -263,13 +263,38 @@ def _patched_endpoint(patch_hook):
 def _inject_into_parse_cache(api_response, traced_value):
     """Replace the cached parse result on an AsyncAPIResponse so callers
     who call ``await api_response.parse()`` receive the traced stream wrapper
-    instead of the original unwrapped stream."""
+    instead of the original unwrapped stream.
+
+    This accesses private SDK internals that may change across versions:
+      - OpenAI SDK >=2.0 (``openai>=2.0.0``): ``_parsed_by_type`` dict keyed by ``_cast_to``
+      - OpenAI SDK 1.x (``openai>=1.0,<2``): single ``_parsed`` attribute
+    """
     if hasattr(api_response, "_parsed_by_type"):
-        # OpenAI SDK >=2.x caches by target type
         api_response._parsed_by_type[api_response._cast_to] = traced_value
     elif hasattr(api_response, "_parsed"):
-        # OpenAI SDK 1.x uses a single _parsed slot
         api_response._parsed = traced_value
+
+
+async def _maybe_preparse_async_response(resp, err):
+    """If *resp* is an async API response (has an async ``parse()``), eagerly
+    await it so the sync ``_traced_endpoint`` generator receives the real
+    stream object instead of an unawaited coroutine.
+
+    Returns the parsed object on success, or the original *resp* on any
+    failure (so tracing never changes application-visible behaviour).
+    """
+    if resp is not None and err is None and hasattr(resp, "parse"):
+        try:
+            parsed = resp.parse()
+            if asyncio.iscoroutine(parsed):
+                return await parsed
+            # Sync parse() — return the parsed value directly.
+            return parsed
+        except Exception:
+            # Never let a tracing-internal parse failure propagate;
+            # fall through to return the original response unchanged.
+            pass
+    return resp
 
 
 class _TracedAsyncPaginator:
@@ -327,14 +352,7 @@ class _TracedAsyncPaginator:
                 err = e
                 raise
             finally:
-                # Pre-parse AsyncAPIResponse so the sync hook receives the
-                # actual stream object instead of an unawaited coroutine.
-                send_resp = resp
-                if send_resp is not None and err is None and hasattr(send_resp, "parse"):
-                    parsed = send_resp.parse()
-                    if asyncio.iscoroutine(parsed):
-                        send_resp = await parsed
-
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
                     g.send((send_resp, err))
                 except StopIteration as e:
@@ -342,6 +360,8 @@ class _TracedAsyncPaginator:
                         hook_val = e.value
                         if resp is not send_resp and hook_val is not None:
                             _inject_into_parse_cache(resp, hook_val)
+                            # resp stays as the original API response; the
+                            # traced stream is now in its parse cache.
                         else:
                             resp = hook_val
             return resp
@@ -378,14 +398,7 @@ def _patched_endpoint_async(patch_hook):
                 err = e
                 raise
             finally:
-                # Pre-parse AsyncAPIResponse so the sync hook receives the
-                # actual stream object instead of an unawaited coroutine.
-                send_resp = resp
-                if send_resp is not None and err is None and hasattr(send_resp, "parse"):
-                    parsed = send_resp.parse()
-                    if asyncio.iscoroutine(parsed):
-                        send_resp = await parsed
-
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
                     g.send((send_resp, err))
                 except StopIteration as e:
@@ -393,10 +406,7 @@ def _patched_endpoint_async(patch_hook):
                         override_return = e.value
 
             if override_return is not None:
-                # If we pre-parsed an async response, inject the hook's traced
-                # stream wrapper into the response's parse cache so the caller
-                # iterates the traced version (which finishes the span).
-                if resp is not send_resp:
+                if resp is not send_resp and override_return is not None:
                     _inject_into_parse_cache(resp, override_return)
                     return resp
                 return override_return
