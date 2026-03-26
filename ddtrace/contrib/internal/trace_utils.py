@@ -451,11 +451,8 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             span._set_attribute(http.STATUS_CODE, str(status_code))
-            if span.span_type == SpanTypes.HTTP:
-                is_error = config._http_client.is_error_code(int_status_code)
-            else:
-                is_error = config._http_server.is_error_code(int_status_code)
-            if is_error:
+            http_config = config._http_client if span.span_type == SpanTypes.HTTP else config._http_server
+            if http_config.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
