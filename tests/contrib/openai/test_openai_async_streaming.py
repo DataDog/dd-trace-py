@@ -1,135 +1,168 @@
 """
-Tests for the fix to async streaming span lifecycle in the OpenAI integration.
+Tests for the async streaming span lifecycle fix in the OpenAI integration.
 
-The bug: _EndpointHook.handle_request (sync generator) calls resp.parse() on
-AsyncAPIResponse, which returns an unawaited coroutine. The stream is never
+Bug: _EndpointHook.handle_request (sync generator) calls resp.parse() on
+AsyncAPIResponse, which returns an unawaited coroutine.  The stream is never
 wrapped in TracedAsyncStream, so the span is never finished.
 
-The fix: pre-parse AsyncAPIResponse in async_wrapper / _trace_and_await before
-sending into the sync generator, and inject the traced stream back into the
-response's parse cache.
+Fix: pre-parse AsyncAPIResponse in async callers before sending into the sync
+generator, and inject the traced stream back into the response's parse cache.
 """
 
 import asyncio
-from unittest.mock import MagicMock
 
 import pytest
 
 from ddtrace.contrib.internal.openai.patch import _inject_into_parse_cache
+from ddtrace.contrib.internal.openai.patch import _maybe_preparse_async_response
 
 
-class TestInjectIntoParseCacheV2:
-    """OpenAI SDK v2.x uses _parsed_by_type dict keyed by _cast_to."""
-
-    def test_injects_into_parsed_by_type(self):
-        resp = MagicMock()
-        resp._parsed_by_type = {}
-        resp._cast_to = "SomeType"
-        del resp._parsed
-
-        traced_stream = MagicMock()
-        _inject_into_parse_cache(resp, traced_stream)
-
-        assert resp._parsed_by_type["SomeType"] is traced_stream
-
-    def test_overwrites_existing_cache_entry(self):
-        resp = MagicMock()
-        resp._parsed_by_type = {"SomeType": "original"}
-        resp._cast_to = "SomeType"
-        del resp._parsed
-
-        traced_stream = MagicMock()
-        _inject_into_parse_cache(resp, traced_stream)
-
-        assert resp._parsed_by_type["SomeType"] is traced_stream
+# ---------------------------------------------------------------------------
+# _inject_into_parse_cache
+# ---------------------------------------------------------------------------
 
 
-class TestInjectIntoParseCacheV1:
-    """OpenAI SDK v1.x uses a single _parsed attribute."""
+class _FakeResponseV2:
+    """Mimics OpenAI SDK >=2.0 AsyncAPIResponse (uses _parsed_by_type)."""
 
-    def test_injects_into_parsed(self):
-        resp = MagicMock(spec=["_parsed"])
-        resp._parsed = None
-
-        traced_stream = MagicMock()
-        _inject_into_parse_cache(resp, traced_stream)
-
-        assert resp._parsed is traced_stream
+    def __init__(self):
+        self._parsed_by_type = {}
+        self._cast_to = "ResponseType"
 
 
-class TestInjectIntoParseCacheNoOp:
-    """Objects without parse cache attributes are left unchanged."""
+class _FakeResponseV1:
+    """Mimics OpenAI SDK 1.x AsyncAPIResponse (uses _parsed)."""
 
-    def test_no_cache_attributes(self):
-        resp = MagicMock(spec=[])
-        traced_stream = MagicMock()
-        _inject_into_parse_cache(resp, traced_stream)
+    def __init__(self):
+        self._parsed = None
 
 
-class TestAsyncWrapperPreParse:
-    """Verify that async_wrapper pre-parses AsyncAPIResponse and returns it
-    with the traced stream injected into the parse cache."""
+class _PlainObject:
+    """Object without any parse cache attributes."""
 
-    @pytest.mark.asyncio
-    async def test_async_response_preparsed_before_hook(self):
-        """When resp has an async parse(), the pre-parse branch should await it
-        and send the parsed result (not the coroutine) to the generator."""
-        from ddtrace.contrib.internal.openai.patch import _patched_endpoint_async
+    pass
 
-        parse_called = False
-        parse_awaited = False
 
-        class FakeAsyncStream:
-            pass
+@pytest.mark.parametrize(
+    "resp_factory,check",
+    [
+        pytest.param(
+            lambda: _FakeResponseV2(),
+            lambda resp, val: resp._parsed_by_type[resp._cast_to] is val,
+            id="sdk_v2_parsed_by_type",
+        ),
+        pytest.param(
+            lambda: (r := _FakeResponseV2(), setattr(r, "_parsed_by_type", {"ResponseType": "old"}))[0],
+            lambda resp, val: resp._parsed_by_type["ResponseType"] is val,
+            id="sdk_v2_overwrites_existing",
+        ),
+        pytest.param(
+            lambda: _FakeResponseV1(),
+            lambda resp, val: resp._parsed is val,
+            id="sdk_v1_parsed",
+        ),
+    ],
+)
+def test_inject_into_parse_cache(resp_factory, check):
+    resp = resp_factory()
+    sentinel = object()
+    _inject_into_parse_cache(resp, sentinel)
+    assert check(resp, sentinel)
 
-        class FakeAsyncAPIResponse:
-            _parsed_by_type = {}
-            _cast_to = "FakeStream"
 
-            async def parse(self):
-                nonlocal parse_called, parse_awaited
-                parse_called = True
-                parse_awaited = True
-                return FakeAsyncStream()
+def test_inject_into_parse_cache_noop_without_cache_attrs():
+    resp = _PlainObject()
+    _inject_into_parse_cache(resp, object())
 
-        class FakeEndpointHook:
-            OPERATION_ID = "createResponse"
 
-        fake_stream = FakeAsyncStream()
+# ---------------------------------------------------------------------------
+# _maybe_preparse_async_response
+# ---------------------------------------------------------------------------
 
-        class FakeHook:
-            def handle_request(self, pin, integration, instance, span, args, kwargs):
-                self.received_resp = None
-                resp, error = yield
-                self.received_resp = resp
-                return resp
 
-        original_response = FakeAsyncAPIResponse()
+@pytest.mark.asyncio
+async def test_preparse_awaits_async_parse():
+    """When resp.parse() is async, _maybe_preparse should await it."""
+    stream = object()
 
-        async def fake_create(*args, **kwargs):
-            return original_response
+    class _Resp:
+        async def parse(self):
+            return stream
 
-        fake_integration = MagicMock()
-        fake_integration.trace.return_value = MagicMock()
-        fake_integration.trace.return_value.finish = MagicMock()
+    result = await _maybe_preparse_async_response(_Resp(), None)
+    assert result is stream
 
-        import openai as openai_module
 
-        original_integration = getattr(openai_module, "_datadog_integration", None)
-        openai_module._datadog_integration = fake_integration
+@pytest.mark.asyncio
+async def test_preparse_returns_sync_parse():
+    """When resp.parse() is sync, _maybe_preparse should return its value."""
+    stream = object()
 
-        try:
-            endpoint_factory = _patched_endpoint_async(FakeEndpointHook)
+    class _Resp:
+        def parse(self):
+            return stream
 
-            result_coro = endpoint_factory(fake_create, None, (), {"stream": True})
-            result = await result_coro
+    result = await _maybe_preparse_async_response(_Resp(), None)
+    assert result is stream
 
-            assert isinstance(result, FakeAsyncAPIResponse), (
-                f"Expected AsyncAPIResponse, got {type(result).__name__}"
-            )
-            assert parse_awaited, "parse() should have been awaited"
-        finally:
-            if original_integration is not None:
-                openai_module._datadog_integration = original_integration
-            elif hasattr(openai_module, "_datadog_integration"):
-                delattr(openai_module, "_datadog_integration")
+
+@pytest.mark.asyncio
+async def test_preparse_noop_without_parse():
+    """Without a parse attr, _maybe_preparse returns resp unchanged."""
+    resp = object()
+    result = await _maybe_preparse_async_response(resp, None)
+    assert result is resp
+
+
+@pytest.mark.asyncio
+async def test_preparse_noop_on_error():
+    """When err is set, _maybe_preparse returns resp unchanged."""
+
+    class _Resp:
+        async def parse(self):
+            raise AssertionError("should not be called")
+
+    resp = _Resp()
+    result = await _maybe_preparse_async_response(resp, RuntimeError("fail"))
+    assert result is resp
+
+
+@pytest.mark.asyncio
+async def test_preparse_noop_on_error_returns_original():
+    """When err is not None, resp should be returned as-is without calling parse."""
+    resp = _PlainObject()
+    resp.parse = lambda: (_ for _ in ()).throw(AssertionError("should not be called"))
+    result = await _maybe_preparse_async_response(resp, RuntimeError("original error"))
+    assert result is resp
+
+
+@pytest.mark.asyncio
+async def test_preparse_swallows_parse_failure():
+    """If parse() raises, _maybe_preparse falls back to the original resp."""
+
+    class _Resp:
+        def parse(self):
+            raise ValueError("bad payload")
+
+    resp = _Resp()
+    result = await _maybe_preparse_async_response(resp, None)
+    assert result is resp
+
+
+@pytest.mark.asyncio
+async def test_preparse_swallows_async_parse_failure():
+    """If an async parse() raises, _maybe_preparse falls back to resp."""
+
+    class _Resp:
+        async def parse(self):
+            raise ValueError("bad async payload")
+
+    resp = _Resp()
+    result = await _maybe_preparse_async_response(resp, None)
+    assert result is resp
+
+
+@pytest.mark.asyncio
+async def test_preparse_noop_when_resp_is_none():
+    result = await _maybe_preparse_async_response(None, None)
+    assert result is None
