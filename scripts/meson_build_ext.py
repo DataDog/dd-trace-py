@@ -41,17 +41,41 @@ def _content_hash(paths: list) -> str:
     `cmake --build` run every time even when no source file changed, causing
     cumulative slowdowns proportional to the number of riot test suites.
 
-    Only regular files are hashed; directory entries and symlinks are skipped.
+    Only source files are hashed; compiled binaries (.so, .pyd, .dll, .dylib, .a,
+    .o), directory entries, and symlinks are skipped.  This avoids reading large
+    pre-built extension modules that live alongside source files (e.g. the
+    pre-built _native.*.so files in _taint_tracking/) which are build outputs, not
+    inputs, and would cause unnecessary I/O on developer machines.
+
     Files are sorted by absolute path for determinism.
     """
+    # AIDEV-NOTE: Exclude compiled binary suffixes to avoid hashing pre-built .so
+    # files that live in the cmake_src_dir (e.g. _taint_tracking/_native.*.so).
+    # These are build outputs, not source inputs.  On developer machines each is
+    # ~47 MB; hashing them wastes hundreds of MB of I/O on every meson compile.
+    _BINARY_SUFFIXES = frozenset(
+        {
+            ".so",
+            ".pyd",
+            ".dll",
+            ".dylib",
+            ".a",
+            ".o",
+            ".obj",
+            ".lib",
+        }
+    )
     digest = hashlib.sha256()
     collected: list[Path] = []
     for path in paths:
         p = Path(path)
         if p.is_file():
-            collected.append(p.resolve())
+            if p.suffix not in _BINARY_SUFFIXES:
+                collected.append(p.resolve())
         elif p.is_dir():
-            collected.extend(sorted(f.resolve() for f in p.rglob("*") if f.is_file()))
+            collected.extend(
+                sorted(f.resolve() for f in p.rglob("*") if f.is_file() and f.suffix not in _BINARY_SUFFIXES)
+            )
     for f in sorted(collected):
         digest.update(str(f).encode("utf-8"))
         digest.update(b"\0")
