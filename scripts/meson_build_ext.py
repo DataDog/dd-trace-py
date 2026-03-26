@@ -640,9 +640,7 @@ def cmd_libddwaf(args):
     # We mirror the file there so asm.py continues to work without modification.
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     asm_arch = TRANSLATE_ARCH.get(arch, arch)
-    source_tree_lib = (
-        src_root / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf" / asm_arch / "lib" / lib_src.name
-    )
+    source_tree_lib = src_root / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf" / asm_arch / "lib" / lib_src.name
     source_tree_lib.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(lib_src, source_tree_lib)
     print(f"[meson_build_ext] libddwaf source-tree copy: {lib_src} → {source_tree_lib}")
