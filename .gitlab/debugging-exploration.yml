@@ -4,6 +4,18 @@
 #
 # GitLab pairs each parallel job instance with the Nth row of needs.parallel.matrix (same N).
 # Two jobs (boto3 vs botocore) each have 6 Python versions → each needs only 6 build-linux rows.
+#
+# RELEASE_ALLOW_TEST_FAILURES: these jobs are in the parent pipeline and no longer inherit
+# allow_failure from run-tests-trigger. The condition is replicated here via rules so that
+# release/hotfix pipelines can still tolerate exploration failures.
+
+# YAML anchor — shared changes list used by both concrete jobs.
+.exploration_changes: &exploration_changes
+  - .gitlab/debugging-exploration.yml
+  - ddtrace/debugging/**/*
+  - ddtrace/internal/bytecode_injection/__init__.py
+  - ddtrace/internal/wrapping/context.py
+  - tests/debugging/exploration/**/*
 
 ".exploration_needs_build_linux_amd64":
   needs:
@@ -56,12 +68,10 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    - changes:
-        - .gitlab/debugging-exploration.yml
-        - ddtrace/debugging/**/*
-        - ddtrace/internal/bytecode_injection/__init__.py
-        - ddtrace/internal/wrapping/context.py
-        - tests/debugging/exploration/**/*
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
@@ -80,12 +90,10 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    - changes:
-        - .gitlab/debugging-exploration.yml
-        - ddtrace/debugging/**/*
-        - ddtrace/internal/bytecode_injection/__init__.py
-        - ddtrace/internal/wrapping/context.py
-        - tests/debugging/exploration/**/*
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
