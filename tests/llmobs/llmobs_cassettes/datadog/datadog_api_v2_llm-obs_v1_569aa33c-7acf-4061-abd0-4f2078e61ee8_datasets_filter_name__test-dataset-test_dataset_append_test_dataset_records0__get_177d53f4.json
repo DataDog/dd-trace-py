@@ -19,11 +19,11 @@
       "content-type": "application/vnd.api+json",
       "vary": "Accept-Encoding",
       "x-frame-options": "SAMEORIGIN",
-      "content-length": "440",
-      "date": "Thu, 26 Mar 2026 15:06:55 GMT",
+      "content-length": "439",
+      "date": "Thu, 26 Mar 2026 20:02:28 GMT",
       "x-content-type-options": "nosniff",
       "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
     },
-    "body": "{\"data\":[{\"id\":\"229be60a-c0e1-45d5-b835-f84a51fb2794\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"created_at\":\"2026-03-26T15:06:48.618326Z\",\"current_version\":2,\"dataset_type\":\"user\",\"description\":\"A test dataset\",\"name\":\"test-dataset-test_dataset_append[test_dataset_records0]\",\"project_id\":\"569aa33c-7acf-4061-abd0-4f2078e61ee8\",\"updated_at\":\"2026-03-26T15:06:53.115324Z\"}}],\"meta\":{\"after\":\"\"}}"
+    "body": "{\"data\":[{\"id\":\"2fdcd392-5830-4fd6-8d05-d4c03bf19190\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"created_at\":\"2026-03-26T20:02:22.465338Z\",\"current_version\":2,\"dataset_type\":\"user\",\"description\":\"A test dataset\",\"name\":\"test-dataset-test_dataset_append[test_dataset_records0]\",\"project_id\":\"569aa33c-7acf-4061-abd0-4f2078e61ee8\",\"updated_at\":\"2026-03-26T20:02:26.79095Z\"}}],\"meta\":{\"after\":\"\"}}"
   }
 }

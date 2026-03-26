@@ -97,7 +97,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1772023135809672000
+MOCK_TIMESTAMP_NS = 1774556545026105000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -314,7 +314,7 @@ def tmp_csv_file_for_upload(llmobs) -> Generator[MagicMock, None, None]:
 def test_dataset_large_num_records(llmobs):
     records = []
     for i in range(3000):
-        records.append({"input_data": f"input_{i}", "expected_output": f"output_{i}"})
+        records.append({"id": f"id_{i}", "input_data": f"input_{i}", "expected_output": f"output_{i}"})
 
     ds = llmobs.create_dataset(
         dataset_name="test-dataset-large-num-records",
@@ -383,43 +383,6 @@ def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     assert ("tags", "") in df.columns
 
 
-def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv",
-                description="A good csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-                metadata_columns=["m0"],
-            )
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-
-            df = dataset.as_dataframe()
-            assert len(df.columns) == 7
-            assert sorted(df.columns) == [
-                ("expected_output", "out0"),
-                ("expected_output", "out1"),
-                ("input_data", "in0"),
-                ("input_data", "in1"),
-                ("input_data", "in2"),
-                ("metadata", "m0"),
-                ("tags", ""),
-            ]
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
-
-
 def test_dataset_csv_missing_input_col(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
@@ -432,7 +395,7 @@ def test_dataset_csv_missing_input_col(llmobs):
             dataset_name="test-dataset-good-csv",
             description="A good csv dataset",
             input_data_columns=["in998", "in999"],
-            expected_output_columns=["out0", "out1"],
+            expected_output_columns=["out0"],
         )
 
 
@@ -447,7 +410,7 @@ def test_dataset_csv_missing_output_col(llmobs):
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
             description="A good csv dataset",
-            input_data_columns=["in0", "in1", "in2"],
+            input_data_columns=["in0", "in1"],
             expected_output_columns=["out999"],
         )
 
@@ -466,158 +429,6 @@ def test_dataset_csv_empty_csv(llmobs):
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out0"],
         )
-
-
-def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-without-expected-output",
-                description="A good csv dataset without expected_output columns",
-                input_data_columns=["in0", "in1", "in2"],
-            )
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 0
-
-            assert dataset.description == "A good csv dataset without expected_output columns"
-
-            assert dataset._id is not None
-
-            wait_for_backend(4)
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
-
-
-def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-1",
-                description="A good csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-            )
-            assert dataset.project.get("name") == TEST_PROJECT_NAME
-            assert dataset.project.get("_id")
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 2
-            assert dataset[0]["expected_output"]["out0"] == "r0v4"
-            assert dataset[0]["expected_output"]["out1"] == "r0v5"
-            assert dataset[1]["expected_output"]["out0"] == "r1v4"
-            assert dataset[1]["expected_output"]["out1"] == "r1v5"
-
-            assert dataset.description == "A good csv dataset"
-
-            assert dataset._id is not None
-
-            wait_for_backend()
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
-
-
-def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-pipe",
-                description="A good pipe separated csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-                metadata_columns=["m0"],
-                csv_delimiter="|",
-            )
-            assert dataset.project.get("name") == TEST_PROJECT_NAME
-            assert dataset.project.get("_id")
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 2
-            assert dataset[0]["expected_output"]["out0"] == "r0v4"
-            assert dataset[0]["expected_output"]["out1"] == "r0v5"
-            assert dataset[1]["expected_output"]["out0"] == "r1v4"
-            assert dataset[1]["expected_output"]["out1"] == "r1v5"
-
-            assert len(dataset[0]["metadata"]) == 1
-            assert dataset[0]["metadata"]["m0"] == "r0v6"
-            assert dataset[1]["metadata"]["m0"] == "r1v6"
-
-            assert dataset.description == "A good pipe separated csv dataset"
-
-            assert dataset._id is not None
-
-            wait_for_backend()
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_pull_non_existent(llmobs):
@@ -906,6 +717,7 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
 
     test_dataset.append(
         {
+            "id": "record-id-2",
             "input_data": {"prompt": "What is the capital of China?"},
             "expected_output": {"answer": "Beijing"},
         }
@@ -1546,9 +1358,9 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     ],
 )
 def test_dataset_delete_after_append(llmobs, test_dataset):
-    test_dataset.append({"input_data": "A", "expected_output": 1})
-    test_dataset.append({"input_data": "B", "expected_output": 2})
-    test_dataset.append({"input_data": {"prompt": "What is the capital of Sweden?"}})
+    test_dataset.append({"id": "record-id-3", "input_data": "A", "expected_output": 1})
+    test_dataset.append({"id": "record-id-4", "input_data": "B", "expected_output": 2})
+    test_dataset.append({"id": "record-id-5", "input_data": {"prompt": "What is the capital of Sweden?"}})
 
     test_dataset.delete(2)
     test_dataset.delete(2)
@@ -4553,7 +4365,7 @@ def test_ds_push_multi_tag_ops(llmobs, test_dataset):
 
 def test_ds_push_new_with_tags(llmobs, test_dataset):
     """New records carry tags directly; they should NOT have tag_operations."""
-    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.append({"id": "record-id-1", "input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
     test_dataset.push()
     wait_for_backend()
 
@@ -4604,15 +4416,15 @@ def test_dataset_csv_missing_id_column(llmobs):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-id-col-missing",
-            input_data_columns=["in0", "in1", "in2"],
+            input_data_columns=["in0", "in1"],
             id_column="nonexistent_id",
         )
 
 
-def test_dataset_csv_with_id_column(llmobs, tmp_csv_file_for_upload):
+def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
     """create_dataset_from_csv with id_column should populate 'id' field on each record."""
     test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset_with_ids.csv")
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
     with mock.patch(
         "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
@@ -4631,6 +4443,79 @@ def test_dataset_csv_with_id_column(llmobs, tmp_csv_file_for_upload):
             assert len(dataset) == 2
             assert dataset[0]["record_id"] == "user-id-0"
             assert dataset[1]["record_id"] == "user-id-1"
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv with a pipe-delimited CSV and id_column."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-good-csv-pipe",
+                description="A good pipe separated csv dataset",
+                input_data_columns=["in0", "in1", "in2"],
+                expected_output_columns=["out0", "out1"],
+                metadata_columns=["m0"],
+                csv_delimiter="|",
+                id_column="record_id",
+            )
+            assert dataset.project.get("name") == TEST_PROJECT_NAME
+            assert dataset.project.get("_id")
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["record_id"] == "pipe-rec-0"
+            assert dataset[1]["record_id"] == "pipe-rec-1"
+            assert dataset[0]["input_data"] == {"in0": "r0v1", "in1": "r0v2", "in2": "r0v3"}
+            assert dataset[1]["input_data"] == {"in0": "r1v1", "in1": "r1v2", "in2": "r1v3"}
+            assert dataset[0]["expected_output"] == {"out0": "r0v4", "out1": "r0v5"}
+            assert dataset[1]["expected_output"] == {"out0": "r1v4", "out1": "r1v5"}
+            assert dataset[0]["metadata"] == {"m0": "r0v6"}
+            assert dataset[1]["metadata"] == {"m0": "r1v6"}
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv result should expose records as a pandas DataFrame."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-good-csv",
+                description="A good csv dataset",
+                input_data_columns=["in0", "in1"],
+                expected_output_columns=["out0"],
+                id_column="record_id",
+            )
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["record_id"] == "user-id-0"
+            assert dataset[1]["record_id"] == "user-id-1"
+
+            df = dataset.as_dataframe()
+            assert len(df.columns) == 4
+            assert sorted(df.columns) == [
+                ("expected_output", "out0"),
+                ("input_data", "in0"),
+                ("input_data", "in1"),
+                ("tags", ""),
+            ]
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset_id)

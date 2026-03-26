@@ -20,10 +20,10 @@
       "vary": "Accept-Encoding",
       "x-frame-options": "SAMEORIGIN",
       "content-length": "445",
-      "date": "Thu, 26 Mar 2026 15:08:41 GMT",
+      "date": "Thu, 26 Mar 2026 20:04:08 GMT",
       "x-content-type-options": "nosniff",
       "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
     },
-    "body": "{\"data\":[{\"id\":\"7ef4fd68-08b0-4c4b-9315-e1ff66f9734a\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"created_at\":\"2026-03-26T15:08:36.719472Z\",\"current_version\":2,\"dataset_type\":\"user\",\"description\":\"A test dataset\",\"name\":\"test-dataset-test_ds_push_remove_tags[test_dataset_records0]\",\"project_id\":\"569aa33c-7acf-4061-abd0-4f2078e61ee8\",\"updated_at\":\"2026-03-26T15:08:39.149989Z\"}}],\"meta\":{\"after\":\"\"}}"
+    "body": "{\"data\":[{\"id\":\"83bee214-e334-404f-a570-3ac9e7910649\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"created_at\":\"2026-03-26T20:04:03.758649Z\",\"current_version\":2,\"dataset_type\":\"user\",\"description\":\"A test dataset\",\"name\":\"test-dataset-test_ds_push_remove_tags[test_dataset_records0]\",\"project_id\":\"569aa33c-7acf-4061-abd0-4f2078e61ee8\",\"updated_at\":\"2026-03-26T20:04:06.290718Z\"}}],\"meta\":{\"after\":\"\"}}"
   }
 }
