@@ -71,10 +71,7 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    fn set_process_tags(
-        mut slf: PyRefMut<'_, Self>,
-        process_tags: &'_ str,
-    ) -> PyResult<Py<Self>> {
+    fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_process_tags(process_tags);
         Ok(slf.into())
     }
