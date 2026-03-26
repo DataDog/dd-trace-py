@@ -123,7 +123,7 @@ class AIGuardClient:
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
-        self._meta = {"service": config.service, "env": config.env}  # ast-grep-ignore: span-meta-access
+        self._meta = {"service": config.service, "env": config.env}
         self._timeout = ai_guard_config._ai_guard_timeout // 1000
 
     @staticmethod
@@ -237,9 +237,7 @@ class AIGuardClient:
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
-                payload = {
-                    "data": {"attributes": {"messages": messages, "meta": self._meta}}
-                }  # ast-grep-ignore: span-meta-access
+                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
                 tool_name = self._get_tool_name(last, messages)
                 if tool_name:

@@ -37,12 +37,8 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # BaseLLMIntegration.trace() never set these, so existing snapshot
         # tests expect them absent.
         # TODO: keep these tags once snapshots are updated
-        span._meta.pop(
-            COMPONENT, None
-        )  # DEV: no direct API equivalent yet for pop  # ast-grep-ignore: span-meta-access
-        span._meta.pop(
-            SPAN_KIND, None
-        )  # DEV: no direct API equivalent yet for pop  # ast-grep-ignore: span-meta-access
+        span._remove_attribute(COMPONENT)
+        span._remove_attribute(SPAN_KIND)
 
         event.llmobs_integration._set_base_span_tags(
             span,

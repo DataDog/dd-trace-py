@@ -9,6 +9,7 @@ severity: error
 language: python
 ignores:
   - "ddtrace/_trace/context.py"
+  - "ddtrace/internal/openfeature/_flageval_metrics.py"
 rule:
   pattern: $X._metrics
 constraints:

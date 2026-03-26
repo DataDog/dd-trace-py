@@ -260,9 +260,7 @@ class TraceTagsProcessor(TraceProcessor):
 
             if span._has_attribute(LAST_DD_PARENT_ID_KEY) and span._parent is not None:
                 # we should only set the last parent id on local root spans
-                del span._meta[
-                    LAST_DD_PARENT_ID_KEY
-                ]  # DEV: no direct API equivalent yet for del  # ast-grep-ignore: span-meta-access
+                span._remove_attribute(LAST_DD_PARENT_ID_KEY)
 
         return trace
 

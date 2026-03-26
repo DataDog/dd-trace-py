@@ -202,10 +202,8 @@ class Span(SpanData):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:  # ast-grep-ignore: span-metrics-access
-                    del self._local_root._metrics[
-                        key
-                    ]  # DEV: no direct API equivalent yet for del  # ast-grep-ignore: span-metrics-access
+                if self._local_root._has_attribute(key):
+                    self._local_root._remove_attribute(key)
 
     def _set_sampling_decision_maker(
         self,
@@ -323,6 +321,11 @@ class Span(SpanData):
     def _has_attribute(self, key: str) -> bool:
         """Return whether the given attribute exists."""
         return key in self._meta or key in self._metrics  # ast-grep-ignore: span-meta-access,span-metrics-access
+
+    def _remove_attribute(self, key: str) -> None:
+        """Remove the given attribute if it exists."""
+        self._meta.pop(key, None)  # ast-grep-ignore: span-meta-access
+        self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
 
     def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
         """Return the given attribute or None if it doesn't exist."""
