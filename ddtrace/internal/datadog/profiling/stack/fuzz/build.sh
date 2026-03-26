@@ -1,7 +1,19 @@
 #!/bin/bash
 set -eo pipefail
 
-FUZZ_TARGETS="fuzz_echion_frame_read fuzz_echion_greenlet fuzz_echion_interp fuzz_echion_long fuzz_echion_mirrors fuzz_echion_pyunicode fuzz_echion_remote_read fuzz_echion_stacks fuzz_echion_strings fuzz_echion_task_unwind fuzz_echion_tasks"
+FUZZ_TARGETS=(
+    fuzz_echion_frame_read
+    fuzz_echion_greenlet
+    fuzz_echion_interp
+    fuzz_echion_long
+    fuzz_echion_mirrors
+    fuzz_echion_pyunicode
+    fuzz_echion_remote_read
+    fuzz_echion_stacks
+    fuzz_echion_strings
+    fuzz_echion_task_unwind
+    fuzz_echion_tasks
+)
 BUILD_DIR=/tmp/fuzz/build
 MANIFEST_FILE="/fuzz_binaries.txt"
 
@@ -11,7 +23,7 @@ SOURCE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROFILING_DIR="$(cd "${SOURCE_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${PROFILING_DIR}/../../../.." && pwd)"
 
-echo "Building fuzz targets: $FUZZ_TARGETS"
+echo "Building fuzz targets: ${FUZZ_TARGETS[*]}"
 echo "Source directory: $SOURCE_DIR"
 echo "Profiling directory: $PROFILING_DIR"
 
@@ -80,7 +92,7 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
 cp "${SCRIPT_DIR}/lsan.supp" "${BUILD_DIR}/fuzz/lsan.supp"
 
 # Register the built binaries in the manifest file for the CI infrastructure to discover
-for TARGET in $FUZZ_TARGETS; do
+for TARGET in "${FUZZ_TARGETS[@]}"; do
     BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
     if [ -x "${BINARY_PATH}" ]; then
         echo "${BINARY_PATH}" >> "${MANIFEST_FILE}"
