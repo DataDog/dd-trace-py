@@ -104,7 +104,7 @@ class SchemaExtractor(SchemaIterator):
         schema_data = SchemaExtractor.extract_schemas(schema)
 
         span.set_tag(SCHEMA_TAGS.SCHEMA_DEFINITION, schema_data.definition)
-        span.set_metric(SCHEMA_TAGS.SCHEMA_WEIGHT, weight)
+        span._set_attribute(SCHEMA_TAGS.SCHEMA_WEIGHT, weight)
         span.set_tag(SCHEMA_TAGS.SCHEMA_ID, schema_data.id)
 
     @staticmethod

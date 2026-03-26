@@ -38,7 +38,7 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
-SLIM_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p and "x86" in p]
+SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
 def build_expected_set(version: str) -> set[tuple[str, str, str]]:
@@ -47,8 +47,6 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform, ""))
-        for platform in SLIM_PLATFORMS:
-            expected.add((version, py_tag, platform, "slim"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
             expected.add((version, py_tag, "win_arm64", ""))
@@ -57,7 +55,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
 
 def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
-    package_name = f"ddtrace{('_' + flavor) if flavor else ''}"
+    package_name = f"ddtrace{flavor.replace('-', '_')}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
@@ -103,7 +101,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
-            flavor = name.replace("ddtrace", "")
+            flavor = name.replace("ddtrace", "").replace("_", "-")
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
@@ -182,6 +180,8 @@ def main() -> None:
     # Phase 3: Parse Actual Wheels
     print("[Phase 3] Parsing Actual Wheels")
     actual_set, parse_errors, valid_count = parse_actual_wheels(wheels_dir)
+    for a in actual_set:
+        print(a)
 
     if parse_errors:
         print(f"✗ Failed to parse {len(parse_errors)} wheel(s):")
@@ -199,7 +199,7 @@ def main() -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
-    print(f"  - {len(SLIM_PLATFORMS)} platforms with ddtraceslim builds")
+    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
     # Phase 5: Set Comparison

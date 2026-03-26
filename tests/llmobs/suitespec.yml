@@ -43,7 +43,6 @@ suites:
       - '@llmobs'
       - tests/contrib/anthropic/*
       - tests/snapshots/tests.contrib.anthropic.*
-    runner: riot
     snapshot: true
   claude_agent_sdk:
     parallelism: 3
@@ -56,7 +55,6 @@ suites:
       - '@llmobs'
       - tests/contrib/claude_agent_sdk/*
       - tests/snapshots/tests.contrib.claude_agent_sdk.*
-    runner: riot
     snapshot: true
   google_adk:
     parallelism: 3
@@ -68,7 +66,6 @@ suites:
       - '@google_adk'
       - '@llmobs'
       - tests/contrib/google_adk/*
-    runner: riot
     snapshot: true
   google_genai:
     parallelism: 1
@@ -81,7 +78,6 @@ suites:
       - '@llmobs'
       - tests/contrib/google_genai/*
       - tests/snapshots/tests.contrib.google_genai.*
-    runner: riot
     snapshot: true
   vertexai:
     parallelism: 2
@@ -94,7 +90,6 @@ suites:
       - '@llmobs'
       - tests/contrib/vertexai/*
       - tests/snapshots/tests.contrib.vertexai.*
-    runner: riot
     snapshot: true
   langchain:
     parallelism: 6
@@ -108,7 +103,6 @@ suites:
       - '@llmobs'
       - tests/contrib/langchain/*
       - tests/snapshots/tests.contrib.langchain.*
-    runner: riot
     snapshot: true
   litellm:
     paths:
@@ -120,7 +114,6 @@ suites:
       - '@llmobs'
       - tests/contrib/litellm/*
       - tests/snapshots/tests.contrib.litellm.*
-    runner: riot
     snapshot: true
     venvs_per_job: 1
   llmobs:
@@ -130,7 +123,6 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
-    runner: riot
     snapshot: true
     venvs_per_job: 1
   mcp:
@@ -143,7 +135,6 @@ suites:
       - '@llmobs'
       - tests/contrib/mcp/*
       - tests/snapshots/tests.contrib.mcp.*
-    runner: riot
     snapshot: true
     venvs_per_job: 5
   openai:
@@ -159,7 +150,6 @@ suites:
       - tests/contrib/openai/*
       - tests/snapshots/tests.contrib.openai.*
     pattern: ^openai$
-    runner: riot
     snapshot: true
   langgraph:
     paths:
@@ -171,7 +161,6 @@ suites:
       - '@requests'
       - '@llmobs'
       - tests/contrib/langgraph/*
-    runner: riot
     snapshot: true
     venvs_per_job: 4
   crewai:
@@ -186,7 +175,6 @@ suites:
       - '@llmobs'
       - tests/contrib/crewai/*
       - tests/snapshots/tests.contrib.crewai.*
-    runner: riot
     snapshot: true
   openai_agents:
     paths:
@@ -198,7 +186,6 @@ suites:
       - '@llmobs'
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   pydantic_ai:
@@ -211,7 +198,6 @@ suites:
       - '@llmobs'
       - tests/contrib/pydantic_ai/*
       - tests/snapshots/tests.contrib.pydantic_ai.*
-    runner: riot
     snapshot: true
     venvs_per_job: 2
   vllm:
@@ -225,7 +211,6 @@ suites:
       - '@llmobs'
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*
-    runner: riot
     gpu: true
     snapshot: true
     skip: true  # Temporarily disabled

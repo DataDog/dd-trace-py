@@ -2,12 +2,17 @@
 
 import asyncio
 
-from deepeval.metrics import BaseMetric
-from deepeval.test_case import LLMTestCase
+import pytest
 
-from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import _ExperimentRunInfo
-from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+
+deepeval = pytest.importorskip("deepeval")
+
+from deepeval.metrics import BaseMetric  # noqa: E402
+from deepeval.test_case import LLMTestCase  # noqa: E402
+
+from ddtrace.llmobs._experiment import Dataset  # noqa: E402
+from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator  # noqa: E402
 
 
 class SimpleDeepEvalMetric(BaseMetric):
