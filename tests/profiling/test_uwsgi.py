@@ -289,7 +289,12 @@ def _wait_for_profile_samples(
             return samples
         time.sleep(interval)
 
-    assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
+    all_pprof = glob.glob(f"{filename_prefix}.*")
+    assert False, "Timed out waiting for %s samples for pid %d; all files with prefix: %s" % (
+        value_type,
+        pid,
+        all_pprof,
+    )
 
 
 def test_uwsgi_threads_processes_primary(
@@ -314,12 +319,24 @@ def test_uwsgi_threads_processes_primary(
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--py-call-uwsgi-fork-hooks")
     worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
-    # Give some time to child to actually startup
-    time.sleep(3)
+    # Give time for the profiler to start in workers and produce at least one upload.
+    # With ddtrace.auto the full bootstrap (tracing products, telemetry, etc.) runs
+    # in each worker before the profiler starts, so allow extra time.
+    time.sleep(5)
     # Use proc.terminate() (not os.killpg) so the master can gracefully shut down workers,
     # allowing them to flush profiles via uwsgi.atexit before exiting.
     proc.terminate()
-    assert proc.wait() == 0
+    remaining_stdout = b""
+    try:
+        remaining_stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        remaining_stdout, _ = proc.communicate()
+    exit_code = proc.returncode
+    assert exit_code == 0, "uwsgi exited with code %d, stdout: %s" % (
+        exit_code,
+        remaining_stdout.decode(errors="replace"),
+    )
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
 
