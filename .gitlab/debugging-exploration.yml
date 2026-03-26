@@ -41,10 +41,12 @@
     PYTHONPATH: "${CI_PROJECT_DIR}/tests/debugging/exploration/pytest"
   before_script:
     - !reference [.testrunner, before_script]
-    # One wheel per build linux matrix job; needs: pins the matching artifact set.
-    - python${PYTHON_VERSION} -m pip install "${CI_PROJECT_DIR}"/pywheels/ddtrace-*.whl
+    # Install only the wheel matching the running Python version. All 6 per-version
+    # wheels land in pywheels/ because needs: downloads all parallel artifact sets;
+    # a bare ddtrace-*.whl glob would make pip error on the incompatible ones.
+    - PY_TAG="cp$(echo "${PYTHON_VERSION}" | tr -d '.')" && python${PYTHON_VERSION} -m pip install "${CI_PROJECT_DIR}"/pywheels/ddtrace-*-${PY_TAG}-${PY_TAG}-*.whl
   after_script:
-    - cat ${DD_DEBUGGER_EXPL_OUTPUT_FILE}
+    - '[ -f "${DD_DEBUGGER_EXPL_OUTPUT_FILE}" ] && cat "${DD_DEBUGGER_EXPL_OUTPUT_FILE}" || echo "No output file at ${DD_DEBUGGER_EXPL_OUTPUT_FILE}"'
   artifacts:
     paths:
       - ${DD_DEBUGGER_EXPL_OUTPUT_FILE}
