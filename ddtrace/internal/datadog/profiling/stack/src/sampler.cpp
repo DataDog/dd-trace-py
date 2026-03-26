@@ -15,6 +15,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <cstring>
 #include <mutex>
 #include <pthread.h>
 #include <thread>
@@ -61,6 +62,8 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     pthread_attr_destroy(&attr);
 
     if (ret != 0) {
+        std::cerr << "Failed to create sampling thread (stack_size=" << stack_size << "): " << strerror(ret)
+                  << std::endl;
         delete thread_args; // usually deleted in the thread, but need to clean it up here
         return 0;
     }
