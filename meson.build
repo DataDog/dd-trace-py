@@ -272,13 +272,6 @@ endif
 native_so = '_native' + ext_suffix
 profiling_install_dir = py.get_install_dir() / 'ddtrace/internal/datadog/profiling'
 
-# AIDEV-NOTE: profiling_build_dir mirrors the install layout inside the meson build root.
-# By placing libdd_wrapper and the cmake extensions in the same relative positions they
-# would occupy after a real install, the embedded $ORIGIN/.. / @loader_path/.. RPATHs
-# resolve correctly for both editable (meson-python) and installed layouts without any
-# modification to the CMakeLists RPATH settings.
-profiling_build_dir = build_root / 'ddtrace' / 'internal' / 'datadog' / 'profiling'
-
 # --- Rust extension: ddtrace.internal.native._native ---
 rust_stamp = custom_target(
   '_native_rust',
@@ -307,7 +300,7 @@ if is_unix and is_64bit
 
   libdd_wrapper_stamp = custom_target(
     'libdd_wrapper',
-    output: ['ddtrace/internal/datadog/profiling/' + wrapper_so],
+    output: [wrapper_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
@@ -335,7 +328,7 @@ if is_unix and is_64bit
 
   memalloc_stamp = custom_target(
     '_memalloc',
-    output: ['ddtrace/profiling/collector/' + memalloc_so],
+    output: [memalloc_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
@@ -351,7 +344,7 @@ if is_unix and is_64bit
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'memalloc',
       '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', profiling_build_dir,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
@@ -364,7 +357,7 @@ if is_unix and is_64bit
 
   ddup_stamp = custom_target(
     '_ddup',
-    output: ['ddtrace/internal/datadog/profiling/ddup/' + ddup_so],
+    output: [ddup_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
@@ -380,7 +373,7 @@ if is_unix and is_64bit
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'ddup',
       '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', profiling_build_dir,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
@@ -393,7 +386,7 @@ if is_unix and is_64bit
 
   stack_stamp = custom_target(
     '_stack',
-    output: ['ddtrace/internal/datadog/profiling/stack/' + stack_so],
+    output: [stack_so],
     command: [
       py, build_helper, 'cmake',
       '--src-root', src_root,
@@ -409,7 +402,7 @@ if is_unix and is_64bit
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'stack',
       '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', profiling_build_dir,
+      '--dd-wrapper-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,
