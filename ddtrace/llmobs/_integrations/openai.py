@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -103,7 +104,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = "unknown"
+        model_provider = UNKNOWN_MODEL_PROVIDER
         if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):

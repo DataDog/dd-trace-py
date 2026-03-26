@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -251,7 +252,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         """
         if not self._base_url or "anthropic" in self._base_url.lower():
             return "anthropic"
-        return "unknown"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")

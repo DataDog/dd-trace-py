@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -69,7 +70,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
-        model_name, model_provider = self._model_map.get(model_name, (model_name, "unknown"))
+        model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
 
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
