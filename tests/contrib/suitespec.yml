@@ -116,7 +116,7 @@ components:
   httpx:
     - ddtrace/contrib/internal/httpx/*
   integration_registry:
-    - ddtrace/contrib/integration_registry/*
+    - scripts/integration_registry/*
   jinja2:
     - ddtrace/contrib/internal/jinja2/*
   kafka:
