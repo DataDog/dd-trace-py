@@ -71,7 +71,9 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
         )
 
-        initial_endpoint = "/api/v2/logs" if di_config._is_agentless else f"/debugger/v2/input{endpoint_suffix}"
+        initial_endpoint = (
+            f"/api/v2/debugger{endpoint_suffix}" if di_config._is_agentless else f"/debugger/v2/input{endpoint_suffix}"
+        )
 
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(

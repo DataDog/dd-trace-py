@@ -49,16 +49,17 @@ class AgentlessDummyProbeStatusLogger(ProbeStatusLogger):
 
 
 def test_probe_status_agentless(monkeypatch):
-    """Test ProbeStatusLogger sends to /api/v2/logs with API key in agentless CI mode."""
+    """Test ProbeStatusLogger sends to /api/v2/debugger with API key in agentless CI mode."""
     from ddtrace.debugging._config import di_config
 
     monkeypatch.setattr(di_config, "_is_agentless", True)
     monkeypatch.setattr(di_config, "_api_key", "test-api-key")
+    monkeypatch.setattr(di_config, "tags", "service:mysvc,env:staging,version:1.0")
 
     status_logger = AgentlessDummyProbeStatusLogger("test")
 
-    # Agentless mode: endpoint and headers
-    assert status_logger._endpoint == "/api/v2/logs"
+    # Agentless mode: endpoint should include tags in QS
+    assert status_logger._endpoint.startswith("/api/v2/debugger?ddtags=")
 
     probe = create_snapshot_line_probe(
         probe_id="probe-agentless",

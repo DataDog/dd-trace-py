@@ -12,7 +12,7 @@ from ddtrace.internal.utils.config import get_application_name
 from ddtrace.version import __version__
 
 
-AGENTLESS_LOGS_INTAKE_HOST_PREFIX = "http-intake.logs"
+AGENTLESS_DEBUGGER_INTAKE_HOST_PREFIX = "debugger-intake"
 
 
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
@@ -54,7 +54,7 @@ class DynamicInstrumentationConfig(DDConfig):
     _intake_url = DDConfig.d(
         str,
         lambda c: (
-            f"https://{AGENTLESS_LOGS_INTAKE_HOST_PREFIX}.{os.getenv('DD_SITE', 'datadoghq.com')}"
+            f"https://{AGENTLESS_DEBUGGER_INTAKE_HOST_PREFIX}.{os.getenv('DD_SITE', 'datadoghq.com')}"
             if c._is_agentless
             else agent_config.trace_agent_url
         ),
