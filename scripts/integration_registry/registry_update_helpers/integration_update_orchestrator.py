@@ -11,10 +11,10 @@ from typing import Union
 class IntegrationUpdateOrchestrator:
     TOOLING_VENV_DIR = ".venv-registry-tools"
     TOOLING_DEPS = ["pyyaml", "riot", "filelock"]
-    REGISTRY_UPDATER_MODULE = "tests.contrib.integration_registry.registry_update_helpers.integration_registry_updater"
+    REGISTRY_UPDATER_MODULE = "registry_update_helpers.integration_registry_updater"
     REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"
-    UPDATER_LOCK_FILE = "ddtrace/contrib/integration_registry/registry.yaml.lock"
+    UPDATER_LOCK_FILE = "scripts/integration_registry/registry.yaml.lock"
     LOCK_MAX_WAIT_SECONDS = 15
 
     def __init__(self, project_root: str):
@@ -179,9 +179,10 @@ class IntegrationUpdateOrchestrator:
                 return
 
             # 1. Run IntegrationRegistryUpdater
+            integration_registry_dir = os.path.join(self.project_root, "scripts", "integration_registry")
             escaped_path = data_file_path.replace("'", "'\\''")
             py_cmd = (
-                f"import sys; sys.path.insert(0, '{self.project_root}'); "
+                f"import sys; sys.path.insert(0, '{integration_registry_dir}'); "
                 f"from {self.REGISTRY_UPDATER_MODULE} import {self.REGISTRY_UPDATER_CLASS}; "
                 f"updater = {self.REGISTRY_UPDATER_CLASS}(); success = updater.run('{escaped_path}'); "
                 f"sys.exit(0 if success else 1);"
@@ -190,16 +191,6 @@ class IntegrationUpdateOrchestrator:
             updater_succeeded = self._run_subprocess(
                 cmd_updater, 20, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False
             )
-
-            # UNCOMMENT TO RUN THE UPDATER LOCALLY, and comment out the above few lines, requires updating riotfile.py
-            # to include the following within the riot env:
-            # - "filelock"
-            # - "pyyaml"
-            # from tests.contrib.integration_registry.registry_update_helpers.integration_registry_updater import (
-            #   IntegrationRegistryUpdater
-            # )
-            # updater = IntegrationRegistryUpdater()
-            # updater_succeeded = updater.run(data_file_path)
 
             # 2. Run Main IntegrationRegistry Update/Format Script if we have changes to the registry
             if updater_succeeded:

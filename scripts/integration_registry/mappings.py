@@ -1,5 +1,5 @@
-from .utils import get_integration_to_dependency_map
-from .utils import invert_integration_to_dependency_map
+from utils import get_integration_to_dependency_map
+from utils import invert_integration_to_dependency_map
 
 
 EXCLUDED_FROM_TESTING = {
