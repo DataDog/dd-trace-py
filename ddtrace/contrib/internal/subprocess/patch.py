@@ -5,7 +5,6 @@ import os
 import re
 import shlex
 from shlex import join
-import sys
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
@@ -19,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_propagation_envs
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils import get_argument_value
@@ -32,43 +32,6 @@ config._add(
     "subprocess",
     dict(sensitive_wildcards=os.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
-
-
-def _apply_runtime_propagation_via_preexec_fn(args, kwargs, propagation: dict[str, str]):
-    """Append session lineage by chaining ``preexec_fn`` (POSIX, ``env`` unset)."""
-    # With env=None the child inherits os.environ at exec time after preexec_fn. Copying
-    # os.environ in the parent and passing env= would freeze env before user preexec_fn runs.
-    user_preexec = get_argument_value(args, kwargs, 6, "preexec_fn", optional=True)
-
-    def _dd_preexec() -> None:
-        if user_preexec is not None:
-            user_preexec()
-        os.environ.update(propagation)
-
-    return set_argument_value(
-        args,
-        kwargs,
-        6,
-        "preexec_fn",
-        _dd_preexec,
-        override_unset=True,
-    )
-
-
-def _apply_runtime_propagation_to_popen_call(args, kwargs):
-    """Merge ``get_runtime_propagation_envs()`` into ``Popen`` arguments."""
-    propagation = get_runtime_propagation_envs()
-    if not propagation:
-        return args, kwargs
-
-    current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
-    # preexec_fn is POSIX-only; sys.platform is "win32" on 64-bit Windows too.
-    if current_env is None and sys.platform != "win32":
-        return _apply_runtime_propagation_via_preexec_fn(args, kwargs, propagation)
-
-    env = dict(os.environ if current_env is None else current_env)
-    env.update(propagation)
-    return set_argument_value(args, kwargs, 10, "env", env, override_unset=True)
 
 
 def get_version() -> str:
@@ -602,8 +565,21 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    """Instrument ``Popen.__init__``: lineage env, then ASM tracing when enabled."""
-    args, kwargs = _apply_runtime_propagation_to_popen_call(args, kwargs)
+    """Wrapper for ``subprocess.Popen.__init__``.
+
+    When instrumentation telemetry is on, merges runtime propagation env vars into the
+    child ``env`` (copying from ``os.environ`` if unset) so exec-based children keep
+    lineage context.
+
+    When ASM subprocess tracing is active, records the command for ``Popen.wait`` and
+    emits a subprocess span around the real ``__init__``.
+    """
+    if telemetry_config.TELEMETRY_ENABLED:
+        # Process tracking is only used in instrumentation telemetry. Skip if telemetry is disabled.
+        current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
+        env = dict(os.environ.copy() if current_env is None else current_env)
+        env.update(get_runtime_propagation_envs())
+        args, kwargs = set_argument_value(args, kwargs, 10, "env", env, override_unset=True)
 
     if should_trace_subprocess():
         try:
