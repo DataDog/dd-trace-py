@@ -71,14 +71,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        elif self._is_provider(span):
-            client = "Unknown"
         span._set_attribute("openai.request.provider", client)
 
-    def _is_provider(self, span, provider=None):
-        """Check the base_url to determine the provider.
-        If provider is None, returns True if base_url is set but doesn't match any known provider.
-        """
+    def _is_provider(self, span, provider):
+        """Check if the client's base_url contains the given provider name."""
         base_url = None
         if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
             base_url = getattr(self._client, "_base_url", None)
@@ -87,9 +83,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
-        if provider is None:
-            known_providers = ("openai", "azure", "deepseek")
-            return not any(p in base_url.lower() for p in known_providers)
         return provider.lower() in base_url.lower()
 
     def _llmobs_set_tags(
@@ -110,13 +103,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = "openai"
-        if self._is_provider(span, "azure"):
+        model_provider = "unknown"
+        if self._is_provider(span, "openai"):
+            model_provider = "openai"
+        elif self._is_provider(span, "azure"):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
-        elif self._is_provider(span):
-            model_provider = "unknown"
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
