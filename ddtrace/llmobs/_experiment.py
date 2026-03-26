@@ -14,6 +14,7 @@ from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import Sequence
 from typing import TypedDict
@@ -66,7 +67,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], dict[str, "JSONType"]]
+JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], Mapping[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
