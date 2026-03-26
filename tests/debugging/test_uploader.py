@@ -112,15 +112,16 @@ def test_agentless_uploader(monkeypatch):
     # Force re-evaluation of derived values on the singleton
     monkeypatch.setattr(di_config, "_is_agentless", True)
     monkeypatch.setattr(di_config, "_api_key", "test-api-key")
-    monkeypatch.setattr(di_config, "_intake_url", "https://http-intake.logs.datadoghq.eu")
+    monkeypatch.setattr(di_config, "_intake_url", "https://debugger-intake.datadoghq.eu")
+    monkeypatch.setattr(di_config, "tags", "service:mysvc,env:staging,version:1.0")
 
     uploader = SignalUploader(interval=LONG_INTERVAL)
     # Prevent any accidental HTTP request
     uploader._connect = lambda: (_ for _ in ()).throw(AssertionError("unexpected HTTP request"))
 
-    # Agentless mode: endpoint should be /api/v2/logs for both tracks
-    assert uploader._tracks[SignalTrack.LOGS].endpoint == "/api/v2/logs"
-    assert uploader._tracks[SignalTrack.SNAPSHOT].endpoint == "/api/v2/logs"
+    # Agentless mode: endpoint should be /api/v2/debugger with tags in QS for both tracks
+    assert uploader._tracks[SignalTrack.LOGS].endpoint.startswith("/api/v2/debugger?ddtags=")
+    assert uploader._tracks[SignalTrack.SNAPSHOT].endpoint.startswith("/api/v2/debugger?ddtags=")
 
     # API key must be in headers
     assert uploader._headers.get("DD-API-KEY") == "test-api-key"

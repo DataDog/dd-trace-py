@@ -53,6 +53,11 @@ class TestPatching(SubprocessTestCase):
         _monkey._patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
 
+    @run_in_subprocess(env_overrides=dict(DD_MODEL_LAB_ENABLED="true"))
+    def test_patch_all_env_override_model_lab_enables_mlflow(self):
+        _monkey._patch_all()
+        assert "mlflow" in _monkey._PATCHED_MODULES
+
     @run_in_subprocess()
     def test_patch_exception_on_import(self):
         # Manual patching should not be affected by the environment variable override.

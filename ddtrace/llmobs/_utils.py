@@ -306,7 +306,9 @@ def safe_json(obj, ensure_ascii=True):
         # Pydantic v1
         elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
             obj = obj.dict()
-        return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
+        return json.dumps(
+            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
+        )
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
 

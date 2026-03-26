@@ -38,12 +38,9 @@ class ProbeStatusLogger:
             attempts=self.RETRY_ATTEMPTS,
         )(self._write_payload)
 
-        if di_config._is_agentless:
-            self._endpoint = "/api/v2/logs"
-        else:
-            self._endpoint = self.ENDPOINT
-            if di_config._tags_in_qs and di_config.tags:
-                self._endpoint += f"?ddtags={quote(di_config.tags)}"
+        self._endpoint = "/api/v2/debugger" if di_config._is_agentless else self.ENDPOINT
+        if di_config._tags_in_qs and di_config.tags:
+            self._endpoint += f"?ddtags={quote(di_config.tags)}"
 
     def _payload(
         self, probe: Probe, status: str, message: str, timestamp: float, error: t.Optional[ErrorInfo] = None
@@ -112,12 +109,12 @@ class ProbeStatusLogger:
 
         try:
             if di_config._is_agentless:
-                body = f"[{','.join(msgs)}]".encode("utf-8")
-                headers = {
-                    "Content-Type": "application/json",
-                    "DD-API-KEY": di_config._api_key,
-                }
-                self._write_payload_with_backoff((body, headers))
+                self._write_payload_with_backoff(
+                    (
+                        f"[{','.join(msgs)}]".encode("utf-8"),  # body
+                        {"Content-Type": "application/json", "DD-API-KEY": di_config._api_key},  # headers
+                    )
+                )
             else:
                 self._write_payload_with_backoff(
                     multipart(
