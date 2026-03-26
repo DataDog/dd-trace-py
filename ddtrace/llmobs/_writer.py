@@ -541,7 +541,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 "attributes": {
                     "insert_records": irs,
                     "update_records": urs,
-                    "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                    "delete_records": delete_record_ids,
                     "deduplicate": deduplicate,
                     "create_new_version": create_new_version,
                 },
@@ -818,7 +818,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "project_id": project_id,
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
-                        "metadata": {"tags": cast(JSONType, tags or [])},
+                        "metadata": {"tags": tags or []},
                         "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
@@ -872,7 +872,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "attributes": {
                         "scope": "experiments",
                         "metrics": cast(list[JSONType], events),
-                        "tags": cast(list[JSONType], tags),
+                        "tags": tags,
                     },
                 }
             },

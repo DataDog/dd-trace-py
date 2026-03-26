@@ -1478,7 +1478,7 @@ class Experiment:
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
         if dataset.filter_tags:
-            self._config["filtered_record_tags"] = cast(JSONType, dataset.filter_tags)
+            self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
         self._is_distributed = is_distributed
@@ -1511,7 +1511,7 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: dict[str, JSONType] = {"tags": cast(list[JSONType], convert_tags_dict_to_list(self._tags))}
+            metadata: dict[str, JSONType] = {"tags": convert_tags_dict_to_list(self._tags)}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
