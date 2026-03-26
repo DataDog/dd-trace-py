@@ -2803,8 +2803,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
-                    pkgs={"openfeature-sdk": ["~=0.6.0", "~=0.7.0", latest]},
+                    # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
+                    pkgs={"openfeature-sdk": ["~=0.8.0", latest]},
                 ),
             ],
         ),
