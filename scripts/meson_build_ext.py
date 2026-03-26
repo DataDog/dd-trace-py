@@ -31,6 +31,50 @@ MUSL_RUSTFLAGS = "-Ctarget-feature=-crt-static"
 DEFAULT_CI_NESTED_PARALLELISM = 12
 
 
+def _content_hash(paths: list) -> str:
+    """Compute a stable SHA-256 over the contents of a list of files or directory trees.
+
+    AIDEV-NOTE: Used to implement "nothing-changed" fast-exit in meson custom_target
+    scripts.  With build_always_stale=true, meson runs these scripts on every
+    `meson compile` invocation (= every `pip install -e .` called by riot for each
+    test suite).  Without a content hash check, commands like `cargo build` or
+    `cmake --build` run every time even when no source file changed, causing
+    cumulative slowdowns proportional to the number of riot test suites.
+
+    Only regular files are hashed; directory entries and symlinks are skipped.
+    Files are sorted by absolute path for determinism.
+    """
+    digest = hashlib.sha256()
+    collected: list[Path] = []
+    for path in paths:
+        p = Path(path)
+        if p.is_file():
+            collected.append(p.resolve())
+        elif p.is_dir():
+            collected.extend(sorted(f.resolve() for f in p.rglob("*") if f.is_file()))
+    for f in sorted(collected):
+        digest.update(str(f).encode("utf-8"))
+        digest.update(b"\0")
+        try:
+            digest.update(f.read_bytes())
+        except OSError:
+            pass
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _read_stamp(stamp_file: Path) -> str:
+    try:
+        return stamp_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _write_content_stamp(stamp_file: Path, content_hash: str) -> None:
+    stamp_file.parent.mkdir(parents=True, exist_ok=True)
+    stamp_file.write_text(content_hash + "\n", encoding="utf-8")
+
+
 def _resolve_path_arg(path_str: str) -> Path:
     path = Path(path_str)
     if path.is_absolute():
@@ -170,6 +214,26 @@ def cmd_rust(args):
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    # AIDEV-NOTE: Fast-exit when Rust source has not changed.
+    # riot calls `pip install -e .` (→ meson compile → this script) once per test
+    # suite, even when no source changed.  Running `cargo build --release` just to
+    # find "nothing to do" takes 3-5 seconds; with dozens of suites this adds up.
+    #
+    # We hash Cargo.lock (captures all dependency versions) + Cargo.toml (build
+    # metadata) + all .rs sources + features string + Python executable path (so
+    # a Python version switch forces a rebuild).  If the hash matches the stored
+    # stamp and the output exists, we skip cargo entirely.
+    src_dir = manifest.parent / "src"
+    rust_hash_inputs = [manifest, manifest.parent / "Cargo.lock"]
+    if src_dir.is_dir():
+        rust_hash_inputs.append(src_dir)
+    rust_source_hash = _content_hash(rust_hash_inputs) + ":" + (features or "") + ":" + python
+    rust_stamp_file = output.parent / (output.name + ".rust_src.stamp")
+    if output.exists() and _read_stamp(rust_stamp_file) == rust_source_hash:
+        print(f"[meson_build_ext] Rust output up-to-date, skipping cargo build ({output.name})", flush=True)
+        _write_stamp(args)
+        return
+
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(cargo_target_dir)
     env["PYO3_PYTHON"] = python
@@ -250,6 +314,8 @@ def cmd_rust(args):
         else:
             print(f"[meson_build_ext] WARNING: Include dir not found: {include_dir}")
 
+    # Record the source hash so future calls can fast-exit if nothing changed.
+    _write_content_stamp(rust_stamp_file, rust_source_hash)
     _write_stamp(args)
 
 
@@ -521,16 +587,37 @@ def cmd_cmake(args):
     hash_file = build_dir / ".meson_cmake_args_hash"
     current_hash = _cmake_configure_hash(cmake_args, build_dir)
 
+    # AIDEV-NOTE: Fast-exit for cmake --build when configure args and C++ source
+    # have not changed.  riot calls `pip install -e .` (→ meson compile → this
+    # script) for every test suite run.  cmake --build takes ~0.5s per component
+    # even when nothing changed; across 4 cmake components and dozens of suites
+    # this accumulates.
+    #
+    # Strategy: store a content hash of all C/C++/CMake source files alongside
+    # the configure-args hash.  When both match and the output exists, skip
+    # cmake configure + build + install entirely.
+    cmake_src_hash = _content_hash([cmake_src_dir])
+    cmake_src_stamp_file = build_dir / ".meson_cmake_src_hash"
+    configure_matches = cmake_cache.exists() and hash_file.exists() and _read_stamp(hash_file) == current_hash
+    source_matches = cmake_src_stamp_file.exists() and _read_stamp(cmake_src_stamp_file) == cmake_src_hash
+    if configure_matches and source_matches and output.exists():
+        print(
+            f"[meson_build_ext] cmake output up-to-date, skipping configure+build ({component_name})",
+            flush=True,
+        )
+        _write_stamp(args)
+        return
+
     with _fetchcontent_configure_lock(fetchcontent_dir):
         _clean_stale_fetchcontent_state(fetchcontent_dir)
-        if cmake_cache.exists() and hash_file.exists() and hash_file.read_text().strip() == current_hash:
+        if configure_matches:
             print(
                 f"[meson_build_ext] cmake configure up-to-date, skipping ({component_name})",
                 flush=True,
             )
         else:
             run(cmake_args)
-            hash_file.write_text(current_hash + "\n")
+            hash_file.write_text(current_hash + "\n", encoding="utf-8")
 
     # Build
     build_args = [cmake, "--build", str(build_dir), "--config", build_type, *_cmake_parallel_args()]
@@ -552,6 +639,8 @@ def cmd_cmake(args):
                 f"Install dir contents: {list(install_dir.iterdir())}"
             )
 
+    # Record the source hash so future calls can fast-exit if nothing changed.
+    _write_content_stamp(cmake_src_stamp_file, cmake_src_hash)
     _write_stamp(args)
 
 
@@ -568,6 +657,18 @@ def cmd_psutil(args):
     psutil_dir = src_root / "ddtrace" / "vendor" / "psutil"
     output = _resolve_path_arg(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+
+    # AIDEV-NOTE: Fast-exit for psutil when nothing changed.
+    # psutil is a vendored, pinned dependency whose source never changes between
+    # runs.  Rebuilding it on every `pip install -e .` (= every riot suite) wastes
+    # ~2s per suite.  Hash the psutil source tree; if it matches the stored stamp
+    # and the output exists, skip the rebuild entirely.
+    psutil_src_hash = _content_hash([psutil_dir]) + ":" + args.ext_suffix
+    psutil_stamp_file = output.parent / (output.name + ".psutil_src.stamp")
+    if output.exists() and _read_stamp(psutil_stamp_file) == psutil_src_hash:
+        print("[meson_build_ext] psutil output up-to-date, skipping build", flush=True)
+        _write_stamp(args)
+        return
 
     build_dir = src_root / ".mesonbuild" / "psutil_build"
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -647,6 +748,8 @@ def cmd_psutil(args):
         print(f"[meson_build_ext] psutil built: {src} → {dst}")
     else:
         print(f"[meson_build_ext] psutil built in-place: {dst}")
+    # Record the source hash so future calls can fast-exit if nothing changed.
+    _write_content_stamp(psutil_stamp_file, psutil_src_hash)
     _write_stamp(args)
 
 
