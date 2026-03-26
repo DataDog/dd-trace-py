@@ -73,7 +73,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="agent",
-            model_name=model or "",
+            model_name=model,
             input_value=input_messages,
             metadata=metadata,
             output_value=output_messages,
