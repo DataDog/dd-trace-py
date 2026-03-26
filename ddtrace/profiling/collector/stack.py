@@ -46,9 +46,6 @@ class StackCollector(collector.Collector):
     def _init(self) -> None:
         _task.initialize_gevent_support()
 
-        if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", stack.link_span)
-
         # Start the native stack sampler first. This ensures one_time_setup() runs
         # (which handles any fork that happened since library load) before we
         # register threads and asyncio loops - otherwise those registrations would
@@ -59,6 +56,11 @@ class StackCollector(collector.Collector):
         if not stack.start():
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable
+
+        # Register the span-link hook only after the sampler has started successfully,
+        # so we never leave a stale listener behind if startup fails.
+        if self.tracer is not None:
+            core.on("ddtrace.context_provider.activate", stack.link_span)
 
         # Start native C function call tracking (Python 3.12+ only)
         if sys.version_info >= (3, 12) and config.stack.native_frames:
