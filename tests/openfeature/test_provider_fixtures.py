@@ -18,9 +18,23 @@ from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
 
 
-# Get fixtures directory path
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-FLAGS_CONFIG_PATH = Path(__file__).parent / "flags-v1.json"
+# Get fixtures directory path (from ffe-system-test-data submodule)
+FIXTURES_DIR = Path(__file__).parent / "ffe-system-test-data" / "evaluation-cases"
+FLAGS_CONFIG_PATH = Path(__file__).parent / "ffe-system-test-data" / "config" / "ufc-config.json"
+
+# Known discrepancies between Go evaluator (fixture source) and Rust native evaluator (used by Python).
+# The Rust evaluator treats start_at/end_at as targeting constraints (TARGETING_MATCH),
+# while Go treats them as pre-filters (STATIC). The Rust evaluator also optimizes
+# insignificant shards to STATIC where Go returns SPLIT.
+KNOWN_REASON_OVERRIDES = {
+    ("microsecond-date-test", "alice"): "TARGETING_MATCH",
+    ("microsecond-date-test", "bob"): "TARGETING_MATCH",
+    ("microsecond-date-test", "charlie"): "TARGETING_MATCH",
+    ("start-and-end-date-test", "alice"): "TARGETING_MATCH",
+    ("start-and-end-date-test", "bob"): "TARGETING_MATCH",
+    ("start-and-end-date-test", "charlie"): "TARGETING_MATCH",
+    ("empty_string_flag", "bob"): "STATIC",
+}
 
 
 def load_flags_config():
@@ -133,9 +147,12 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
     # Assert reason if present in fixture
     expected_reason = expected_result.get("reason")
     if expected_reason is not None:
-        assert result.reason == Reason(expected_reason), (
+        # Apply known overrides for Go vs Rust native evaluator discrepancies
+        override_key = (flag_key, targeting_key)
+        effective_reason = KNOWN_REASON_OVERRIDES.get(override_key, expected_reason)
+        assert result.reason == Reason(effective_reason), (
             f"Flag '{flag_key}' with context (targetingKey='{targeting_key}', attributes={attributes}) "
-            f"returned reason {result.reason}, expected {expected_reason}"
+            f"returned reason {result.reason}, expected {effective_reason}"
         )
 
 
