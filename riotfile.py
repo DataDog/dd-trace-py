@@ -4379,7 +4379,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "litellm[proxy]": "==1.82.6", # upgrade to latest when we feel safe about litellm
+                        "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
                     },
                 ),
             ],
