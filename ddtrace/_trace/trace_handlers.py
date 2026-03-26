@@ -11,6 +11,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
+from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
+from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -28,7 +30,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
-from ddtrace.contrib.internal.google_cloud_pubsub.utils import set_pubsub_receive_attributes
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -74,7 +75,7 @@ from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _extract_header_value
-from ddtrace.propagation.http import _possible_header
+
 from ddtrace.trace import tracer
 
 
@@ -271,8 +272,19 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-_POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
-_POSSIBLE_HEADER_PUBSUB_MESSAGE_ID = _possible_header("x-goog-pubsub-message-id")
+def _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id=None):
+    """Set common span attributes for Pub/Sub receive operations (pull and push)."""
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_attribute("gcloud.project_id", project_id)
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, subscription_id)
+    span._set_attribute(MESSAGING_OPERATION, "receive")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    if message_id:
+        span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+
+
 
 
 def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
@@ -283,13 +295,13 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     """
     normalized = {k.lower(): v for k, v in headers.items()}
 
-    subscription_name = _extract_header_value(_POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION, normalized)
+    subscription_name = _extract_header_value(POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION, normalized)
     if not subscription_name:
         return
 
     _ensure_pubsub_config()
 
-    message_id = _extract_header_value(_POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, normalized)
+    message_id = _extract_header_value(POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, normalized)
     project_id, subscription_id = _parse_pubsub_resource_path(subscription_name)
 
     propagated_context = tracer.current_trace_context() if config.google_cloud_pubsub.distributed_tracing_enabled else None
@@ -303,7 +315,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
         child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
     )
 
-    set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
+    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
     span._set_attribute("_dd.inferred_span", 1)
 
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
@@ -1429,7 +1441,7 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
     span = ctx.span
     message = ctx.get_item("message")
 
-    set_pubsub_receive_attributes(
+    _set_pubsub_receive_attributes(
         span,
         ctx.get_item("project_id"),
         ctx.get_item("subscription_id"),
