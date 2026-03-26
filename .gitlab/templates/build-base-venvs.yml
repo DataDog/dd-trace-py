@@ -41,7 +41,7 @@ build_base_venvs:
     # Without this, `git checkout` in each test job stamps source files with the
     # current time, which is newer than the build-dir artifacts, causing ninja to
     # trigger a full cmake rebuild (Abseil + IAST native) and OOM the runner.
-    find build/mesonpy-*/ -exec touch -d "2099-01-01 00:00:00 UTC" {} + 2>/dev/null || true
+    find build/mesonpy-*/ -exec touch -d "2099-01-01 00:00:00 UTC" {{}} + 2>/dev/null || true
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
