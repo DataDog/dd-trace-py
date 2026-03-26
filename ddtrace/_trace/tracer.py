@@ -26,7 +26,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
-from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import core
