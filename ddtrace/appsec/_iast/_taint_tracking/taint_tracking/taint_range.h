@@ -20,8 +20,8 @@ class TaintedObject;
 // Alias
 using TaintedObjectPtr = shared_ptr<TaintedObject>;
 
-// Use Abseil only if NDEBUG is set and DONT_COMPILE_ABSEIL is not set
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+// Use Abseil in Release builds; fall back to std::unordered_map in Debug (NDEBUG not set).
+#if defined(NDEBUG)
 #include "absl/container/node_hash_map.h"
 using TaintedObjectMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
 #else

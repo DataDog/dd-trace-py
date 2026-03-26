@@ -26,8 +26,22 @@ def try_restore_from_cache():
     # Generate the hashes of the extensions
     results = invoke_ext_hashes()
     for ext_name, ext_hash, ext_target in results:
-        target = Path(ext_target)
         cache_dir = CACHE / ext_name / ext_hash
+
+        # Directory-tree artifact: target path ends with "/"
+        if ext_target.endswith("/"):
+            target = Path(ext_target.rstrip("/"))
+            cached_tree = cache_dir / "tree"
+            if not cached_tree.is_dir():
+                print(f"Warning: No cached tree found for {ext_name} in {cache_dir}", file=sys.stderr)
+                continue
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(cached_tree, target)
+            print(f"Restored {ext_name} tree from {cached_tree} to {target}")
+            continue
+
+        target = Path(ext_target)
         target_dir = target.parent.resolve()
         # Check if the cached file exist in the cache directory
         if not (matches := list(cache_dir.glob(target.name))):
@@ -50,8 +64,22 @@ def save_to_cache():
     # Generate the hashes of extensions
     results = invoke_ext_hashes()
     for ext_name, ext_hash, ext_target in results:
-        target = Path(ext_target)
         cache_dir = CACHE / ext_name / ext_hash
+
+        # Directory-tree artifact: target path ends with "/"
+        if ext_target.endswith("/"):
+            target = Path(ext_target.rstrip("/"))
+            if not target.is_dir():
+                print(f"Warning: {target} not found, skipping {ext_name}", file=sys.stderr)
+                continue
+            cached_tree = cache_dir / "tree"
+            if cached_tree.exists():
+                shutil.rmtree(cached_tree)
+            shutil.copytree(target, cached_tree)
+            print(f"Saved {ext_name} tree from {target} to {cached_tree}")
+            continue
+
+        target = Path(ext_target)
         target_dir = target.parent.resolve()
         # Check if the target file exist in the target directory
         if not (matches := list(target_dir.glob(target.name))):

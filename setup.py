@@ -84,7 +84,6 @@ else:
     print("INFO: DD_FAST_BUILD not enabled")
 
 if FAST_BUILD:
-    os.environ["DD_COMPILE_ABSEIL"] = "0"
     # Trade binary size for compilation speed in dev environments by disabling
     # LTO and increasing codegen parallelism. Never used for release wheels.
     os.environ.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
@@ -97,6 +96,28 @@ SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on",
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
 DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
+
+# Shared cmake dependencies fetched once and reused by all extensions.
+# Each entry maps to a FetchContent_Declare() + FetchContent_MakeAvailable() block.
+# cmake_vars is a list of (name, value, type) tuples set as cmake cache variables
+# *before* FetchContent_MakeAvailable() so the dep can see them during its configure.
+FETCH_CONTENT_DEPS: "list[dict[str, t.Any]]" = [
+    dict(
+        name="absl",
+        repository="https://github.com/abseil/abseil-cpp.git",
+        tag="20250127.1",
+        shallow=True,
+        # ABSL_ENABLE_INSTALL: Abseil disables its own install rules when it detects it is
+        #   not the top-level project; forcing ON re-enables them so "cmake --install"
+        #   produces the headers and static libs consumable via find_package(absl).
+        # ABSL_BUILD_TESTING / BUILD_TESTING: avoid pulling in googletest.
+        cmake_vars=[
+            ("ABSL_ENABLE_INSTALL", "ON", "BOOL"),
+            ("ABSL_BUILD_TESTING", "OFF", "BOOL"),
+            ("BUILD_TESTING", "OFF", "BOOL"),
+        ],
+    ),
+]
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
@@ -366,6 +387,25 @@ class ExtensionHashes(build_ext):
                 for entry in entries:
                     print("#EXTHASH:", entry)
 
+            # cmake shared deps (Abseil etc.) — the entire install prefix is a
+            # directory tree that ext_cache.py stashes and restores as a whole.
+            # Hash is derived from FETCH_CONTENT_DEPS content + platform + mode
+            # so any dep bump or platform change produces a distinct cache key.
+            platform_tag = sysconfig.get_platform()
+            cmake_deps_hash = hashlib.sha256()
+            for dep in FETCH_CONTENT_DEPS:
+                cmake_deps_hash.update(dep["name"].encode())
+                cmake_deps_hash.update(dep["repository"].encode())
+                cmake_deps_hash.update(dep["tag"].encode())
+                for var_name, var_value, var_type in dep.get("cmake_vars", []):
+                    cmake_deps_hash.update(f"{var_name}={var_value}:{var_type}".encode())
+            cmake_deps_hash.update(platform_tag.encode())
+            cmake_deps_hash.update(COMPILE_MODE.encode())
+            deps_install_dir = HERE / "build" / f"cmake_deps.{platform_tag}.{COMPILE_MODE}" / "install"
+            # Trailing "/" signals to ext_cache.py that this is a directory tree,
+            # not a single file, and should be stashed/restored with copytree.
+            print("#EXTHASH:", ("__cmake_deps__", cmake_deps_hash.hexdigest(), str(deps_install_dir) + "/"))
+
         except Exception as e:
             print("WARNING: Failed to compute extension hashes: %s" % e)
             raise e
@@ -445,13 +485,13 @@ class LibraryDownload:
     CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
-    name = None
+    name: "t.Optional[str]" = None
     download_dir = Path.cwd()
-    version = None
-    url_root = None
-    available_releases = {}
+    version: "t.Optional[str]" = None
+    url_root: "t.Optional[str]" = None
+    available_releases: "dict[str, list[str]]" = {}
     expected_checksums = None
-    translate_suffix = {}
+    translate_suffix: "dict[str, tuple[str, ...]]" = {}
 
     @classmethod
     def download_artifacts(cls):
@@ -623,7 +663,6 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        CleanLibraries.remove_native_extensions()
 
     @staticmethod
     def remove_rust_targets():
@@ -649,6 +688,9 @@ class CleanLibraries(CleanCommand):
                 egg.unlink(missing_ok=True)
             elif egg.is_dir():
                 shutil.rmtree(egg, True)
+        # Remove the shared FetchContent source cache. Build artifacts live in
+        # each extension's per-project cmake build dir (under build/) which is
+        # removed by remove_build_dir().
         cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
         if cmake_deps.exists():
             shutil.rmtree(cmake_deps, True)
@@ -667,6 +709,7 @@ class CleanLibraries(CleanCommand):
     def run(self):
         CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
+        CleanLibraries.remove_native_extensions()
         CleanLibraries.remove_build_dir()
         if self.all:
             CleanLibraries.remove_build_artifacts()
@@ -675,8 +718,22 @@ class CleanLibraries(CleanCommand):
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
+    def finalize_options(self):
+        super().finalize_options()
+        # Pin build_temp to the source tree so that .o files survive across
+        # `pip install -e .` invocations.  pip creates a new temp dir each run,
+        # so if we let build_temp default to wherever build_lib is, object files
+        # are discarded and the full C++ compilation repeats every time.
+        plat = f"{sysconfig.get_platform()}-{sys.version_info.major}.{sys.version_info.minor}"
+        self.build_temp = str(HERE / "build" / f"temp.{plat}")
+
     def run(self):
         self.build_rust()
+
+        # Pre-build shared cmake deps (Abseil, etc.) as a standalone cmake project
+        # so all extensions can reuse the compiled artifacts via find_package.
+        # Raises on failure — extensions assume the install prefix always exists.
+        self._cmake_deps_install_dir: Path = self._prebuild_cmake_deps()
 
         # Build libdd_wrapper before building other extensions that depend on it
         if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
@@ -772,52 +829,50 @@ class CustomBuildExt(build_ext):
             )
 
         wrapper_name = f"libdd_wrapper{self.suffix}"
-        wrapper_library = wrapper_output_dir / wrapper_name
 
-        # Check if we need to build libdd_wrapper by checking if sources are newer
-        should_build = True
-        if wrapper_library.exists():
-            wrapper_mtime = wrapper_library.stat().st_mtime
+        # Anchor the cmake build dir to the source tree so that cmake's own
+        # incremental artefacts (object files, the built .so) survive across
+        # `pip install -e .` invocations.  Using self.build_lib would put it
+        # in pip's temp dir, which is discarded after each run.
+        plat = f"{sysconfig.get_platform()}-cpython-{sys.version_info.major}{sys.version_info.minor}"
+        cmake_build_dir = HERE / "build" / f"cmake.{plat}" / "libdd_wrapper_build"
 
-            # Check dd_wrapper source files
-            source_files = []
-            source_files.extend(dd_wrapper_dir.glob("**/*.cpp"))
-            source_files.extend(dd_wrapper_dir.glob("**/*.hpp"))
-            source_files.extend([dd_wrapper_dir / "CMakeLists.txt"])
+        # Use the library inside the cmake build dir as the freshness anchor.
+        # The cmake build dir is anchored to the source tree (not pip's temp
+        # build_lib) so it persists across pip invocations.
+        cmake_built_library = cmake_build_dir / wrapper_name
+        source_files = (
+            list(dd_wrapper_dir.glob("**/*.cpp"))
+            + list(dd_wrapper_dir.glob("**/*.hpp"))
+            + [dd_wrapper_dir / "CMakeLists.txt"]
+        )
+        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+        build_args = [f"--config {COMPILE_MODE}"]
+        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+            if hasattr(self, "parallel") and self.parallel:
+                build_args += [f"-j{self.parallel}"]
+        install_args = [f"--config {COMPILE_MODE}"]
 
-            # Check if any source file is newer than the wrapper library
-            newest_source_time = 0
-            for src_file in source_files:
-                if src_file.exists():
-                    newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
-
-            # Rebuild if source files changed OR if _native.so was rebuilt (our dependency)
-            source_files_changed = newest_source_time > wrapper_mtime
-            print(f"source_files_changed: {source_files_changed}")
-            print(f"built_native: {getattr(self, 'built_native', False)}")
-            should_build = source_files_changed or getattr(self, "built_native", False)
-
-        if should_build:
-            # Build libdd_wrapper using CMake
-            cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+        sources_changed = not cmake_built_library.exists() or newer_group(
+            [str(f) for f in source_files if f.exists()], str(cmake_built_library), missing="newer"
+        )
+        if sources_changed:
+            # Full configure + build + install.  We always reconfigure here so
+            # cmake picks up the current cmake binary (pip creates a fresh build
+            # env each run; using an old Makefile that embeds the previous pip
+            # env's cmake path would cause gmake to fail with "No such file").
             cmake_build_dir.mkdir(parents=True, exist_ok=True)
-
             cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
-
-            build_args = [f"--config {COMPILE_MODE}"]
-            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                if hasattr(self, "parallel") and self.parallel:
-                    build_args += [f"-j{self.parallel}"]
-
-            install_args = [f"--config {COMPILE_MODE}"]
-
-            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
             subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
 
             print(f"Built libdd_wrapper shared library: {wrapper_name}")
         else:
+            # Sources unchanged: ensure the inplace copy is present (may be
+            # absent on a fresh checkout or after a manual clean).
+            wrapper_output_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cmake_built_library, wrapper_output_dir / wrapper_name)
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
 
     @staticmethod
@@ -849,13 +904,215 @@ class CustomBuildExt(build_ext):
                     return
                 raise
         else:
-            super().build_extension(ext)
+            prepare = getattr(ext, "prepare", None)
+            if prepare is not None:
+                prepare(self)
+            self._build_extension_incremental(ext)
 
         if COMPILE_MODE.lower() in ("release", "minsizerel"):
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
+
+    def _skip_if_up_to_date(self, ext_name: str, anchor_so: Path, sources: "list[str]", force: bool = False) -> bool:
+        """Return True (and copy anchor → ext_path) when the extension is up-to-date.
+
+        Both setuptools and cmake extensions share this early-exit pattern:
+        compare a stable anchor .so against the list of source files and, if
+        nothing is newer, skip the build and serve the cached .so instead.
+        """
+        if not (self.INCREMENTAL and not force):
+            return False
+        if not anchor_so.exists() or newer_group(sources, str(anchor_so), missing="newer"):
+            return False
+        ext_path = Path(self.get_ext_fullpath(ext_name))
+        print(f"skipping '{ext_name}' extension (up-to-date)")
+        if ext_path != anchor_so:
+            ext_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(anchor_so, ext_path)
+        return True
+
+    def _build_extension_incremental(self, ext: Extension) -> None:
+        """Build a regular setuptools Extension with incremental skipping.
+
+        Uses the inplace .so in the source tree as the persistent freshness
+        anchor.  pip's build_ext may target a temp build_lib directory (so
+        ext_path differs from the inplace path), but the inplace .so survives
+        across invocations and is therefore the right thing to compare sources
+        against.
+
+        For Cython extensions: cythonize() regenerates the .c file whenever a
+        Cython header (.pxd) dependency changes — which happens on every
+        `pip install -e .` because pip creates a fresh build env with fresh
+        .pxd timestamps.  To avoid spurious rebuilds we compare the .pyx
+        source (not the generated .c) against the inplace .so: if the .pyx has
+        not changed the output is identical regardless of .c regeneration.
+        """
+        # Derive the inplace .so path from the extension name.  This is stable
+        # across pip invocations regardless of the current build_lib temp dir.
+        inplace_so = HERE / self.get_ext_filename(self.get_ext_fullname(ext.name))
+
+        # For Cython extensions ext.sources contains the generated .c file
+        # (cythonize() replaces .pyx with .c in-place).  Use the .pyx file
+        # as the freshness indicator when it exists; its mtime reflects when
+        # the actual source last changed, while .c gets regenerated on every
+        # pip run due to pip-build-env .pxd dependency timestamps.
+        sources = []
+        for src in ext.sources or []:
+            pyx = Path(src).with_suffix(".pyx")
+            sources.append(str(pyx) if pyx.exists() else src)
+
+        if self._skip_if_up_to_date(ext.name, inplace_so, sources):
+            return
+
+        super().build_extension(ext)
+
+        # Keep the inplace copy up-to-date so future freshness checks are
+        # correct even when this invocation built to a temp build_lib.
+        # Only do this for editable/inplace installs.  Wheel builds must NOT
+        # leave per-Python-version .so files in the source tree: MANIFEST.in's
+        # "graft ddtrace" causes setuptools to include every .so it finds in
+        # ddtrace/ when packaging a wheel.  On CI, multiple Python versions are
+        # built sequentially on the same persistent runner, so a cpython-39
+        # _memalloc.so saved here would end up inside the cpython-310 wheel —
+        # but libdd_wrapper.cpython-39-darwin.so is absent from that wheel,
+        # causing delocate-wheel to fail with "not found" for the stale rpath.
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            ext_path = Path(self.get_ext_fullpath(ext.name))
+            if ext_path.exists() and ext_path != inplace_so:
+                inplace_so.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ext_path, inplace_so)
+
+    @staticmethod
+    def _generate_cmake_deps_file(dest_dir: Path) -> None:
+        """Render FETCH_CONTENT_DEPS into a CMakeLists.txt under dest_dir.
+
+        The generated file is equivalent to the former static cmake_deps/CMakeLists.txt
+        but is derived from the authoritative FETCH_CONTENT_DEPS list in setup.py so
+        there is only one place to update when adding or bumping a dependency.
+        """
+        lines = [
+            "cmake_minimum_required(VERSION 3.19)",
+            "project(dd_cmake_deps LANGUAGES C CXX)",
+            "",
+            "set(CMAKE_CXX_STANDARD 17)",
+            "set(CMAKE_CXX_STANDARD_REQUIRED ON)",
+            "set(CMAKE_POSITION_INDEPENDENT_CODE ON)",
+            "",
+            "include(FetchContent)",
+            'set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)',
+            "",
+        ]
+        for dep in FETCH_CONTENT_DEPS:
+            name = dep["name"]
+            for var_name, var_value, var_type in dep.get("cmake_vars", []):
+                lines.append(f'set({var_name} {var_value} CACHE {var_type} "" FORCE)')
+            lines += [
+                "",
+                "FetchContent_Declare(",
+                f"    {name}",
+                f"    GIT_REPOSITORY {dep['repository']}",
+                f"    GIT_TAG        {dep['tag']}",
+                *(["    GIT_SHALLOW    TRUE"] if dep.get("shallow") else []),
+                "    GIT_PROGRESS   TRUE",
+                ")",
+                f"FetchContent_MakeAvailable({name})",
+                "",
+            ]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        (dest_dir / "CMakeLists.txt").write_text("\n".join(lines))
+
+    def _prebuild_cmake_deps(self) -> Path:
+        """Build FETCH_CONTENT_DEPS once as a standalone CMake project.
+
+        Generates a CMakeLists.txt from the FETCH_CONTENT_DEPS list and builds
+        shared dependencies (Abseil, etc.) into a platform-tagged install prefix
+        under build/.  The prefix is independent of both the extension's cmake
+        tree and the Python version, so all CPython builds on the same platform
+        share the compiled artifacts.
+
+        cmake-based extensions (_ddup, _stack) receive the install prefix via
+        CMAKE_PREFIX_PATH so their FetchContent_MakeAvailable() calls delegate
+        to find_package without any change to those CMakeLists files.
+
+        Extensions compiled by setuptools (AbslExtension / MemallocExtension)
+        receive the Abseil include dirs and static libs injected at build time
+        via AbslExtension.prepare().
+
+        Raises on failure so the build fails fast rather than silently falling
+        back to per-extension inline builds.
+        """
+        platform_tag = sysconfig.get_platform()  # e.g. "macosx-15.4-arm64" – no Python version
+        # Anchor to the source tree, not self.build_lib: during `pip install -e .`
+        # build_lib points into pip's temp directory and would be thrown away.
+        deps_root = HERE / "build" / f"cmake_deps.{platform_tag}.{COMPILE_MODE}"
+        deps_build_dir = deps_root / "build"
+        deps_install_dir = deps_root / "install"
+
+        # Fast path: all deps already installed from a previous build.
+        if all(next(deps_install_dir.glob(f"**/{dep['name']}Config.cmake"), None) for dep in FETCH_CONTENT_DEPS):
+            print(f"Reusing pre-built cmake deps from {deps_install_dir}")
+            return deps_install_dir
+
+        # Generate the CMakeLists.txt from FETCH_CONTENT_DEPS so the static
+        # cmake_deps/ directory in the source tree is no longer needed.
+        cmake_src_dir = deps_root / "src"
+        self._generate_cmake_deps_file(cmake_src_dir)
+
+        deps_build_dir.mkdir(parents=True, exist_ok=True)
+
+        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+        # Point FetchContent directly at the shared download cache so that
+        # source trees (absl-src/ etc.) are fetched straight there rather than
+        # being downloaded to the build dir and copied over afterwards.
+        shared_source_cache = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        shared_source_cache.mkdir(parents=True, exist_ok=True)
+        configure_args = [
+            f"-S{cmake_src_dir}",
+            f"-B{deps_build_dir}",
+            f"-DCMAKE_BUILD_TYPE={COMPILE_MODE}",
+            f"-DCMAKE_INSTALL_PREFIX={deps_install_dir}",
+            f"-DFETCHCONTENT_BASE_DIR={shared_source_cache}",
+        ]
+        # If sources are already in the cache, pass them explicitly so cmake
+        # skips the network fetch entirely.  Names are derived from directory
+        # names ("absl-src" → FETCHCONTENT_SOURCE_DIR_ABSL).
+        for src_dir in sorted(shared_source_cache.glob("*-src")):
+            dep_name = src_dir.name[:-4].upper()  # "absl-src" → "ABSL"
+            configure_args.append(f"-DFETCHCONTENT_SOURCE_DIR_{dep_name}={src_dir}")
+
+        print(f"Pre-building cmake deps into {deps_install_dir}")
+        subprocess.run([cmake_command, *configure_args], check=True)
+
+        build_args = ["--build", str(deps_build_dir), "--config", COMPILE_MODE]
+        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+            build_args += ["--parallel"]
+        subprocess.run([cmake_command, *build_args], check=True)
+
+        subprocess.run([cmake_command, "--install", str(deps_build_dir)], check=True)
+        return deps_install_dir
+
+    @staticmethod
+    def _seed_cmake_source_cache(deps_dir: Path) -> None:
+        """Copy newly-downloaded FetchContent source trees to the shared source cache.
+
+        Called after cmake configure so that subsequent extensions (and future
+        builds) can reuse the downloaded sources without re-fetching from GitHub.
+        Only the ``*-src`` trees are copied; build artifacts stay in the
+        per-project ``_deps/`` directory and are never shared.
+        """
+        if not deps_dir.is_dir():
+            return
+        shared_cache = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        for src_dir in deps_dir.glob("*-src"):
+            if not src_dir.is_dir():
+                continue
+            dest = shared_cache / src_dir.name
+            if not dest.exists():
+                shared_cache.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(src_dir, dest)
+                print(f"Cached FetchContent source tree: {src_dir.name}")
 
     def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
         """Get common CMake arguments used by both libdd_wrapper and extensions."""
@@ -877,14 +1134,16 @@ class CustomBuildExt(build_ext):
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
 
-        # Point FetchContent downloads at the persistent download cache so CMake
-        # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
-        # The cache dir is shared with other downloaded build dependencies and is
-        # preserved between CI runs. FETCHCONTENT_BASE_DIR defaults to a path
-        # inside the ephemeral cmake build dir, so without this every build would
-        # re-download from GitHub.
+        # Tell each extension's FetchContent to resolve via find_package instead
+        # of downloading and building from source.  FETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS
+        # (cmake 3.24+) makes FetchContent_MakeAvailable() transparently delegate
+        # to find_package when the package is available on CMAKE_PREFIX_PATH,
+        # without requiring any change to the extension CMakeLists.txt files.
+        # This is the mechanism that allows sharing the compiled dep artifacts
+        # across all extensions and Python versions in the same build tree.
         cmake_args += [
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+            f"-DCMAKE_PREFIX_PATH={self._cmake_deps_install_dir}",
+            "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS",
         ]
 
         # Add sccache support if available
@@ -900,14 +1159,25 @@ class CustomBuildExt(build_ext):
         return cmake_args
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
-        if IS_EDITABLE and self.INCREMENTAL:
-            # DEV: Rudimentary incremental build support. We copy the logic from
-            # setuptools' build_ext command, best effort.
-            full_path = Path(self.get_ext_fullpath(ext.name))
-            ext_path = Path(ext.source_dir, full_path.name)
+        # Define the build and output directories.
+        # Anchor cmake_build_dir to the source tree (not self.build_lib) so
+        # that cmake's object files and built .so survive across `pip install
+        # -e .` invocations.  pip creates a fresh temp dir each run, so
+        # deriving from build_lib would force a full cmake rebuild every time.
+        output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
+        extension_basename = Path(self.get_ext_fullpath(ext.name)).name
+        plat = f"{sysconfig.get_platform()}-cpython-{sys.version_info.major}{sys.version_info.minor}"
+        cmake_build_dir = HERE / "build" / f"cmake.{plat}" / ext.name
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+
+        if IS_EDITABLE:
+            # Use the .so inside the cmake build dir as the freshness anchor.
+            # The cmake build dir is anchored to the source tree so it persists
+            # across pip invocations; using the inplace source-tree copy would
+            # also work but the cmake build dir copy is more reliably present.
+            cmake_so = cmake_build_dir / Path(self.get_ext_fullpath(ext.name)).name
 
             force = self.force
-
             if ext.dependencies:
                 dependencies = [
                     str(d.resolve())
@@ -919,35 +1189,13 @@ class CustomBuildExt(build_ext):
                     # We expected some dependencies but none were found so we
                     # force the build to happen
                     force = True
-
             else:
                 dependencies = []
 
-            if not (
-                force
-                or newer_group(
-                    [str(_.resolve()) for _ in ext.get_sources(self)] + dependencies, str(ext_path.resolve()), "newer"
-                )
-            ):
-                print(f"skipping '{ext.name}' CMake extension (up-to-date)")
-
-                # We need to copy the binary where setuptools expects it
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                if ext_path.resolve() != full_path.resolve():
-                    shutil.copy(ext_path, full_path)
-
+            sources = [str(s.resolve()) for s in ext.get_sources(self)] + dependencies
+            if self._skip_if_up_to_date(ext.name, cmake_so, sources, force=force):
                 return
-            else:
-                print(f"building '{ext.name}' CMake extension")
-
-        # Define the build and output directories
-        output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
-        extension_basename = Path(self.get_ext_fullpath(ext.name)).name
-
-        # We derive the cmake build directory from the output directory, but put it in
-        # a sibling directory to avoid polluting the final package
-        cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
-        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+            print(f"building '{ext.name}' CMake extension")
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
@@ -1016,6 +1264,10 @@ class CustomBuildExt(build_ext):
             Path(cmake.CMAKE_BIN_DIR) / "cmake"
         ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+        # After a successful configure, seed the shared source cache with any
+        # FetchContent sources that were just downloaded, so subsequent
+        # extensions can skip the download step.
+        self._seed_cmake_source_cache(cmake_build_dir / "_deps")
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
 
@@ -1024,8 +1276,8 @@ class DebugMetadata:
     start_ns = 0
     enabled = "_DD_DEBUG_EXT" in os.environ
     metadata_file = os.getenv("_DD_DEBUG_EXT_FILE", "debug_ext_metadata.txt")
-    build_times = {}
-    download_times = {}
+    build_times: "dict[t.Any, int]" = {}
+    download_times: "dict[str, int]" = {}
 
     @classmethod
     def dump_metadata(cls):
@@ -1084,8 +1336,8 @@ def debug_build_extension(fn):
 
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
-    CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
-    build_rust.build_extension = debug_build_extension(CustomBuildRust.build_extension)
+    setattr(CustomBuildExt, "build_extension", debug_build_extension(CustomBuildExt.build_extension))
+    setattr(build_rust, "build_extension", debug_build_extension(CustomBuildRust.build_extension))
     atexit.register(DebugMetadata.dump_metadata)
 
 
@@ -1123,7 +1375,7 @@ class CMakeExtension(Extension):
         # Python sources and anything that does not have a suffix (most likely
         # a binary file), or that has the same name as the extension binary.
         def is_valid_source(src: Path) -> bool:
-            return (
+            return bool(
                 src.is_file()
                 and src.name != full_path.name
                 and src.suffix
@@ -1136,6 +1388,60 @@ class CMakeExtension(Extension):
             for src in Path(source_dir).glob("**/*")
             if is_valid_source(src)
         ]
+
+
+class AbslExtension(Extension):
+    """C++ Extension that links against pre-built Abseil static libraries.
+
+    Call prepare(build_cmd) just before compilation to inject include dirs and
+    link args once the cmake_deps install prefix is known.
+    """
+
+    def prepare(self, build_cmd: "CustomBuildExt") -> None:
+        install_dir: Path = build_cmd._cmake_deps_install_dir
+        absl_includes, absl_link_args = self._absl_link_args(install_dir)
+        self.include_dirs = list(self.include_dirs or []) + absl_includes
+        self.extra_link_args = list(self.extra_link_args or []) + absl_link_args
+
+    @staticmethod
+    def _absl_link_args(install_dir: Path) -> "tuple[list[str], list[str]]":
+        include_dirs = [str(install_dir / "include")]
+        # Some Linux distros install under lib64; fall back gracefully.
+        lib_dir = install_dir / "lib"
+        if not lib_dir.is_dir():
+            lib_dir = install_dir / "lib64"
+        absl_libs = sorted(lib_dir.glob("libabsl_*.a"))
+        if not absl_libs:
+            return include_dirs, []
+        lib_paths = [str(lib) for lib in absl_libs]
+        if sys.platform == "darwin":
+            extra_link_args = lib_paths
+        else:
+            # Linux: Abseil static libs have circular references; group them.
+            extra_link_args = ["-Wl,--start-group"] + lib_paths + ["-Wl,--end-group"]
+        return include_dirs, extra_link_args
+
+
+class MemallocExtension(AbslExtension):
+    """memalloc profiling extension; also links against libdd_wrapper."""
+
+    def prepare(self, build_cmd: "CustomBuildExt") -> None:
+        super().prepare(build_cmd)
+        # Rust-generated C headers (produced by build_rust())
+        self.include_dirs = list(self.include_dirs or []) + [str(CARGO_TARGET_DIR / "include")]
+        # Locate the already-built libdd_wrapper shared library.
+        if IS_EDITABLE or getattr(build_cmd, "inplace", False):
+            profiling_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            profiling_dir = (
+                Path(__file__).parent / Path(build_cmd.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+        wrapper_name = f"libdd_wrapper{build_cmd.suffix}"
+        wrapper_lib = profiling_dir / wrapper_name
+        if wrapper_lib.exists():
+            self.extra_link_args = list(self.extra_link_args or []) + [str(wrapper_lib)]
+        else:
+            print(f"WARNING: libdd_wrapper not found at {wrapper_lib}; _memalloc may not link correctly")
 
 
 def check_rust_toolchain():
@@ -1236,22 +1542,83 @@ if not IS_PYSTON:
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
+        _iast_sources: list[str] = []
+        for _pattern in [
+            "*.cpp",
+            "api/*.cpp",
+            "context/*.cpp",
+            "aspects/*.cpp",
+            "initializer/*.cpp",
+            "tainted_ops/*.cpp",
+            "taint_tracking/*.cpp",
+            "utils/*.cpp",
+        ]:
+            _iast_sources.extend(str(p.relative_to(HERE)) for p in IAST_DIR.glob(_pattern))
         ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+            AbslExtension(
+                "ddtrace.appsec._iast._taint_tracking._native",
+                sources=_iast_sources,
+                include_dirs=[
+                    str(IAST_DIR.relative_to(HERE)),
+                    str((IAST_DIR / "_vendor" / "pybind11" / "include").relative_to(HERE)),
+                ],
+                extra_compile_args=[
+                    "-std=c++17",
+                    "-fPIC",
+                    "-fexceptions",
+                    "-fvisibility=hidden",
+                    "-fpermissive",
+                    "-pthread",
+                    "-Wall",
+                    "-Wno-unknown-pragmas",
+                    "-U_FORTIFY_SOURCE",
+                    "-g",
+                ],
+            )
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
-        memalloc_cmake_args = []
+        DD_WRAPPER_INCLUDE = DDUP_DIR.parent / "dd_wrapper" / "include"
+
+        _memalloc_defines: list[tuple[str, "t.Optional[str]"]] = [("_POSIX_C_SOURCE", "200809L")]
+        if CURRENT_OS == "Darwin":
+            _memalloc_defines.append(("_DARWIN_C_SOURCE", None))
+        if COMPILE_MODE.lower() not in ("debug",):
+            _memalloc_defines.append(("NDEBUG", None))
         if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
-            memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
+            _memalloc_defines.append(("MEMALLOC_ASSERT_ON_REENTRY", None))
+
+        _memalloc_link_args: list[str] = []
+        if CURRENT_OS == "Darwin":
+            _memalloc_link_args += ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
+        elif CURRENT_OS == "Linux":
+            _memalloc_link_args += ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling"]
+
         ext_modules.append(
-            CMakeExtension(
+            MemallocExtension(
                 "ddtrace.profiling.collector._memalloc",
-                source_dir=MEMALLOC_DIR,
-                cmake_args=memalloc_cmake_args,
-                optional=False,
+                sources=[
+                    str((MEMALLOC_DIR / "_memalloc.cpp").relative_to(HERE)),
+                    str((MEMALLOC_DIR / "_memalloc_tb.cpp").relative_to(HERE)),
+                    str((MEMALLOC_DIR / "_memalloc_heap.cpp").relative_to(HERE)),
+                    str((MEMALLOC_DIR / "_memalloc_reentrant.cpp").relative_to(HERE)),
+                ],
+                include_dirs=[
+                    str(MEMALLOC_DIR.relative_to(HERE)),
+                    str(DD_WRAPPER_INCLUDE.relative_to(HERE)),
+                    # CARGO_TARGET_DIR/include injected at build time
+                ],
+                extra_compile_args=[
+                    "-std=c++20",
+                    "-fPIC",
+                    "-fvisibility=hidden",
+                    "-pthread",
+                    "-Wall",
+                    "-Wextra",
+                ],
+                define_macros=_memalloc_defines,
+                extra_link_args=_memalloc_link_args,
             )
         )
 

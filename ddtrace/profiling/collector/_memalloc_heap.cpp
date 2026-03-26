@@ -18,10 +18,9 @@
  * flat_hash_map provides excellent performance with low memory overhead,
  * using the Swiss Tables algorithm from Abseil.
  *
- * We use a conditional compilation to fall back to std::unordered_map
- * when Abseil is not available (e.g., in Debug builds).
+ * Fall back to std::unordered_map in Debug builds (NDEBUG not set).
  */
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#if defined(NDEBUG)
 #include "absl/container/flat_hash_map.h"
 template<typename K, typename V>
 using HeapMapType = absl::flat_hash_map<K, V>;
@@ -29,7 +28,7 @@ using HeapMapType = absl::flat_hash_map<K, V>;
 #include <unordered_map>
 template<typename K, typename V>
 using HeapMapType = std::unordered_map<K, V>;
-#endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#endif // defined(NDEBUG)
 
 /*
    How heap profiler sampling works:
