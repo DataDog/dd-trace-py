@@ -13,6 +13,7 @@ Each invocation is for one component; meson handles parallelism and ordering.
 """
 
 import argparse
+import contextlib
 import hashlib
 import os
 from pathlib import Path
@@ -332,6 +333,35 @@ def _clean_stale_fetchcontent_state(fetchcontent_dir: Path) -> None:
                 shutil.rmtree(stale_dir, ignore_errors=True)
 
 
+@contextlib.contextmanager
+def _fetchcontent_configure_lock(fetchcontent_dir: Path):
+    """Serialize cmake configure runs that share the same FetchContent base dir.
+
+    AIDEV-NOTE: Each component now uses its own FETCHCONTENT_BASE_DIR
+    (component_name subdirectory), so concurrent cmake --build invocations no
+    longer share an absl-build/ directory and the build-phase race is avoided.
+    This lock still guards the configure phase in case two build processes for
+    the *same* component run simultaneously (e.g. parallel pip installs).  It
+    serialises cmake configure + FetchContent populate on a per-base-dir flock
+    so concurrent git operations on *-src/.git do not race.
+    Windows does not have fcntl; the lock is silently skipped there.
+    """
+    lock_path = fetchcontent_dir / ".cmake_configure.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import fcntl
+
+        lf = lock_path.open("a")
+        try:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+            lf.close()
+    except ImportError:
+        yield  # Windows: no fcntl, proceed without locking
+
+
 def _clean_stale_cmake_build_dir(build_dir: Path, cmake_src_dir: Path) -> None:
     cache_path = build_dir / "CMakeCache.txt"
     if not cache_path.exists():
@@ -363,6 +393,14 @@ def _cmake_configure_hash(cmake_args: list, build_dir: Path) -> str:
     interpreter, build type, install prefix, or directory layout invalidates
     the cache and forces a re-configure.  Used by cmd_cmake to skip the
     expensive cmake -S/-B/-D step on incremental builds.
+
+    AIDEV-NOTE: The cmake binary itself is included in the hash because pip
+    installs cmake into an ephemeral build env whose path changes on every
+    invocation (e.g. pip-build-env-abc123).  CMakeCache.txt bakes in that
+    path; if a second pip install -e . skips configure but cmake --build
+    tries to exec the old (now-deleted) cmake binary via the cached Makefile
+    rules, the build fails with "No such file or directory".  Including the
+    cmake binary path ensures a new ephemeral env triggers a fresh configure.
     """
     relevant = sorted(
         arg
@@ -371,7 +409,11 @@ def _cmake_configure_hash(cmake_args: list, build_dir: Path) -> str:
         and (arg.startswith("-D") or arg.startswith("-S") or arg.startswith("-B") or arg.startswith("-A"))
     )
     relevant.append(str(build_dir))
+    # First element of cmake_args is the cmake binary itself
+    cmake_binary = str(cmake_args[0]) if cmake_args else ""
     digest = hashlib.sha256()
+    digest.update(cmake_binary.encode("utf-8"))
+    digest.update(b"\0")
     for item in relevant:
         digest.update(item.encode("utf-8"))
         digest.update(b"\0")
@@ -426,9 +468,16 @@ def cmd_cmake(args):
         cmake_args.append(f"-A{cmake_arch}")
 
     # FetchContent cache for Abseil etc.
-    fetchcontent_dir = src_root / ".download_cache" / "_cmake_deps"
+    # AIDEV-NOTE: Each component gets its own FetchContent base dir to avoid
+    # cmake --build races.  iast_native, memalloc, and stack all use FetchContent
+    # for abseil; if they shared a single base dir their concurrent cmake --build
+    # invocations would write to the same absl-build/ directory and race on
+    # ranlib/ar operations.  Using component_name as a subdirectory gives each
+    # component its own absl-build/ tree.  The configure-phase lock
+    # (_fetchcontent_configure_lock) is no longer needed since there is no shared
+    # git state, but it is kept for safety on the configure path.
+    fetchcontent_dir = src_root / ".download_cache" / "_cmake_deps" / component_name
     fetchcontent_dir.mkdir(parents=True, exist_ok=True)
-    _clean_stale_fetchcontent_state(fetchcontent_dir)
     cmake_args.append(f"-DFETCHCONTENT_BASE_DIR={fetchcontent_dir}")
 
     # Native extension location (for dd_wrapper and extensions that need _native)
@@ -462,18 +511,26 @@ def cmd_cmake(args):
     # recompiling unchanged sources.  Combined with build_always_stale: true
     # on the meson custom_target, this gives correct incremental C++ builds
     # without listing every source file as a meson dependency.
+    #
+    # The _fetchcontent_configure_lock serialises cmake configure across
+    # components that share FETCHCONTENT_BASE_DIR (e.g. iast_native and
+    # memalloc both use abseil).  Without the lock, a concurrent re-configure
+    # triggered by a cmake binary change races on git operations inside
+    # the shared *-src/.git directory.
     cmake_cache = build_dir / "CMakeCache.txt"
     hash_file = build_dir / ".meson_cmake_args_hash"
     current_hash = _cmake_configure_hash(cmake_args, build_dir)
 
-    if cmake_cache.exists() and hash_file.exists() and hash_file.read_text().strip() == current_hash:
-        print(
-            f"[meson_build_ext] cmake configure up-to-date, skipping ({component_name})",
-            flush=True,
-        )
-    else:
-        run(cmake_args)
-        hash_file.write_text(current_hash + "\n")
+    with _fetchcontent_configure_lock(fetchcontent_dir):
+        _clean_stale_fetchcontent_state(fetchcontent_dir)
+        if cmake_cache.exists() and hash_file.exists() and hash_file.read_text().strip() == current_hash:
+            print(
+                f"[meson_build_ext] cmake configure up-to-date, skipping ({component_name})",
+                flush=True,
+            )
+        else:
+            run(cmake_args)
+            hash_file.write_text(current_hash + "\n")
 
     # Build
     build_args = [cmake, "--build", str(build_dir), "--config", build_type, *_cmake_parallel_args()]

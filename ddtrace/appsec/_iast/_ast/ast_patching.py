@@ -113,6 +113,17 @@ def _should_iast_patch(module_name: str) -> bool:
         When asm_config._iast_debug is True, the function will log detailed information about
         why a module was allowed or denied patching.
     """
+    # AIDEV-NOTE: Always exclude ddtrace itself from IAST patching.  In editable
+    # installs (meson-python or pip -e), importlib.metadata.packages_distributions()
+    # may not include 'ddtrace', causing the is_first_party() heuristic in the C
+    # extension to classify ddtrace modules as user code and patch them.  Patching
+    # aspects.py itself causes infinite recursion: modulo_aspect calls
+    # args[0] % args[1], which the patched bytecode redirects back to
+    # modulo_aspect.  The exclusion here is unconditional because ddtrace code
+    # should never be subject to IAST instrumentation regardless of install method.
+    if module_name == "ddtrace" or module_name.startswith("ddtrace."):
+        return False
+
     global IAST_PATCHING_LAZY_LOADED
     if IAST_PATCHING_LAZY_LOADED:
         initialize_iast_lists()
