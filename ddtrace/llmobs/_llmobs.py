@@ -587,15 +587,17 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "session_id": session_id or "",
             "tags": tags,
-            "span_links": span_links,
             "_dd": _dd_attrs,
         }
 
         experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if experiment_config:
             llmobs_span_event["config"] = experiment_config
+        if session_id:
+            llmobs_span_event["session_id"] = session_id
+        if span_links:
+            llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event
 
