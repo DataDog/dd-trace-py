@@ -109,6 +109,11 @@ RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYE
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
+# Register pyenv shared library paths so uwsgi and other C extensions can find libpythonX.Y.so
+USER root
+RUN for d in /home/bits/.pyenv/versions/*/lib; do echo "$d"; done > /etc/ld.so.conf.d/pyenv.conf && ldconfig
+USER bits
+
 RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}" "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]
