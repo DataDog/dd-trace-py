@@ -407,5 +407,4 @@ suites:
       - '@ai_guard'
       - tests/appsec/ai_guard/litellm_guardrail/*
     retry: 2
-    runner: riot
     venvs_per_job: 2
