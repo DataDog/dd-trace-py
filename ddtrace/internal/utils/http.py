@@ -380,7 +380,7 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[Mapping] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json

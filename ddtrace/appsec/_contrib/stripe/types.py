@@ -80,9 +80,6 @@ class StripePaymentIntent(Protocol):
     def payment_method(self) -> Optional[Union[str, StripePaymentMethod]]: ...
 
 
-# AIDEV-NOTE: Stripe's generated Event stubs model event.data.object as dict[str, Any],
-# but webhook parsing materializes payment_intent.* payloads as PaymentIntent-like objects.
-# Keep the Event protocol stub-compatible, then cast data.object to the runtime shape per branch.
 class StripeTypedPaymentMethod(StripePaymentMethod, Protocol):
     @property
     def type(self) -> str: ...

@@ -77,7 +77,7 @@ IP_PATTERNS = (
 
 
 def _store_headers(
-    headers: dict[str, str], span: Span, integration_config: "IntegrationConfig", request_or_response: str
+    headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig", request_or_response: str
 ) -> None:
     """
     :param headers: A dict of http headers to be stored in the span
@@ -239,7 +239,7 @@ def _store_request_headers(headers: dict[str, str], span: Span, integration_conf
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def _store_response_headers(headers: dict[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
+def _store_response_headers(headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -403,7 +403,7 @@ def set_http_meta(
     query: Optional[str] = None,
     parsed_query: Optional[Mapping[str, str]] = None,
     request_headers: Optional[Mapping[str, str]] = None,
-    response_headers: Optional[Union[Mapping[str, str], list[tuple[str, str]]]] = None,
+    response_headers: Optional[Mapping[str, str]] = None,
     retries_remain: Optional[Union[int, str]] = None,
     raw_uri: Optional[str] = None,
     request_cookies: Optional[dict[str, str]] = None,
@@ -493,7 +493,7 @@ def set_http_meta(
             _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
-        _store_response_headers(dict(response_headers), span, integration_config)
+        _store_response_headers(response_headers, span, integration_config)
 
     if retries_remain is not None:
         span._set_attribute(http.RETRIES_REMAIN, str(retries_remain))

@@ -140,7 +140,9 @@ def _on_start_response_blocked(
     response_headers: list[tuple[str, str]],
     status: int,
 ) -> None:
-    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
+    trace_utils.set_http_meta(
+        ctx["req_span"], flask_config, status_code=status, response_headers=dict(response_headers)
+    )
 
 
 _BlockedViewResponse = tuple[str, int, Mapping[str, str]]
