@@ -254,7 +254,9 @@ def safe_json(obj, ensure_ascii=True):
         # Pydantic v1
         elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
             obj = obj.dict()
-        return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
+        return json.dumps(
+            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
+        )
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
@@ -327,8 +329,7 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    llmobs_span_data = cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY))
-    return llmobs_span_data or {}
+    return cast("LLMObsSpanData", span._meta_struct.get(LLMOBS_STRUCT.KEY, {}))
 
 
 def get_llmobs_ml_app(span: Span) -> Optional[str]:

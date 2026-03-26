@@ -316,6 +316,7 @@ def test_llm_decorator_automatic_output_annotation(llmobs, llmobs_events, test_s
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -334,7 +335,45 @@ async def test_llm_decorator_automatic_output_annotation_async(llmobs, llmobs_ev
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
+
+
+def test_llm_decorator_unparseable_output_logs_warning_not_raises(llmobs, llmobs_events, mock_logs, test_spans):
+    """Test that @llm decorator does not raise when return value cannot be parsed as messages."""
+
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function")
+    def f():
+        return 42  # int cannot be parsed as LLM messages
+
+    f()  # should not raise LLMObsAnnotateSpanError
+    mock_logs.debug.assert_called_once_with(
+        "Failed to auto-annotate output for @%s decorated function. "
+        "Use LLMObs.annotate() to manually annotate the output.",
+        "llm",
+    )
+    test_spans.pop()
+    # span is still created, output messages are not set
+    assert llmobs_events[0].get("output", {}) == {}
+
+
+async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(
+    llmobs, llmobs_events, mock_logs, test_spans
+):
+    """Test that async @llm decorator does not raise when return value cannot be parsed as messages."""
+
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function")
+    async def f():
+        return 42  # int cannot be parsed as LLM messages
+
+    await f()  # should not raise LLMObsAnnotateSpanError
+    mock_logs.debug.assert_called_once_with(
+        "Failed to auto-annotate output for @%s decorated function. "
+        "Use LLMObs.annotate() to manually annotate the output.",
+        "llm",
+    )
+    test_spans.pop()
+    assert llmobs_events[0].get("output", {}) == {}
 
 
 def test_llm_decorator_manual_annotation_not_overridden(llmobs, llmobs_events, test_spans):
@@ -353,6 +392,7 @@ def test_llm_decorator_manual_annotation_not_overridden(llmobs, llmobs_events, t
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "manual_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -530,7 +570,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events, test_spa
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
-            input_value='{"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}',
+            input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "prompt": "test_prompt"}',
             output_value="test_prompt",
             session_id="test_session_id",
             is_decorator=True,
@@ -549,7 +589,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events, test_sp
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "retrieval",
-        input_value='{"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}',
+        input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "query": "test_query"}',
         session_id="test_session_id",
         is_decorator=True,
     )
