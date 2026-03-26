@@ -6,11 +6,7 @@
  * - Taint ranges: Information related to tainted values.
  */
 #include <memory>
-
-#if !defined(_WIN32)
 #include <pthread.h>
-#endif
-
 #include <pybind11/pybind11.h>
 
 #include "aspects/aspect_extend.h"
@@ -36,12 +32,6 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-#if defined(__GNUC__) || defined(__clang__)
-#define DDTRACE_USED __attribute__((used))
-#else
-#define DDTRACE_USED
-#endif
-
 static PyMethodDef AspectsMethods[] = {
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
     { "str_aspect", ((PyCFunction)api_str_aspect), METH_FASTCALL | METH_KEYWORDS, "aspect str" },
@@ -55,11 +45,11 @@ static PyMethodDef AspectsMethods[] = {
 };
 
 // Mark the module as used to prevent it from being stripped.
-static struct PyModuleDef DDTRACE_USED aspects = { PyModuleDef_HEAD_INIT,
-                                                   .m_name = PY_MODULE_NAME_ASPECTS,
-                                                   .m_doc = "Taint tracking Aspects",
-                                                   .m_size = -1,
-                                                   .m_methods = AspectsMethods };
+static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                            .m_name = PY_MODULE_NAME_ASPECTS,
+                                                            .m_doc = "Taint tracking Aspects",
+                                                            .m_size = -1,
+                                                            .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
@@ -68,11 +58,11 @@ static PyMethodDef OpsMethods[] = {
 };
 
 // Mark the module as used to prevent it from being stripped.
-static struct PyModuleDef DDTRACE_USED ops = { PyModuleDef_HEAD_INIT,
-                                               .m_name = PY_MODULE_NAME_ASPECTS,
-                                               .m_doc = "Taint tracking operations",
-                                               .m_size = -1,
-                                               .m_methods = OpsMethods };
+static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                        .m_name = PY_MODULE_NAME_ASPECTS,
+                                                        .m_doc = "Taint tracking operations",
+                                                        .m_size = -1,
+                                                        .m_methods = OpsMethods };
 
 /**
  * Initialize or reinitialize the native IAST global state.
@@ -203,14 +193,12 @@ reset_native_state_after_fork()
  */
 PYBIND11_MODULE(_native, m)
 {
-#if !defined(_WIN32)
     // Register pthread_atfork handler to reset state in child processes
     // This provides automatic fork-safety:
     // - prepare: NULL (nothing to do before fork in parent)
     // - parent: NULL (nothing to do after fork in parent)
     // - child: reset_native_state_after_fork (reset globals in child)
     pthread_atfork(nullptr, nullptr, reset_native_state_after_fork);
-#endif
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");

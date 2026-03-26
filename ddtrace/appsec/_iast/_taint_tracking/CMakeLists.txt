@@ -15,25 +15,16 @@ set(CMAKE_CXX_STANDARD 17)
 
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11 https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
-if(MSVC)
-    add_compile_options(/W3)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
-    # AIDEV-NOTE: The IAST native sources and vendored pybind11 headers use the alternative operator spellings
-    # `and`/`or`/`not`. MSVC in this CMake build path does not consistently recognize them unless iso646 macros are
-    # forced in.
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FIiso646.h>)
-else()
-    add_compile_options(
-        -fPIC
-        -fexceptions
-        -fvisibility=hidden
-        -fpermissive
-        -pthread
-        -Wall
-        -Wno-unknown-pragmas
-        -U_FORTIFY_SOURCE
-        -g) # Add debug symbols always, it will be stripped in release/minsizerel by cmake
-endif()
+add_compile_options(
+    -fPIC
+    -fexceptions
+    -fvisibility=hidden
+    -fpermissive
+    -pthread
+    -Wall
+    -Wno-unknown-pragmas
+    -U_FORTIFY_SOURCE
+    -g) # Add debug symbols always, it will be stripped in release/minsizerel by cmake
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually

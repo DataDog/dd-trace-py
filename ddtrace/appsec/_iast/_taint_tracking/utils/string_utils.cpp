@@ -11,17 +11,11 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-#if defined(__GNUC__) || defined(__clang__)
-#define DDTRACE_FLATTEN __attribute__((flatten))
-#else
-#define DDTRACE_FLATTEN
-#endif
-
 // Used to quickly exit on cases where the object is a non interned unicode
 // string and does not have the fast-taint mark on its internal data structure.
 // In any other case it will return false so the evaluation continue for (more
 // slowly) checking if bytes and bytearrays are tainted.
-DDTRACE_FLATTEN bool
+__attribute__((flatten)) bool
 is_notinterned_notfasttainted_unicode(const PyObject* objptr)
 {
     if (!objptr) {
@@ -48,7 +42,7 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
 // For non interned unicode strings, set a hidden mark on it's internal data
 // structure that will allow us to quickly check if the string is not tainted
 // and thus skip further processing without having to search on the tainting map
-DDTRACE_FLATTEN void
+__attribute__((flatten)) void
 set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 {
     if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
