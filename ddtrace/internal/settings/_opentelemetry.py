@@ -85,6 +85,8 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     import os
 
+    if os.environ.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
+        return False
     return os.environ.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
