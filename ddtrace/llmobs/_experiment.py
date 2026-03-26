@@ -66,7 +66,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
+JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], dict[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
@@ -943,6 +943,7 @@ class DatasetRecordUpdate(TypedDict, total=False):
 class DatasetRecordUpdateWithId(DatasetRecordUpdate):
     record_id: str
 
+
 class TaskResult(TypedDict):
     idx: int
     span_id: str
@@ -1154,11 +1155,14 @@ class Dataset:
                 **record,
                 "record_id": record_id,
             }
-            self._records[index] = {
-                **self._records[index],
-                **record,
-                "record_id": record_id,
-            }
+            self._records[index] = cast(
+                DatasetRecord,
+                {
+                    **self._records[index],
+                    **record,
+                    "record_id": record_id,
+                },
+            )
 
     def append(self, record: DatasetRecordNew) -> None:
         if record.get("tags"):

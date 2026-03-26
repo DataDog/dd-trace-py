@@ -39,12 +39,12 @@ from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
+from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
@@ -503,9 +503,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         if is_update:
             update_record = cast(DatasetRecordUpdateWithId, record)
-            tag_ops = update_record.get("tag_operations")
+            tag_ops: _TagOperations = update_record.get("tag_operations", {})
             if tag_ops:
-                serialized: dict[str, JSONType] = {}
+                serialized: dict[str, Any] = {}
                 if "add" in tag_ops:
                     serialized["add"] = tag_ops["add"]
                 if "remove" in tag_ops:
@@ -517,7 +517,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             insert_record = cast(DatasetRecord, record)
             tags = insert_record.get("tags")
             if tags:
-                rj["tags"] = tags
+                rj["tags"] = cast(list, tags)
 
         return rj
 
