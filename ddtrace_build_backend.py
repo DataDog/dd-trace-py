@@ -128,9 +128,13 @@ def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any,
 
 
 def _patch_editable_loader(loader_text: str) -> str:
+    # AIDEV-NOTE: Keep the editable loader rebuild command interpreter-relative.
+    # Riot can run subprocesses with a PATH that does not include the base venv's
+    # script directory, so replacing meson-python's ephemeral build-env ninja
+    # path with bare "ninja" breaks imports in build_base_venvs smoke tests.
     patched, count = re.subn(
         r"(?m)^(\s*)\[[^\n]*ninja[^\n]*\],$",
-        r"\1['ninja'],",
+        r"\1[sys.executable, '-m', 'ninja'],",
         loader_text,
         count=1,
     )
