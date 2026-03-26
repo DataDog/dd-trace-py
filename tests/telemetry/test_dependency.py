@@ -31,15 +31,22 @@ class TestReachabilityMetadata:
 
 
 class TestDependencyEntry:
-    def test_to_telemetry_dict_without_metadata(self):
-        """Without metadata, wire format is identical to the old dict[str, str] approach."""
+    def test_to_telemetry_dict_metadata_none(self):
+        """metadata=None → no metadata key (SCA not active)."""
         entry = DependencyEntry(name="requests", version="2.28.0")
         result = entry.to_telemetry_dict()
         assert result == {"name": "requests", "version": "2.28.0"}
         assert "metadata" not in result
 
+    def test_to_telemetry_dict_metadata_empty_list(self):
+        """metadata=[] → metadata key with empty list (SCA active, no findings)."""
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        result = entry.to_telemetry_dict()
+        assert result == {"name": "requests", "version": "2.28.0", "metadata": []}
+
     def test_to_telemetry_dict_with_metadata(self):
-        entry = DependencyEntry(name="requests", version="2.28.0")
+        """metadata with entries → metadata key with serialized entries."""
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
         entry.add_metadata(
             ReachabilityMetadata(
                 type="reachability",
@@ -60,14 +67,40 @@ class TestDependencyEntry:
         parsed = json.loads(result["metadata"][0]["value"])
         assert parsed["id"] == "CVE-2024-1234"
 
-    def test_add_metadata_deduplicates_by_cve_id(self):
+    def test_add_metadata_deduplicates_exact_composite_key(self):
+        """Exact duplicate (same CVE + path + method + line) is rejected."""
+        entry = DependencyEntry(name="pkg", version="1.0")
+        meta1 = ReachabilityMetadata(
+            type="reachability", value={"id": "CVE-1", "reached": True, "path": "mod", "method": "func", "line": 10}
+        )
+        meta2 = ReachabilityMetadata(
+            type="reachability", value={"id": "CVE-1", "reached": True, "path": "mod", "method": "func", "line": 10}
+        )
+        assert entry.add_metadata(meta1) is True
+        assert entry.add_metadata(meta2) is False  # exact duplicate
+        assert len(entry.metadata) == 1
+
+    def test_add_metadata_same_cve_different_callsite(self):
+        """Same CVE from different call sites creates separate entries per RFC."""
+        entry = DependencyEntry(name="pkg", version="1.0")
+        meta1 = ReachabilityMetadata(
+            type="reachability",
+            value={"id": "CVE-1", "reached": True, "path": "mymodule.views", "method": "func1", "line": 33},
+        )
+        meta2 = ReachabilityMetadata(
+            type="reachability",
+            value={"id": "CVE-1", "reached": True, "path": "views.endpoint2", "method": "func2", "line": 456},
+        )
+        assert entry.add_metadata(meta1) is True
+        assert entry.add_metadata(meta2) is True  # different call site, same CVE
+        assert len(entry.metadata) == 2
+
+    def test_add_metadata_different_cves(self):
         entry = DependencyEntry(name="pkg", version="1.0")
         meta1 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1", "reached": True})
-        meta2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1", "reached": True})
-        meta3 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2", "reached": True})
+        meta2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2", "reached": True})
         assert entry.add_metadata(meta1) is True
-        assert entry.add_metadata(meta2) is False  # duplicate
-        assert entry.add_metadata(meta3) is True
+        assert entry.add_metadata(meta2) is True
         assert len(entry.metadata) == 2
 
     def test_add_metadata_rejects_no_cve_id(self):
@@ -75,6 +108,14 @@ class TestDependencyEntry:
         meta = ReachabilityMetadata(type="reachability", value={"reached": True})
         assert entry.add_metadata(meta) is False
         assert entry.metadata is None
+
+    def test_add_metadata_initializes_list_from_none(self):
+        """add_metadata on a None-metadata entry initializes the list."""
+        entry = DependencyEntry(name="pkg", version="1.0")
+        assert entry.metadata is None
+        entry.add_metadata(ReachabilityMetadata(type="reachability", value={"id": "CVE-1"}))
+        assert entry.metadata is not None
+        assert len(entry.metadata) == 1
 
     def test_needs_report_new_entry(self):
         entry = DependencyEntry(name="pkg", version="1.0")
@@ -110,7 +151,7 @@ class TestDependencyEntry:
         assert unsent[0].value["id"] == "CVE-2"
 
     def test_to_telemetry_dict_only_unsent(self):
-        entry = DependencyEntry(name="pkg", version="1.0")
+        entry = DependencyEntry(name="pkg", version="1.0", metadata=[])
         m1 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1"})
         m2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2"})
         entry.add_metadata(m1)
@@ -122,7 +163,7 @@ class TestDependencyEntry:
         assert parsed["id"] == "CVE-2"
 
     def test_to_telemetry_dict_include_all(self):
-        entry = DependencyEntry(name="pkg", version="1.0")
+        entry = DependencyEntry(name="pkg", version="1.0", metadata=[])
         m1 = ReachabilityMetadata(type="reachability", value={"id": "CVE-1"})
         m2 = ReachabilityMetadata(type="reachability", value={"id": "CVE-2"})
         entry.add_metadata(m1)
@@ -131,13 +172,13 @@ class TestDependencyEntry:
         result = entry.to_telemetry_dict(include_all_metadata=True)
         assert len(result["metadata"]) == 2
 
-    def test_to_telemetry_dict_no_metadata_key_when_all_sent(self):
-        """When all metadata is sent and include_all_metadata=False, no metadata key."""
-        entry = DependencyEntry(name="pkg", version="1.0")
+    def test_to_telemetry_dict_all_sent_empty_metadata(self):
+        """When all metadata is sent and include_all_metadata=False, empty list."""
+        entry = DependencyEntry(name="pkg", version="1.0", metadata=[])
         entry.add_metadata(ReachabilityMetadata(type="reachability", value={"id": "CVE-1"}))
         entry.mark_all_metadata_sent()
         result = entry.to_telemetry_dict(include_all_metadata=False)
-        assert "metadata" not in result
+        assert result["metadata"] == []
 
 
 class TestAttachReachabilityMetadata:
@@ -159,11 +200,17 @@ class TestAttachReachabilityMetadata:
         attach_reachability_metadata(deps, "requests", "CVE-2", True, "mod", "func2", 5)
         assert len(deps["requests"].metadata) == 2
 
-    def test_attach_deduplicates_same_cve(self):
+    def test_attach_deduplicates_exact_composite_key(self):
         deps = {"requests": DependencyEntry(name="requests", version="2.28.0")}
         assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1) is True
         assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod", "func1", 1) is False
         assert len(deps["requests"].metadata) == 1
+
+    def test_attach_same_cve_different_callsite(self):
+        deps = {"requests": DependencyEntry(name="requests", version="2.28.0")}
+        assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "mod.views", "func1", 33) is True
+        assert attach_reachability_metadata(deps, "requests", "CVE-1", True, "views.ep2", "func2", 456) is True
+        assert len(deps["requests"].metadata) == 2
 
 
 class TestWriterAttachDependencyMetadata:
@@ -176,6 +223,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
+        writer._sca_metadata_enabled = False
         writer._imported_dependencies = {
             "requests": DependencyEntry(name="requests", version="2.28.0"),
         }
@@ -194,6 +242,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
+        writer._sca_metadata_enabled = False
         writer._imported_dependencies = {
             "requests": DependencyEntry(name="requests", version="2.28.0"),
         }
@@ -202,3 +251,206 @@ class TestWriterAttachDependencyMetadata:
 
         assert result is False
         assert "flask" not in writer._imported_dependencies
+
+    def test_attach_auto_creates_entry_when_sca_active(self):
+        """When SCA is active and package not tracked, auto-create the entry."""
+        from unittest.mock import MagicMock
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._sca_metadata_enabled = True
+        writer._imported_dependencies = {}
+
+        with patch("ddtrace.internal.telemetry.writer.importlib_metadata_version", return_value="2.28.0"):
+            result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
+
+        assert result is True
+        assert "requests" in writer._imported_dependencies
+        entry = writer._imported_dependencies["requests"]
+        assert entry.version == "2.28.0"
+        assert entry.metadata is not None
+        assert len(entry.metadata) == 1
+        assert entry.metadata[0].value["id"] == "CVE-1"
+
+    def test_attach_does_not_auto_create_when_sca_inactive(self):
+        """When SCA is not active, unknown packages return False."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._sca_metadata_enabled = False
+        writer._imported_dependencies = {}
+
+        result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
+
+        assert result is False
+        assert "requests" not in writer._imported_dependencies
+
+
+class TestWriterEnableScaMetadata:
+    """Tests for enable_sca_metadata method."""
+
+    def test_enable_sca_metadata_sets_none_to_empty_list(self):
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._imported_dependencies = {
+            "requests": DependencyEntry(name="requests", version="2.28.0"),
+            "flask": DependencyEntry(name="flask", version="3.0.0"),
+        }
+        assert writer._imported_dependencies["requests"].metadata is None
+        assert writer._imported_dependencies["flask"].metadata is None
+
+        writer.enable_sca_metadata()
+
+        assert writer._imported_dependencies["requests"].metadata == []
+        assert writer._imported_dependencies["flask"].metadata == []
+
+    def test_enable_sca_metadata_preserves_existing_metadata(self):
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.add_metadata(ReachabilityMetadata(type="reachability", value={"id": "CVE-1"}))
+        writer._imported_dependencies = {"requests": entry}
+
+        writer.enable_sca_metadata()
+
+        # Should not overwrite existing metadata
+        assert len(writer._imported_dependencies["requests"].metadata) == 1
+
+
+class TestWriterReReporting:
+    """Tests for _report_dependencies re-reporting behavior with metadata."""
+
+    def _make_writer(self):
+        from unittest.mock import MagicMock
+
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+        writer = TelemetryWriter.__new__(TelemetryWriter)
+        writer._service_lock = MagicMock()
+        writer._imported_dependencies = {}
+        writer._sca_metadata_enabled = False
+        writer._modules_already_imported = set()
+        writer._enabled = True
+        return writer
+
+    def test_report_dependencies_rereports_on_new_metadata(self):
+        from unittest.mock import patch
+
+        writer = self._make_writer()
+
+        # Pre-populate with an already-reported dep (SCA active: metadata=[])
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.mark_initial_sent()
+        writer._imported_dependencies["requests"] = entry
+
+        # Attach metadata after initial report
+        writer.attach_dependency_metadata("requests", "CVE-1", True, "requests.sessions", "send", 10)
+
+        with (
+            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = set()
+
+            result = writer._report_dependencies()
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "requests"
+        assert len(result[0]["metadata"]) == 1
+        parsed = json.loads(result[0]["metadata"][0]["value"])
+        assert parsed["id"] == "CVE-1"
+
+        # Metadata should be marked as sent now
+        assert entry.has_unsent_metadata() is False
+
+    def test_report_dependencies_no_rereport_without_new_metadata(self):
+        from unittest.mock import patch
+
+        writer = self._make_writer()
+
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.mark_initial_sent()
+        writer._imported_dependencies["requests"] = entry
+
+        with (
+            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = set()
+
+            result = writer._report_dependencies()
+
+        # No new deps, no new metadata → None
+        assert result is None
+
+    def test_rereport_includes_all_metadata_per_rfc(self):
+        """Re-report includes ALL metadata (sent + unsent) per RFC."""
+        from unittest.mock import patch
+
+        writer = self._make_writer()
+
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.mark_initial_sent()
+        writer._imported_dependencies["requests"] = entry
+
+        # Attach first CVE and mark as sent
+        writer.attach_dependency_metadata("requests", "CVE-1", True, "mod.views", "func1", 33)
+        entry.mark_all_metadata_sent()
+
+        # Attach second CVE (unsent)
+        writer.attach_dependency_metadata("requests", "CVE-2", True, "views.ep2", "func2", 456)
+
+        with (
+            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = set()
+
+            result = writer._report_dependencies()
+
+        assert result is not None
+        assert len(result) == 1
+        # Should include ALL metadata (both CVE-1 and CVE-2)
+        assert len(result[0]["metadata"]) == 2
+
+    def test_new_deps_without_sca_have_no_metadata_key(self):
+        """New deps created without SCA enabled have no metadata key."""
+        from unittest.mock import patch
+
+        writer = self._make_writer()
+
+        with (
+            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+            patch(
+                "ddtrace.internal.telemetry.data.get_module_distribution_versions",
+                return_value=("requests", "2.28.0"),
+            ),
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = {"requests"}
+
+            result = writer._report_dependencies()
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "requests"
+        assert "metadata" not in result[0]

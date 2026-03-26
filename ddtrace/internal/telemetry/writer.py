@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import http.client as httplib
+from importlib.metadata import version as importlib_metadata_version
 import itertools
 import os
 import sys
@@ -169,6 +170,7 @@ class TelemetryWriter(PeriodicService):
         self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
         self._imported_dependencies: dict[str, DependencyEntry] = dict()
+        self._sca_metadata_enabled: bool = False
         self._modules_already_imported: set[str] = set()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
@@ -318,7 +320,8 @@ class TelemetryWriter(PeriodicService):
             payload["configurations"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [
-                    {"name": entry.name, "version": entry.version} for entry in self._imported_dependencies.values()
+                    entry.to_telemetry_dict(include_all_metadata=True)
+                    for entry in self._imported_dependencies.values()
                 ]
             self._extended_time += self._extended_heartbeat_interval
         return payload
@@ -339,15 +342,51 @@ class TelemetryWriter(PeriodicService):
         return configurations
 
     def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
-        """Adds events to report imports done since the last periodic run"""
+        """Report newly imported modules and modules with updated SCA metadata.
+
+        AIDEV-NOTE: The writer does not check any SCA config flag.  It relies
+        on the DependencyEntry.metadata field state:
+        - metadata is None  → entry serialized without "metadata" key
+        - metadata is not None → entry serialized with "metadata" key
+        SCA product is responsible for setting metadata to [] on entries
+        when it starts (via enable_sca_metadata).
+
+        When a dependency has unsent metadata (attached by the SCA hook),
+        it is re-reported with ALL metadata (sent + unsent) per the RFC.
+        """
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
             return None
 
         with self._service_lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            if not newly_imported_deps:
-                return None
-            return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+            new_deps = update_imported_dependencies(
+                self._imported_dependencies, newly_imported_deps, self._sca_metadata_enabled
+            )
+
+            # Mark new deps as initially sent
+            for dep_dict in new_deps:
+                entry = self._imported_dependencies.get(dep_dict["name"])
+                if entry:
+                    entry.mark_initial_sent()
+                    entry.mark_all_metadata_sent()
+
+            # Collect names of deps just reported above to avoid double-reporting.
+            just_reported = {d["name"] for d in new_deps}
+
+            # Re-report deps that need it: auto-created by SCA hook (never
+            # reported yet) or already reported but with new unsent metadata.
+            # Include ALL metadata (sent + unsent) per RFC.
+            re_report_deps = []
+            for entry in self._imported_dependencies.values():
+                if entry.name in just_reported:
+                    continue
+                if entry.needs_report():
+                    re_report_deps.append(entry.to_telemetry_dict(include_all_metadata=True))
+                    entry.mark_initial_sent()
+                    entry.mark_all_metadata_sent()
+
+            all_deps = new_deps + re_report_deps
+            return all_deps if all_deps else None
 
     def attach_dependency_metadata(
         self,
@@ -363,13 +402,39 @@ class TelemetryWriter(PeriodicService):
         Called by SCA detection hook when a vulnerable symbol is reached at runtime.
         Thread-safe: acquires _service_lock before mutating dependency entries.
 
+        If SCA is active and the package isn't tracked yet (telemetry heartbeat
+        hasn't discovered it), auto-creates the entry with metadata=[].
+
         Returns:
-            True if metadata was attached, False if the package is not yet tracked.
+            True if metadata was attached, False otherwise.
         """
         with self._service_lock:
+            # Auto-create entry if SCA is active but telemetry hasn't tracked
+            # this package yet (timing: hook fires before first heartbeat).
+            if package_name not in self._imported_dependencies and self._sca_metadata_enabled:
+                try:
+                    ver = importlib_metadata_version(package_name)
+                except Exception:
+                    ver = ""
+                self._imported_dependencies[package_name] = DependencyEntry(
+                    name=package_name, version=ver, metadata=[]
+                )
             return attach_reachability_metadata(
                 self._imported_dependencies, package_name, cve_id, reached, path, method, line
             )
+
+    def enable_sca_metadata(self) -> None:
+        """Activate SCA metadata on all tracked and future dependencies.
+
+        Called by the SCA product on start.  Sets metadata from None to []
+        on all existing entries and sets a flag so new entries created by
+        update_imported_dependencies also get metadata=[].
+        """
+        with self._service_lock:
+            self._sca_metadata_enabled = True
+            for entry in self._imported_dependencies.values():
+                if entry.metadata is None:
+                    entry.metadata = []
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
@@ -708,6 +773,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace.flush()
         self._logs = set()
         self._imported_dependencies = {}
+        self._sca_metadata_enabled = False
         self._queued_configs = []
         self._sent_configs = []
 

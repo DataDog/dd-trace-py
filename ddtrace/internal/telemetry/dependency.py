@@ -8,12 +8,13 @@ dependencies and their associated vulnerability metadata.
 from dataclasses import dataclass
 from dataclasses import field
 import json
-import logging
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 
-log = logging.getLogger(__name__)
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -58,29 +59,29 @@ class ReachabilityMetadata:
 class DependencyEntry:
     """Tracks a dependency and its optional reachability metadata.
 
-    Used as the value type in TelemetryWriter._imported_dependencies
-    when SCA runtime reachability is active.  Both telemetry and SCA can
-    interact with this model:
-    - Telemetry creates entries on first import (no metadata).
+    Used as the value type in TelemetryWriter._imported_dependencies.
+    Both telemetry and SCA interact with this model:
+    - Telemetry creates entries on first import.
+    - SCA sets metadata to [] when enabled (signals SCA is active).
     - SCA attaches metadata when a vulnerable symbol executes.
     - Telemetry re-reports the dependency when unsent metadata exists.
 
-    AIDEV-TODO: mark_initial_sent(), to_telemetry_dict(), and the
-    metadata re-reporting logic are intentionally unused in the writer
-    until the follow-up SCA PR wires them behind DD_APPSEC_SCA_ENABLED.
+    AIDEV-NOTE: The metadata field drives the wire format:
+    - metadata is None  → SCA disabled → no "metadata" key in payload
+    - metadata is []    → SCA enabled, no findings → "metadata": []
+    - metadata has items → SCA enabled with findings → "metadata": [...]
 
     Attributes:
         name: Distribution/package name.
         version: Package version string.
-        metadata: Optional list of reachability metadata entries.
-            None when no metadata has been attached (the common case),
-            avoiding the cost of an empty list per entry.
+        metadata: None when SCA is not active, list (possibly empty) when SCA
+            is active.  The None-vs-list distinction drives wire format.
     """
 
     name: str
     version: str
-    # AIDEV-NOTE: metadata is None (not []) by default to avoid allocating an
-    # empty list for every dependency. Most deps never receive metadata.
+    # AIDEV-NOTE: metadata is None (not []) by default — SCA product sets it
+    # to [] when enabled.  None means SCA is inactive for this entry.
     metadata: Optional[list[ReachabilityMetadata]] = None
     _initial_report_sent: bool = field(default=False, repr=False, compare=False)
 
@@ -109,20 +110,39 @@ class DependencyEntry:
             m._mark_sent()
 
     def add_metadata(self, meta: ReachabilityMetadata) -> bool:
-        """Add metadata entry, deduplicating by CVE id.
+        """Add metadata entry, deduplicating by (CVE id, path, method, line).
+
+        The same CVE can appear multiple times if triggered from different call
+        sites.  Only exact duplicates (all four fields match) are rejected.
 
         Returns:
             True if the metadata was added, False if it was a duplicate or
             had no CVE id.
         """
+        # AIDEV-NOTE: _MAX_METADATA_ENTRIES prevents unbounded growth if the
+        # same dependency is triggered from many distinct call sites.
+        _MAX_METADATA_ENTRIES = 100
+
         cve_id = meta.value.get("id")
         if cve_id is None:
             log.debug("Ignoring reachability metadata with no CVE id for %s", self.name)
             return False
         if self.metadata is None:
             self.metadata = []
+        if len(self.metadata) >= _MAX_METADATA_ENTRIES:
+            return False
+        # AIDEV-NOTE: dedup by composite key (cve_id, path, method, line) per RFC —
+        # same CVE from different call sites creates separate entries.
+        meta_path = meta.value.get("path")
+        meta_method = meta.value.get("method")
+        meta_line = meta.value.get("line")
         for existing in self.metadata:
-            if existing.value.get("id") == cve_id:
+            if (
+                existing.value.get("id") == cve_id
+                and existing.value.get("path") == meta_path
+                and existing.value.get("method") == meta_method
+                and existing.value.get("line") == meta_line
+            ):
                 return False
         self.metadata.append(meta)
         return True
@@ -130,19 +150,21 @@ class DependencyEntry:
     def to_telemetry_dict(self, include_all_metadata: bool = False) -> dict[str, Any]:
         """Serialize for the telemetry wire format.
 
+        The metadata key presence is driven by the metadata field state:
+        - metadata is None → no "metadata" key (SCA not active)
+        - metadata is not None → "metadata" key included (SCA active)
+
         Args:
-            include_all_metadata: If True, include all metadata (for extended heartbeat).
-                If False, include only unsent metadata (for periodic reporting).
+            include_all_metadata: If True, include all metadata (for extended
+                heartbeat / re-report).  If False, include only unsent.
 
         Returns:
             Dict compatible with the app-dependencies-loaded payload.
-            The metadata key is omitted when there are no entries to include.
         """
         result: dict[str, Any] = {"name": self.name, "version": self.version}
-        if self.metadata:
+        if self.metadata is not None:
             entries = self.metadata if include_all_metadata else self.get_unsent_metadata()
-            if entries:
-                result["metadata"] = [m.to_telemetry_dict() for m in entries]
+            result["metadata"] = [m.to_telemetry_dict() for m in entries] if entries else []
         return result
 
 
@@ -162,7 +184,7 @@ def attach_reachability_metadata(
 
     Returns:
         True if metadata was attached, False if the package is not tracked
-        or the CVE was already recorded.
+        or the exact finding was already recorded.
     """
     entry = imported_dependencies.get(package_name)
     if entry is None:

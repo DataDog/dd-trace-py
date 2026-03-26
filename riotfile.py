@@ -3751,7 +3751,7 @@ venv = Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
-                "requests": latest,
+                "requests": "==2.31.0",
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",

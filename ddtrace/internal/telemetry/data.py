@@ -75,8 +75,22 @@ def _get_application(key: tuple[str, str, str]) -> dict:
 
 
 def update_imported_dependencies(
-    already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
-) -> list[dict[str, str]]:
+    already_imported: dict[str, DependencyEntry],
+    new_modules: Iterable[str],
+    sca_metadata_enabled: bool = False,
+) -> list[dict]:
+    """Discover new dependencies from recently imported modules.
+
+    Mutates *already_imported* in place, adding a DependencyEntry for each
+    newly discovered package.  Returns the list of serialized dependency
+    dicts ready for the ``app-dependencies-loaded`` telemetry payload.
+
+    Args:
+        already_imported: Mutable dict of tracked dependencies (updated in place).
+        new_modules: Module names to check for distribution info.
+        sca_metadata_enabled: When True, new entries get ``metadata=[]``
+            (SCA active) instead of ``metadata=None``.
+    """
     deps = []
 
     for module_name in new_modules:
@@ -93,8 +107,12 @@ def update_imported_dependencies(
 
         if not version:
             log.debug("Empty version for dependency %s (module: %s)", name, module_name)
-        already_imported[name] = DependencyEntry(name=name, version=version)
-        deps.append({"name": name, "version": version})
+        # AIDEV-NOTE: when SCA is active, new entries get metadata=[] so the
+        # wire format includes "metadata": [].  Otherwise metadata stays None.
+        metadata = [] if sca_metadata_enabled else None
+        entry = DependencyEntry(name=name, version=version, metadata=metadata)
+        already_imported[name] = entry
+        deps.append(entry.to_telemetry_dict())
 
     return deps
 
