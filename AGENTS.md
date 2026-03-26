@@ -54,6 +54,8 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `releasenote` | Creating or updating release notes for the current branch. |
 | `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
 | `compare-cpython-versions` | Comparing CPython source between two Python versions. |
+| `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
+| `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
 
 ## Domain Guides
 

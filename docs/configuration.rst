@@ -380,6 +380,30 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_LLMOBS_PAYLOAD_SIZE_BYTES:
+     type: Int
+     default: 5242880
+
+     description: |
+         The max size in bytes of an LLMObs payload submitted to Datadog. When the buffer reaches this
+         limit it is flushed immediately before the next event is enqueued. Defaults to 5 MiB.
+
+         This controls the size of LLMObs payloads sent directly to Datadog when agentless mode is
+         enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
+         the EVP proxy max payload size configured in the Datadog Agent.
+
+   DD_LLMOBS_EVENT_SIZE_BYTES:
+     type: Int
+     default: 5000000
+
+     description: |
+         The max size in bytes of a single LLMObs event submitted to Datadog. Events that exceed this
+         limit have their input/output fields truncated before submission. Defaults to 5 MB.
+
+         This controls the size of individual LLMObs events sent directly to Datadog when agentless
+         mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
+         exceed the EVP proxy max event size configured in the Datadog Agent.
+
 Trace Context propagation
 -------------------------
 

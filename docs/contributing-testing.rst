@@ -170,6 +170,23 @@ After setting this up, run your tests normally:
 
 The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
 
+Build issues when running tests with Riot
+-----------------------------------------
+
+If you encounter build failures, CMake errors, or stale native extension issues when running tests:
+
+- **Installing ddtrace locally** (e.g. ``pip install -e .``): See :ref:`build-failures-local-install` for the clean command.
+- **Using scripts/ddtest:** The project is mounted from the host, so run ``hatch run clean:all`` on the host first.
+  The container sees the cleaned project on the next run.
+
+Then run Riot **without** the ``-s`` flag so that ddtrace is rebuilt from source. The ``-s`` flag skips the base install; omitting it forces a fresh build:
+
+.. code-block:: bash
+
+    $ riot -v run --pass-env -p 3.10 <suite_name> -- -vv -k 'test_name'
+
+Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 
@@ -258,7 +275,6 @@ Next, we will need to add a new CI job to run the newly added test suite. This c
         - tests/contrib/yaaredis/*
         - tests/snapshots/tests.contrib.yaaredis.*
       pattern: yaaredis$
-      runner: riot
       services:
         - redis
       snapshot: true
