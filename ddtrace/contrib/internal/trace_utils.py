@@ -403,7 +403,7 @@ def set_http_meta(
     query: Optional[str] = None,
     parsed_query: Optional[Mapping[str, str]] = None,
     request_headers: Optional[Mapping[str, str]] = None,
-    response_headers: Optional[Mapping[str, str]] = None,
+    response_headers: Optional[Union[Mapping[str, str], list[tuple[str, str]]]] = None,
     retries_remain: Optional[Union[int, str]] = None,
     raw_uri: Optional[str] = None,
     request_cookies: Optional[dict[str, str]] = None,
