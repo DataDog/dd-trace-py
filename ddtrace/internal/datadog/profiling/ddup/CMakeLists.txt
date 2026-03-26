@@ -74,15 +74,16 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts For
-# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
-# AIDEV-NOTE: $ORIGIN (same dir) is required in addition to $ORIGIN/.. (parent dir) because meson-python editable
-# installs keep all build artifacts flat in the build directory root, so libdd_wrapper.so and _ddup.so are siblings.
-# For pip install / source-tree builds, _ddup.so is in ddup/ and libdd_wrapper.so is in profiling/, so $ORIGIN/..
-# is correct there.  Both entries are needed to cover both layouts.
+# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper AIDEV-NOTE: $ORIGIN (same dir) is
+# required in addition to $ORIGIN/.. (parent dir) because meson-python editable installs keep all build artifacts flat
+# in the build directory root, so libdd_wrapper.so and _ddup.so are siblings. For pip install / source-tree builds,
+# _ddup.so is in ddup/ and libdd_wrapper.so is in profiling/, so $ORIGIN/.. is correct there.  Both entries are needed
+# to cover both layouts.
 if(APPLE)
     if(BUILD_TESTING AND LIB_INSTALL_DIR)
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path;@loader_path/..;${LIB_INSTALL_DIR}"
-                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path;@loader_path/..;${LIB_INSTALL_DIR}"
+                                         BUILD_WITH_INSTALL_RPATH TRUE)
     else()
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path;@loader_path/.."
                                                            BUILD_WITH_INSTALL_RPATH TRUE)
@@ -92,7 +93,8 @@ elseif(UNIX)
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/..;${LIB_INSTALL_DIR}"
                                                            BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/.." BUILD_WITH_INSTALL_RPATH
+                                                                                              TRUE)
     endif()
 endif()
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${NATIVE_HEADERS_DIR}

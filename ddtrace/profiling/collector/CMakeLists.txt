@@ -107,12 +107,11 @@ if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug"
     target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE absl::flat_hash_map)
 endif()
 
-# Platform-specific settings
-# AIDEV-NOTE: $ORIGIN (same dir) is required in addition to the relative path that covers the installed layout,
-# because meson-python editable installs keep all build artifacts flat in the build directory root, so
+# Platform-specific settings AIDEV-NOTE: $ORIGIN (same dir) is required in addition to the relative path that covers the
+# installed layout, because meson-python editable installs keep all build artifacts flat in the build directory root, so
 # libdd_wrapper.so and _memalloc.so are siblings.  For pip install, _memalloc.so is in profiling/collector/ and
-# libdd_wrapper.so is in internal/datadog/profiling/, so the relative ../../internal/datadog/profiling path is
-# needed there.  Both entries are needed to cover both layouts.
+# libdd_wrapper.so is in internal/datadog/profiling/, so the relative ../../internal/datadog/profiling path is needed
+# there.  Both entries are needed to cover both layouts.
 if(APPLE)
     # macOS specific - set rpath for libdd_wrapper and use dynamic lookup for Python symbols
     set_target_properties(
@@ -122,8 +121,9 @@ if(APPLE)
                    LINK_FLAGS "-undefined dynamic_lookup")
 elseif(UNIX)
     # Linux specific
-    set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
-                                                            INSTALL_RPATH "$ORIGIN;$ORIGIN/../../internal/datadog/profiling")
+    set_target_properties(
+        ${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
+                                          INSTALL_RPATH "$ORIGIN;$ORIGIN/../../internal/datadog/profiling")
 endif()
 
 # Link with the exact libdd_wrapper artifact for this interpreter suffix. AIDEV-NOTE: find_library() can pick a wrapper
