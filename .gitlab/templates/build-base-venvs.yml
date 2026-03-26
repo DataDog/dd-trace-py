@@ -15,6 +15,14 @@ build_base_venvs:
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
     echo "NIGHTLY_BUILD: {nightly_build}"
+    # Install patched riot if requested (same override as scripts/ddtest uses for
+    # test jobs, needed until the testrunner image is rebuilt with the new riot).
+    DEFAULT_RIOT_INSTALL_SOURCE="git+https://github.com/DataDog/riot.git@dfdafadac3f22d8ce61472a4c6f4916b891a2638"
+    RIOT_INSTALL_SOURCE="${DD_TEST_RIOT_INSTALL_SOURCE:-$DEFAULT_RIOT_INSTALL_SOURCE}"
+    if [ -n "${RIOT_INSTALL_SOURCE:-}" ]; then
+      python -m pip uninstall -y riot >/dev/null 2>&1 || true
+      python -m pip install --disable-pip-version-check --no-deps "${RIOT_INSTALL_SOURCE}"
+    fi
     if [[ {unpin_dependencies} == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
