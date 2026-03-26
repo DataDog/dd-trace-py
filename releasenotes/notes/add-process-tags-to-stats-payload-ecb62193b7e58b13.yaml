@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    client-side stats: Add process tags to stats payload
