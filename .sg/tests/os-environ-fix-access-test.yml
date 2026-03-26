@@ -1,8 +1,8 @@
 id: os-environ-fix-access
 valid:
-  - dd_environ["HOME"]
-  - dd_environ.get("DEBUG", "false")
-  - from ddtrace.internal.settings.env import dd_environ
+  - env["HOME"]
+  - env.get("DEBUG", "false")
+  - from ddtrace.internal.settings import env
 
 invalid:
   - os.environ["HOME"]

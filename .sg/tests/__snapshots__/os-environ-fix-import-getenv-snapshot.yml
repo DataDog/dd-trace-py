@@ -1,7 +1,7 @@
 id: os-environ-fix-import-getenv
 snapshots:
   from os import getenv:
-    fixed: from ddtrace.internal.settings.env import getenv
+    fixed: from ddtrace.internal.settings import env
     labels:
     - source: from os import getenv
       style: primary

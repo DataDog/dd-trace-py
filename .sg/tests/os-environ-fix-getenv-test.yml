@@ -1,8 +1,8 @@
 id: os-environ-fix-getenv
 valid:
-  - getenv("DEBUG")
-  - getenv("DEBUG", "false")
-  - from ddtrace.internal.settings.env import getenv
+  - env.get("DEBUG")
+  - env.get("DEBUG", "false")
+  - from ddtrace.internal.settings import env
 
 invalid:
   - os.getenv("DEBUG")
