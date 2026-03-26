@@ -141,7 +141,7 @@ def test_shutdown_timeout_default():
 def test_enable_registers_sigterm_handler(mock_register_on_exit_signal, tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
-        mock_register_on_exit_signal.assert_called_once_with(llmobs_service.disable)
+        mock_register_on_exit_signal.assert_called_once_with(llmobs_service._on_exit_signal)
         llmobs_service.disable()
 
 
@@ -156,6 +156,32 @@ def test_sigterm_disables_llmobs(tracer):
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+
+
+def test_sigterm_with_grace_period_delays_disable(tracer):
+    with override_global_config(
+        dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>", _llmobs_graceful_termination_period=30)
+    ):
+        with mock.patch("ddtrace.llmobs._llmobs.atexit.register_on_exit_signal") as mock_register:
+            llmobs_service.enable(_tracer=tracer)
+        with mock.patch("ddtrace.llmobs._llmobs.threading.Timer") as mock_timer:
+            registered_fn = mock_register.call_args[0][0]
+            registered_fn()
+            mock_timer.assert_called_once_with(30, llmobs_service.disable)
+            mock_timer.return_value.start.assert_called_once()
+        assert llmobs_service.enabled is True  # not yet disabled — timer hasn't fired
+        llmobs_service.disable()
+
+
+def test_sigterm_with_zero_grace_period_disables_immediately(tracer):
+    with override_global_config(
+        dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>", _llmobs_graceful_termination_period=0)
+    ):
+        with mock.patch("ddtrace.llmobs._llmobs.atexit.register_on_exit_signal") as mock_register:
+            llmobs_service.enable(_tracer=tracer)
+        registered_fn = mock_register.call_args[0][0]
+        registered_fn()
+        assert llmobs_service.enabled is False
 
 
 def test_sigterm_joins_writers_with_shutdown_timeout(tracer):

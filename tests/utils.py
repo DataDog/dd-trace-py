@@ -171,6 +171,7 @@ def override_global_config(values):
         "_llmobs_instrumented_proxy_urls",
         "_llmobs_payload_size_limit",
         "_llmobs_event_size_limit",
+        "_llmobs_graceful_termination_period",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",

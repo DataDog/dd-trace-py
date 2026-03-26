@@ -2,4 +2,7 @@
 features:
   - |
     LLM Observability: Adds graceful SIGTERM handling so buffered spans and evaluation metrics
-    are flushed before process exit. The shutdown timeout defaults to 5 seconds.
+    are flushed before process exit. The shutdown timeout defaults to 5 seconds. To continue
+    writing spans during a graceful termination window (e.g. Kubernetes
+    ``terminationGracePeriodSeconds``), set ``DD_LLMOBS_GRACEFUL_TERMINATION_PERIOD`` to the
+    desired number of seconds before flushing and stopping.
