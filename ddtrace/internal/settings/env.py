@@ -39,3 +39,8 @@ def getenv(env_name: str, default: Any = None) -> Any:
 def setenv(env_name: str, value: Any) -> None:
     """Wrapper around os.environ assignment — use instead of os.environ[key] = value."""
     os.environ[env_name] = value
+
+
+def unsetenv(env_name: str) -> None:
+    """Wrapper around del os.environ[key] — use instead of os.unsetenv."""
+    del os.environ[env_name]

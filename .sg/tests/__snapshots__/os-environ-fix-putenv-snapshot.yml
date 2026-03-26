@@ -1,0 +1,9 @@
+id: os-environ-fix-putenv
+snapshots:
+  os.putenv("KEY", "value"):
+    fixed: setenv("KEY", "value")
+    labels:
+    - source: os.putenv("KEY", "value")
+      style: primary
+      start: 0
+      end: 25
