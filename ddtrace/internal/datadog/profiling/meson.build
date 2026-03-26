@@ -29,6 +29,7 @@ libdd_wrapper_stamp = custom_target(
   ],
   depends: [rust_stamp],
   build_by_default: true,
+  build_always_stale: true,
   install: true,
   install_dir: profiling_install_dir,
 )

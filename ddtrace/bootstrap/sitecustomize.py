@@ -43,7 +43,7 @@ try:
 
     _activate_meson_editable_loader()
     del _activate_meson_editable_loader
-except Exception:
+except Exception:  # nosec B110 - intentional: bootstrap code must never crash the process
     pass
 
 import ddtrace  # isort:skip

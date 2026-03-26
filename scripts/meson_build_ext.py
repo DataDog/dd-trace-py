@@ -13,6 +13,7 @@ Each invocation is for one component; meson handles parallelism and ordering.
 """
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import platform
@@ -355,6 +356,32 @@ def _cmake_parallel_args():
     return ["--parallel", str(parallel)]
 
 
+def _cmake_configure_hash(cmake_args: list, build_dir: Path) -> str:
+    """Compute a stable hash over cmake configure arguments.
+
+    AIDEV-NOTE: Covers all -D/-S/-B/-A flags so any change to Python
+    interpreter, build type, install prefix, or directory layout invalidates
+    the cache and forces a re-configure.  Used by cmd_cmake to skip the
+    expensive cmake -S/-B/-D step on incremental builds.
+    """
+    relevant = sorted(
+        arg
+        for arg in cmake_args
+        if isinstance(arg, str) and (
+            arg.startswith("-D")
+            or arg.startswith("-S")
+            or arg.startswith("-B")
+            or arg.startswith("-A")
+        )
+    )
+    relevant.append(str(build_dir))
+    digest = hashlib.sha256()
+    for item in relevant:
+        digest.update(item.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def cmd_cmake(args):
     """Build a CMake extension component."""
     cmake = get_cmake_binary()
@@ -432,7 +459,25 @@ def cmd_cmake(args):
             f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
         ]
 
-    run(cmake_args)
+    # AIDEV-NOTE: Configure-hash caching: skip the expensive cmake -S/-B/-D
+    # configure step when the build dir already has a valid CMakeCache.txt and
+    # cmake arguments haven't changed.  Always run cmake --build (fast ~0.5s
+    # when no C++ files changed); cmake's own incremental logic avoids
+    # recompiling unchanged sources.  Combined with build_always_stale: true
+    # on the meson custom_target, this gives correct incremental C++ builds
+    # without listing every source file as a meson dependency.
+    cmake_cache = build_dir / "CMakeCache.txt"
+    hash_file = build_dir / ".meson_cmake_args_hash"
+    current_hash = _cmake_configure_hash(cmake_args, build_dir)
+
+    if cmake_cache.exists() and hash_file.exists() and hash_file.read_text().strip() == current_hash:
+        print(
+            f"[meson_build_ext] cmake configure up-to-date, skipping ({component_name})",
+            flush=True,
+        )
+    else:
+        run(cmake_args)
+        hash_file.write_text(current_hash + "\n")
 
     # Build
     build_args = [cmake, "--build", str(build_dir), "--config", build_type, *_cmake_parallel_args()]
