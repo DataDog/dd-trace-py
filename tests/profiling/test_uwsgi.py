@@ -321,14 +321,15 @@ def test_uwsgi_threads_processes_primary(
     worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
     # Give time for the profiler to start in workers and produce at least one upload.
     # With ddtrace.auto the full bootstrap (tracing products, telemetry, etc.) runs
-    # in each worker before the profiler starts, so allow extra time.
-    time.sleep(5)
+    # in each worker via postfork hooks before the profiler starts, which can take
+    # 10+ seconds in slow CI environments.
+    time.sleep(15)
     # Use proc.terminate() (not os.killpg) so the master can gracefully shut down workers,
     # allowing them to flush profiles via uwsgi.atexit before exiting.
     proc.terminate()
     remaining_stdout = b""
     try:
-        remaining_stdout, _ = proc.communicate(timeout=10)
+        remaining_stdout, _ = proc.communicate(timeout=30)
     except TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
         remaining_stdout, _ = proc.communicate()
