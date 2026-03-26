@@ -232,7 +232,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics: dict[str, int] = defaultdict(int)  # ast-grep-ignore: span-metrics-access
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -275,15 +275,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:
-        accepted = self._metrics["accepted_traces"]  # ast-grep-ignore: span-metrics-access
-        sent = self._metrics["sent_traces"]  # ast-grep-ignore: span-metrics-access
+        accepted = self._metrics["accepted_traces"]
+        sent = self._metrics["sent_traces"]
         encoded = sum([len(client.encoder) for client in self._clients])
         # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # ast-grep-ignore: span-metrics-access
-        self._metrics["accepted_traces"] = encoded  # ast-grep-ignore: span-metrics-access
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
@@ -377,7 +377,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.errors", tags=["type:%s" % response.status])
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
-            self._metrics["sent_traces"] += count  # ast-grep-ignore: span-metrics-access
+            self._metrics["sent_traces"] += count
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
@@ -420,7 +420,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 pass
 
         self._metrics_dist("writer.accepted.traces")
-        self._metrics["accepted_traces"] += 1  # ast-grep-ignore: span-metrics-access
+        self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
         try:
@@ -909,7 +909,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
-        self._metrics: dict[str, int] = defaultdict(int)  # ast-grep-ignore: span-metrics-access
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -1061,15 +1061,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self) -> None:
-        accepted = self._metrics["accepted_traces"]  # ast-grep-ignore: span-metrics-access
-        sent = self._metrics["sent_traces"]  # ast-grep-ignore: span-metrics-access
+        accepted = self._metrics["accepted_traces"]
+        sent = self._metrics["sent_traces"]
         encoded = sum([len(client.encoder) for client in self._clients])
         # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # ast-grep-ignore: span-metrics-access
-        self._metrics["accepted_traces"] = encoded  # ast-grep-ignore: span-metrics-access
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
@@ -1090,7 +1090,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             else:
                 raise e
         finally:
-            self._metrics["sent_traces"] += count  # ast-grep-ignore: span-metrics-access
+            self._metrics["sent_traces"] += count
 
         if self._response_cb:
             response = Response(body=response_body)
@@ -1123,7 +1123,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 _safelog(log.warning, "failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")
-        self._metrics["accepted_traces"] += 1  # ast-grep-ignore: span-metrics-access
+        self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
         try:
