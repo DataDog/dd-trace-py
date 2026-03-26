@@ -23,7 +23,7 @@ detect-global-locks:
     # --no-build-isolation.  Without this, pip creates a temporary overlay
     # environment for ninja, records its path in the editable loader, then
     # deletes the overlay -- making subsequent ninja invocations fail.
-    python${{PYTHON_VERSION}} -m pip install --disable-pip-version-check meson ninja meson-python
+    python${{PYTHON_VERSION}} -m pip install --disable-pip-version-check meson ninja meson-python "cython>=3.0" "cmake>=3.24.2" setuptools patchelf
     python${{PYTHON_VERSION}} -m pip install --disable-pip-version-check --no-build-isolation -e .
     echo "Running global lock detection"
     python${{PYTHON_VERSION}} -X importtime scripts/global-lock-detection.py
