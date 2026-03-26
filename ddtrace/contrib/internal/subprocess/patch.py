@@ -576,6 +576,13 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     """
     if telemetry_config.TELEMETRY_ENABLED:
         # Process tracking is only used in instrumentation telemetry. Skip if telemetry is disabled.
+        # ``subprocess.Popen.__init__`` exposes ``env`` as the 11th argument (index 10) for
+        # the Python versions we support.
+        #
+        # We build the child ``env`` from the parent (``os.environ``) merged with any
+        # caller-supplied mapping. That is usually equivalent to ``env=None``, but it can
+        # differ in edge cases and _may_ interact oddly with ``preexec_fn`` or other
+        # POSIX-specific process setup.
         current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
         env = dict(os.environ.copy() if current_env is None else current_env)
         env.update(get_runtime_propagation_envs())

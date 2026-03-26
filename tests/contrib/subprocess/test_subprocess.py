@@ -957,8 +957,6 @@ def test_popen_positional_env_no_typeerror():
     import sys
 
     env = os.environ.copy()
-    env.pop("_DD_ROOT_PY_SESSION_ID", None)
-    env.pop("_DD_PARENT_PY_SESSION_ID", None)
     # ``env`` at positional index 10; stdout/stderr only positionally so we do not duplicate kwargs.
     proc = subprocess.Popen(
         [sys.executable, "-c", "import sys; sys.exit(0)"],
