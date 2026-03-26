@@ -28,6 +28,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_gcp_config_registered, parse_resource_path
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
@@ -1482,6 +1483,17 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 # If the value cannot be stringified, skip setting the tag
                 pass
 
+def _on_gcp_inferred_proxy(event_data):
+    ensure_gcp_config_registered()
+
+    _, subscription_id = parse_resource_path(event_data["subscription_name"])
+    event_data["resource"] = subscription_id
+
+    if (
+        not config.google_cloud_pubsub.distributed_tracing_enabled or
+        config.google_cloud_pubsub.propagation_as_span_links
+    ):
+        event_data["child_of"] = None
 
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
@@ -1575,6 +1587,8 @@ def listen():
     core.on("mlflow.new.step", _on_mlflow_new_step)
     core.on("mlflow.end.step", _on_mlflow_end_step)
     core.on("mlflow.log", _on_mlflow_log)
+
+    core.on("gcp.inferred_proxy_event", _on_gcp_inferred_proxy)
 
     for context_name in (
         # web frameworks

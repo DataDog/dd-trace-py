@@ -5,9 +5,11 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
@@ -30,6 +32,8 @@ class ProxyHeaderContext:
     api_id: Optional[str]
     region: Optional[str]
     user: Optional[str]
+    subscription_name: Optional[str]
+    message_id: Optional[str]
     useragent: Optional[str]
 
 
@@ -58,7 +62,7 @@ supported_proxies: dict[str, ProxyInfo] = {
     "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
 }
 
-SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()}
+SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()} | {"gcp.pubsub.receive"}
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
 # logic to extract http headers
@@ -73,6 +77,10 @@ POSSIBLE_PROXY_HEADER_ACCOUNT_ID = _possible_header("x-dd-proxy-account-id")
 POSSIBLE_PROXY_HEADER_API_ID = _possible_header("x-dd-proxy-api-id")
 POSSIBLE_PROXY_HEADER_REGION = _possible_header("x-dd-proxy-region")
 POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
+
+# google pubsub specific headers
+POSSIBLE_HEADER_PUBSUB_SUSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
+POSSIBLE_HEADER_PUBSUB_MESSAGE_ID = _possible_header("x-goog-pubsub-message-id")
 
 HEADER_USERAGENT = _possible_header("user-agent")
 
@@ -93,6 +101,17 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
     method = proxy_context.method
     route_or_path = proxy_context.resource_path or proxy_context.path
     resource = f"{method or ''} {route_or_path or ''}"
+    child_of = tracer.current_trace_context()
+
+    if proxy_context.subscription_name:
+        event_data = {
+            "subscription_name": proxy_context.subscription_name,
+            "resource": resource,
+            "child_of": child_of,
+        }
+        core.dispatch("gcp.inferred_proxy_event", (event_data,))
+        resource = event_data["resource"]
+        child_of = event_data["child_of"]
 
     span = tracer.start_span(
         proxy_info.span_name,
@@ -100,7 +119,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
         resource=resource,
         span_type=SpanTypes.WEB,
         activate=True,
-        child_of=tracer.current_trace_context(),
+        child_of=child_of,
     )
     span.start_ns = int(proxy_context.request_time) * 1000000
 
@@ -151,6 +170,19 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
         if resource_arn:
             span._set_attribute("dd_resource_key", resource_arn)
 
+    if proxy_context.subscription_name:
+        project_id, subscription_id = parse_resource_path(proxy_context.subscription_name)
+        span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+        span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+        span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("subscription_id"))
+        span._set_attribute(MESSAGING_OPERATION, "receive")
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+        if message.message_id:
+            span._set_attribute(MESSAGING_MESSAGE_ID, message.message_id)
+
     span._set_attribute("_dd.inferred_span", 1)
     return span
 
@@ -169,6 +201,10 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     proxy_header_api_id = _extract_header_value(POSSIBLE_PROXY_HEADER_API_ID, headers)
     proxy_header_region = _extract_header_value(POSSIBLE_PROXY_HEADER_REGION, headers)
     proxy_header_user = _extract_header_value(POSSIBLE_PROXY_HEADER_USER, headers)
+
+    # GCP specific headers
+    gcp_subscription_name = _extract_header_value(POSSIBLE_HEADER_PUBSUB_SUSCRIPTION, headers)
+    gcp_message_id = _extract_header_value(POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, headers)
 
     header_user_agent = _extract_header_value(HEADER_USERAGENT, headers)
 
@@ -196,6 +232,8 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
         proxy_header_region,
         proxy_header_user,
         header_user_agent,
+        gcp_subscription_name,
+        gcp_message_id,
     )
 
 
