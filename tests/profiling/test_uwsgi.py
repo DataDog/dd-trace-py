@@ -302,14 +302,16 @@ def test_uwsgi_threads_processes_primary(
 ) -> None:
     """Test that profiler works correctly with multiple workers and master process.
 
-    This is the standard production configuration for multi-worker uwsgi:
+    This is the documented production configuration for multi-worker uwsgi with ddtrace.auto:
     - --enable-threads: satisfies the threading requirement
     - --master: enables the master process that manages workers
     - --processes 2: spawns 2 worker processes
-    - --py-call-uwsgi-fork-hooks: ensures uwsgidecorators.postfork hooks fire in workers
+    - --lazy-apps: each worker loads the app independently (required by ddtrace docs)
 
-    With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
-    to restart the profiler in each worker after fork. The test verifies that:
+    With --lazy-apps, each worker runs the full ddtrace.auto bootstrap independently,
+    including profiler initialization. No postfork hooks are needed.
+
+    The test verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
@@ -317,27 +319,15 @@ def test_uwsgi_threads_processes_primary(
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--py-call-uwsgi-fork-hooks")
-    worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
-    # Give time for the profiler to start in workers and produce at least one upload.
-    # With ddtrace.auto the full bootstrap (tracing products, telemetry, etc.) runs
-    # in each worker via postfork hooks before the profiler starts, which can take
-    # 10+ seconds in slow CI environments.
-    time.sleep(15)
-    # Use proc.terminate() (not os.killpg) so the master can gracefully shut down workers,
-    # allowing them to flush profiles via uwsgi.atexit before exiting.
-    proc.terminate()
-    remaining_stdout = b""
-    try:
-        remaining_stdout, _ = proc.communicate(timeout=30)
-    except TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        remaining_stdout, _ = proc.communicate()
-    exit_code = proc.returncode
-    assert exit_code == 0, "uwsgi exited with code %d, stdout: %s" % (
-        exit_code,
-        remaining_stdout.decode(errors="replace"),
-    )
+    # --lazy-apps is required by ddtrace docs for multi-worker uwsgi with ddtrace.auto.
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
+    worker_pids: list[int] = _get_worker_pids(proc.stdout, 2, 2)
+    # Give some time to child to actually startup
+    time.sleep(3)
+    os.killpg(proc.pid, signal.SIGTERM)
+    assert proc.wait() == 0
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
 
