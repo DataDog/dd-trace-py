@@ -14,13 +14,6 @@ snapshots:
       style: primary
       start: 0
       end: 10
-  os.environ.pop("KEY"):
-    fixed: env.pop("KEY")
-    labels:
-    - source: os.environ
-      style: primary
-      start: 0
-      end: 10
   os.environ["HOME"]:
     fixed: env["HOME"]
     labels:

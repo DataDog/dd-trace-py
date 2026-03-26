@@ -1,5 +1,5 @@
-id: os-environ-fix-access
-message: Use ddtrace.internal.settings.env instead of os.environ
+id: os-environ-fix-pop
+message: Use unsetenv() from ddtrace.internal.settings.env instead of os.environ.pop()
 severity: error
 language: python
 files:
@@ -43,30 +43,17 @@ ignores:
   - "ddtrace/profiling/**"
   - "ddtrace/sourcecode/**"
 rule:
-  pattern: os.environ
+  any:
+    - pattern: os.environ.pop($KEY)
+    - pattern: os.environ.pop($KEY, $$$)
   not:
-    any:
-      - inside:
-          kind: subscript
-          inside:
-            kind: assignment
-            field: left
-          stopBy: end
-      - inside:
-          kind: delete_statement
-          stopBy: end
-      - inside:
-          kind: call
-          has:
-            kind: attribute
-            has:
-              kind: identifier
-              regex: "^(pop|update|setdefault)$"
-              field: attribute
-          stopBy: end
-fix: env
+    inside:
+      kind: assignment
+      stopBy: end
+fix: unsetenv($KEY)
 note: |
-  Replace read-only `os.environ` with `env` from `ddtrace.internal.settings`.
-  Mutation forms (assignment, del, pop, update) are handled by separate rules.
+  Replace `os.environ.pop(key)` with `unsetenv(key)` when the return value is unused.
+  When the return value IS used (e.g., `val = os.environ.pop("KEY")`), this rule
+  will not match — migrate those manually since unsetenv() does not return the old value.
   After applying fix, add the import manually:
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings.env import unsetenv

@@ -3,10 +3,16 @@ valid:
   - env["HOME"]
   - env.get("DEBUG", "false")
   - from ddtrace.internal.settings import env
+  # Mutation forms are handled by separate rules, not this one
+  - os.environ["KEY"] = "value"
+  - del os.environ["KEY"]
+  - os.environ.pop("KEY")
+  - os.environ.pop("KEY", None)
+  - 'os.environ.update({"K": "V"})'
+  - os.environ.setdefault("K", "V")
 
 invalid:
   - os.environ["HOME"]
   - os.environ.get("DEBUG", "false")
   - value = os.environ.get("KEY", "default")
-  - os.environ.pop("KEY")
   - os.environ.keys()

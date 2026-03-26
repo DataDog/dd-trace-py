@@ -1,0 +1,12 @@
+id: os-environ-fix-pop
+valid:
+  - unsetenv("KEY")
+  - some_dict.pop("KEY")
+  - some_dict.pop("KEY", None)
+  # Return-value usage is excluded — must be migrated manually
+  - val = os.environ.pop("KEY")
+  - val = os.environ.pop("KEY", None)
+
+invalid:
+  - os.environ.pop("KEY")
+  - os.environ.pop("KEY", None)

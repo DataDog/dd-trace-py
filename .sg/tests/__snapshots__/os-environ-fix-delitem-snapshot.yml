@@ -1,0 +1,16 @@
+id: os-environ-fix-delitem
+snapshots:
+  del os.environ["DEBUG"]:
+    fixed: unsetenv("DEBUG")
+    labels:
+    - source: del os.environ["DEBUG"]
+      style: primary
+      start: 0
+      end: 23
+  del os.environ["KEY"]:
+    fixed: unsetenv("KEY")
+    labels:
+    - source: del os.environ["KEY"]
+      style: primary
+      start: 0
+      end: 21

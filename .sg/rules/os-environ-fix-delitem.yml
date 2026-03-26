@@ -1,5 +1,5 @@
-id: os-environ-fix-access
-message: Use ddtrace.internal.settings.env instead of os.environ
+id: os-environ-fix-delitem
+message: Use unsetenv() from ddtrace.internal.settings.env instead of del os.environ[key]
 severity: error
 language: python
 files:
@@ -43,30 +43,9 @@ ignores:
   - "ddtrace/profiling/**"
   - "ddtrace/sourcecode/**"
 rule:
-  pattern: os.environ
-  not:
-    any:
-      - inside:
-          kind: subscript
-          inside:
-            kind: assignment
-            field: left
-          stopBy: end
-      - inside:
-          kind: delete_statement
-          stopBy: end
-      - inside:
-          kind: call
-          has:
-            kind: attribute
-            has:
-              kind: identifier
-              regex: "^(pop|update|setdefault)$"
-              field: attribute
-          stopBy: end
-fix: env
+  pattern: del os.environ[$KEY]
+fix: unsetenv($KEY)
 note: |
-  Replace read-only `os.environ` with `env` from `ddtrace.internal.settings`.
-  Mutation forms (assignment, del, pop, update) are handled by separate rules.
+  Replace `del os.environ[key]` with `unsetenv(key)`.
   After applying fix, add the import manually:
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings.env import unsetenv
