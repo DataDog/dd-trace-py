@@ -21,6 +21,8 @@ from ...internal import atexit
 from ...internal import forksafe
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
+from ..runtime import get_ancestor_runtime_id
+from ..runtime import get_parent_runtime_id
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.time import StopWatch
@@ -114,6 +116,11 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
+        headers["DD-Session-ID"] = get_runtime_id()
+        if (root := get_ancestor_runtime_id()) is not None:
+            headers["DD-Root-Session-ID"] = root
+        if (parent := get_parent_runtime_id()) is not None:
+            headers["DD-Parent-Session-ID"] = parent
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:

@@ -6,7 +6,7 @@ import yaml
 
 
 def get_integration_to_dependency_map(special_cases: Optional[dict[str, str]] = None) -> defaultdict[str, set]:
-    REGISTRY_YAML_PATH = pathlib.Path("ddtrace/contrib/integration_registry/registry.yaml")
+    REGISTRY_YAML_PATH = pathlib.Path(__file__).parent / "registry.yaml"
     dependency_map: defaultdict[str, set] = defaultdict(set)
 
     with open(REGISTRY_YAML_PATH, "r", encoding="utf-8") as f:
@@ -25,13 +25,14 @@ def get_integration_to_dependency_map(special_cases: Optional[dict[str, str]] = 
 
         dependency_map[integration_name] = valid_dependency_names
 
-    for dependency, integration in special_cases.items():
-        dependency_map[integration].add(dependency)
+    if special_cases:
+        for dependency, integration in special_cases.items():
+            dependency_map[integration].add(dependency)
 
     return dependency_map
 
 
-def invert_integration_to_dependency_map(integration_to_deps: dict[str, list[str]]) -> dict[str, str]:
+def invert_integration_to_dependency_map(integration_to_deps: dict[str, set[str]]) -> dict[str, str]:
     dependency_to_integration_map: dict[str, str] = {}
     for integration, dependency_list in integration_to_deps.items():
         for dependency in dependency_list:

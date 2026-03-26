@@ -1,4 +1,4 @@
-import os
+import pytest
 
 from ddtrace.internal.products import Product
 from ddtrace.internal.products import ProductManager
@@ -104,7 +104,40 @@ def test_product_manager_start():
     assert a.started
 
 
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_product_manager_restart():
+    import os
+
+    from ddtrace.internal.products import Product
+    from ddtrace.internal.products import ProductManager
+
+    class ProductManagerTest(ProductManager):
+        def __init__(self, products, failed=set()) -> None:
+            self._products = None
+            self.__products__ = products
+            self._failed = failed
+
+    class BaseProduct(Product):
+        requires = []
+
+        def __init__(self) -> None:
+            self.started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
+
+        def post_preload(self) -> None:
+            self.post_preloaded = True
+
+        def start(self) -> None:
+            self.started = True
+
+        def restart(self, join: bool = False) -> None:
+            self.restarted = True
+
+        def stop(self, join: bool = False) -> None:
+            self.stopped = True
+
+        def at_exit(self, join: bool = False) -> None:
+            self.exited = True
+
     a = BaseProduct()
     manager = ProductManagerTest({"a": a})
     manager.run_protocol()
