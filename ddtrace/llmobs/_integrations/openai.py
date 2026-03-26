@@ -104,12 +104,12 @@ class OpenAIIntegration(BaseLLMIntegration):
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
         model_provider = "unknown"
-        if self._is_provider(span, "openai"):
-            model_provider = "openai"
-        elif self._is_provider(span, "azure"):
+        if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
+        elif self._is_provider(span, "openai"):
+            model_provider = "openai"
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
