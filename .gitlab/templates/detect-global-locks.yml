@@ -19,6 +19,11 @@ detect-global-locks:
   script: |
     set -e -o pipefail
     echo "Installing the client library"
-    python${{PYTHON_VERSION}} -m pip install -e .
+    # Pre-install build-system requirements so that pip install -e . can use
+    # --no-build-isolation.  Without this, pip creates a temporary overlay
+    # environment for ninja, records its path in the editable loader, then
+    # deletes the overlay -- making subsequent ninja invocations fail.
+    python${{PYTHON_VERSION}} -m pip install --disable-pip-version-check meson ninja meson-python
+    python${{PYTHON_VERSION}} -m pip install --disable-pip-version-check --no-build-isolation -e .
     echo "Running global lock detection"
     python${{PYTHON_VERSION}} -X importtime scripts/global-lock-detection.py
