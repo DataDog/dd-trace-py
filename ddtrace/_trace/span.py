@@ -37,7 +37,6 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import is_integer
-from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
@@ -261,8 +260,6 @@ class Span(SpanData):
             return
         elif key == SERVICE_KEY:
             self.service = value
-            if value:
-                self.set_tag(_SERVICE_SOURCE, "m")
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
