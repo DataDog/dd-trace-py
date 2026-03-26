@@ -226,4 +226,3 @@ impl SpanLink {
         Py::new(py, link)
     }
 }
-
