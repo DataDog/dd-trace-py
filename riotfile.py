@@ -544,6 +544,23 @@ venv = Venv(
             pys=select_pys(max_version="3.12"),
         ),
         Venv(
+            name="detect_global_locks",
+            pys=select_pys(),
+            command="python -X importtime scripts/global-lock-detection.py",
+            env={
+                "DD_DYNAMIC_INSTRUMENTATION_ENABLED": "1",
+                "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1",
+                "DD_EXCEPTION_REPLAY_ENABLED": "1",
+                "DD_APPSEC_ENABLED": "1",
+                "DD_APPSEC_SCA_ENABLED": "1",
+                "DD_IAST_ENABLED": "1",
+                "DD_RUNTIME_METRICS_ENABLED": "1",
+                "DD_PROFILING_ENABLED": "1",
+                "DD_PROFILING_LOCK_ENABLED": "0",  # This patches the lock class
+                "DD_REMOTE_CONFIGURATION_ENABLED": "1",
+            },
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -1317,6 +1334,29 @@ venv = Venv(
                 "mako": ["~=1.0.0", latest],
                 "pytest-randomly": latest,
             },
+        ),
+        Venv(
+            name="mlflow",
+            command="pytest {cmdargs} tests/contrib/mlflow/",
+            pkgs={
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "mlflow": ["~=2.11.0"],
+                        "setuptools": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pkgs={
+                        "mlflow": [latest],
+                        "setuptools": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="mysql",
