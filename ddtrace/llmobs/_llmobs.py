@@ -7,6 +7,7 @@ import json
 import math
 import os
 import sys
+import threading
 import time
 from typing import Any
 from typing import Callable
@@ -1088,7 +1089,7 @@ class LLMObs(Service):
             )
 
             atexit.register(cls.disable)
-            atexit.register_on_exit_signal(cls.disable)
+            atexit.register_on_exit_signal(cls._on_exit_signal)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug(
@@ -1735,6 +1736,16 @@ class LLMObs(Service):
         if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
             return False
         return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+
+    @classmethod
+    def _on_exit_signal(cls) -> None:
+        """Called on SIGTERM/SIGINT. Waits for the configured grace period before disabling."""
+        grace_period = config._llmobs_graceful_termination_period
+        if grace_period > 0:
+            log.debug("Received exit signal; disabling %s after %.1f second grace period", cls.__name__, grace_period)
+            threading.Timer(grace_period, cls.disable).start()
+        else:
+            cls.disable()
 
     @classmethod
     def disable(cls) -> None:
