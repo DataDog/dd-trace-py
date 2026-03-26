@@ -124,6 +124,17 @@ def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any,
             + "-"
             + _config_settings_cache_key(settings)
         )
+    # AIDEV-NOTE: On Windows ARM64, GitHub Actions runners have GCC/MinGW
+    # earlier in PATH than MSVC, so meson defaults to GCC.  GNU ld cannot link
+    # against MSVC-compiled Python DLLs (e.g. python311.dll), producing
+    # "file format not recognized" errors.  Passing --vsenv tells meson to
+    # activate the Visual Studio environment before running the build, ensuring
+    # MSVC is used — matching the behaviour of the old setup.py build.
+    if sys.platform == "win32":
+        setup_args = _config_value_list(settings.get("setup-args"))
+        if "--vsenv" not in setup_args:
+            setup_args.append("--vsenv")
+        settings["setup-args"] = setup_args
     return settings
 
 
