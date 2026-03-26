@@ -17,12 +17,9 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include(AnalysisFunc)
 
-# Link against the pre-built libdd_wrapper shared library.
-if(DEFINED DD_WRAPPER_DIR)
-    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-else()
-    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
-endif()
+# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
+# via NATIVE_EXTENSION_LOCATION
+set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
 
 # Import the pre-built library as an imported target
 add_library(dd_wrapper SHARED IMPORTED)
@@ -40,12 +37,6 @@ endif()
 # If we still don't have a Python executable, we can't continue
 if(NOT Python3_EXECUTABLE)
     message(FATAL_ERROR "Python executable not found")
-endif()
-
-if(DEFINED RUST_GENERATED_HEADERS_DIR)
-    set(NATIVE_HEADERS_DIR "${RUST_GENERATED_HEADERS_DIR}")
-else()
-    set(NATIVE_HEADERS_DIR "../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/")
 endif()
 
 # This sets some parameters for the target build
@@ -74,31 +65,28 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts For
-# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper AIDEV-NOTE: $ORIGIN (same dir) is
-# required in addition to $ORIGIN/.. (parent dir) because meson-python editable installs keep all build artifacts flat
-# in the build directory root, so libdd_wrapper.so and _ddup.so are siblings. For pip install / source-tree builds,
-# _ddup.so is in ddup/ and libdd_wrapper.so is in profiling/, so $ORIGIN/.. is correct there.  Both entries are needed
-# to cover both layouts.
+# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
 if(APPLE)
     if(BUILD_TESTING AND LIB_INSTALL_DIR)
-        set_target_properties(
-            ${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path;@loader_path/..;${LIB_INSTALL_DIR}"
-                                         BUILD_WITH_INSTALL_RPATH TRUE)
-    else()
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path;@loader_path/.."
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR}"
                                                            BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH
+                                                                                           TRUE)
     endif()
 elseif(UNIX)
     if(BUILD_TESTING AND LIB_INSTALL_DIR)
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/..;${LIB_INSTALL_DIR}"
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR}"
                                                            BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/.." BUILD_WITH_INSTALL_RPATH
-                                                                                              TRUE)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 endif()
-target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${NATIVE_HEADERS_DIR}
-                                                     ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+target_include_directories(
+    ${EXTENSION_NAME}
+    PRIVATE ../dd_wrapper/include
+            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
+            ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 

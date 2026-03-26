@@ -21,17 +21,10 @@ endif()
 message(WARNING "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
 message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
 
-if(DEFINED RUST_GENERATED_HEADERS_DIR)
-    set(SOURCE_INCLUDE_DIR ${RUST_GENERATED_HEADERS_DIR})
-else()
-    # Fallback for standalone legacy builds that still use setup.py-style target directories.
-    set(SOURCE_INCLUDE_DIR
-        ${CMAKE_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
-endif()
-
-if(NOT EXISTS "${SOURCE_INCLUDE_DIR}")
-    message(FATAL_ERROR "Rust-generated native headers not found at ${SOURCE_INCLUDE_DIR}")
-endif()
+# We expect the native extension to be built and installed the headers in the following directory. It is configured in
+# setup.py by setting CARGO_TARGET_DIR environment variable.
+set(SOURCE_INCLUDE_DIR
+    ${CMAKE_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
 
 set(DEST_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)

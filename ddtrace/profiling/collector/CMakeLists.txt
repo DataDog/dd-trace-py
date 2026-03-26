@@ -107,41 +107,36 @@ if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug"
     target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE absl::flat_hash_map)
 endif()
 
-# Platform-specific settings AIDEV-NOTE: $ORIGIN (same dir) is required in addition to the relative path that covers the
-# installed layout, because meson-python editable installs keep all build artifacts flat in the build directory root, so
-# libdd_wrapper.so and _memalloc.so are siblings.  For pip install, _memalloc.so is in profiling/collector/ and
-# libdd_wrapper.so is in internal/datadog/profiling/, so the relative ../../internal/datadog/profiling path is needed
-# there.  Both entries are needed to cover both layouts.
+# Platform-specific settings
 if(APPLE)
     # macOS specific - set rpath for libdd_wrapper and use dynamic lookup for Python symbols
     set_target_properties(
         ${FULL_EXTENSION_NAME}
         PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
-                   INSTALL_RPATH "@loader_path;@loader_path/../../internal/datadog/profiling"
+                   INSTALL_RPATH "@loader_path/../../internal/datadog/profiling"
                    LINK_FLAGS "-undefined dynamic_lookup")
 elseif(UNIX)
     # Linux specific
-    set_target_properties(
-        ${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
-                                          INSTALL_RPATH "$ORIGIN;$ORIGIN/../../internal/datadog/profiling")
+    set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
+                                                            INSTALL_RPATH "$ORIGIN/../../internal/datadog/profiling")
 endif()
 
-# Link with the exact libdd_wrapper artifact for this interpreter suffix. AIDEV-NOTE: find_library() can pick a wrapper
-# built for another Python version when the worktree contains multiple libdd_wrapper.cpython-*.so files. That makes
-# _memalloc unavailable at runtime while other profiling extensions still work, because only _memalloc was using
-# find_library() instead of the exact path.
-if(DEFINED DD_WRAPPER_DIR)
-    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-elseif(DEFINED NATIVE_EXTENSION_LOCATION)
-    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
-endif()
+# Link with libdd_wrapper if NATIVE_EXTENSION_LOCATION is defined
+if(DEFINED NATIVE_EXTENSION_LOCATION)
+    # Find the libdd_wrapper shared library NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so
+    # ../datadog/profiling gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
+    find_library(
+        DD_WRAPPER_LIB
+        NAMES libdd_wrapper${EXTENSION_SUFFIX}
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
+              ${NATIVE_EXTENSION_LOCATION}/../datadog/profiling
+        NO_DEFAULT_PATH)
 
-if(DEFINED DD_WRAPPER_LIB)
-    if(EXISTS "${DD_WRAPPER_LIB}")
-        message(STATUS "Using libdd_wrapper: ${DD_WRAPPER_LIB}")
-        target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE "${DD_WRAPPER_LIB}")
+    if(DD_WRAPPER_LIB)
+        message(STATUS "Found libdd_wrapper: ${DD_WRAPPER_LIB}")
+        target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE ${DD_WRAPPER_LIB})
     else()
-        message(WARNING "libdd_wrapper not found at ${DD_WRAPPER_LIB}, extension may not link correctly")
+        message(WARNING "libdd_wrapper not found, extension may not link correctly")
     endif()
 endif()
 

@@ -121,6 +121,8 @@ install_subdir(
     '**/*.h',
     '**/*.hh',
     '**/*.hpp',
+    # Meson build files inside ddtrace subdirs (cmake target placement only)
+    '**/meson.build',
     # Shared libraries are installed from Meson targets, not copied from the
     # source tree. This prevents dirty worktrees from leaking stale binaries
     # into clean wheel builds.
@@ -269,7 +271,11 @@ endif
 
 build_helper = files('scripts/meson_build_ext.py')
 
-cargo_target_dir = src_root / 'src' / 'native' / ('target' + py_ver_parts[0] + '.' + py_ver_parts[1] + '-' + py_build_key)
+# AIDEV-NOTE: Use Python major.minor (no build-key suffix) so the path matches
+# the hardcoded cmake include path in FindLibNative.cmake:
+#   ${CMAKE_SOURCE_DIR}/../../../../../src/native/target<major>.<minor>/include
+# This matches setup.py behaviour (which also versioned by major.minor only).
+cargo_target_dir = src_root / 'src' / 'native' / ('target' + py_ver_parts[0] + '.' + py_ver_parts[1])
 
 rust_features = 'stats,ffe'
 if is_unix and is_64bit
@@ -279,143 +285,31 @@ endif
 native_so = '_native' + ext_suffix
 profiling_install_dir = py.get_install_dir() / 'ddtrace/internal/datadog/profiling'
 
+# cmake_build_type is used by all cmake custom_target invocations in subdirs.
+cmake_build_type = get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo'
+
 # --- Rust extension: ddtrace.internal.native._native ---
-rust_stamp = custom_target(
-  '_native_rust',
-  output: [native_so],
-  command: [
-    py, build_helper, 'rust',
-    '--src-root', src_root,
-    '--cargo-target-dir', cargo_target_dir,
-    '--manifest', src_root / 'src/native/Cargo.toml',
-    '--features', rust_features,
-    '--ext-suffix', ext_suffix,
-    '--output', '@OUTPUT0@',
-    '--python', py.full_path(),
-    '--host', host,
-  ],
-  build_by_default: true,
-  install: true,
-  install_dir: py.get_install_dir() / 'ddtrace/internal/native',
-)
+# AIDEV-NOTE: Defined in a subdir so @OUTDIR@ = build_root/ddtrace/internal/native/
+# making _native.so reachable via libdd_wrapper's RPATH
+# (@loader_path/../../../native from ddtrace/internal/datadog/profiling/).
+subdir('ddtrace/internal/native')
 
 if is_unix and is_64bit
+  # rust_headers_dir is passed to cmake targets; FindLibNative.cmake falls back
+  # to a hardcoded relative path matching cargo_target_dir (major.minor only).
   rust_headers_dir = cargo_target_dir / 'include'
 
-  # --- libdd_wrapper shared library ---
-  wrapper_so = 'libdd_wrapper' + ext_suffix
-
-  libdd_wrapper_stamp = custom_target(
-    'libdd_wrapper',
-    output: [wrapper_so],
-    command: [
-      py, build_helper, 'cmake',
-      '--src-root', src_root,
-      '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/dd_wrapper',
-      '--output', '@OUTPUT0@',
-      '--install-dir', '@OUTDIR@',
-      '--python', py.full_path(),
-      '--py-prefix', py_prefix,
-      '--ext-suffix', ext_suffix,
-      '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
-      '--build-key', py_build_key,
-      '--cargo-target-dir', cargo_target_dir,
-      '--rust-headers-dir', rust_headers_dir,
-      '--component-name', 'dd_wrapper',
-      '--native-ext-dir', build_root,
-    ],
-    depends: [rust_stamp],
-    build_by_default: true,
-    install: true,
-    install_dir: profiling_install_dir,
-  )
+  # --- libdd_wrapper, _ddup, _stack ---
+  # AIDEV-NOTE: Defined in subdirs so each custom_target's @OUTDIR@ resolves
+  # to the correct subdirectory of the build root, matching the installed layout.
+  # This makes RPATHs baked by cmake ($ORIGIN/.., $ORIGIN/../../../native, etc.)
+  # resolve correctly for editable installs without any cmake file changes.
+  subdir('ddtrace/internal/datadog/profiling')
 
   # --- _memalloc ---
-  memalloc_so = '_memalloc' + ext_suffix
-
-  memalloc_stamp = custom_target(
-    '_memalloc',
-    output: [memalloc_so],
-    command: [
-      py, build_helper, 'cmake',
-      '--src-root', src_root,
-      '--cmake-src-dir', src_root / 'ddtrace/profiling/collector',
-      '--output', '@OUTPUT0@',
-      '--install-dir', '@OUTDIR@',
-      '--python', py.full_path(),
-      '--py-prefix', py_prefix,
-      '--ext-suffix', ext_suffix,
-      '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
-      '--build-key', py_build_key,
-      '--cargo-target-dir', cargo_target_dir,
-      '--rust-headers-dir', rust_headers_dir,
-      '--component-name', 'memalloc',
-      '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', build_root,
-    ],
-    depends: [libdd_wrapper_stamp],
-    build_by_default: true,
-    install: true,
-    install_dir: py.get_install_dir() / 'ddtrace/profiling/collector',
-  )
-
-  # --- _ddup ---
-  ddup_so = '_ddup' + ext_suffix
-
-  ddup_stamp = custom_target(
-    '_ddup',
-    output: [ddup_so],
-    command: [
-      py, build_helper, 'cmake',
-      '--src-root', src_root,
-      '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/ddup',
-      '--output', '@OUTPUT0@',
-      '--install-dir', '@OUTDIR@',
-      '--python', py.full_path(),
-      '--py-prefix', py_prefix,
-      '--ext-suffix', ext_suffix,
-      '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
-      '--build-key', py_build_key,
-      '--cargo-target-dir', cargo_target_dir,
-      '--rust-headers-dir', rust_headers_dir,
-      '--component-name', 'ddup',
-      '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', build_root,
-    ],
-    depends: [libdd_wrapper_stamp],
-    build_by_default: true,
-    install: true,
-    install_dir: py.get_install_dir() / 'ddtrace/internal/datadog/profiling/ddup',
-  )
-
-  # --- _stack ---
-  stack_so = '_stack' + ext_suffix
-
-  stack_stamp = custom_target(
-    '_stack',
-    output: [stack_so],
-    command: [
-      py, build_helper, 'cmake',
-      '--src-root', src_root,
-      '--cmake-src-dir', src_root / 'ddtrace/internal/datadog/profiling/stack',
-      '--output', '@OUTPUT0@',
-      '--install-dir', '@OUTDIR@',
-      '--python', py.full_path(),
-      '--py-prefix', py_prefix,
-      '--ext-suffix', ext_suffix,
-      '--build-type', get_option('buildtype') == 'debug' ? 'Debug' : 'RelWithDebInfo',
-      '--build-key', py_build_key,
-      '--cargo-target-dir', cargo_target_dir,
-      '--rust-headers-dir', rust_headers_dir,
-      '--component-name', 'stack',
-      '--native-ext-dir', build_root,
-      '--dd-wrapper-dir', build_root,
-    ],
-    depends: [libdd_wrapper_stamp],
-    build_by_default: true,
-    install: true,
-    install_dir: py.get_install_dir() / 'ddtrace/internal/datadog/profiling/stack',
-  )
+  # AIDEV-NOTE: libdd_wrapper_stamp is defined in ddtrace/internal/datadog/profiling/meson.build
+  # above, and is accessible here since Meson shares namespace across subdir files.
+  subdir('ddtrace/profiling/collector')
 endif
 
 # --- IAST taint tracking: _native (standalone pybind11+Abseil) ---

@@ -15,6 +15,11 @@ import mesonpy._tags
 _ROOT = Path(__file__).resolve().parent
 _BUILD_SYSTEM_FILES = (
     "meson.build",
+    "ddtrace/internal/native/meson.build",
+    "ddtrace/internal/datadog/profiling/meson.build",
+    "ddtrace/internal/datadog/profiling/ddup/meson.build",
+    "ddtrace/internal/datadog/profiling/stack/meson.build",
+    "ddtrace/profiling/collector/meson.build",
     "scripts/meson_build_ext.py",
     "scripts/meson_install_iast_native.py",
     "ddtrace/profiling/collector/CMakeLists.txt",
