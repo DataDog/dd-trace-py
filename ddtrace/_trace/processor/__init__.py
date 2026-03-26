@@ -4,10 +4,7 @@ from itertools import chain
 import logging
 from threading import RLock
 from typing import Optional
-from typing import Union
-
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import OtelParentBasedAlwaysOnSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
@@ -125,15 +122,7 @@ class TraceSamplingProcessor(TraceProcessor):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
-        from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-        from ddtrace.internal.settings._opentelemetry import otel_config
-
-        sampler: Union[DatadogSampler, OtelParentBasedAlwaysOnSampler]
-        if _is_otlp_traces_exporter_enabled(otel_config.exporter):
-            sampler = OtelParentBasedAlwaysOnSampler()
-        else:
-            sampler = DatadogSampler()
-        self.sampler = sampler
+        self.sampler = DatadogSampler()
         self.apm_opt_out = apm_opt_out
 
     @property
@@ -145,14 +134,13 @@ class TraceSamplingProcessor(TraceProcessor):
         # If ASM is enabled but tracing is disabled,
         # we need to set the rate limiting to 1 trace per minute
         # for the backend to consider the service as alive.
-        if isinstance(self.sampler, DatadogSampler):
-            if value:
-                self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
-                self.sampler._rate_limit_always_on = True
-                log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
-            else:
-                self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
-                self.sampler._rate_limit_always_on = False
+        if value:
+            self.sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+            self.sampler._rate_limit_always_on = True
+            log.debug("Enabling apm opt out on DatadogSampler: %s", self.sampler)
+        else:
+            self.sampler.limiter = RateLimiter(rate_limit=int(config._trace_rate_limit), time_window=1e9)
+            self.sampler._rate_limit_always_on = False
         self._apm_opt_out = value
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
