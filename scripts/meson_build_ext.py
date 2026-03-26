@@ -295,7 +295,7 @@ def cmd_rust(args):
         print(f"[meson_build_ext] Release dir contents: {list(release_dir.iterdir())}")
         raise RuntimeError(f"Could not find Rust-built _native library in {release_dir}. Tried: {candidates}")
 
-    print(f"[meson_build_ext] Rust built: {lib_file} → {output}")
+    print(f"[meson_build_ext] Rust built: {lib_file} -> {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(lib_file, output)
 
@@ -745,7 +745,7 @@ def cmd_psutil(args):
     dst = output.resolve()
     if src != dst:
         shutil.copy2(src, dst)
-        print(f"[meson_build_ext] psutil built: {src} → {dst}")
+        print(f"[meson_build_ext] psutil built: {src} -> {dst}")
     else:
         print(f"[meson_build_ext] psutil built in-place: {dst}")
     # Record the source hash so future calls can fast-exit if nothing changed.
@@ -830,7 +830,7 @@ def cmd_libddwaf(args):
 
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(lib_src, output)
-    print(f"[meson_build_ext] libddwaf copied: {lib_src} → {output}")
+    print(f"[meson_build_ext] libddwaf copied: {lib_src} -> {output}")
 
     # AIDEV-NOTE: asm.py (ddtrace/internal/settings/asm.py) uses os.path.dirname(__file__)
     # to build a raw filesystem path to libddwaf and passes it to ctypes.CDLL().  That
@@ -844,7 +844,7 @@ def cmd_libddwaf(args):
     source_tree_lib = src_root / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf" / asm_arch / "lib" / lib_src.name
     source_tree_lib.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(lib_src, source_tree_lib)
-    print(f"[meson_build_ext] libddwaf source-tree copy: {lib_src} → {source_tree_lib}")
+    print(f"[meson_build_ext] libddwaf source-tree copy: {lib_src} -> {source_tree_lib}")
 
 
 # ---------------------------------------------------------------------------
