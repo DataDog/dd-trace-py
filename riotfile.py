@@ -199,6 +199,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_type_checking",
+            pys=MIN_PYTHON_VERSION,
+            create=True,
+            skip_dev_install=True,
+            pkgs={
+                "mypy": "==1.15.0",
+                "stripe": [latest, "~=11.0", "~=12.0", "~=13.0"],
+            },
+            command=(
+                "mypy --config-file=/dev/null "
+                "--shadow-file ddtrace/__init__.py /dev/null "
+                "--shadow-file ddtrace/appsec/_contrib/stripe/__init__.py /dev/null "
+                "ddtrace/appsec/_contrib/stripe/types.py "
+                "tests/appsec/integrations/stripe_tests/mypy_test_stripe.py"
+            ),
+        ),
+        Venv(
             name="appsec_integrations_stripe",
             pys=select_pys(),
             command="pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ ",

@@ -116,6 +116,14 @@ suites:
     services:
       - postgres
       - mysql
+  appsec_integrations_type_checking:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - tests/appsec/integrations/stripe_tests/*
+    retry: 2
   appsec_integrations_stripe:
     paths:
       - '@bootstrap'
