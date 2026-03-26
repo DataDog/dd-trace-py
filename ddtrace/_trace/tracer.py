@@ -26,6 +26,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import core
@@ -475,6 +476,9 @@ class Tracer(object):
                 service = parent.service
             else:
                 service = config.service
+            is_user_defined_service = False
+        else:
+            is_user_defined_service = True
 
         # Update the service name based on any mapping
         if service is not None:
@@ -529,6 +533,9 @@ class Tracer(object):
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
+
+        if is_user_defined_service:
+            span.set_tag(SERVICE_KEY, service)
 
         if config.env:
             span._set_attribute(ENV_KEY, config.env)

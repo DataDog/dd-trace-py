@@ -376,7 +376,7 @@ def _default_config() -> dict[str, _ConfigItem]:
             modifier=parse_tags_str,
         ),
         "tags": _ConfigItem(
-            default=lambda: {_SERVICE_SOURCE: "m"},
+            default=lambda: {},
             envs=["DD_TAGS"],
             otel_env="OTEL_RESOURCE_ATTRIBUTES",
             modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),

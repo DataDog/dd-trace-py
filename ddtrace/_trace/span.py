@@ -261,7 +261,8 @@ class Span(SpanData):
             return
         elif key == SERVICE_KEY:
             self.service = value
-            self.set_tag(_SERVICE_SOURCE, "m")
+            if value:
+                self.set_tag(_SERVICE_SOURCE, "m")
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
