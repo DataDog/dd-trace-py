@@ -903,22 +903,27 @@ class Project(TypedDict):
     _id: str
 
 
-class _DatasetRecordRawOptional(TypedDict, total=False):
+class _DatasetRecordOptional(TypedDict, total=False):
+    expected_output: JSONType
+    metadata: dict[str, Any]
+    tags: list[str]
+    canonical_id: Optional[str]
+
+
+class DatasetRecord(_DatasetRecordOptional):
+    input_data: JSONType
+    record_id: str  # ID for the record, either from user or system
+
+
+class _DatasetRecordNewOptional(TypedDict, total=False):
+    id: str  # optional user-defined ID for the new record
     expected_output: JSONType
     metadata: dict[str, Any]
     tags: list[str]
 
 
-class DatasetRecordRaw(_DatasetRecordRawOptional):
-    """Requires input_data; optionally has expected_output, metadata, and tags."""
-
+class DatasetRecordNew(_DatasetRecordNewOptional):
     input_data: JSONType
-
-
-class DatasetRecordNew(DatasetRecordRaw, total=False):
-    """Same as DatasetRecordRaw but optionally accepts an id."""
-
-    id: str
 
 
 class _TagOperations(TypedDict, total=False):
@@ -927,7 +932,7 @@ class _TagOperations(TypedDict, total=False):
     replace: list[str]
 
 
-class _UpdatableDatasetRecordOptional(TypedDict, total=False):
+class DatasetRecordUpdate(TypedDict, total=False):
     input_data: JSONType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -935,19 +940,8 @@ class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     tag_operations: _TagOperations
 
 
-class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
+class DatasetRecordUpdateWithId(DatasetRecordUpdate):
     record_id: str
-
-
-class _DatasetRecordOptional(TypedDict, total=False):
-    canonical_id: Optional[str]
-
-
-class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
-    """Same as DatasetRecordRaw but requires a record_id and optionally has canonical_id."""
-
-    record_id: str
-
 
 class TaskResult(TypedDict):
     idx: int
@@ -1011,12 +1005,12 @@ class Dataset:
     filter_tags: Optional[list[str]]
     _id: str
     _records: list[DatasetRecord]
+    _records_by_id: dict[str, DatasetRecord]
     _version: int
     _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records_by_record_id: dict[str, DatasetRecordRaw]
-    _records_by_id: dict[str, DatasetRecord]
-    _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
+    _new_records_by_record_id: dict[str, DatasetRecord]
+    _updated_record_ids_to_new_fields: dict[str, DatasetRecordUpdateWithId]
     _deleted_record_ids: list[str]
 
     BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
@@ -1043,7 +1037,7 @@ class Dataset:
         self._version = version
         self._dne_client = _dne_client
         self._records = records
-        self._records_by_id: dict[str, DatasetRecord] = {r["record_id"]: r for r in records}
+        self._records_by_id = {r["record_id"]: r for r in records}
         self._new_records_by_record_id = {}
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
@@ -1142,7 +1136,7 @@ class Dataset:
         self._pending_tag_operations = {}
         return data_changed
 
-    def update(self, index: int, record: DatasetRecordRaw) -> None:
+    def update(self, index: int, record: DatasetRecordUpdate) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "

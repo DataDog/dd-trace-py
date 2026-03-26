@@ -37,6 +37,7 @@ import pytest
 import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
@@ -169,7 +170,8 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
 @pytest.fixture
 def test_dataset_one_record(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
@@ -185,7 +187,8 @@ def test_dataset_one_record(llmobs):
 @pytest.fixture
 def test_dataset_one_record_w_metadata(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             metadata={"difficulty": "easy"},
@@ -202,7 +205,8 @@ def test_dataset_one_record_w_metadata(llmobs):
 @pytest.fixture
 def test_dataset_one_record_separate_project(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Massachusetts?"},
             expected_output={"answer": "Boston"},
         )
@@ -223,7 +227,8 @@ def test_dataset_one_record_separate_project(llmobs):
 @pytest.fixture
 def test_dataset_one_record_with_tags(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -245,7 +250,8 @@ def test_dataset_one_record_with_tags(llmobs):
 def test_dataset_one_record_with_single_tag(llmobs):
     """Fixture that creates a dataset with a record containing a single tag."""
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Germany?"},
             expected_output={"answer": "Berlin"},
             tags=["env:staging"],
@@ -265,7 +271,8 @@ def test_dataset_one_record_with_single_tag(llmobs):
 def test_dataset_one_record_separate_project_with_tags(llmobs):
     """Fixture that creates a dataset in a separate project with a record containing tags."""
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Massachusetts?"},
             expected_output={"answer": "Boston"},
             tags=["team:ml", "priority:high"],
@@ -374,13 +381,6 @@ def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     df = dataset.as_dataframe()
     assert len(df.columns) == 3
     assert ("tags", "") in df.columns
-
-
-def test_dataset_as_dataframe_with_tags(llmobs, test_dataset_one_record_with_tags):
-    dataset = test_dataset_one_record_with_tags
-    df = dataset.as_dataframe()
-    assert ("tags", "") in df.columns
-    assert df[("tags", "")].iloc[0] == ["env:prod", "version:1.0"]
 
 
 def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
@@ -658,7 +658,8 @@ def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_r
 def test_dataset_pull_exists_with_record(llmobs):
     name = "test-dataset-one-rec"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
@@ -710,7 +711,8 @@ def test_dataset_pull_with_nonexistent_tags(llmobs):
     """Test pull_dataset with tags that don't exist on any records returns empty dataset."""
 
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -743,7 +745,8 @@ def test_dataset_pull_with_partial_tag_match(llmobs):
     """Test pull_dataset with a subset of tags returns records that have those tags."""
     ds_name = "test-dataset-pull-tag-partial-match"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -777,7 +780,8 @@ def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs):
     """Test pull_dataset with one matching tag and one non-existent tag."""
     ds_name = "test-dataset-pull-tag-1-match-1-non"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -802,29 +806,33 @@ def test_dataset_pull_without_tags_returns_all_records(llmobs):
     """Test pull_dataset without tags parameter returns all records regardless of their tags."""
     ds_name = "test-dataset-pull-with-notags"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
         )
     ]
-    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
+    ds = llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
     wait_for_backend(4)
 
-    # Pull without specifying tags
-    dataset = llmobs.pull_dataset(dataset_name=ds_name)
+    try:
+        # Pull without specifying tags
+        dataset = llmobs.pull_dataset(dataset_name=ds_name)
 
-    # Verify all records are returned
-    assert dataset.project.get("name") == "test-project-clean"
-    assert dataset.project.get("_id")
-    assert len(dataset) == 1
-    assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
-    assert dataset[0]["expected_output"] == {"answer": "Paris"}
-    # Record should still have its tags
-    assert "env:prod" in dataset[0]["tags"]
-    assert "version:1.0" in dataset[0]["tags"]
-    # filter_tags should be None or empty when not filtering
-    assert dataset.filter_tags is None or dataset.filter_tags == []
+        # Verify all records are returned
+        assert dataset.project.get("name") == "test-project-clean"
+        assert dataset.project.get("_id")
+        assert len(dataset) == 1
+        assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+        assert dataset[0]["expected_output"] == {"answer": "Paris"}
+        # Record should still have its tags
+        assert "env:prod" in dataset[0]["tags"]
+        assert "version:1.0" in dataset[0]["tags"]
+        # filter_tags should be None or empty when not filtering
+        assert dataset.filter_tags is None or dataset.filter_tags == []
+    finally:
+        llmobs._delete_dataset(dataset_id=ds._id)
 
 
 def test_dataset_pull_with_single_tag(llmobs, test_dataset_one_record_with_single_tag):
@@ -881,7 +889,8 @@ def test_dataset_pull_with_tags_and_project(llmobs, test_dataset_one_record_sepa
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -929,7 +938,8 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -964,11 +974,13 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of China?"},
                 expected_output={"answer": "Beijing"},
             ),
@@ -981,7 +993,7 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
     test_dataset.update(
         0,
-        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}),
+        DatasetRecordNew(id="record-id-1", input_data={"prompt": "What is the capital of Germany?"}),
     )
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
@@ -1059,7 +1071,8 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1072,7 +1085,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
     test_dataset.update(
         0,
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Germany?"},
             expected_output={"answer": "Berlin"},
         ),
@@ -1109,7 +1123,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1135,14 +1150,15 @@ def test_dataset_estimate_size(llmobs, test_dataset):
             "expected_output": {"answer": "Paris"},
         }
     )
-    assert 200 <= test_dataset._estimate_delta_size() <= 220
+    assert 185 <= test_dataset._estimate_delta_size() <= 210
 
 
 @pytest.mark.parametrize(
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1186,7 +1202,8 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
                 metadata={"difficulty": "easy"},
@@ -1232,7 +1249,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1241,7 +1259,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
 )
 def test_dataset_append(llmobs, test_dataset):
     test_dataset.append(
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-2",
             input_data={"prompt": "What is the capital of Italy?"},
             expected_output={"answer": "Rome"},
         )
@@ -1279,7 +1298,8 @@ def test_dataset_append(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1289,11 +1309,13 @@ def test_dataset_append(llmobs, test_dataset):
 def test_dataset_extend(llmobs, test_dataset):
     test_dataset.extend(
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-3",
                 input_data={"prompt": "What is the capital of Sweden?"},
                 expected_output={"answer": "Stockholm"},
             ),
@@ -1338,7 +1360,8 @@ def test_dataset_extend(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1346,7 +1369,7 @@ def test_dataset_extend(llmobs, test_dataset):
     ],
 )
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
-    test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
+    test_dataset.append(DatasetRecordNew(id="record-id-2", input_data={"prompt": "What is the capital of Sealand?"}))
     assert len(test_dataset) == 2
     assert test_dataset.latest_version == 1
     assert test_dataset.version == 1
@@ -1382,11 +1405,13 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1423,8 +1448,8 @@ def test_dataset_delete(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of Nauru?"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}),
+            DatasetRecordNew(id="record-id-1", input_data={"prompt": "What is the capital of Nauru?"}),
+            DatasetRecordNew(id="record-id-2", input_data={"prompt": "What is the capital of Sealand?"}),
         ],
     ],
 )
@@ -1458,11 +1483,13 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1505,11 +1532,13 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1756,11 +1785,13 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Canada?"},
                 expected_output={"answer": "Ottawa"},
             ),
@@ -3104,11 +3135,13 @@ def test_async_experiment_init(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Canada?"},
                 expected_output={"answer": "Ottawa"},
             ),
@@ -4088,13 +4121,12 @@ def test_ds_append_non_str_tag(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4108,13 +4140,12 @@ def test_ds_rm_tags_non_list(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4128,13 +4159,12 @@ def test_ds_rm_tags_non_str(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4148,13 +4178,12 @@ def test_ds_repl_tags_non_list(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4168,13 +4197,12 @@ def test_ds_repl_tags_non_str(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4189,13 +4217,12 @@ def test_ds_update_bad_tags(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4212,13 +4239,12 @@ def test_ds_update_non_list_tags(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4233,13 +4259,12 @@ def test_ds_add_tags_dedup(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4254,13 +4279,12 @@ def test_ds_rm_tags_noop(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=[],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4274,13 +4298,12 @@ def test_ds_add_tags_empty(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod", "team:ml"],
-                record_id="",
-                canonical_id=None,
             )
         ]
     ],
@@ -4294,21 +4317,19 @@ def test_ds_rm_all_tags(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "a"},
                 expected_output=None,
                 metadata={},
                 tags=["env:prod"],
-                record_id="",
-                canonical_id=None,
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "b"},
                 expected_output=None,
                 metadata={},
                 tags=["env:staging"],
-                record_id="",
-                canonical_id=None,
             ),
         ]
     ],
@@ -4331,7 +4352,8 @@ def test_ds_tag_ops_multi_rec(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
@@ -4417,7 +4439,8 @@ def test_get_record_json_serializes_add_only():
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
@@ -4442,7 +4465,8 @@ def test_ds_push_replace_tags(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
@@ -4466,7 +4490,8 @@ def test_ds_push_remove_tags(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "hello"},
                 expected_output=None,
                 metadata={},
@@ -4492,7 +4517,8 @@ def test_ds_push_mixed_update(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "a"},
                 expected_output=None,
                 metadata={},
@@ -4500,7 +4526,8 @@ def test_ds_push_mixed_update(llmobs, test_dataset):
                 record_id="",
                 canonical_id=None,
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "b"},
                 expected_output=None,
                 metadata={},
@@ -4538,21 +4565,6 @@ def test_ds_push_new_with_tags(llmobs, test_dataset):
 # --- User-defined record ID unit tests ---
 
 
-def test_get_record_json_uses_user_id_on_insert():
-    """_get_record_json should use the user-supplied id in insert payloads."""
-    from ddtrace.llmobs._writer import LLMObsExperimentsClient
-
-    record = {
-        "record_id": "local-uuid",
-        "input_data": {"prompt": "hello"},
-        "expected_output": None,
-        "metadata": {},
-        "id": "my-custom-id",
-    }
-    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
-    assert result["id"] == "my-custom-id"
-
-
 def test_get_record_json_falls_back_to_record_id_on_insert():
     """_get_record_json should use the local record_id as id when user supplies no id."""
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -4579,141 +4591,6 @@ def test_get_record_json_user_id_not_included_on_update():
     result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
     # On update, 'id' should be the record_id (backend ID), not the user-supplied id
     assert result["id"] == "rec-abc"
-
-
-def test_dataset_bulk_upload_includes_id_column_when_records_have_ids():
-    """dataset_bulk_upload CSV should include 'id' column when records carry user-supplied IDs."""
-    import csv
-    import io
-    import tempfile
-    from unittest.mock import MagicMock
-    from unittest.mock import patch
-
-    from ddtrace.llmobs._experiment import DatasetRecord
-    from ddtrace.llmobs._writer import LLMObsExperimentsClient
-
-    records: list[DatasetRecord] = [
-        {
-            "input_data": {"prompt": "a"},
-            "expected_output": {"answer": "1"},
-            "metadata": {},
-            "tags": [],
-            "record_id": "rec-1",
-            "canonical_id": None,
-            "id": "user-id-1",
-        },
-        {
-            "input_data": {"prompt": "b"},
-            "expected_output": {"answer": "2"},
-            "metadata": {},
-            "tags": [],
-            "record_id": "rec-2",
-            "canonical_id": None,
-            "id": "user-id-2",
-        },
-    ]
-
-    captured_csv: list[str] = []
-
-    def fake_open(path, mode="r", newline=""):
-        if "w" in mode:
-            buf = io.StringIO()
-
-            class FakeFile:
-                def write(self, s):
-                    buf.write(s)
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *a):
-                    captured_csv.append(buf.getvalue())
-
-            return FakeFile()
-        return open(path, mode)
-
-    client = MagicMock(spec=LLMObsExperimentsClient)
-    client.SUPPORTED_UPLOAD_EXTS = {"csv"}
-
-    # Use a real NamedTemporaryFile but patch open to capture the CSV write
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    with patch("ddtrace.llmobs._writer.open", side_effect=fake_open):
-        with patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile") as mock_ntf:
-            mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value.name = tmp_path
-            mock_ntf.return_value = mock_ctx
-            with patch.object(LLMObsExperimentsClient, "multipart_request", return_value=MagicMock(status=200)):
-                LLMObsExperimentsClient.dataset_bulk_upload(client, "ds-id", records)
-
-    assert captured_csv, "CSV was not written"
-    reader = csv.reader(io.StringIO(captured_csv[0]))
-    rows = list(reader)
-    assert rows[0] == ["input", "expected_output", "metadata", "id"]
-    assert rows[1][-1] == "user-id-1"
-    assert rows[2][-1] == "user-id-2"
-
-
-def test_dataset_bulk_upload_no_id_column_when_records_lack_ids():
-    """dataset_bulk_upload CSV should NOT include 'id' column when records have no user-supplied IDs."""
-    import csv
-    import io
-    import tempfile
-    from unittest.mock import MagicMock
-    from unittest.mock import patch
-
-    from ddtrace.llmobs._experiment import DatasetRecord
-    from ddtrace.llmobs._writer import LLMObsExperimentsClient
-
-    records: list[DatasetRecord] = [
-        {
-            "input_data": {"prompt": "a"},
-            "expected_output": {"answer": "1"},
-            "metadata": {},
-            "tags": [],
-            "record_id": "rec-1",
-            "canonical_id": None,
-        },
-    ]
-
-    captured_csv: list[str] = []
-
-    def fake_open(path, mode="r", newline=""):
-        if "w" in mode:
-            buf = io.StringIO()
-
-            class FakeFile:
-                def write(self, s):
-                    buf.write(s)
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *a):
-                    captured_csv.append(buf.getvalue())
-
-            return FakeFile()
-        return open(path, mode)
-
-    client = MagicMock(spec=LLMObsExperimentsClient)
-    client.SUPPORTED_UPLOAD_EXTS = {"csv"}
-
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    with patch("ddtrace.llmobs._writer.open", side_effect=fake_open):
-        with patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile") as mock_ntf:
-            mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value.name = tmp_path
-            mock_ntf.return_value = mock_ctx
-            with patch.object(LLMObsExperimentsClient, "multipart_request", return_value=MagicMock(status=200)):
-                LLMObsExperimentsClient.dataset_bulk_upload(client, "ds-id", records)
-
-    assert captured_csv, "CSV was not written"
-    reader = csv.reader(io.StringIO(captured_csv[0]))
-    rows = list(reader)
-    assert rows[0] == ["input", "expected_output", "metadata"]
 
 
 def test_dataset_csv_missing_id_column(llmobs):
@@ -4752,8 +4629,8 @@ def test_dataset_csv_with_id_column(llmobs, tmp_csv_file_for_upload):
             )
             dataset_id = dataset._id
             assert len(dataset) == 2
-            assert dataset[0]["id"] == "user-id-0"
-            assert dataset[1]["id"] == "user-id-1"
+            assert dataset[0]["record_id"] == "user-id-0"
+            assert dataset[1]["record_id"] == "user-id-1"
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset_id)

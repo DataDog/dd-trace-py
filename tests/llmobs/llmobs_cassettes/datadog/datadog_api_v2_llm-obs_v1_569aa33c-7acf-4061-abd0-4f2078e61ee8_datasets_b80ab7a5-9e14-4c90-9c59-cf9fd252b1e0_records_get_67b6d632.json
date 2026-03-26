@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "792",
+      "date": "Thu, 26 Mar 2026 15:07:43 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"7faf42d18022422287bb87933c5ef71b\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"9c9873a1-2ccc-483b-ab99-c0b8cc8762d4\",\"created_at\":\"2026-03-26T15:07:40.949456Z\",\"dataset_id\":\"b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0\",\"input\":{\"prompt\":\"What is the capital of Sweden?\"},\"updated_at\":\"2026-03-26T15:07:40.949456Z\"}},{\"id\":\"record-id-2\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"d92a4016-f67f-444e-a7e5-68a56883b37a\",\"created_at\":\"2026-03-26T15:07:36.739634Z\",\"dataset_id\":\"b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0\",\"expected_output\":{\"answer\":\"Rome\"},\"input\":{\"prompt\":\"What is the capital of Italy?\"},\"updated_at\":\"2026-03-26T15:07:36.739634Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

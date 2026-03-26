@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/574751ed-5d0f-4bba-ae41-3fcb60cb36ca/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "918",
+      "date": "Thu, 26 Mar 2026 15:05:01 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"7e348989a45f49f3934046caf56f8b46\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"00000000-0000-0000-0000-000000000000\",\"created_at\":\"2026-03-26T15:04:59.131498Z\",\"dataset_id\":\"574751ed-5d0f-4bba-ae41-3fcb60cb36ca\",\"expected_output\":{\"out0\":\"r0v4\",\"out1\":\"r0v5\"},\"input\":{\"in0\":\"r0v1\",\"in1\":\"r0v2\",\"in2\":\"r0v3\"},\"metadata\":{\"m0\":\"r0v6\"},\"updated_at\":\"2026-03-26T15:04:59.131498Z\"}},{\"id\":\"f2554d09b22a45d58a2e2cf1231b5d7e\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"00000000-0000-0000-0000-000000000000\",\"created_at\":\"2026-03-26T15:04:59.131498Z\",\"dataset_id\":\"574751ed-5d0f-4bba-ae41-3fcb60cb36ca\",\"expected_output\":{\"out0\":\"r1v4\",\"out1\":\"r1v5\"},\"input\":{\"in0\":\"r1v1\",\"in1\":\"r1v2\",\"in2\":\"r1v3\"},\"metadata\":{\"m0\":\"r1v6\"},\"updated_at\":\"2026-03-26T15:04:59.131498Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/11d332a7-35a6-480c-8133-e728f7c85ecb/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "832",
+      "date": "Thu, 26 Mar 2026 15:06:07 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"a9f34c900fee44c08851385b3b79cc20\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"37558478-0d13-4b8c-832f-f0a5a69c69b7\",\"created_at\":\"2026-03-26T15:06:02.302739Z\",\"dataset_id\":\"11d332a7-35a6-480c-8133-e728f7c85ecb\",\"expected_output\":{\"answer\":\"Beijing\"},\"input\":{\"prompt\":\"What is the capital of China?\"},\"updated_at\":\"2026-03-26T15:06:02.302739Z\"}},{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"2ba11835-c9c6-47e8-89c5-cd19634dab6f\",\"created_at\":\"2026-03-26T15:05:59.973328Z\",\"dataset_id\":\"11d332a7-35a6-480c-8133-e728f7c85ecb\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"updated_at\":\"2026-03-26T15:05:59.973328Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

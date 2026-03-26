@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/929ff49f-a14a-4760-b064-13458f624e88/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "479",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"929ff49f-a14a-4760-b064-13458f624e88\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of Italy?\"}, \"expected_output\": {\"answer\": \"Rome\"}, \"metadata\": null, \"id\": \"record-id-2\"}, {\"input\": {\"prompt\": \"What is the capital of Sweden?\"}, \"expected_output\": {\"answer\": \"Stockholm\"}, \"metadata\": null, \"id\": \"record-id-3\"}], \"update_records\": [], \"delete_records\": [], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "848",
+      "date": "Thu, 26 Mar 2026 15:07:00 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-2\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"411a7087-4438-4688-96a7-81b8dca1639b\",\"created_at\":\"2026-03-26T15:07:00.561999767Z\",\"dataset_id\":\"929ff49f-a14a-4760-b064-13458f624e88\",\"expected_output\":{\"answer\":\"Rome\"},\"input\":{\"prompt\":\"What is the capital of Italy?\"},\"tags\":[],\"updated_at\":\"2026-03-26T15:07:00.561999767Z\",\"version\":2}},{\"id\":\"record-id-3\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"c43885d5-4a7b-419c-bd85-c02a75e7cb2b\",\"created_at\":\"2026-03-26T15:07:00.561999767Z\",\"dataset_id\":\"929ff49f-a14a-4760-b064-13458f624e88\",\"expected_output\":{\"answer\":\"Stockholm\"},\"input\":{\"prompt\":\"What is the capital of Sweden?\"},\"tags\":[],\"updated_at\":\"2026-03-26T15:07:00.561999767Z\",\"version\":2}}]}"
+  }
+}

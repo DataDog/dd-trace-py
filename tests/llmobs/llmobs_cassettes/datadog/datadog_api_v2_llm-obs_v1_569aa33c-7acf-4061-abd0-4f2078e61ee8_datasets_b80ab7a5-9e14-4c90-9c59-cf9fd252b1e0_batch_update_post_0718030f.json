@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "360",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of Sweden?\"}, \"expected_output\": null, \"metadata\": null, \"id\": \"7faf42d18022422287bb87933c5ef71b\"}], \"update_records\": [], \"delete_records\": [\"record-id-1\"], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "903",
+      "date": "Thu, 26 Mar 2026 15:07:40 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"7faf42d18022422287bb87933c5ef71b\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"9c9873a1-2ccc-483b-ab99-c0b8cc8762d4\",\"created_at\":\"2026-03-26T15:07:40.949456275Z\",\"dataset_id\":\"b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0\",\"input\":{\"prompt\":\"What is the capital of Sweden?\"},\"tags\":[],\"updated_at\":\"2026-03-26T15:07:40.949456275Z\",\"version\":2}},{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"880faded-2e20-469f-9eb4-1376c9fab31f\",\"created_at\":\"2026-03-26T15:07:36.739634Z\",\"dataset_id\":\"b80ab7a5-9e14-4c90-9c59-cf9fd252b1e0\",\"deleted_at\":\"2026-03-26T15:07:40.964641Z\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"ttl\":\"2026-06-24T15:07:40.964644Z\",\"updated_at\":\"2026-03-26T15:07:36.739634Z\",\"version\":2}}]}"
+  }
+}
