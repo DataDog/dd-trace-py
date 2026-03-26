@@ -1,64 +1,69 @@
 [
-  {
-    "flag": "null-operator-test",
-    "variationType": "STRING",
-    "defaultValue": "default-null",
-    "targetingKey": "alice",
-    "attributes": {
-      "size": 5,
-      "country": "US"
+    {
+        "flag": "null-operator-test",
+        "variationType": "STRING",
+        "defaultValue": "default-null",
+        "targetingKey": "alice",
+        "attributes": {
+            "size": 5,
+            "country": "US"
+        },
+        "result": {
+            "value": "old",
+            "reason": "TARGETING_MATCH"
+        }
     },
-    "result": {
-      "value": "old"
-    }
-  },
-  {
-    "flag": "null-operator-test",
-    "variationType": "STRING",
-    "defaultValue": "default-null",
-    "targetingKey": "bob",
-    "attributes": {
-      "size": 10,
-      "country": "Canada"
+    {
+        "flag": "null-operator-test",
+        "variationType": "STRING",
+        "defaultValue": "default-null",
+        "targetingKey": "bob",
+        "attributes": {
+            "size": 10,
+            "country": "Canada"
+        },
+        "result": {
+            "value": "new",
+            "reason": "TARGETING_MATCH"
+        }
     },
-    "result": {
-      "value": "new"
-    }
-  },
-  {
-    "flag": "null-operator-test",
-    "variationType": "STRING",
-    "defaultValue": "default-null",
-    "targetingKey": "charlie",
-    "attributes": {
-      "size": null
+    {
+        "flag": "null-operator-test",
+        "variationType": "STRING",
+        "defaultValue": "default-null",
+        "targetingKey": "charlie",
+        "attributes": {
+            "size": null
+        },
+        "result": {
+            "value": "old",
+            "reason": "TARGETING_MATCH"
+        }
     },
-    "result": {
-      "value": "old"
-    }
-  },
-  {
-    "flag": "null-operator-test",
-    "variationType": "STRING",
-    "defaultValue": "default-null",
-    "targetingKey": "david",
-    "attributes": {
-      "size": 26
+    {
+        "flag": "null-operator-test",
+        "variationType": "STRING",
+        "defaultValue": "default-null",
+        "targetingKey": "david",
+        "attributes": {
+            "size": 26
+        },
+        "result": {
+            "value": "new",
+            "reason": "TARGETING_MATCH"
+        }
     },
-    "result": {
-      "value": "new"
+    {
+        "flag": "null-operator-test",
+        "variationType": "STRING",
+        "defaultValue": "default-null",
+        "targetingKey": "elize",
+        "attributes": {
+            "country": "UK"
+        },
+        "result": {
+            "value": "old",
+            "reason": "TARGETING_MATCH"
+        }
     }
-  },
-  {
-    "flag": "null-operator-test",
-    "variationType": "STRING",
-    "defaultValue": "default-null",
-    "targetingKey": "elize",
-    "attributes": {
-      "country": "UK"
-    },
-    "result": {
-      "value": "old"
-    }
-  }
 ]
