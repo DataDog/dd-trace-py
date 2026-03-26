@@ -1,4 +1,8 @@
+import glob
+import importlib.machinery
+import json
 import os
+import pathlib
 import platform
 import shutil
 import subprocess
@@ -30,6 +34,84 @@ def _get_ddtrace_core_dependencies():
 
 
 DDTRACE_CORE_DEPENDENCIES = _get_ddtrace_core_dependencies()
+
+
+def _find_dist_info_path(package_name: str):
+    """Return the path of the installed .dist-info (or .egg-info) directory for *package_name*.
+
+    AIDEV-NOTE: We cannot use importlib.metadata's public API to get the on-disk path of a
+    distribution's metadata directory (it's not exposed).  Instead we walk sys.path dirs with
+    glob.  Using sys.path (rather than site.getsitepackages()) is important for riot's stacked
+    venv setup: riot installs ddtrace as an editable install in the *base* venv layer
+    (.riot/venv_py<ver>), but test dependencies land in a separate *deps* layer
+    (.riot/venv_py<ver>_deps) whose sys.executable is used at runtime.  Both layers appear in
+    sys.path, so searching sys.path finds the dist-info even across the layer boundary.
+    This is used to copy metadata into the fake site-packages tree so that entry-point
+    discovery works without calling setup.py (which requires cmake+setuptools_rust that are not
+    present in the meson build's pyproject.toml build-system.requires).
+    """
+    for sp in sys.path:
+        if not os.path.isdir(sp):
+            continue
+        for suffix in ("dist-info", "egg-info"):
+            matches = glob.glob(os.path.join(sp, f"{package_name}-*.{suffix}"))
+            if matches:
+                return matches[0]
+    return None
+
+
+def _copy_meson_so_files(target_ddtrace_dir: str) -> None:
+    """Copy compiled extension (.so/.pyd) files from the meson build directory into target_ddtrace_dir.
+
+    AIDEV-NOTE: In meson-python editable installs, compiled extensions live in the meson build
+    directory (not in the source tree) and are served to importers via MesonpyMetaFinder in
+    sys.meta_path.  shutil.copytree on the source tree skips these files, so any venv that
+    uses the copied source tree for injection (like these lib_injection tests do) will fail to
+    import ddtrace because the native extensions are absent.
+
+    This function:
+    1. Finds the MesonpyMetaFinder in sys.meta_path to get the meson build path.
+    2. Reads intro-install_plan.json which maps built artifact paths to their install destinations.
+    3. Copies every ddtrace extension file into the matching subdirectory of target_ddtrace_dir.
+
+    If no MesonpyMetaFinder is present (i.e. this is a setup.py / non-meson install where
+    extensions are already in the source tree via copytree), this function is a no-op.
+    """
+    meson_finder = None
+    for finder in sys.meta_path:
+        if type(finder).__name__ == "MesonpyMetaFinder":
+            meson_finder = finder
+            break
+
+    if meson_finder is None:
+        return  # Not a meson editable install; extensions are already in the source tree.
+
+    build_path = meson_finder._build_path
+    install_plan_path = os.path.join(build_path, "meson-info", "intro-install_plan.json")
+    if not os.path.exists(install_plan_path):
+        return
+
+    with open(install_plan_path, "r", encoding="utf-8") as f:
+        install_plan = json.load(f)
+
+    ext_suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+
+    for _section, data in install_plan.items():
+        for src, target_info in data.items():
+            dest = target_info.get("destination", "")
+            parts = pathlib.PurePosixPath(dest).parts
+            # Only care about files destined for ddtrace/ inside the Python platlib
+            if parts[0] not in ("{py_platlib}", "{py_purelib}"):
+                continue
+            if len(parts) < 3 or parts[1] != "ddtrace":
+                continue
+            if not src.endswith(ext_suffixes):
+                continue
+            # Relative path within ddtrace/  (e.g. "internal/_tagset.cpython-314-aarch64.so")
+            rel_path = os.path.join(*parts[2:])
+            dst_path = os.path.join(target_ddtrace_dir, rel_path)
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+            shutil.copy2(src, dst_path)
 
 
 def get_platform_details():
@@ -75,37 +157,57 @@ def ddtrace_injection_artifact():
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 
-        # 3. Copy the ddtrace source code into our temp site-packages
+        # 3. Copy the ddtrace source code into our temp site-packages, then add
+        # compiled extensions.  In meson-python editable installs the .so files are
+        # NOT in the source tree (they live in the meson build dir and are served by
+        # MesonpyMetaFinder), so copytree alone gives an incomplete package.
         host_ddtrace_path = os.path.join(PROJECT_ROOT, "ddtrace")
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
+        _copy_meson_so_files(target_ddtrace_dir)
 
-        # 4. Install build dependencies necessary for setup.py to run.
-        with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
-            pyproject = tomllib.load(f)
-        build_requires = pyproject.get("build-system", {}).get("requires", [])
-        if build_requires:
+        # 4-5. Copy the installed ddtrace dist-info into our fake site-packages so that
+        # entry-point discovery works.  We prefer this over calling `setup.py egg_info`
+        # because setup.py imports cmake and setuptools_rust at module level; the meson
+        # build branch's pyproject.toml does not list setuptools_rust as a build
+        # requirement, so the egg_info invocation fails.
+        #
+        # Strategy: locate the installed ddtrace distribution via importlib.metadata and
+        # copy its .dist-info (or .egg-info) directory to the target site-packages tree.
+        # Fall back to setup.py egg_info for legacy/non-meson installs.
+        dist_info_src = _find_dist_info_path("ddtrace")
+        if dist_info_src:
+            shutil.copytree(
+                dist_info_src,
+                os.path.join(target_site_packages_path, os.path.basename(dist_info_src)),
+            )
+        else:
+            # Legacy fallback: use setup.py egg_info (requires cmake + setuptools_rust)
+            setup_py_path = os.path.join(PROJECT_ROOT, "setup.py")
+            if not os.path.exists(setup_py_path):
+                pytest.fail(
+                    f"setup.py not found at {setup_py_path} and no installed dist-info found. "
+                    "Cannot generate package metadata."
+                )
+            with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
+                pyproject = tomllib.load(f)
+            build_requires = pyproject.get("build-system", {}).get("requires", [])
+            if build_requires:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install"] + build_requires,
+                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    text=True,
+                    timeout=180,
+                )
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install"] + build_requires,
+                [sys.executable, "setup.py", "egg_info", f"--egg-base={target_site_packages_path}"],
+                cwd=PROJECT_ROOT,
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 text=True,
-                timeout=180,
+                timeout=120,
             )
-
-        setup_py_path = os.path.join(PROJECT_ROOT, "setup.py")
-        if not os.path.exists(setup_py_path):
-            pytest.fail(f"setup.py not found at {setup_py_path}. This test requires it to generate package metadata.")
-
-        # 5. Generate the .egg-info metadata directory right into our site-packages.
-        subprocess.check_call(
-            [sys.executable, "setup.py", "egg_info", f"--egg-base={target_site_packages_path}"],
-            cwd=PROJECT_ROOT,
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            text=True,
-            timeout=120,
-        )
 
         # 5. Write the ddtrace version file
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")

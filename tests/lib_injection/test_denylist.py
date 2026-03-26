@@ -28,11 +28,17 @@ PYTHON_INTERPRETERS = [
 
 @pytest.fixture
 def mock_sitecustomize():
-    lib_injection_path = os.path.join(os.path.dirname(__file__), "../../lib-injection/sources")
-    if lib_injection_path not in sys.path:
-        sys.path.insert(0, lib_injection_path)
+    import importlib.util
 
-    import sitecustomize
+    lib_injection_path = os.path.join(os.path.dirname(__file__), "../../lib-injection/sources")
+    sitecustomize_file = os.path.join(lib_injection_path, "sitecustomize.py")
+
+    # AIDEV-NOTE: Python caches sitecustomize in sys.modules at interpreter startup.
+    # Using spec_from_file_location bypasses that cache and loads directly from the
+    # lib-injection sources path, ensuring we get the version with build_denied_executables.
+    spec = importlib.util.spec_from_file_location("sitecustomize", sitecustomize_file)
+    sitecustomize = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sitecustomize)
 
     sitecustomize.EXECUTABLES_DENY_LIST = sitecustomize.build_denied_executables()
     sitecustomize.EXECUTABLE_MODULES_DENY_LIST = sitecustomize.build_denied_executable_modules()
