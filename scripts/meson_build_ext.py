@@ -367,12 +367,8 @@ def _cmake_configure_hash(cmake_args: list, build_dir: Path) -> str:
     relevant = sorted(
         arg
         for arg in cmake_args
-        if isinstance(arg, str) and (
-            arg.startswith("-D")
-            or arg.startswith("-S")
-            or arg.startswith("-B")
-            or arg.startswith("-A")
-        )
+        if isinstance(arg, str)
+        and (arg.startswith("-D") or arg.startswith("-S") or arg.startswith("-B") or arg.startswith("-A"))
     )
     relevant.append(str(build_dir))
     digest = hashlib.sha256()

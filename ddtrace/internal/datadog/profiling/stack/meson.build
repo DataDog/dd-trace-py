@@ -29,6 +29,7 @@ stack_stamp = custom_target(
   ],
   depends: [libdd_wrapper_stamp],
   build_by_default: true,
+  build_always_stale: true,
   install: true,
   install_dir: py.get_install_dir() / 'ddtrace/internal/datadog/profiling/stack',
 )

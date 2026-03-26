@@ -337,6 +337,7 @@ if host != 'windows'
       '--component-name', 'iast_native',
     ],
     build_by_default: true,
+    build_always_stale: true,
     install: true,
     install_dir: py.get_install_dir() / '.meson-native',
   )
