@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import re
 import typing as t
@@ -54,12 +53,12 @@ class DynamicInstrumentationConfig(DDConfig):
     _intake_url = DDConfig.d(
         str,
         lambda c: (
-            f"https://{AGENTLESS_DEBUGGER_INTAKE_HOST_PREFIX}.{os.getenv('DD_SITE', 'datadoghq.com')}"
+            f"https://{AGENTLESS_DEBUGGER_INTAKE_HOST_PREFIX}.{ddconfig._dd_site}"
             if c._is_agentless
             else agent_config.trace_agent_url
         ),
     )
-    _api_key = DDConfig.d(str, lambda _: os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY", "")))
+    _api_key = DDConfig.d(t.Optional[str], lambda _: ddconfig._dd_api_key)
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
     tags = DDConfig.d(str, _derive_tags)
