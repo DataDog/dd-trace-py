@@ -194,7 +194,9 @@ def test_dataset_one_record_w_metadata(llmobs):
             metadata={"difficulty": "easy"},
         )
     ]
-    ds = llmobs.create_dataset(dataset_name="test-dataset-123-with-metadata", description="A test dataset", records=records)
+    ds = llmobs.create_dataset(
+        dataset_name="test-dataset-123-with-metadata", description="A test dataset", records=records
+    )
     wait_for_backend()
 
     yield ds
