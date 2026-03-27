@@ -3448,7 +3448,8 @@ venv = Venv(
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                "pydantic-evals": "<1.31",  # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
+                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
+                                "pydantic-evals": "<1.31",
                             },
                         ),
                     ],
