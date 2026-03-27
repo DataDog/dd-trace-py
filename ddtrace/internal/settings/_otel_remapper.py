@@ -63,6 +63,9 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
     if otel_value == "none":
         return "False"
+    if otel_value == "otlp":
+        # OTLP export is handled natively by ddtrace; tracing remains enabled.
+        return "True"
     return None
 
 
@@ -157,6 +160,15 @@ SUPPORTED_OTEL_ENV_VARS = {
     "OTEL_EXPORTER_OTLP_METRICS_INSECURE",
     "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION",
     "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
+    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY",
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE",
+    "OTEL_EXPORTER_OTLP_TRACES_COMPRESSION",
+    "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
 }
 
 
