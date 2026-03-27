@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/091f943b-e62f-4c28-bf02-7e6e34c48dda/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "320",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"091f943b-e62f-4c28-bf02-7e6e34c48dda\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of France?\"}, \"expected_output\": {\"answer\": \"Paris\"}, \"metadata\": null}], \"update_records\": [], \"delete_records\": [], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "453",
+      "date": "Thu, 19 Mar 2026 18:28:42 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"36bebd88-7082-4e88-825c-bcf677e4c774\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"13040257-4708-4d7e-95bf-a66f55b0636a\",\"created_at\":\"2026-03-19T18:28:42.385048419Z\",\"dataset_id\":\"091f943b-e62f-4c28-bf02-7e6e34c48dda\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"updated_at\":\"2026-03-19T18:28:42.385048419Z\",\"version\":1}}]}"
+  }
+}
