@@ -37,7 +37,7 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.settings import env
+from ddtrace.internal.settings import env as _env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -435,8 +435,8 @@ def _build_span_meta(
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = env.get("DD_APP_KEY", "")
-    _project_name: str = env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _app_key: str = _env.get("DD_APP_KEY", "")
+    _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -449,22 +449,22 @@ class LLMObs(Service):
         self._user_span_processor = span_processor
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
-            interval=float(env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            interval=float(env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
-            interval=float(env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
         self._dne_client = LLMObsExperimentsClient(
-            interval=float(env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
@@ -961,7 +961,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
         project_name: Optional[str] = None,
-        dd_env: Optional[str] = None,
+        env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
         _tracer: Optional[Tracer] = None,
@@ -978,7 +978,7 @@ class LLMObs(Service):
         :param str api_key: Your datadog api key.
         :param str app_key: Your datadog application key.
         :param str project_name: Your project name used for experiments.
-        :param str dd_env: Your environment name.
+        :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
@@ -989,7 +989,7 @@ class LLMObs(Service):
 
         cls._warn_if_litellm_was_imported()
 
-        if env.get("DD_LLMOBS_ENABLED") and not asbool(env.get("DD_LLMOBS_ENABLED")):
+        if _env.get("DD_LLMOBS_ENABLED") and not asbool(_env.get("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
         # grab required values for LLMObs
@@ -997,7 +997,7 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
-        config.env = dd_env or config.env
+        config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
@@ -1025,7 +1025,7 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
+                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
                     config._remote_config_enabled = False
                     log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()
@@ -2002,9 +2002,9 @@ class LLMObs(Service):
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-            if env_var in env:
-                integrations_to_patch[module] = asbool(env[env_var])
-        dd_patch_modules = env.get("DD_PATCH_MODULES")
+            if env_var in _env:
+                integrations_to_patch[module] = asbool(_env[env_var])
+        dd_patch_modules = _env.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}

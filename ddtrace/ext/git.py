@@ -18,9 +18,9 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.internal.settings import env
 
 
 GitNotFoundError = FileNotFoundError
@@ -434,7 +434,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
 
 def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
-    environ = environ if environ is None else environ
+    environ = env if environ is None else environ
 
     branch = normalize_ref(environ.get("DD_GIT_BRANCH"))
     tag = normalize_ref(environ.get("DD_GIT_TAG"))

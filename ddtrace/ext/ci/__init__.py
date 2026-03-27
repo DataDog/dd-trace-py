@@ -99,7 +99,7 @@ def _get_runtime_and_os_metadata():
 
 def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = None) -> dict[str, str]:
     """Extract and set tags from provider environ, as well as git metadata."""
-    environ = environ if environ is None else environ
+    environ = env if environ is None else environ
     tags: dict[str, Optional[str]] = {}
     for key, extract in PROVIDERS:
         if key in environ:
@@ -169,7 +169,9 @@ def extract_appveyor(environ: MutableMapping[str, str]) -> dict[str, Optional[st
     if environ.get("APPVEYOR_REPO_PROVIDER") == "github":
         repository: Optional[str] = "https://github.com/{0}.git".format(environ.get("APPVEYOR_REPO_NAME"))
         commit: Optional[str] = environ.get("APPVEYOR_REPO_COMMIT")
-        branch: Optional[str] = environ.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", environ.get("APPVEYOR_REPO_BRANCH"))
+        branch: Optional[str] = environ.get(
+            "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", environ.get("APPVEYOR_REPO_BRANCH")
+        )
         tag: Optional[str] = environ.get("APPVEYOR_REPO_TAG_NAME")
     else:
         repository = commit = branch = tag = None
@@ -200,9 +202,15 @@ def extract_appveyor(environ: MutableMapping[str, str]) -> dict[str, Optional[st
 
 def extract_azure_pipelines(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Azure pipelines environ."""
-    if environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and environ.get("SYSTEM_TEAMPROJECTID") and environ.get("BUILD_BUILDID"):
+    if (
+        environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI")
+        and environ.get("SYSTEM_TEAMPROJECTID")
+        and environ.get("BUILD_BUILDID")
+    ):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
-            environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), environ.get("SYSTEM_TEAMPROJECTID"), environ.get("BUILD_BUILDID")
+            environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI"),
+            environ.get("SYSTEM_TEAMPROJECTID"),
+            environ.get("BUILD_BUILDID"),
         )
         pipeline_url: Optional[str] = base_url
         job_url: Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
@@ -219,7 +227,8 @@ def extract_azure_pipelines(environ: MutableMapping[str, str]) -> dict[str, Opti
         PIPELINE_NUMBER: environ.get("BUILD_BUILDID"),
         PIPELINE_URL: pipeline_url,
         JOB_URL: job_url,
-        git.REPOSITORY_URL: environ.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or environ.get("BUILD_REPOSITORY_URI"),
+        git.REPOSITORY_URL: environ.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI")
+        or environ.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: environ.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or environ.get("BUILD_SOURCEVERSION"),
         git.BRANCH: environ.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
         or environ.get("BUILD_SOURCEBRANCH")

@@ -6,6 +6,8 @@ files:
   - "ddtrace/**"
 ignores:
   - "ddtrace/internal/settings/env.py"
+  - "ddtrace/__init__.py"  # bootstrap: circular import with settings
+  - "ddtrace/internal/native/__init__.py"  # bootstrap: imported before settings is available
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
   - "ddtrace/testing/**"

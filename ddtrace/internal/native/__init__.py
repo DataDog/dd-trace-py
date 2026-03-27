@@ -24,7 +24,6 @@ try:
     from ._native import DDSketch  # noqa: F401
     from ._native import ffe  # noqa: F401
 
-from ddtrace.internal.settings import env
 except ImportError:
     pass
 
@@ -37,13 +36,13 @@ def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[
     See https://github.com/DataDog/libdatadog/blob/06d2b6a19d7ec9f41b3bfd4ddf521585c55298f6/library-config/src/lib.rs
     for more information on how the configuration is read from disk
     """
-    debug_logs = env.get("DD_TRACE_DEBUG", "false").lower().strip() in ("true", "1")
+    debug_logs = os.environ.get("DD_TRACE_DEBUG", "false").lower().strip() in ("true", "1")
     configurator = PyConfigurator(debug_logs)
 
     # Check if the file override is provided via environment variables
     # This is only used for testing purposes
-    local_file_override = env.get("_DD_SC_LOCAL_FILE_OVERRIDE", "")
-    managed_file_override = env.get("_DD_SC_MANAGED_FILE_OVERRIDE", "")
+    local_file_override = os.environ.get("_DD_SC_LOCAL_FILE_OVERRIDE", "")
+    managed_file_override = os.environ.get("_DD_SC_MANAGED_FILE_OVERRIDE", "")
     if local_file_override:
         configurator.set_local_file_override(local_file_override)
     if managed_file_override:

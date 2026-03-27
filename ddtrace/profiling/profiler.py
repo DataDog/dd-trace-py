@@ -16,7 +16,7 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.settings import env
+from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
@@ -126,7 +126,7 @@ class _ProfilerInstance(service.Service):
         self,
         service: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
-        dd_env: Optional[str] = None,
+        env: Optional[str] = None,
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
@@ -142,7 +142,7 @@ class _ProfilerInstance(service.Service):
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: dict[str, str] = tags if tags is not None else profiling_config.tags
-        self.env: Optional[str] = dd_env if dd_env is not None else config.env
+        self.env: Optional[str] = env if env is not None else config.env
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
@@ -160,7 +160,7 @@ class _ProfilerInstance(service.Service):
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
-        self._lambda_function_name: Optional[str] = env.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
