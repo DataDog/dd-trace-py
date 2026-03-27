@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import aiohttp
 import wrapt
@@ -85,7 +86,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     method: str = get_argument_value(args, kwargs, 0, "method")
     raw_url: URL = URL(str(get_argument_value(args, kwargs, 1, "url")))
     # Resolve against base_url if present, mirroring aiohttp's internal behaviour.
-    base_url: URL | None = getattr(instance, "_base_url", None)
+    base_url: Optional[URL] = getattr(instance, "_base_url", None)
     url: URL = base_url.join(raw_url) if base_url is not None else raw_url
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
