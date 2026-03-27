@@ -37,6 +37,8 @@ class Product(Protocol):
 
     def post_preload(self) -> None: ...
 
+    def enabled(self) -> bool: ...
+
     def start(self) -> None: ...
 
     def restart(self, join: bool = False) -> None: ...
@@ -127,6 +129,9 @@ class ProductManager:
                 continue
 
             try:
+                if not product.enabled():
+                    log.debug("Product '%s' is not enabled, skipping", name)
+                    continue
                 product.start()
                 log.debug("Started product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), True)
@@ -167,6 +172,8 @@ class ProductManager:
     def stop_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
+                if not product.enabled():
+                    continue
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), False)
@@ -176,6 +183,8 @@ class ProductManager:
     def exit_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
+                if not product.enabled():
+                    continue
                 if (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
                     log.debug("Skipping stop on exit for product '%s'", name)
                     continue
@@ -233,14 +242,11 @@ class ProductManager:
         else:
             self._do_products()
 
-    def is_enabled(self, product_name: str, enabled_attribute: str = "enabled") -> bool:
+    def is_enabled(self, product_name: str) -> bool:
         if (product := self.__products__.get(product_name)) is None:
             return False
 
-        if (config := getattr(product, "config", None)) is None:
-            return False
-
-        return getattr(config, enabled_attribute, False)
+        return product.enabled()
 
 
 manager = ProductManager()
