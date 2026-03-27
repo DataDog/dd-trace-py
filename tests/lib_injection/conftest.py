@@ -105,48 +105,30 @@ def ddtrace_injection_artifact():
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
-        # 4-5. Copy the installed ddtrace dist-info into our fake site-packages so that
-        # entry-point discovery works.  We prefer this over calling `setup.py egg_info`
-        # because setup.py imports cmake and setuptools_rust at module level; the meson
-        # build branch's pyproject.toml does not list setuptools_rust as a build
-        # requirement, so the egg_info invocation fails.
-        #
-        # Strategy: locate the installed ddtrace distribution via importlib.metadata and
-        # copy its .dist-info (or .egg-info) directory to the target site-packages tree.
-        # Fall back to setup.py egg_info for legacy/non-meson installs.
-        dist_info_src = _find_dist_info_path("ddtrace")
-        if dist_info_src:
-            shutil.copytree(
-                dist_info_src,
-                os.path.join(target_site_packages_path, os.path.basename(dist_info_src)),
-            )
-        else:
-            # Legacy fallback: use setup.py egg_info (requires cmake + setuptools_rust)
-            setup_py_path = os.path.join(PROJECT_ROOT, "setup.py")
-            if not os.path.exists(setup_py_path):
-                pytest.fail(
-                    f"setup.py not found at {setup_py_path} and no installed dist-info found. "
-                    "Cannot generate package metadata."
-                )
-            with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
-                pyproject = tomllib.load(f)
-            build_requires = pyproject.get("build-system", {}).get("requires", [])
-            if build_requires:
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install"] + build_requires,
-                    stderr=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    text=True,
-                    timeout=180,
-                )
+        # 4. Install build dependencies necessary for setup.py to run.
+        with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
+            pyproject = tomllib.load(f)
+        build_requires = pyproject.get("build-system", {}).get("requires", [])
+        if build_requires:
             subprocess.check_call(
-                [sys.executable, "setup.py", "egg_info", f"--egg-base={target_site_packages_path}"],
-                cwd=PROJECT_ROOT,
+                [sys.executable, "-m", "pip", "install"] + build_requires,
                 stderr=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 text=True,
-                timeout=120,
+                timeout=180,
             )
+
+        # 4-5. Copy the installed ddtrace dist-info into our fake site-packages so that
+        # entry-point discovery works.  setup.py egg_info is not usable here because
+        # setup.py imports setuptools_rust at module level, which is not listed in the
+        # meson build's pyproject.toml build-system.requires.
+        dist_info_src = _find_dist_info_path("ddtrace")
+        if dist_info_src is None:
+            pytest.fail("No installed ddtrace dist-info or egg-info found in sys.path. Cannot generate package metadata.")
+        shutil.copytree(
+            dist_info_src,
+            os.path.join(target_site_packages_path, os.path.basename(dist_info_src)),
+        )
 
         # 5. Write the ddtrace version file
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
