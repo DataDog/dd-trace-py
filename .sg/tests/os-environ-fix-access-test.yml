@@ -4,7 +4,7 @@ valid:
   - env.get("DEBUG", "false")
   - env["KEY"] = "value"
   - del env["KEY"]
-  - from ddtrace.internal.settings.env import dd_environ as env
+  - from ddtrace.internal.settings import env
 
 invalid:
   - os.environ["HOME"]

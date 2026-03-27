@@ -67,5 +67,5 @@ note: |
     value = os.getenv("DD_TRACE_DEBUG", "false")
 
   After:
-    from ddtrace.internal.settings.env import dd_environ as env
+    from ddtrace.internal.settings import env
     value = env.get("DD_TRACE_DEBUG", "false")

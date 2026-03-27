@@ -49,4 +49,4 @@ note: |
   Replace `os.environ` with `env` from `ddtrace.internal.settings.env`.
   `env` is a MutableMapping drop-in for os.environ (supports reads, writes, deletes).
   After applying fix, add the import manually:
-    from ddtrace.internal.settings.env import dd_environ as env
+    from ddtrace.internal.settings import env
