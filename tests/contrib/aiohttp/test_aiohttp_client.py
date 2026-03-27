@@ -227,6 +227,10 @@ async def test_trace_multiple(snapshot_context):
                 assert resp.status == 200
 
 
+@pytest.mark.skipif(
+    tuple(int(x) for x in aiohttp.__version__.split(".")[:2]) < (3, 8),
+    reason="base_url parameter added in aiohttp 3.8.0",
+)
 @pytest.mark.asyncio
 async def test_base_url(snapshot_context):
     """
