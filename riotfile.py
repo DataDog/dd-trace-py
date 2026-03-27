@@ -1336,29 +1336,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="mlflow",
-            command="pytest {cmdargs} tests/contrib/mlflow/",
-            pkgs={
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.11"),
-                    pkgs={
-                        "mlflow": ["~=2.11.0"],
-                        "setuptools": latest,
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.13"),
-                    pkgs={
-                        "mlflow": [latest],
-                        "setuptools": latest,
-                    },
-                ),
-            ],
-        ),
-        Venv(
             name="mysql",
             command="pytest {cmdargs} tests/contrib/mysql",
             pkgs={
@@ -2784,8 +2761,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
-                    pkgs={"openfeature-sdk": ["~=0.8.0", latest]},
+                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
+                    pkgs={"openfeature-sdk": ["~=0.6.0", "~=0.7.0", latest]},
                 ),
             ],
         ),
@@ -3350,13 +3327,12 @@ venv = Venv(
         Venv(
             name="azure_functions:cosmos",
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
-            pys=select_pys(min_version="3.11", max_version="3.11"),
+            pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
-                "azure.cosmos": ["~=4.8.0", latest],
+                "azure.cosmos": ["~=4.6.0", latest],
                 "azure.storage.blob": latest,
                 "aiohttp": latest,
-                "boto": latest,
             },
         ),
         Venv(

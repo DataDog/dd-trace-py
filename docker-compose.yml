@@ -216,7 +216,6 @@ services:
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
-        platform: linux/amd64
         volumes:
           - ddagent:/tmp/ddagent
           - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache

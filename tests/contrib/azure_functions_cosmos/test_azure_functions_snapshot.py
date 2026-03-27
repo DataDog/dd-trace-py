@@ -46,8 +46,8 @@ def azure_functions_client(request):
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
     proc = subprocess.Popen(
         ["func", "start", "--port", str(port)],
-        # stdout=subprocess.DEVNULL,
-        # stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         close_fds=True,
         env=env,
         preexec_fn=os.setsid,
