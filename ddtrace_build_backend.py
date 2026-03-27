@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -18,11 +19,6 @@ import mesonpy._tags
 _ROOT = Path(__file__).resolve().parent
 _BUILD_SYSTEM_FILES = (
     "meson.build",
-    "ddtrace/internal/native/meson.build",
-    "ddtrace/internal/datadog/profiling/meson.build",
-    "ddtrace/internal/datadog/profiling/ddup/meson.build",
-    "ddtrace/internal/datadog/profiling/stack/meson.build",
-    "ddtrace/profiling/collector/meson.build",
     "scripts/meson_build_ext.py",
     "scripts/meson_install_iast_native.py",
     "ddtrace/profiling/collector/CMakeLists.txt",
@@ -271,6 +267,13 @@ def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
         # native_iast_raw{ext} from the meson build root — which may contain the
         # wrong binary due to the glob fallback in meson_build_ext.py cmd_cmake.
 
+    top_level_content = b"ddtrace\n"
+    top_level_name = (dist_info_prefix + "top_level.txt") if (dist_info_prefix and not has_top_level_txt) else None
+    if top_level_name:
+        top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(b"=").decode("ascii")
+        top_level_record_line = f"{top_level_name},{top_level_hash},{len(top_level_content)}\n"
+    record_name = (dist_info_prefix + "RECORD") if dist_info_prefix else None
+
     with zipfile.ZipFile(wheel_path, "r") as src_zip, zipfile.ZipFile(patched_path, "w") as dst_zip:
         for info in src_zip.infolist():
             filename = info.filename
@@ -287,6 +290,9 @@ def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
                 # single line makes the whole source tree importable — identical
                 # to setuptools' legacy editable install mode.
                 data = (str(_ROOT) + "\n").encode("utf-8")
+            elif top_level_name and filename == record_name:
+                # Append the top_level.txt entry to RECORD before writing it.
+                data = data + top_level_record_line.encode("utf-8")
 
             dst_zip.writestr(info, data)
 
@@ -320,8 +326,8 @@ def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
         # packages mapping.  When 'ddtrace' is absent, iastpatch.is_first_party()
         # classifies it as local/first-party code and patches it — breaking the
         # IAST tests that expect DENIED_NOT_FOUND for ddtrace.*.
-        if dist_info_prefix and not has_top_level_txt:
-            dst_zip.writestr(dist_info_prefix + "top_level.txt", b"ddtrace\n")
+        if top_level_name:
+            dst_zip.writestr(top_level_name, top_level_content)
 
     patched_path.replace(wheel_path)
     return wheel_name
@@ -362,10 +368,21 @@ def _inject_top_level_txt(wheel_directory: str, wheel_name: str) -> str:
     if has_top_level_txt or dist_info_prefix is None:
         return wheel_name
 
+    top_level_content = b"ddtrace\n"
+    top_level_name = dist_info_prefix + "top_level.txt"
+    top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(b"=").decode("ascii")
+    top_level_record_line = f"{top_level_name},{top_level_hash},{len(top_level_content)}\n"
+
+    record_name = dist_info_prefix + "RECORD"
+
     with zipfile.ZipFile(wheel_path, "r") as src_zip, zipfile.ZipFile(patched_path, "w") as dst_zip:
         for info in src_zip.infolist():
-            dst_zip.writestr(info, src_zip.read(info.filename))
-        dst_zip.writestr(dist_info_prefix + "top_level.txt", b"ddtrace\n")
+            data = src_zip.read(info.filename)
+            if info.filename == record_name:
+                # Append the top_level.txt entry before writing RECORD
+                data = data + top_level_record_line.encode("utf-8")
+            dst_zip.writestr(info, data)
+        dst_zip.writestr(top_level_name, top_level_content)
 
     patched_path.replace(wheel_path)
     return wheel_name
