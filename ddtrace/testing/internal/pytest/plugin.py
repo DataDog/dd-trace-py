@@ -19,7 +19,6 @@ from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-from ddtrace.debugging._debugger import Debugger
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -323,6 +322,8 @@ class TestOptPlugin:
         self.manager.finish()
 
         if self._flaky_snapshot_debugger_started:
+            from ddtrace.debugging._debugger import Debugger
+
             try:
                 Debugger.disable()
             except Exception:
@@ -488,6 +489,8 @@ class TestOptPlugin:
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
         if FLAKY_SNAPSHOT_ENABLED and is_known_flaky_test(self.manager, test_ref):
+            from ddtrace.debugging._debugger import Debugger
+
             if not self._flaky_snapshot_debugger_started and Debugger._instance is None:
                 Debugger.enable()
                 self._flaky_snapshot_debugger_started = True

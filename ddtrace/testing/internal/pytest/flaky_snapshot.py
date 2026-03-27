@@ -22,12 +22,6 @@ import typing as t
 
 import pytest
 
-from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
-from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
-from ddtrace.debugging._probe.model import LogFunctionProbe
-from ddtrace.debugging._probe.model import ProbeEvalTiming
-from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -81,6 +75,15 @@ def flaky_snapshot_context(
     if the probe could not be set up. The caller is responsible for enabling
     the Debugger before calling this and disabling it at session end.
     """
+    # All ddtrace.debugging imports are deferred here so that importing this
+    # module has zero cost when _DD_CIVISIBILITY_FLAKY_SNAPSHOT_ENABLED is off.
+    from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+    from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
+    from ddtrace.debugging._probe.model import LogFunctionProbe
+    from ddtrace.debugging._probe.model import ProbeEvalTiming
+    from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+    from ddtrace.debugging._uploader import SignalUploader
+
     func = _resolve_test_function(item)
     if func is None:
         log.debug("Could not resolve test function for %s", item.nodeid)

@@ -145,8 +145,8 @@ class TestKnownFlakySnapshotIntegration:
                 ),
             ),
             setup_standard_mocks(),
-            patch("ddtrace.testing.internal.pytest.plugin.Debugger") as MockDebugger,
-            patch("ddtrace.testing.internal.pytest.flaky_snapshot.SignalUploader") as MockUploader,
+            patch("ddtrace.debugging._debugger.Debugger") as MockDebugger,
+            patch("ddtrace.debugging._uploader.SignalUploader") as MockUploader,
             patch("ddtrace.testing.internal.pytest.plugin.FLAKY_SNAPSHOT_ENABLED", True),
         ):
             MockDebugger._instance = None
