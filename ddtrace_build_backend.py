@@ -172,6 +172,30 @@ def _patch_editable_loader(loader_text: str) -> str:
     )
     if count2 != 1:
         raise RuntimeError("Could not find editable loader CalledProcessError handler to patch")
+
+    # AIDEV-NOTE: Suppress stderr from the ninja subprocess so that test
+    # processes which capture stderr (e.g. `subprocess.Popen(...,
+    # stderr=subprocess.PIPE)`) do not see noise from pytest-cov's subprocess
+    # coverage mechanism.  When pytest-cov is active it injects a .pth file
+    # that tries to register sys.monitoring tool ID 1 (COVERAGE_ID) in every
+    # new Python process.  The ddtrace CI-visibility plugin claims the same
+    # tool ID; when ninja is launched as [sys.executable, '-m', 'ninja'], the
+    # new Python process's startup triggers the conflict and writes
+    # "ValueError: tool 1 is already in use" to stderr — which leaks into the
+    # test's captured stderr pipe and breaks assertions like
+    # `assert p.stderr.read() == b""`.
+    # Redirecting stderr=subprocess.DEVNULL in the non-verbose rebuild path
+    # suppresses this startup noise without affecting normal error reporting
+    # (errors surfaced via check=True still propagate as CalledProcessError).
+    patched, count3 = re.subn(
+        r"subprocess\.run\(self\._build_cmd, cwd=self\._build_path, env=env, stdout=subprocess\.DEVNULL, check=True\)",
+        "subprocess.run(self._build_cmd, cwd=self._build_path, env=env,"
+        " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)",
+        patched,
+        count=1,
+    )
+    if count3 != 1:
+        raise RuntimeError("Could not find editable loader non-verbose subprocess.run to patch with stderr=DEVNULL")
     return patched
 
 
