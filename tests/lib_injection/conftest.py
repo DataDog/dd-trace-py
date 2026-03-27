@@ -1,8 +1,5 @@
 import glob
-import importlib.machinery
-import json
 import os
-import pathlib
 import platform
 import shutil
 import subprocess
@@ -60,60 +57,6 @@ def _find_dist_info_path(package_name: str):
     return None
 
 
-def _copy_meson_so_files(target_ddtrace_dir: str) -> None:
-    """Copy compiled extension (.so/.pyd) files from the meson build directory into target_ddtrace_dir.
-
-    AIDEV-NOTE: In meson-python editable installs, compiled extensions live in the meson build
-    directory (not in the source tree) and are served to importers via MesonpyMetaFinder in
-    sys.meta_path.  shutil.copytree on the source tree skips these files, so any venv that
-    uses the copied source tree for injection (like these lib_injection tests do) will fail to
-    import ddtrace because the native extensions are absent.
-
-    This function:
-    1. Finds the MesonpyMetaFinder in sys.meta_path to get the meson build path.
-    2. Reads intro-install_plan.json which maps built artifact paths to their install destinations.
-    3. Copies every ddtrace extension file into the matching subdirectory of target_ddtrace_dir.
-
-    If no MesonpyMetaFinder is present (i.e. this is a setup.py / non-meson install where
-    extensions are already in the source tree via copytree), this function is a no-op.
-    """
-    meson_finder = None
-    for finder in sys.meta_path:
-        if type(finder).__name__ == "MesonpyMetaFinder":
-            meson_finder = finder
-            break
-
-    if meson_finder is None:
-        return  # Not a meson editable install; extensions are already in the source tree.
-
-    build_path = meson_finder._build_path
-    install_plan_path = os.path.join(build_path, "meson-info", "intro-install_plan.json")
-    if not os.path.exists(install_plan_path):
-        return
-
-    with open(install_plan_path, "r", encoding="utf-8") as f:
-        install_plan = json.load(f)
-
-    ext_suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
-
-    for _section, data in install_plan.items():
-        for src, target_info in data.items():
-            dest = target_info.get("destination", "")
-            parts = pathlib.PurePosixPath(dest).parts
-            # Only care about files destined for ddtrace/ inside the Python platlib
-            if parts[0] not in ("{py_platlib}", "{py_purelib}"):
-                continue
-            if len(parts) < 3 or parts[1] != "ddtrace":
-                continue
-            if not src.endswith(ext_suffixes):
-                continue
-            # Relative path within ddtrace/  (e.g. "internal/_tagset.cpython-314-aarch64.so")
-            rel_path = os.path.join(*parts[2:])
-            dst_path = os.path.join(target_ddtrace_dir, rel_path)
-            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-            shutil.copy2(src, dst_path)
-
-
 def get_platform_details():
     """Determines platform details needed for constructing the site-packages directory name."""
     python_version = platform.python_version()
@@ -157,14 +100,10 @@ def ddtrace_injection_artifact():
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 
-        # 3. Copy the ddtrace source code into our temp site-packages, then add
-        # compiled extensions.  In meson-python editable installs the .so files are
-        # NOT in the source tree (they live in the meson build dir and are served by
-        # MesonpyMetaFinder), so copytree alone gives an incomplete package.
+        # 3. Copy the ddtrace source code into our temp site-packages.
         host_ddtrace_path = os.path.join(PROJECT_ROOT, "ddtrace")
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
-        _copy_meson_so_files(target_ddtrace_dir)
 
         # 4-5. Copy the installed ddtrace dist-info into our fake site-packages so that
         # entry-point discovery works.  We prefer this over calling `setup.py egg_info`
