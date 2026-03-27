@@ -444,7 +444,7 @@ suites:
     services:
       - azurite
   azure_functions:cosmos:
-    venvs_per_job: 4
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
