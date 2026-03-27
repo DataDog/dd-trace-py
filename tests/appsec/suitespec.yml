@@ -144,6 +144,18 @@ suites:
       - '@tracing'
       - '@appsec'
       - '@appsec_iast'
+      - tests/appsec/integrations/flask_tests/test_iast_flask.py
+      - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+    retry: 2
+    timeout: 15m
+  appsec_integrations_flask_testagent:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
     retry: 2
