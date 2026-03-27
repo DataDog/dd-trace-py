@@ -29,6 +29,7 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
+from ddtrace.testing.internal.pytest.flaky_snapshot import FLAKY_SNAPSHOT_ENABLED
 from ddtrace.testing.internal.pytest.flaky_snapshot import is_known_flaky_test
 from ddtrace.testing.internal.pytest.flaky_snapshot import known_flaky_probe_context
 from ddtrace.testing.internal.pytest.flaky_snapshot import maybe_disable_debugger_started_for_known_flaky
@@ -485,7 +486,7 @@ class TestOptPlugin:
 
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
-        if is_known_flaky_test(self.manager, test_ref):
+        if FLAKY_SNAPSHOT_ENABLED and is_known_flaky_test(self.manager, test_ref):
             self._known_flaky_probe_serial += 1
             with known_flaky_probe_context(
                 item,

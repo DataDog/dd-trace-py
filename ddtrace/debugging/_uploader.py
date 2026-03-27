@@ -71,21 +71,17 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
         )
 
-        initial_endpoint = (
-            f"/api/v2/debugger{endpoint_suffix}" if di_config._is_agentless else f"/debugger/v2/input{endpoint_suffix}"
-        )
-
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
                 track=SignalTrack.LOGS,
-                endpoint=initial_endpoint,
+                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
                 queue=self.__queue__(
                     encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
                 ),
             ),
             SignalTrack.SNAPSHOT: UploaderTrack(
                 track=SignalTrack.SNAPSHOT,
-                endpoint=initial_endpoint,
+                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
                 queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
             ),
         }
@@ -94,11 +90,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
-        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
-        if di_config._is_agentless:
-            self._headers["DD-API-KEY"] = di_config._api_key
-            self._state = self._online
+        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         # Make it retry-able
         self._write_with_backoff = fibonacci_backoff_with_jitter(
@@ -116,10 +109,6 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         self._flush_full = False
 
     def info_check(self, agent_info: Optional[dict]) -> bool:
-        if di_config._is_agentless:
-            # No agent needed in agentless CI mode; upload directly to logs intake
-            return True
-
         if agent_info is None:
             # Agent is unreachable
             return False
@@ -209,7 +198,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 self._write_with_backoff(payload, track.endpoint)
                 meter.distribution("batch.cardinality", count)
             except SignalUploaderError:
-                if not di_config._is_agentless and not track.endpoint.startswith("/debugger/v1/diagnostics"):
+                if not track.endpoint.startswith("/debugger/v1/diagnostics"):
                     # Downgrade both tracks to diagnostics endpoint and retry once
                     self._downgrade_to_diagnostics()
                     self._write_with_backoff(payload, track.endpoint)
@@ -232,9 +221,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             if track.queue.count:
                 self._flush_track(track)
 
-        if not di_config._is_agentless and (
-            not self._tracks[SignalTrack.SNAPSHOT].enabled or not self._tracks[SignalTrack.LOGS].enabled
-        ):
+        if not self._tracks[SignalTrack.SNAPSHOT].enabled or not self._tracks[SignalTrack.LOGS].enabled:
             # If the tracks are not enabled, we raise an exception to
             # transition back to the agent check state in case we detect an
             # agent that can handle logs and snapshots safely.

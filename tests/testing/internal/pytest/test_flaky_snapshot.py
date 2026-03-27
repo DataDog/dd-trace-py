@@ -147,6 +147,8 @@ class TestKnownFlakySnapshotIntegration:
             setup_standard_mocks(),
             patch("ddtrace.testing.internal.pytest.flaky_snapshot.Debugger") as MockDebugger,
             patch("ddtrace.testing.internal.pytest.flaky_snapshot.SignalUploader") as MockUploader,
+            patch("ddtrace.testing.internal.pytest.flaky_snapshot.FLAKY_SNAPSHOT_ENABLED", True),
+            patch("ddtrace.testing.internal.pytest.plugin.FLAKY_SNAPSHOT_ENABLED", True),
         ):
             MockDebugger._instance = None
             MockDebugger.enable.side_effect = lambda: setattr(MockDebugger, "_instance", mock_dbg)

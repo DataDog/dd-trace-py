@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 from pathlib import Path
 import re
 import typing as t
@@ -41,12 +42,17 @@ from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._uploader import SignalUploader
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestRef
 
 
 log = logging.getLogger(__name__)
+
+# Feature flag: set _DD_CIVISIBILITY_FLAKY_SNAPSHOT_ENABLED=true to enable DI-based
+# entry snapshot capture for quarantined tests. Disabled by default.
+FLAKY_SNAPSHOT_ENABLED = asbool(os.environ.get("_DD_CIVISIBILITY_FLAKY_SNAPSHOT_ENABLED", "false"))
 
 # Probe IDs must match [A-Za-z0-9_-]+ per registry; nodeids contain characters we strip.
 _PROBE_ID_SAFE = re.compile(r"[^A-Za-z0-9_-]+")
