@@ -390,6 +390,17 @@ class TestLLMObsAnthropic:
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_unknown_provider(
+        self, mock_anthropic_messages_post, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Ensure model_provider is set to 'unknown' when base_url doesn't match any known provider."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="http://localhost:8000")
+        llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        assert mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["model_provider"] == "unknown"
+
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
