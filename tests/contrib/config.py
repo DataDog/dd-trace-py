@@ -11,7 +11,7 @@ import os
 
 AZURE_COSMOS_EMULATOR_CONFIG = {
     "host": "127.0.0.1",
-    "port": 8081,
+    "port": 8080,
 }
 
 AZURE_EVENT_HUBS_EMULATOR_CONFIG = {
