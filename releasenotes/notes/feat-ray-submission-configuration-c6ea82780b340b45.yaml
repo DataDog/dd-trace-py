@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    ray: Adds ``DD_TRACE_RAY_SUBMISSION`` (default: ``False``) configuration to control Ray submission tracing.
+    Set ``DD_TRACE_RAY_SUBMISSION=true`` to trace ``task.submit`` and ``actor_method.submit`` spans. Leave it unset to trace only execution spans.
+  - |
+    ray: Merges ``ray.job`` and ``ray.job.submit`` into a single ``ray.job`` span.
