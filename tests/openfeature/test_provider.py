@@ -580,21 +580,13 @@ class TestNullTargetingKey:
         assert result.error_code is None
 
     def test_null_targeting_key_sharded_flag_returns_error(self, provider):
-        """Sharded flag should return an error with null targeting key.
-
-        Ideally this would return TARGETING_KEY_MISSING, but the current PyO3 binding
-        in libdatadog returns PARSE_ERROR when targeting_key is None (it doesn't accept
-        null for the targeting_key field). Once libdatadog's Python binding is updated to
-        handle None targeting_key, this assertion should change to TARGETING_KEY_MISSING.
-        """
+        """Sharded flag should return TARGETING_KEY_MISSING error with null targeting key."""
         config = create_config(create_sharded_string_flag("sharded-flag", "on-value"))
         process_ffe_configuration(config)
         ctx = EvaluationContext(targeting_key=None)
         result = provider.resolve_string_details("sharded-flag", "default", ctx)
         assert result.value == "default"
-        # TODO: Change to ErrorCode.TARGETING_KEY_MISSING once libdatadog PyO3 binding
-        # accepts None for targeting_key (currently returns PARSE_ERROR instead)
-        assert result.error_code in (ErrorCode.TARGETING_KEY_MISSING, ErrorCode.PARSE_ERROR)
+        assert result.error_code == ErrorCode.TARGETING_KEY_MISSING
 
     def test_null_targeting_key_rule_match_returns_value(self, provider):
         """Rule-match flag (no shards) should evaluate with null targeting key when rule matches on non-id attribute."""

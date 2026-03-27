@@ -108,7 +108,7 @@ def create_sharded_string_flag(flag_key, value, enabled=True):
                     {
                         "variationKey": value,
                         "shards": [
-                            {"salt": "test-salt", "ranges": [{"start": 0, "end": 10000}]}
+                            {"salt": "test-salt", "ranges": [{"start": 0, "end": 5000}], "totalShards": 10000}
                         ],
                     }
                 ],
