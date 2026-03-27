@@ -130,19 +130,21 @@ class DependencyEntry:
     def to_telemetry_dict(self, include_all_metadata: bool = False) -> dict[str, Any]:
         """Serialize for the telemetry wire format.
 
+        The metadata key presence is driven by the metadata field state:
+        - metadata is None → no "metadata" key (SCA not active)
+        - metadata is not None → "metadata" key included (SCA active)
+
         Args:
-            include_all_metadata: If True, include all metadata (for extended heartbeat).
-                If False, include only unsent metadata (for periodic reporting).
+            include_all_metadata: If True, include all metadata (for extended
+                heartbeat / re-report).  If False, include only unsent.
 
         Returns:
             Dict compatible with the app-dependencies-loaded payload.
-            The metadata key is omitted when there are no entries to include.
         """
         result: dict[str, Any] = {"name": self.name, "version": self.version}
-        if self.metadata:
+        if self.metadata is not None:
             entries = self.metadata if include_all_metadata else self.get_unsent_metadata()
-            if entries:
-                result["metadata"] = [m.to_telemetry_dict() for m in entries]
+            result["metadata"] = [m.to_telemetry_dict() for m in entries] if entries else []
         return result
 
 

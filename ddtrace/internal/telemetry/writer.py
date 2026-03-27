@@ -318,7 +318,7 @@ class TelemetryWriter(PeriodicService):
             payload["configurations"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [
-                    {"name": entry.name, "version": entry.version} for entry in self._imported_dependencies.values()
+                    entry.to_telemetry_dict() for entry in self._imported_dependencies.values()
                 ]
             self._extended_time += self._extended_heartbeat_interval
         return payload

@@ -91,10 +91,9 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        if not version:
-            log.debug("Empty version for dependency %s (module: %s)", name, module_name)
-        already_imported[name] = DependencyEntry(name=name, version=version)
-        deps.append({"name": name, "version": version})
+        entry = DependencyEntry(name=name, version=version, metadata=None)
+        already_imported[name] = entry
+        deps.append(entry.to_telemetry_dict())
 
     return deps
 
