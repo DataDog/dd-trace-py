@@ -51,6 +51,9 @@ os tests macos:
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
+  pre_get_sources_script:
+    # Remove stale git lock files left by crashed git processes on Windows runners.
+    - Get-ChildItem -Path .git -Filter "*.lock" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
   needs:
     - job: "build windows"
       artifacts: true
