@@ -19,13 +19,6 @@ variables:
     # at the same time as freshly-checked-out source files and triggers a full
     # cmake/Abseil rebuild, which OOMs the runner.
     - find build/mesonpy-*/ -exec touch -d "2099-01-01 00:00:00 UTC" {} + 2>/dev/null || true
-    - |
-      # AIDEV-NOTE: This opt-in override lets CI validate Riot fixes against the
-      # pinned testrunner image before a replacement image is built.
-      if [ -n "${DD_TEST_RIOT_INSTALL_SOURCE:-}" ]; then
-        python -m pip uninstall -y riot || true
-        python -m pip install --disable-pip-version-check --no-deps "${DD_TEST_RIOT_INSTALL_SOURCE}"
-      fi
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
