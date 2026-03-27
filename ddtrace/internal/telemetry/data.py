@@ -105,10 +105,6 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        if not version:
-            log.debug("Empty version for dependency %s (module: %s)", name, module_name)
-        # AIDEV-NOTE: when SCA is active, new entries get metadata=[] so the
-        # wire format includes "metadata": [].  Otherwise metadata stays None.
         metadata = [] if sca_metadata_enabled else None
         entry = DependencyEntry(name=name, version=version, metadata=metadata)
         already_imported[name] = entry

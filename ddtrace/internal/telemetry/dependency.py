@@ -131,8 +131,7 @@ class DependencyEntry:
             self.metadata = []
         if len(self.metadata) >= _MAX_METADATA_ENTRIES:
             return False
-        # AIDEV-NOTE: dedup by composite key (cve_id, path, method, line) per RFC —
-        # same CVE from different call sites creates separate entries.
+
         meta_path = meta.value.get("path")
         meta_method = meta.value.get("method")
         meta_line = meta.value.get("line")
