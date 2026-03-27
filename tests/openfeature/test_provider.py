@@ -15,6 +15,8 @@ from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_float_flag
 from tests.openfeature.config_helpers import create_integer_flag
 from tests.openfeature.config_helpers import create_json_flag
+from tests.openfeature.config_helpers import create_rule_based_string_flag
+from tests.openfeature.config_helpers import create_sharded_string_flag
 from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
@@ -562,3 +564,38 @@ class TestInvalidFlagData:
         result = provider.resolve_boolean_details("invalid-type-flag", False)
         # Should return default since config is invalid
         assert result.value is False
+
+
+class TestNullTargetingKey:
+    """Test null targeting key behavior per OpenFeature spec 3.1.1."""
+
+    def test_null_targeting_key_static_flag_returns_value(self, provider):
+        """Static flag (no shards, no rules) should evaluate with null targeting key."""
+        config = create_config(create_string_flag("static-flag", "on-value"))
+        process_ffe_configuration(config)
+        ctx = EvaluationContext(targeting_key=None)
+        result = provider.resolve_string_details("static-flag", "default", ctx)
+        assert result.value == "on-value"
+        assert result.reason == Reason.STATIC
+        assert result.error_code is None
+
+    def test_null_targeting_key_sharded_flag_returns_error(self, provider):
+        """Sharded flag should return TARGETING_KEY_MISSING error with null targeting key."""
+        config = create_config(create_sharded_string_flag("sharded-flag", "on-value"))
+        process_ffe_configuration(config)
+        ctx = EvaluationContext(targeting_key=None)
+        result = provider.resolve_string_details("sharded-flag", "default", ctx)
+        assert result.value == "default"
+        assert result.error_code == ErrorCode.TARGETING_KEY_MISSING
+
+    def test_null_targeting_key_rule_match_returns_value(self, provider):
+        """Rule-match flag (no shards) should evaluate with null targeting key when rule matches on non-id attribute."""
+        config = create_config(
+            create_rule_based_string_flag("rule-flag", "matched", "email", "@example\\.com")
+        )
+        process_ffe_configuration(config)
+        ctx = EvaluationContext(targeting_key=None, attributes={"email": "user@example.com"})
+        result = provider.resolve_string_details("rule-flag", "default", ctx)
+        assert result.value == "matched"
+        assert result.reason == Reason.TARGETING_MATCH
+        assert result.error_code is None
