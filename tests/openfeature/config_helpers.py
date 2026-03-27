@@ -94,6 +94,50 @@ def create_json_flag(flag_key, value, enabled=True):
     }
 
 
+def create_sharded_string_flag(flag_key, value, enabled=True):
+    """Create a string flag with shards (requires targeting key for evaluation)."""
+    return {
+        "key": flag_key,
+        "enabled": enabled,
+        "variationType": "STRING",
+        "variations": {value: {"key": value, "value": value}},
+        "allocations": [
+            {
+                "key": "allocation-sharded",
+                "splits": [
+                    {
+                        "variationKey": value,
+                        "shards": [
+                            {"salt": "test-salt", "ranges": [{"start": 0, "end": 10000}]}
+                        ],
+                    }
+                ],
+                "doLog": True,
+            }
+        ],
+    }
+
+
+def create_rule_based_string_flag(flag_key, value, attribute, pattern, enabled=True):
+    """Create a string flag with a rule matching on an attribute (no shards)."""
+    return {
+        "key": flag_key,
+        "enabled": enabled,
+        "variationType": "STRING",
+        "variations": {value: {"key": value, "value": value}},
+        "allocations": [
+            {
+                "key": "allocation-rule",
+                "rules": [
+                    {"conditions": [{"attribute": attribute, "operator": "MATCHES", "value": pattern}]}
+                ],
+                "splits": [{"variationKey": value, "shards": []}],
+                "doLog": True,
+            }
+        ],
+    }
+
+
 def create_config(*flags):
     """
     Create a complete FFE configuration with proper server format.
