@@ -5,11 +5,12 @@ import json
 import os
 import platform
 import re
-from typing import MutableMapping
+from typing import Mapping
 from typing import Optional
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -58,7 +59,7 @@ def _get_diag_dirs() -> list[str]:
     system = platform.system()
     if system == "Windows":
         candidates = []
-        program_files = os.environ.get("ProgramFiles")
+        program_files = env.dd_environ.get("ProgramFiles")
         if program_files:
             candidates.extend(
                 [
@@ -66,7 +67,7 @@ def _get_diag_dirs() -> list[str]:
                     os.path.join(program_files, "actions-runner", "_diag"),
                 ]
             )
-        program_files_x86 = os.environ.get("ProgramFiles(x86)")
+        program_files_x86 = env.dd_environ.get("ProgramFiles(x86)")
         if program_files_x86:
             candidates.extend(
                 [
@@ -159,7 +160,7 @@ def _try_extract_job_id_from_diag(diag_dirs: list[str]) -> Optional[str]:
     return None
 
 
-def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
+def _get_job_id(env: Mapping[str, str]) -> Optional[str]:
     """Get the numeric job ID for GitHub Actions.
 
     Checks JOB_CHECK_RUN_ID env var first, then falls back to diagnostics files.
@@ -175,7 +176,7 @@ def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
     return None
 
 
-def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_github_actions(env: Mapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
     github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
     github_repository = env.get("GITHUB_REPOSITORY")
