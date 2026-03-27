@@ -21,7 +21,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 
 - **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
 - **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
-- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
+- **When using environment variables for configuration** — follow existing patterns in `ddtrace/internal/settings/`. In instrumentation code (any code outside of `tests/`), prefer `get_config` over `os.environ`/`os.getenv` for `DD_*` and `_DD_*` environment variables. Never use `get_config` for secrets or non-`DD_*`/`_DD_*` environment variables. Tests may read env vars directly (e.g. `os.environ["DD_SOME_VAR"] = "value"` to set up test conditions).
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
 ## AIDEV Anchor Comments
