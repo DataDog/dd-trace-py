@@ -21,6 +21,7 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
 from .constants import DD_RAY_TRACE_CTX
@@ -69,16 +70,16 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
-    os.environ["traceparent"] = headers.get("traceparent", "")
-    os.environ["tracestate"] = headers.get("tracestate", "")
+    os.environ["traceparent"] = headers.get("traceparent", "")  # ast-grep-ignore: os-environ-usage
+    os.environ["tracestate"] = headers.get("tracestate", "")  # ast-grep-ignore: os-environ-usage
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    if os.environ.get("traceparent") is not None and os.environ.get("tracestate") is not None:
+    if env.dd_environ.get("traceparent") is not None and env.dd_environ.get("tracestate") is not None:
         return _TraceContext._extract(
             {
-                "traceparent": os.environ.get("traceparent"),
-                "tracestate": os.environ.get("tracestate"),
+                "traceparent": env.dd_environ.get("traceparent"),
+                "tracestate": env.dd_environ.get("tracestate"),
             }
         )
     return None
@@ -93,7 +94,7 @@ def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
-    submission_id = os.environ.get(RAY_SUBMISSION_ID)
+    submission_id = env.dd_environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
         span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 

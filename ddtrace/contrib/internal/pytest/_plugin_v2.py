@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import typing as t
 
@@ -67,6 +66,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -101,7 +101,6 @@ if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
-
 
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -193,7 +192,7 @@ def _is_coverage_report_upload_enabled() -> bool:
         log.debug("Unable to check if coverage report upload is enabled from settings", exc_info=True)
 
     # Allow environment variable to override (same pattern as V3)
-    if asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+    if asbool(env.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
         coverage_report_upload_enabled = True
 
     return coverage_report_upload_enabled
@@ -207,7 +206,7 @@ def _handle_test_management(item, test_id):
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+    if is_quarantined and asbool(env.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
         is_disabled = True
 
@@ -399,7 +398,7 @@ def _handle_coverage_patch_early(config):
     pytest_cov_enabled = _is_pytest_cov_enabled(config)
 
     # Check environment variable (API settings not available yet)
-    env_coverage_upload = asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
+    env_coverage_upload = asbool(env.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
 
     # Patch if pytest-cov is enabled OR env var suggests we might need coverage
     if not (pytest_cov_enabled or env_coverage_upload):
@@ -424,7 +423,7 @@ def _handle_coverage_patch_early(config):
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
-    if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+    if env.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",

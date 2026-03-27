@@ -1,4 +1,3 @@
-import os
 import sys
 from time import time
 from time import time_ns
@@ -22,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -38,16 +38,14 @@ _DeserializingConsumer = (
     confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
 )
 
-
 log = get_logger(__name__)
-
 
 config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
-        trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        distributed_tracing_enabled=asbool(env.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(env.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 
@@ -61,7 +59,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 KAFKA_VERSION_TUPLE = parse_version(get_version())
-
 
 _SerializationContext = confluent_kafka.serialization.SerializationContext if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
 _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None

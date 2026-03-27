@@ -1,5 +1,4 @@
 import inspect
-import os
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -21,6 +20,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
@@ -41,7 +41,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=env.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         trace_asgi_websocket_messages=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", True))
         ),
