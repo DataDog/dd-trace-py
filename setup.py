@@ -763,13 +763,16 @@ class CustomBuildExt(build_ext):
         """Build libdd_wrapper shared library as a dependency for profiling extensions."""
         dd_wrapper_dir = DDUP_DIR.parent / "dd_wrapper"
 
-        # Determine output directory (profiling directory)
+        # Determine output directory (profiling directory).
+        # Store as self.wrapper_output_dir so _get_common_cmake_args can pass
+        # DD_WRAPPER_DIR to downstream extensions (ddup, stack, memalloc).
         if IS_EDITABLE or getattr(self, "inplace", False):
             wrapper_output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
         else:
             wrapper_output_dir = (
                 Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
             )
+        self.wrapper_output_dir = wrapper_output_dir
 
         wrapper_name = f"libdd_wrapper{self.suffix}"
         wrapper_library = wrapper_output_dir / wrapper_name
@@ -876,6 +879,11 @@ class CustomBuildExt(build_ext):
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
+        # Pass DD_WRAPPER_DIR for ddup/stack/memalloc cmake builds to find libdd_wrapper
+        if hasattr(self, "wrapper_output_dir"):
+            cmake_args += [
+                f"-DDD_WRAPPER_DIR={self.wrapper_output_dir}",
+            ]
 
         # Point FetchContent downloads at the persistent download cache so CMake
         # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
