@@ -20,13 +20,13 @@ from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SERVICE_SOURCE_KEY
 from ddtrace.constants import _SERVICE_SOURCE_MANUAL
-from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import PID
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
