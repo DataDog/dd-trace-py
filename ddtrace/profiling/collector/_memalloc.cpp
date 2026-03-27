@@ -39,7 +39,7 @@ memalloc_free(void* ctx, void* ptr)
 {
     PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
 
-    if (ptr == NULL)
+    if (MEMALLOC_UNLIKELY(ptr == NULL))
         return;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
@@ -67,7 +67,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     else
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
-    if (ptr) {
+    if (MEMALLOC_LIKELY(ptr != NULL)) {
         memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
     }
 
