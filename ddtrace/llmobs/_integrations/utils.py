@@ -589,34 +589,42 @@ def _openai_parse_input_response_messages(
 
     for item in messages:
         processed_item: Message = Message()
+        call_id = _get_attr(item, "call_id", None)
+        role = _get_attr(item, "role", None)
+        content = _get_attr(item, "content", None)
+        arguments = _get_attr(item, "arguments", None)
+        input_ = _get_attr(item, "input", None)
+        output = _get_attr(item, "output", None)
+        name = str(_get_attr(item, "name", ""))
+        item_type = _get_attr(item, "type", None)
         # Handle regular message
-        if "content" in item and "role" in item:
+        if role is not None and content is not None:
             processed_item_content = ""
-            if isinstance(item["content"], list):
-                for content in item["content"]:
-                    processed_item_content += str(content.get("text", "") or "")
-                    processed_item_content += str(content.get("refusal", "") or "")
+            if isinstance(content, list):
+                for content_part in content:
+                    processed_item_content += str(_get_attr(content_part, "text", "") or "")
+                    processed_item_content += str(_get_attr(content_part, "refusal", "") or "")
 
-                    item_type = content.get("type", None)
-                    if item_type == INPUT_TYPE_IMAGE:
-                        processed_item_content += _extract_image_reference(content)
-                    elif item_type == INPUT_TYPE_FILE:
-                        processed_item_content += _extract_file_reference(content)
+                    content_part_type = _get_attr(content_part, "type", None)
+                    if content_part_type == INPUT_TYPE_IMAGE:
+                        processed_item_content += _extract_image_reference(content_part)
+                    elif content_part_type == INPUT_TYPE_FILE:
+                        processed_item_content += _extract_file_reference(content_part)
             else:
-                processed_item_content = item["content"]
+                processed_item_content = content
             if processed_item_content:
                 processed_item["content"] = str(processed_item_content)
-                processed_item["role"] = item["role"]
-        elif "call_id" in item and ("arguments" in item or "input" in item):
+                processed_item["role"] = role
+        elif item_type in ("function_call", "custom_tool_call"):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
-            arguments_str = item.get("arguments", "") or item.get("input", OAI_HANDOFF_TOOL_ARG)
-            arguments = safe_load_json(arguments_str)
+            arguments_str = arguments or input_ or OAI_HANDOFF_TOOL_ARG
+            arguments = safe_load_json(str(arguments_str))
 
             tool_call_info = ToolCall(
-                tool_id=item["call_id"],
+                tool_id=str(call_id),
                 arguments=arguments,
-                name=item.get("name", ""),
-                type=item.get("type", "function_call"),
+                name=name,
+                type=str(item_type),
             )
             processed_item.update(
                 {
@@ -624,17 +632,23 @@ def _openai_parse_input_response_messages(
                     "tool_calls": [tool_call_info],
                 }
             )
-        elif "call_id" in item and "output" in item:
+        elif item_type == "function_call_output":
             # Process `FunctionCallOutput` type from input messages
-            output = item["output"]
-
-            if not isinstance(output, str):
+            if isinstance(output, list):
+                # output can be a list of ResponseFunctionCallOutputItem (input_text, input_image, input_file).
+                # Only text items are captured; image/file content in tool results is not currently supported.
+                output = "".join(
+                    str(_get_attr(part, "text", ""))
+                    for part in output
+                    if _get_attr(part, "type", None) == INPUT_TYPE_TEXT
+                )
+            elif not isinstance(output, str):
                 output = safe_json(output)
             tool_result_info = ToolResult(
-                tool_id=item["call_id"],
+                tool_id=str(call_id),
                 result=str(output) if output else "",
-                name=item.get("name", ""),
-                type=item.get("type", "function_call_output"),
+                name=name,
+                type=str(item_type),
             )
             processed_item.update(
                 {
@@ -642,7 +656,7 @@ def _openai_parse_input_response_messages(
                     "tool_results": [tool_result_info],
                 }
             )
-            tool_call_ids.append(item["call_id"])
+            tool_call_ids.append(str(call_id))
         if processed_item:
             processed.append(processed_item)
 
