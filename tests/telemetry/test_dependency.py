@@ -214,62 +214,59 @@ class TestAttachReachabilityMetadata:
 
 
 class TestWriterAttachDependencyMetadata:
-    """Writer-level tests for attach_dependency_metadata (with locking)."""
+    """Writer-level tests for attach_dependency_metadata (via DependencyTracker)."""
 
-    def test_attach_metadata_to_tracked_dependency(self):
+    def _make_writer_with_tracker(self, sca_enabled=False, deps=None):
         from unittest.mock import MagicMock
 
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
         from ddtrace.internal.telemetry.writer import TelemetryWriter
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
-        writer._sca_metadata_enabled = False
-        writer._imported_dependencies = {
-            "requests": DependencyEntry(name="requests", version="2.28.0"),
-        }
+        tracker = DependencyTracker()
+        tracker._sca_metadata_enabled = sca_enabled
+        if deps:
+            tracker._imported_dependencies = deps
+        writer._dependency_tracker = tracker
+        return writer, tracker
+
+    def test_attach_metadata_to_tracked_dependency(self):
+        writer, tracker = self._make_writer_with_tracker(
+            deps={"requests": DependencyEntry(name="requests", version="2.28.0")}
+        )
 
         result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
 
         assert result is True
-        entry = writer._imported_dependencies["requests"]
+        entry = tracker._imported_dependencies["requests"]
         assert len(entry.metadata) == 1
         assert entry.metadata[0].value["id"] == "CVE-1"
 
     def test_attach_returns_false_for_unknown_package(self):
-        from unittest.mock import MagicMock
-
-        from ddtrace.internal.telemetry.writer import TelemetryWriter
-
-        writer = TelemetryWriter.__new__(TelemetryWriter)
-        writer._service_lock = MagicMock()
-        writer._sca_metadata_enabled = False
-        writer._imported_dependencies = {
-            "requests": DependencyEntry(name="requests", version="2.28.0"),
-        }
+        writer, tracker = self._make_writer_with_tracker(
+            deps={"requests": DependencyEntry(name="requests", version="2.28.0")}
+        )
 
         result = writer.attach_dependency_metadata("flask", "CVE-1", True, "mod", "func", 1)
 
         assert result is False
-        assert "flask" not in writer._imported_dependencies
+        assert "flask" not in tracker._imported_dependencies
 
     def test_attach_auto_creates_entry_when_sca_active(self):
         """When SCA is active and package not tracked, auto-create the entry."""
-        from unittest.mock import MagicMock
         from unittest.mock import patch
 
-        from ddtrace.internal.telemetry.writer import TelemetryWriter
+        writer, tracker = self._make_writer_with_tracker(sca_enabled=True)
 
-        writer = TelemetryWriter.__new__(TelemetryWriter)
-        writer._service_lock = MagicMock()
-        writer._sca_metadata_enabled = True
-        writer._imported_dependencies = {}
-
-        with patch("ddtrace.internal.telemetry.writer.importlib_metadata_version", return_value="2.28.0"):
+        with patch(
+            "ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version", return_value="2.28.0"
+        ):
             result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
 
         assert result is True
-        assert "requests" in writer._imported_dependencies
-        entry = writer._imported_dependencies["requests"]
+        assert "requests" in tracker._imported_dependencies
+        entry = tracker._imported_dependencies["requests"]
         assert entry.version == "2.28.0"
         assert entry.metadata is not None
         assert len(entry.metadata) == 1
@@ -277,58 +274,56 @@ class TestWriterAttachDependencyMetadata:
 
     def test_attach_does_not_auto_create_when_sca_inactive(self):
         """When SCA is not active, unknown packages return False."""
-        from unittest.mock import MagicMock
-
-        from ddtrace.internal.telemetry.writer import TelemetryWriter
-
-        writer = TelemetryWriter.__new__(TelemetryWriter)
-        writer._service_lock = MagicMock()
-        writer._sca_metadata_enabled = False
-        writer._imported_dependencies = {}
+        writer, tracker = self._make_writer_with_tracker(sca_enabled=False)
 
         result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
 
         assert result is False
-        assert "requests" not in writer._imported_dependencies
+        assert "requests" not in tracker._imported_dependencies
 
 
 class TestWriterEnableScaMetadata:
-    """Tests for enable_sca_metadata method."""
+    """Tests for enable_sca_metadata method (via DependencyTracker)."""
 
-    def test_enable_sca_metadata_sets_none_to_empty_list(self):
+    def _make_writer_with_tracker(self, deps=None):
         from unittest.mock import MagicMock
 
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
         from ddtrace.internal.telemetry.writer import TelemetryWriter
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
-        writer._imported_dependencies = {
-            "requests": DependencyEntry(name="requests", version="2.28.0"),
-            "flask": DependencyEntry(name="flask", version="3.0.0"),
-        }
-        assert writer._imported_dependencies["requests"].metadata is None
-        assert writer._imported_dependencies["flask"].metadata is None
+        tracker = DependencyTracker()
+        if deps:
+            tracker._imported_dependencies = deps
+        writer._dependency_tracker = tracker
+        return writer, tracker
+
+    def test_enable_sca_metadata_sets_none_to_empty_list(self):
+        writer, tracker = self._make_writer_with_tracker(
+            deps={
+                "requests": DependencyEntry(name="requests", version="2.28.0"),
+                "flask": DependencyEntry(name="flask", version="3.0.0"),
+            }
+        )
+        assert tracker._imported_dependencies["requests"].metadata is None
+        assert tracker._imported_dependencies["flask"].metadata is None
 
         writer.enable_sca_metadata()
 
-        assert writer._imported_dependencies["requests"].metadata == []
-        assert writer._imported_dependencies["flask"].metadata == []
+        assert tracker._imported_dependencies["requests"].metadata == []
+        assert tracker._imported_dependencies["flask"].metadata == []
 
     def test_enable_sca_metadata_preserves_existing_metadata(self):
-        from unittest.mock import MagicMock
-
-        from ddtrace.internal.telemetry.writer import TelemetryWriter
-
-        writer = TelemetryWriter.__new__(TelemetryWriter)
-        writer._service_lock = MagicMock()
         entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
         entry.add_metadata(ReachabilityMetadata(type="reachability", value={"id": "CVE-1"}))
-        writer._imported_dependencies = {"requests": entry}
+
+        writer, tracker = self._make_writer_with_tracker(deps={"requests": entry})
 
         writer.enable_sca_metadata()
 
         # Should not overwrite existing metadata
-        assert len(writer._imported_dependencies["requests"].metadata) == 1
+        assert len(tracker._imported_dependencies["requests"].metadata) == 1
 
 
 class TestWriterReReporting:
@@ -337,32 +332,32 @@ class TestWriterReReporting:
     def _make_writer(self):
         from unittest.mock import MagicMock
 
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
         from ddtrace.internal.telemetry.writer import TelemetryWriter
 
         writer = TelemetryWriter.__new__(TelemetryWriter)
         writer._service_lock = MagicMock()
-        writer._imported_dependencies = {}
-        writer._sca_metadata_enabled = False
-        writer._modules_already_imported = set()
+        tracker = DependencyTracker()
+        writer._dependency_tracker = tracker
         writer._enabled = True
-        return writer
+        return writer, tracker
 
     def test_report_dependencies_rereports_on_new_metadata(self):
         from unittest.mock import patch
 
-        writer = self._make_writer()
+        writer, tracker = self._make_writer()
 
         # Pre-populate with an already-reported dep (SCA active: metadata=[])
         entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
         entry.mark_initial_sent()
-        writer._imported_dependencies["requests"] = entry
+        tracker._imported_dependencies["requests"] = entry
 
         # Attach metadata after initial report
         writer.attach_dependency_metadata("requests", "CVE-1", True, "requests.sessions", "send", 10)
 
         with (
-            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
@@ -382,15 +377,15 @@ class TestWriterReReporting:
     def test_report_dependencies_no_rereport_without_new_metadata(self):
         from unittest.mock import patch
 
-        writer = self._make_writer()
+        writer, tracker = self._make_writer()
 
         entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
         entry.mark_initial_sent()
-        writer._imported_dependencies["requests"] = entry
+        tracker._imported_dependencies["requests"] = entry
 
         with (
-            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
@@ -404,11 +399,11 @@ class TestWriterReReporting:
         """Re-report includes ALL metadata (sent + unsent) per RFC."""
         from unittest.mock import patch
 
-        writer = self._make_writer()
+        writer, tracker = self._make_writer()
 
         entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
         entry.mark_initial_sent()
-        writer._imported_dependencies["requests"] = entry
+        tracker._imported_dependencies["requests"] = entry
 
         # Attach first CVE and mark as sent
         writer.attach_dependency_metadata("requests", "CVE-1", True, "mod.views", "func1", 33)
@@ -418,8 +413,8 @@ class TestWriterReReporting:
         writer.attach_dependency_metadata("requests", "CVE-2", True, "views.ep2", "func2", 456)
 
         with (
-            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
         ):
             mock_config.DEPENDENCY_COLLECTION = True
             mock_modules.get_newly_imported_modules.return_value = set()
@@ -435,13 +430,13 @@ class TestWriterReReporting:
         """New deps created without SCA enabled have no metadata key."""
         from unittest.mock import patch
 
-        writer = self._make_writer()
+        writer, tracker = self._make_writer()
 
         with (
-            patch("ddtrace.internal.telemetry.writer.modules") as mock_modules,
-            patch("ddtrace.internal.telemetry.writer.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
             patch(
-                "ddtrace.internal.telemetry.data.get_module_distribution_versions",
+                "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
                 return_value=("requests", "2.28.0"),
             ),
         ):

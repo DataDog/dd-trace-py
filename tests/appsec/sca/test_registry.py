@@ -24,9 +24,9 @@ def test_registry_add_target_with_vulnerability_info():
     )
     info = registry.get_target_info("module.path:function")
     assert info is not None
-    assert info["package_name"] == "requests"
-    assert info["cve_ids"] == ["CVE-2024-1234", "CVE-2024-5678"]
-    assert info["line"] == 42
+    assert info.package_name == "requests"
+    assert info.cve_ids == ("CVE-2024-1234", "CVE-2024-5678")
+    assert info.line == 42
 
 
 def test_registry_add_target_pending():

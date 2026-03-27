@@ -13,22 +13,24 @@ import requests  # noqa: E402 F401
 
 from ddtrace import __version__  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
-import ddtrace.internal.telemetry.writer  # noqa: E402
+import ddtrace.internal.telemetry.dependency_tracker as dep_tracker  # noqa: E402
 
 
 app = Flask(__name__)
 _TELEMETRY_DEPENDENCIES = []
-update_imported_dependencies = ddtrace.internal.telemetry.writer.update_imported_dependencies
+_original_update_imported_dependencies = dep_tracker.update_imported_dependencies
 
 
-def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps):
+def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps, sca_metadata_enabled=False):
     global _TELEMETRY_DEPENDENCIES
-    dependencies = update_imported_dependencies(imported_dependencies, newly_imported_deps)
+    dependencies = _original_update_imported_dependencies(
+        imported_dependencies, newly_imported_deps, sca_metadata_enabled
+    )
     _TELEMETRY_DEPENDENCIES.extend(dependencies)
     return dependencies
 
 
-ddtrace.internal.telemetry.writer.update_imported_dependencies = wrap_update_imported_dependencies
+dep_tracker.update_imported_dependencies = wrap_update_imported_dependencies
 
 
 @app.route("/")

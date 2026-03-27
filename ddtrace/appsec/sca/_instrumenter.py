@@ -10,12 +10,50 @@ from types import FunctionType
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+def _get_caller_info() -> Tuple[str, int, str]:
+    """Walk the stack to find the first user-code caller frame.
+
+    Returns (path, line, method) where:
+    - path: relative file path of the caller
+    - line: line number in the caller
+    - method: function (or Class.method) name of the caller
+
+    AIDEV-NOTE: Reuses IAST's native C get_info_frame() which walks the
+    stack skipping ddtrace, stdlib, and special frames — same logic as
+    IAST vulnerability location reporting.  The _rel_path helper
+    relativizes the absolute filename.
+    """
+    try:
+        from ddtrace.appsec._patch_utils import rel_path
+        from ddtrace.appsec._shared._stacktrace import get_info_frame
+
+        frame_info = get_info_frame()
+        if not frame_info or frame_info[0] in ("", -1, None):
+            return "", 0, ""
+
+        file_name, line_number, function_name, class_name = frame_info
+        if not file_name:
+            return "", 0, ""
+
+        path = rel_path(file_name)
+        if not path:
+            path = file_name
+
+        method = f"{class_name}.{function_name}" if class_name else (function_name or "")
+
+        return path, line_number or 0, method
+    except Exception:
+        log.debug("Failed to get caller info via get_info_frame", exc_info=True)
+        return "", 0, ""
 
 
 # AIDEV-NOTE: _registry is read on every hook invocation (hot path).
@@ -27,12 +65,19 @@ _registry: Optional["InstrumentationRegistry"] = None  # noqa: F821
 # the overhead of import-lock acquisition on every call.
 _telemetry_writer = None
 
+# Singleton Instrumenter instance, shared across all instrumentation
+# operations so per-target locks are preserved.
+_instrumenter_instance: Optional["Instrumenter"] = None
+_instrumenter_lock = Lock()
+
 
 def _reset_after_fork():
     """Reset module-level references after fork."""
-    global _registry, _telemetry_writer
+    global _registry, _telemetry_writer, _instrumenter_instance, _instrumenter_lock
     _registry = None
     _telemetry_writer = None
+    _instrumenter_instance = None
+    _instrumenter_lock = Lock()
 
 
 if hasattr(os, "register_at_fork"):
@@ -54,6 +99,15 @@ def _get_telemetry_writer():
     return _telemetry_writer
 
 
+def get_instrumenter(registry: "InstrumentationRegistry") -> "Instrumenter":  # noqa: F821
+    """Get or create the singleton Instrumenter instance."""
+    global _instrumenter_instance
+    with _instrumenter_lock:
+        if _instrumenter_instance is None:
+            _instrumenter_instance = Instrumenter(registry)
+        return _instrumenter_instance
+
+
 def sca_detection_hook(qualified_name: str) -> None:
     """Hook injected into instrumented functions.
 
@@ -73,17 +127,19 @@ def sca_detection_hook(qualified_name: str) -> None:
         registry_ref.record_hit(qualified_name)
 
         target_info = registry_ref.get_target_info(qualified_name)
-        if not target_info or not target_info.get("cve_ids") or not target_info.get("package_name"):
+        if not target_info or not target_info.cve_ids or not target_info.package_name:
             return
 
         writer = _get_telemetry_writer()
-        package_name = target_info["package_name"]
-        # AIDEV-NOTE: path/method extracted from qualified_name (module.path:method)
-        path, _, method = qualified_name.partition(":")
-        line = target_info.get("line", 0)
+        # AIDEV-NOTE: Walk the stack to find the user-code frame that called
+        # the vulnerable function, similar to IAST's _compute_file_line.
+        # Reports the caller's path/line/method, not the target function's.
+        caller_path, caller_line, caller_method = _get_caller_info()
 
-        for cve_id in target_info["cve_ids"]:
-            writer.attach_dependency_metadata(package_name, cve_id, True, path, method, line)
+        for cve_id in target_info.cve_ids:
+            writer.attach_dependency_metadata(
+                target_info.package_name, cve_id, True, caller_path, caller_method, caller_line
+            )
 
     except Exception:
         log.debug("SCA detection hook error for %s", qualified_name, exc_info=True)
@@ -157,11 +213,9 @@ def apply_instrumentation_updates(
     """
     try:
         from ddtrace.appsec.sca._registry import get_global_registry
-        from ddtrace.appsec.sca._resolver import SymbolResolver
-        from ddtrace.internal.module import ModuleWatchdog
 
         registry = get_global_registry()
-        instrumenter = Instrumenter(registry)
+        instrumenter = get_instrumenter(registry)
 
         _process_removals(instrumenter, registry, targets_to_remove or [])
         _process_additions(instrumenter, registry, targets)
@@ -240,7 +294,7 @@ def _register_lazy_hook(module_name, target_name):
         result = SymbolResolver.resolve(target_name)
         if result:
             _, func = result
-            instrumenter = Instrumenter(registry)
+            instrumenter = get_instrumenter(registry)
             instrumenter.instrument(target_name, func)
             log.debug("Lazy-instrumented %s after module import", target_name)
 

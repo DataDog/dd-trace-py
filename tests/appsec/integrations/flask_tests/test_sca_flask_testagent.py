@@ -182,5 +182,11 @@ class TestSCAFlaskTelemetry:
         assert dep["name"] == "requests"
         assert cve_value["id"] == "CVE-2024-35195"
         assert cve_value["reached"] is True
-        assert "requests.sessions" in cve_value["path"]
-        assert "send" in cve_value.get("method", "") or "Session.send" in cve_value.get("method", "")
+        # AIDEV-NOTE: path/method/line now report the *caller* (user code that
+        # invoked the vulnerable function), not the target function itself.
+        # The caller is sca_test_requests() in tests/appsec/app.py.
+        assert "app.py" in cve_value["path"], f"Expected caller path containing 'app.py', got: {cve_value['path']}"
+        assert "sca_test_requests" in cve_value.get("method", ""), (
+            f"Expected caller method 'sca_test_requests', got: {cve_value.get('method', '')}"
+        )
+        assert cve_value.get("line", 0) > 0, "Expected a non-zero caller line number"

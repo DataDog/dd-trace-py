@@ -11,12 +11,25 @@ from threading import Lock
 from types import CodeType
 from typing import Dict
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+class TargetInfo(NamedTuple):
+    """Immutable snapshot of vulnerability info for a target.
+
+    Cached at registration time and returned from get_target_info
+    without locking or allocation on the hot path.
+    """
+
+    package_name: str
+    cve_ids: tuple
+    line: int
 
 
 @dataclass
@@ -31,6 +44,9 @@ class InstrumentationState:
     is_pending: bool = False
     original_code: Optional[CodeType] = None
     hit_count: int = 0
+    # AIDEV-NOTE: Cached snapshot built at registration time.  Avoids
+    # dict allocation + list copy on every hook invocation (hot path).
+    _cached_info: Optional[TargetInfo] = field(default=None, repr=False, compare=False)
 
 
 class InstrumentationRegistry:
@@ -38,6 +54,12 @@ class InstrumentationRegistry:
 
     All mutable access is protected by a single lock to avoid
     the complexity and overhead of per-entry locks.
+
+    AIDEV-NOTE: record_hit and get_target_info are lock-free because they
+    run on the hot path (every instrumented function call).  dict.get is
+    GIL-safe for reference reads, hit_count is diagnostic-only (a rare
+    lost increment is acceptable), and _cached_info is immutable after
+    registration.
     """
 
     def __init__(self):
@@ -54,13 +76,20 @@ class InstrumentationRegistry:
     ) -> None:
         with self._lock:
             if qualified_name not in self._targets:
-                self._targets[qualified_name] = InstrumentationState(
+                ids = cve_ids or []
+                state = InstrumentationState(
                     qualified_name=qualified_name,
                     package_name=package_name,
-                    cve_ids=cve_ids or [],
+                    cve_ids=ids,
                     line=line,
                     is_pending=pending,
+                    _cached_info=TargetInfo(
+                        package_name=package_name,
+                        cve_ids=tuple(ids),
+                        line=line,
+                    ),
                 )
+                self._targets[qualified_name] = state
                 log.debug("Registered target: %s (pending=%s)", qualified_name, pending)
 
     def remove_target(self, qualified_name: str) -> None:
@@ -93,29 +122,27 @@ class InstrumentationRegistry:
                 log.debug("Marked as instrumented: %s", qualified_name)
 
     def record_hit(self, qualified_name: str) -> None:
-        with self._lock:
-            state = self._targets.get(qualified_name)
-            if state:
-                state.hit_count += 1
+        # No lock: hit_count is diagnostic only; GIL makes dict.get safe
+        # and a rare lost increment on hit_count is acceptable.
+        state = self._targets.get(qualified_name)
+        if state:
+            state.hit_count += 1
 
     def get_hit_count(self, qualified_name: str) -> int:
         with self._lock:
             state = self._targets.get(qualified_name)
             return state.hit_count if state else 0
 
-    def get_target_info(self, qualified_name: str) -> Optional[Dict]:
+    def get_target_info(self, qualified_name: str) -> Optional[TargetInfo]:
         """Get vulnerability info for a target (used by the SCA hook).
 
-        Returns a snapshot dict with package_name, cve_ids, line.
+        Returns the cached TargetInfo snapshot without locking or allocation.
         """
-        with self._lock:
-            state = self._targets.get(qualified_name)
-            if state:
-                return {
-                    "package_name": state.package_name,
-                    "cve_ids": list(state.cve_ids),
-                    "line": state.line,
-                }
+        # No lock: _cached_info is immutable after registration and
+        # dict.get is GIL-safe for reference reads.
+        state = self._targets.get(qualified_name)
+        if state:
+            return state._cached_info
         return None
 
     def get_stats(self) -> Dict[str, Dict]:
