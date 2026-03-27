@@ -1,9 +1,9 @@
 from concurrent import futures
-import os
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import RLock
@@ -16,7 +16,6 @@ from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
-
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
@@ -48,7 +47,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
+        evaluator_str = env.get(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 

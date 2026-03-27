@@ -1,6 +1,5 @@
 from collections.abc import Callable
 import importlib
-import os
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -8,6 +7,7 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
@@ -21,7 +21,6 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 log = get_logger(__name__)
-
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -119,14 +118,12 @@ PATCH_MODULES = {
     "claude_agent_sdk": True,
 }
 
-
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
 # which we need to avoid until as late as possible.
 CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
-
 
 _PATCHED_MODULES = set()
 
@@ -348,8 +345,8 @@ def _patch_all(**patch_modules: bool) -> None:
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
-            modules[module] = formats.asbool(os.environ[env_var])
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in env:
+            modules[module] = formats.asbool(env[env_var])
 
         # Enable all dependencies for the module
         if modules[module]:
