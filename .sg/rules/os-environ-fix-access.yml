@@ -44,29 +44,9 @@ ignores:
   - "ddtrace/sourcecode/**"
 rule:
   pattern: os.environ
-  not:
-    any:
-      - inside:
-          kind: subscript
-          inside:
-            kind: assignment
-            field: left
-          stopBy: end
-      - inside:
-          kind: delete_statement
-          stopBy: end
-      - inside:
-          kind: call
-          has:
-            kind: attribute
-            has:
-              kind: identifier
-              regex: "^(pop|update|setdefault)$"
-              field: attribute
-          stopBy: end
 fix: env
 note: |
-  Replace read-only `os.environ` with `env` from `ddtrace.internal.settings`.
-  Mutation forms (assignment, del, pop, update) are handled by separate rules.
+  Replace `os.environ` with `env` from `ddtrace.internal.settings.env`.
+  `env` is a MutableMapping drop-in for os.environ (supports reads, writes, deletes).
   After applying fix, add the import manually:
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings.env import dd_environ as env

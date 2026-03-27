@@ -44,8 +44,8 @@ ignores:
   - "ddtrace/sourcecode/**"
 rule:
   pattern: os.unsetenv($KEY)
-fix: unsetenv($KEY)
+fix: env.pop($KEY, None)
 note: |
-  Replace `os.unsetenv(key)` with `unsetenv(key)` from `ddtrace.internal.settings.env`.
+  Replace `os.unsetenv(key)` with `env.pop(key, None)` to match os.unsetenv no-op semantics.
   After applying fix, add the import manually:
-    from ddtrace.internal.settings.env import unsetenv
+    from ddtrace.internal.settings.env import dd_environ as env

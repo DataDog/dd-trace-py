@@ -1,5 +1,12 @@
 id: os-environ-fix-access
 snapshots:
+  del os.environ["KEY"]:
+    fixed: del env["KEY"]
+    labels:
+    - source: os.environ
+      style: primary
+      start: 4
+      end: 14
   os.environ.get("DEBUG", "false"):
     fixed: env.get("DEBUG", "false")
     labels:
@@ -14,8 +21,43 @@ snapshots:
       style: primary
       start: 0
       end: 10
+  os.environ.pop("KEY"):
+    fixed: env.pop("KEY")
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  os.environ.pop("KEY", None):
+    fixed: env.pop("KEY", None)
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  os.environ.setdefault("K", "V"):
+    fixed: env.setdefault("K", "V")
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  'os.environ.update({"K": "V"})':
+    fixed: 'env.update({"K": "V"})'
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
   os.environ["HOME"]:
     fixed: env["HOME"]
+    labels:
+    - source: os.environ
+      style: primary
+      start: 0
+      end: 10
+  os.environ["KEY"] = "value":
+    fixed: env["KEY"] = "value"
     labels:
     - source: os.environ
       style: primary

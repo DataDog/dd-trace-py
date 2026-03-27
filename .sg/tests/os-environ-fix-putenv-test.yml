@@ -1,7 +1,7 @@
 id: os-environ-fix-putenv
 valid:
-  - setenv("KEY", "value")
-  - from ddtrace.internal.settings.env import setenv
+  - env["KEY"] = "value"
+  - from ddtrace.internal.settings.env import dd_environ as env
 
 invalid:
   - os.putenv("KEY", "value")

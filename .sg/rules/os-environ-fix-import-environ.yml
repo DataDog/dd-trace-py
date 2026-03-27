@@ -44,7 +44,7 @@ ignores:
   - "ddtrace/sourcecode/**"
 rule:
   pattern: from os import environ
-fix: from ddtrace.internal.settings import env
+fix: from ddtrace.internal.settings.env import dd_environ as env
 note: |
-  Replace `from os import environ` with `from ddtrace.internal.settings import env`.
+  Replace `from os import environ` with the dd_environ import.
   You will also need to update all `environ` references in the file to `env`.

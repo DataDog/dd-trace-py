@@ -1,8 +1,0 @@
-id: os-environ-fix-delitem
-valid:
-  - unsetenv("KEY")
-  - del some_dict["KEY"]
-
-invalid:
-  - del os.environ["KEY"]
-  - del os.environ["DEBUG"]

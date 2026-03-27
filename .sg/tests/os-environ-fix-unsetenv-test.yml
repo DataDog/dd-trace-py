@@ -1,7 +1,7 @@
 id: os-environ-fix-unsetenv
 valid:
-  - unsetenv("KEY")
-  - from ddtrace.internal.settings.env import unsetenv
+  - env.pop("KEY", None)
+  - from ddtrace.internal.settings.env import dd_environ as env
 
 invalid:
   - os.unsetenv("KEY")

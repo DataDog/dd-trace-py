@@ -44,8 +44,8 @@ ignores:
   - "ddtrace/sourcecode/**"
 rule:
   pattern: os.putenv($KEY, $VALUE)
-fix: setenv($KEY, $VALUE)
+fix: env[$KEY] = $VALUE
 note: |
-  Replace `os.putenv(key, value)` with `setenv(key, value)` from `ddtrace.internal.settings.env`.
+  Replace `os.putenv(key, value)` with `env[key] = value`.
   After applying fix, add the import manually:
-    from ddtrace.internal.settings.env import setenv
+    from ddtrace.internal.settings.env import dd_environ as env

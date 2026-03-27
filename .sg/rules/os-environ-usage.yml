@@ -59,7 +59,7 @@ rule:
     - pattern: from os import getenv as $ALIAS, $$$IMPORTS
 note: |
   Direct access to `os.environ` or `os.getenv` is not allowed in `ddtrace/`.
-  Use the `ddtrace.internal.settings.env` module instead:
+  Use `dd_environ` from `ddtrace.internal.settings.env` instead:
 
   Before:
     import os
@@ -67,5 +67,5 @@ note: |
     value = os.getenv("DD_TRACE_DEBUG", "false")
 
   After:
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings.env import dd_environ as env
     value = env.get("DD_TRACE_DEBUG", "false")

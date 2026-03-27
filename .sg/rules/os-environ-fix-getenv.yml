@@ -46,6 +46,6 @@ rule:
   pattern: os.getenv($$$ARGS)
 fix: env.get($$$ARGS)
 note: |
-  Replace `os.getenv(...)` with `env.get(...)` from `ddtrace.internal.settings`.
+  Replace `os.getenv(...)` with `env.get(...)` from `ddtrace.internal.settings.env`.
   After applying fix, add the import manually:
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings.env import dd_environ as env

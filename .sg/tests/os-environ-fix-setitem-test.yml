@@ -1,9 +1,0 @@
-id: os-environ-fix-setitem
-valid:
-  - setenv("KEY", "value")
-  - env["KEY"]
-  - x = os.environ["KEY"]
-
-invalid:
-  - os.environ["KEY"] = "value"
-  - os.environ["DEBUG"] = "true"
