@@ -162,6 +162,7 @@ def _assert_expected_agent_run(
                 model_provider="openai",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
                 span_links=i or previous_tool_events,
+                name=expected_span_names[i + 1],
             )
             for tool in previous_tool_events:
                 _assert_span_link(tool, event, "output", "input")
@@ -176,7 +177,9 @@ def _assert_expected_agent_run(
                 else {}
             )
             io_args = (
-                {"input_value": mock.ANY, "output_value": mock.ANY} if tool_call["type"] == "function_call" else {}
+                {"input_value": mock.ANY, "output_value": mock.ANY}
+                if tool_call["type"] in ("function_call", "handoff")
+                else {}
             )
             assert event == _expected_llmobs_non_llm_span_event(
                 spans[i + 1],

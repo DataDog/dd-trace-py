@@ -435,11 +435,11 @@ def _annotate_llmobs_span_data(
     metrics: Optional[dict[str, Any]] = None,
     tags: Optional[dict[str, str]] = None,
     input_messages: Optional[list[Message]] = None,
-    input_value: Optional[str] = None,
+    input_value: Optional[Any] = None,
     input_documents: Optional[list[Document]] = None,
-    prompt: Optional[Prompt] = None,
+    prompt: Optional[Union[Prompt, ValidatedPromptDict]] = None,
     output_messages: Optional[list[Message]] = None,
-    output_value: Optional[str] = None,
+    output_value: Optional[Any] = None,
     output_documents: Optional[list[Document]] = None,
     tool_definitions: Optional[list[ToolDefinition]] = None,
     session_id: Optional[str] = None,
@@ -489,7 +489,8 @@ def _annotate_llmobs_span_data(
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
         if agent_manifest is not None:
-            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
@@ -501,19 +502,27 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
         if config is not None:
             llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
+        # Add I/O messages to messages field only for LLM spans, otherwise add to value field
+        is_llm = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND) == "llm"
         if input_messages is not None:
-            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+            if is_llm:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+            else:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
         if input_value is not None:
-            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = input_value
+            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
         if input_documents is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
         if prompt is not None:
-            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = prompt
+            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = cast(Prompt, prompt)
             span._set_ctx_item(INPUT_PROMPT, prompt)
         if output_messages is not None:
-            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+            if is_llm:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+            else:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
         if output_value is not None:
-            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = output_value
+            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
         if output_documents is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
         if tool_definitions is not None:
