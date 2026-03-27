@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import sysconfig
 from typing import Any
@@ -38,7 +41,6 @@ _WHEEL_DEBUG_SETUP_ARGS = (
     "-Doptimization=3",
     "-Db_ndebug=true",
 )
-_EDITABLE_RUNTIME_REQUIRES = ("ninja",)
 
 
 def _build_system_cache_key() -> str:
@@ -143,139 +145,177 @@ def _with_default_build_dir(config_settings: dict[Any, Any] | None) -> dict[Any,
     return settings
 
 
-def _patch_editable_loader(loader_text: str) -> str:
-    # AIDEV-NOTE: Keep the editable loader rebuild command interpreter-relative.
-    # Riot can run subprocesses with a PATH that does not include the base venv's
-    # script directory, so replacing meson-python's ephemeral build-env ninja
-    # path with bare "ninja" breaks imports in build_base_venvs smoke tests.
-    patched, count = re.subn(
-        r"(?m)^(\s*)\[[^\n]*ninja[^\n]*\],$",
-        r"\1[sys.executable, '-m', 'ninja'],",
-        loader_text,
-        count=1,
-    )
-    if count != 1:
-        raise RuntimeError("Could not find editable loader ninja command to patch")
+def _copy_install_plan_to_source(build_dir: str) -> int:
+    """Copy all meson build artifacts into the source tree.
 
-    # AIDEV-NOTE: When sys.executable is not Python (e.g. in uWSGI worker
-    # processes where the embedding process binary is used), the rebuild command
-    # [sys.executable, '-m', 'ninja'] fails with a non-zero exit code.
-    # Instead of propagating an ImportError, fall through to reading the
-    # existing intro-install_plan.json in the build directory.  The plan was
-    # written by the initial `pip install -e .` run and still points to the
-    # pre-built artifacts, so imports succeed without any rebuild.
-    patched, count2 = re.subn(
-        r"(?m)^(\s+)except subprocess\.CalledProcessError as exc:\n(\s+)raise ImportError\([^)]+\) from exc",
-        r"\1except subprocess.CalledProcessError:\n\2pass  # rebuild failed; use existing build artifacts",
-        patched,
-        count=1,
-    )
-    if count2 != 1:
-        raise RuntimeError("Could not find editable loader CalledProcessError handler to patch")
+    AIDEV-NOTE: With a simple path-based editable install, Python finds ddtrace
+    directly from the source tree via sys.path — not via MesonpyMetaFinder and
+    the build directory.  Compiled extensions and other generated files must live
+    alongside the Python source in ddtrace/ so the normal import machinery finds
+    them without needing the meson-python editable loader at all.
 
-    # AIDEV-NOTE: Suppress stderr from the ninja subprocess so that test
-    # processes which capture stderr (e.g. `subprocess.Popen(...,
-    # stderr=subprocess.PIPE)`) do not see noise from pytest-cov's subprocess
-    # coverage mechanism.  When pytest-cov is active it injects a .pth file
-    # that tries to register sys.monitoring tool ID 1 (COVERAGE_ID) in every
-    # new Python process.  The ddtrace CI-visibility plugin claims the same
-    # tool ID; when ninja is launched as [sys.executable, '-m', 'ninja'], the
-    # new Python process's startup triggers the conflict and writes
-    # "ValueError: tool 1 is already in use" to stderr — which leaks into the
-    # test's captured stderr pipe and breaks assertions like
-    # `assert p.stderr.read() == b""`.
-    # Redirecting stderr=subprocess.DEVNULL in the non-verbose rebuild path
-    # suppresses this startup noise without affecting normal error reporting
-    # (errors surfaced via check=True still propagate as CalledProcessError).
-    patched, count3 = re.subn(
-        r"subprocess\.run\(self\._build_cmd, cwd=self\._build_path, env=env, stdout=subprocess\.DEVNULL, check=True\)",
-        "subprocess.run(self._build_cmd, cwd=self._build_path, env=env,"
-        " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)",
-        patched,
-        count=1,
-    )
-    if count3 != 1:
-        raise RuntimeError("Could not find editable loader non-verbose subprocess.run to patch with stderr=DEVNULL")
+    Files destined for directories starting with '.' (e.g. {py_platlib}/.meson-native/)
+    are intentional meson staging areas used by install scripts; they are skipped here
+    and handled separately (see _install_iast_native).
+    """
+    from pathlib import PurePosixPath
 
-    # AIDEV-NOTE: Strip pytest-cov subprocess-coverage env vars from the ninja
-    # rebuild environment.  When pytest-cov is active, COV_CORE_SOURCE (and
-    # siblings) are set in the outer pytest process and inherited by test
-    # subprocesses.  ninja is launched as [sys.executable, '-m', 'ninja'] — a
-    # full Python process — so its startup processes all .pth files including
-    # pytest-cov.pth.  That .pth file calls `from pytest_cov.embed import
-    # init; init()` which tries to claim sys.monitoring tool ID 1 (COVERAGE_ID).
-    # If coverage.py already claimed it in the parent, init() raises
-    # ValueError('tool 1 is already in use').  The riot _riot_site_packages_*
-    # activate() mechanism reprocesses site-packages directories and evicts
-    # coverage from sys.modules between directories, causing pytest-cov.pth to
-    # run multiple times in a single subprocess — producing several copies of
-    # the error even with stderr=DEVNULL held by the parent's pipe.  Stripping
-    # COV_CORE_* and COVERAGE_PROCESS_START from the ninja env prevents
-    # pytest-cov from activating inside the rebuild subprocess entirely,
-    # eliminating any possibility of coverage-related noise from that process.
-    patched, count4 = re.subn(
-        r"(env\[MARKER\] = os\.pathsep\.join\(\(env\.get\(MARKER, ''\), self\._build_path\)\))",
-        r"\1"
-        "\n            for _cov_key in [k for k in env"
-        " if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']:"
-        "\n                del env[_cov_key]",
-        patched,
-        count=1,
-    )
-    if count4 != 1:
-        raise RuntimeError("Could not find editable loader env setup to patch with COV_CORE_* stripping")
-    return patched
+    plan_path = Path(build_dir) / "meson-info" / "intro-install_plan.json"
+    if not plan_path.exists():
+        return 0
+
+    with open(plan_path, encoding="utf-8") as fh:
+        plan = json.load(fh)
+
+    copied = 0
+    for _section, data in plan.items():
+        for src, target_info in data.items():
+            dest = target_info.get("destination", "")
+            parts = PurePosixPath(dest).parts
+            if not parts or parts[0] not in ("{py_platlib}", "{py_purelib}"):
+                continue
+            if len(parts) < 2:
+                continue
+            # Skip internal meson staging directories (e.g. .meson-native/).
+            # These are handled by install scripts; we process them separately.
+            if parts[1].startswith("."):
+                continue
+            src_path = Path(src)
+            if not src_path.exists() or src_path.is_dir():
+                continue
+            dst = _ROOT / os.path.join(*parts[1:])
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src_path), str(dst))
+            copied += 1
+    return copied
 
 
-def _patch_editable_metadata(metadata_text: str) -> str:
-    lines = metadata_text.splitlines()
-    existing = {line.partition(":")[2].strip() for line in lines if line.startswith("Requires-Dist:")}
-    for requirement in _EDITABLE_RUNTIME_REQUIRES:
-        if requirement not in existing:
-            lines.append(f"Requires-Dist: {requirement}")
-    return "\n".join(lines) + "\n"
+def _install_iast_native(build_dir: str) -> None:
+    """Perform the IAST native install-script transformation.
+
+    AIDEV-NOTE: The IAST native C++ extension is built as native_iast_raw{ext}
+    in the meson build directory (meson custom_target install_dir points to
+    {py_platlib}/.meson-native/ as a staging location).  During a regular
+    'meson install' the install script scripts/meson_install_iast_native.py
+    renames it to _native{ext} under ddtrace/appsec/_iast/_taint_tracking/.
+    Install scripts do not run during an editable build, so we replicate that
+    rename here so the extension is importable from the source tree.
+    """
+    import importlib.machinery
+
+    bd = Path(build_dir)
+    for ext in importlib.machinery.EXTENSION_SUFFIXES:
+        raw = bd / f"native_iast_raw{ext}"
+        if raw.exists():
+            dst = _ROOT / "ddtrace" / "appsec" / "_iast" / "_taint_tracking" / f"_native{ext}"
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(raw), str(dst))
+            break
 
 
-def _patch_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
+def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
+    """Replace meson-python's editable install with a simple path-based install.
+
+    AIDEV-NOTE: meson-python's editable loader (MesonpyMetaFinder) runs ninja in
+    every subprocess that imports ddtrace to check for rebuilt artifacts.  Even a
+    'no work to do' ninja run starts a full Python process, adding ~1-3 seconds of
+    overhead to every ddtrace import in a subprocess.  Tests that spawn subprocesses
+    (e.g. ddtrace-run with a 5-second timeout, pygoat's Django server) fail because
+    of this latency.
+
+    Instead of patching the loader with fragile regexes we replace it entirely:
+    1. Copy all meson build artifacts (extensions, generated files) to the source tree.
+    2. Replace the loader-activating .pth with a plain source-path .pth so Python
+       finds ddtrace from the source tree via normal import machinery — no loader,
+       no ninja, no per-subprocess overhead.
+
+    This matches the behaviour of the old cmake/setuptools in-place build.  After
+    editing Cython/C source, re-run `pip install -e .` to rebuild (same workflow as
+    cmake).  Set MESONPY_EDITABLE_VERBOSE=1 to use the original meson-python loader
+    with auto-rebuild instead (install will skip this transformation).
+    """
+    if os.environ.get("MESONPY_EDITABLE_VERBOSE"):
+        # Developer requested the full meson-python loader with auto-rebuild.
+        return wheel_name
+
     wheel_path = Path(wheel_directory) / wheel_name
-    patched_path = wheel_path.with_suffix(".patched.whl")
+    patched_path = wheel_path.with_suffix(".simple.whl")
 
-    with zipfile.ZipFile(wheel_path, "r") as src, zipfile.ZipFile(patched_path, "w") as dst:
-        for info in src.infolist():
-            data = src.read(info.filename)
+    # Extract the build directory path from the loader so we can read the install plan.
+    # Also detect the dist-info prefix and whether top_level.txt is already present.
+    build_dir: str | None = None
+    dist_info_prefix: str | None = None
+    has_top_level_txt = False
+    with zipfile.ZipFile(wheel_path, "r") as zf:
+        for info in zf.infolist():
             if info.filename.endswith("_ddtrace_editable_loader.py"):
-                data = _patch_editable_loader(data.decode("utf-8")).encode("utf-8")
-            elif info.filename.endswith(".dist-info/METADATA"):
-                data = _patch_editable_metadata(data.decode("utf-8")).encode("utf-8")
-            dst.writestr(info, data)
-        # AIDEV-NOTE: Inject a .pth file named with a leading '0' (ASCII 48) so
-        # it sorts before _riot_site_packages_*.pth (ASCII 95) during Python's
-        # site-packages initialisation.  Python processes .pth files in sorted
-        # order; when a test subprocess (P1) starts it inherits COV_CORE_SOURCE
-        # from the outer pytest process.  riot's activate() calls
-        # site.addsitedir(..., known_paths=set()) for each extra site-packages
-        # directory, which re-executes pytest-cov.pth and calls init() again.
-        # init() tries to claim sys.monitoring tool ID 1 (COVERAGE_ID); on the
-        # second and subsequent calls it fails with ValueError('tool 1 is
-        # already in use'), writing the message to stderr.  Because tests assert
-        # err == b"" this causes spurious failures.  Stripping COV_CORE_* and
-        # COVERAGE_PROCESS_START from the environment before activate() runs
-        # makes init() a no-op in all subsequent calls, so no error is written.
-        # AIDEV-NOTE: The .pth code uses __import__('os') instead of importing
-        # os at the top and aliasing it.  Python 3.9-3.11 exec()s .pth lines
-        # without creating proper cell objects for local variables, so list
-        # comprehensions inside exec'd code cannot access outer exec-local
-        # names via closure (LOAD_DEREF).  PEP 709 (Python 3.12) inlined
-        # comprehensions fixed this, but for older Pythons we must use only
-        # builtins and constants inside the comprehension — __import__ is a
-        # builtin (LOAD_GLOBAL) and thus always accessible.
+                loader_text = zf.read(info.filename).decode("utf-8")
+                m = re.search(
+                    r"install\(\s*\n?\s*'[^']*'\s*,\s*\n?\s*\{[^}]*\}\s*,\s*\n?\s*'([^']+)'",
+                    loader_text,
+                )
+                if m:
+                    build_dir = m.group(1)
+            elif ".dist-info/" in info.filename and dist_info_prefix is None:
+                dist_info_prefix = info.filename.split(".dist-info/")[0] + ".dist-info/"
+            if info.filename.endswith("/top_level.txt") or info.filename == "top_level.txt":
+                has_top_level_txt = True
+
+    if build_dir:
+        _copy_install_plan_to_source(build_dir)
+        _install_iast_native(build_dir)
+
+    with zipfile.ZipFile(wheel_path, "r") as src_zip, zipfile.ZipFile(patched_path, "w") as dst_zip:
+        for info in src_zip.infolist():
+            filename = info.filename
+            data = src_zip.read(filename)
+
+            if filename.endswith("_ddtrace_editable_loader.py"):
+                # Replace with a stub so the RECORD manifest stays intact but
+                # the loader installs no meta-path finder and runs no ninja.
+                data = b"# meson-python editable loader disabled: using simple path-based install\n"
+            elif filename.endswith(".pth") and b"_ddtrace_editable_loader" in data:
+                # AIDEV-NOTE: Replace the loader-activating .pth with a plain
+                # source-directory path.  Python's site module adds every line in
+                # a .pth file that is an existing directory to sys.path, so this
+                # single line makes the whole source tree importable — identical
+                # to setuptools' legacy editable install mode.
+                data = (str(_ROOT) + "\n").encode("utf-8")
+
+            dst_zip.writestr(info, data)
+
+        # AIDEV-NOTE: Inject a .pth named with a leading '0' (ASCII 48) so it
+        # sorts before _riot_site_packages_*.pth (ASCII 95) during site-packages
+        # initialisation.  Python processes .pth files in sorted order; when a
+        # test subprocess starts it inherits COV_CORE_SOURCE from the outer pytest
+        # process.  riot's activate() calls site.addsitedir(..., known_paths=set())
+        # which re-executes pytest-cov.pth and calls init() again.  init() tries to
+        # claim sys.monitoring tool ID 1 (COVERAGE_ID); on the second call it raises
+        # ValueError('tool 1 is already in use') which leaks into stderr and breaks
+        # tests asserting err == b"".  Stripping COV_CORE_* / COVERAGE_PROCESS_START
+        # before activate() runs makes init() a no-op, eliminating the noise.
+        # AIDEV-NOTE: Uses __import__('os') not 'import os as _os' because Python
+        # 3.9-3.11 exec()s .pth lines without closure cells, so list comprehensions
+        # cannot access outer exec-local names via LOAD_DEREF.  __import__ is a
+        # builtin (LOAD_GLOBAL) and always accessible.
         _cov_strip_code = (
             "import sys; "
             "[__import__('os').environ.pop(k) for k in"
             " [k for k in list(__import__('os').environ)"
             " if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']]\n"
         )
-        dst.writestr("0_ddtrace_strip_cov.pth", _cov_strip_code.encode("utf-8"))
+        dst_zip.writestr("0_ddtrace_strip_cov.pth", _cov_strip_code.encode("utf-8"))
+
+        # AIDEV-NOTE: Inject top_level.txt into the dist-info so that
+        # importlib.metadata.packages_distributions() maps 'ddtrace' to
+        # the installed distribution.  Without this, the meson-python editable
+        # RECORD has no ddtrace/ entries and MesonpyMetaFinder (which we've
+        # removed) was the only thing that made 'ddtrace' appear in the
+        # packages mapping.  When 'ddtrace' is absent, iastpatch.is_first_party()
+        # classifies it as local/first-party code and patches it — breaking the
+        # IAST tests that expect DENIED_NOT_FOUND for ddtrace.*.
+        if dist_info_prefix and not has_top_level_txt:
+            dst_zip.writestr(dist_info_prefix + "top_level.txt", b"ddtrace\n")
 
     patched_path.replace(wheel_path)
     return wheel_name
@@ -313,4 +353,4 @@ def build_editable(
         _with_default_build_dir(config_settings),
         metadata_directory,
     )
-    return _patch_editable_wheel(wheel_directory, wheel_name)
+    return _make_simple_editable_wheel(wheel_directory, wheel_name)
