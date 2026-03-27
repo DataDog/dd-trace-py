@@ -1698,7 +1698,7 @@ class TestParseOtlpHeaders:
         assert self._parse("invalid,key=value") == [("key", "value")]
 
     def test_value_containing_equals_uses_first_equals_as_delimiter(self):
-        assert self._parse("key=val=ue") == [("key", "val=ue")]
+        assert self._parse("key=val=extra") == [("key", "val=extra")]
 
 
 class TestIsOtlpTracesExporterEnabled:
