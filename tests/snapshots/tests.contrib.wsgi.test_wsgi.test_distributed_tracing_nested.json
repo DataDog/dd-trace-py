@@ -41,6 +41,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
        "duration": 1126666,
@@ -79,6 +80,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.wsgi",
+               "_dd.svc_src": "wsgi",
                "component": "wsgi"
              },
              "duration": 393250,
@@ -113,6 +115,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.wsgi",
+               "_dd.svc_src": "wsgi",
                "component": "wsgi",
                "result_class": "list"
              },
@@ -148,6 +151,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi",
          "result_class": "list_iterator"
        },

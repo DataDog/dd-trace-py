@@ -11,25 +11,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699da0a500000000",
+      "_dd.p.tid": "69c6746100000000",
       "_dd.svc_src": "wsgi",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "be792b43dbd74d0dade601a90f1c332a",
+      "runtime-id": "9efedf14772f49d1bc212b8ca9735a13",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 92738.0
+      "process_id": 610.0
     },
-    "duration": 1528709,
-    "start": 1771937957139035509
+    "duration": 203750,
+    "start": 1774613601444535630
   },
      {
        "name": "wsgi.application",
@@ -42,10 +43,11 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
-       "duration": 455625,
-       "start": 1771937957139846468
+       "duration": 79625,
+       "start": 1774613601444606338
      },
         {
           "name": "wsgi.start_response",
@@ -62,8 +64,8 @@
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 84333,
-          "start": 1771937957139968593
+          "duration": 25083,
+          "start": 1774613601444646255
         },
      {
        "name": "wsgi.response",
@@ -76,9 +78,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi",
          "result_class": "list"
        },
-       "duration": 218625,
-       "start": 1771937957140334968
+       "duration": 39792,
+       "start": 1774613601444695171
      }]]

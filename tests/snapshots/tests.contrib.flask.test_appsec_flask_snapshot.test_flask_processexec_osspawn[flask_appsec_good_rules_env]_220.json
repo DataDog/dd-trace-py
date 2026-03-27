@@ -61,6 +61,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "flask",
          "component": "flask",
          "flask.endpoint": "run_osspawn",
          "flask.url_rule": "/executions/osspawn"
@@ -77,6 +78,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 39042,
@@ -91,6 +93,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 39690416,
@@ -105,6 +108,7 @@
              "parent_id": 5,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "flask",
                "component": "flask"
              },
              "duration": 39572083,
@@ -120,6 +124,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.svc_src": "flask",
                   "cmd.exec": "['/bin/ls', '-l', '/']",
                   "cmd.exit_code": "0",
                   "component": "os"
@@ -137,6 +142,7 @@
                    "type": "system",
                    "meta": {
                      "_dd.base_service": "",
+                     "_dd.svc_src": "flask",
                      "cmd.exec": "['os.fork']",
                      "component": "os"
                    },
@@ -152,6 +158,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 127584,
@@ -166,6 +173,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 42834,
@@ -180,6 +188,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 30208,
@@ -194,6 +203,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "flask",
          "component": "flask"
        },
        "duration": 844375,

@@ -12,6 +12,7 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
+      "_dd.svc_src": "django",
       "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
@@ -45,6 +46,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 98000,
@@ -62,6 +64,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 57000,
@@ -79,6 +82,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 30000,
@@ -96,6 +100,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 32000,
@@ -113,6 +118,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 25000,
@@ -130,6 +136,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 44000,
@@ -147,6 +154,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 28000,
@@ -164,6 +172,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 105000,
@@ -181,6 +190,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 38000,
@@ -198,6 +208,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 38000,
@@ -215,6 +226,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 30000,
@@ -232,6 +244,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 35000,
@@ -249,6 +262,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 30000,
@@ -266,6 +280,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 26000,
@@ -283,6 +298,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 34000,
@@ -300,6 +316,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 30000,

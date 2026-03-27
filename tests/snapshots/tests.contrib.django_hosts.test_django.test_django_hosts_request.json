@@ -47,6 +47,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.django_hosts",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 11697584,
@@ -63,6 +64,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.django_hosts",
+            "_dd.svc_src": "django",
             "component": "django"
           },
           "duration": 608125,
@@ -79,6 +81,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.django_hosts",
+            "_dd.svc_src": "django",
             "component": "django"
           },
           "duration": 10636250,
@@ -95,6 +98,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django_hosts",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 1029875,
@@ -111,6 +115,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django_hosts",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 9221209,
@@ -127,6 +132,7 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django_hosts",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 95917,
@@ -143,6 +149,7 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django_hosts",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 8783959,
@@ -159,6 +166,7 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "tests.contrib.django_hosts",
+                     "_dd.svc_src": "django",
                      "component": "django"
                    },
                    "duration": 66500,
@@ -175,6 +183,7 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "tests.contrib.django_hosts",
+                     "_dd.svc_src": "django",
                      "component": "django"
                    },
                    "duration": 8406334,
@@ -191,6 +200,7 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "tests.contrib.django_hosts",
+                        "_dd.svc_src": "django",
                         "component": "django"
                       },
                       "duration": 126000,
@@ -207,6 +217,7 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "tests.contrib.django_hosts",
+                        "_dd.svc_src": "django",
                         "component": "django"
                       },
                       "duration": 8095000,
@@ -223,6 +234,7 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "tests.contrib.django_hosts",
+                           "_dd.svc_src": "django",
                            "component": "django"
                          },
                          "duration": 4057708,
@@ -239,6 +251,7 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "tests.contrib.django_hosts",
+                           "_dd.svc_src": "django",
                            "component": "django"
                          },
                          "duration": 3719917,
@@ -255,6 +268,7 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "tests.contrib.django_hosts",
+                              "_dd.svc_src": "django",
                               "component": "django"
                             },
                             "duration": 3407459,
@@ -271,6 +285,7 @@
                                "error": 0,
                                "meta": {
                                  "_dd.base_service": "tests.contrib.django_hosts",
+                                 "_dd.svc_src": "django",
                                  "component": "django"
                                },
                                "duration": 52000,
@@ -287,6 +302,7 @@
                                "error": 0,
                                "meta": {
                                  "_dd.base_service": "tests.contrib.django_hosts",
+                                 "_dd.svc_src": "django",
                                  "component": "django"
                                },
                                "duration": 3012708,
@@ -303,6 +319,7 @@
                                   "error": 0,
                                   "meta": {
                                     "_dd.base_service": "tests.contrib.django_hosts",
+                                    "_dd.svc_src": "django",
                                     "component": "django"
                                   },
                                   "duration": 69875,
@@ -319,6 +336,7 @@
                                   "error": 0,
                                   "meta": {
                                     "_dd.base_service": "tests.contrib.django_hosts",
+                                    "_dd.svc_src": "django",
                                     "component": "django"
                                   },
                                   "duration": 353167,
@@ -335,6 +353,7 @@
                                   "error": 0,
                                   "meta": {
                                     "_dd.base_service": "tests.contrib.django_hosts",
+                                    "_dd.svc_src": "django",
                                     "component": "django"
                                   },
                                   "duration": 95125,
@@ -351,6 +370,7 @@
                                "error": 0,
                                "meta": {
                                  "_dd.base_service": "tests.contrib.django_hosts",
+                                 "_dd.svc_src": "django",
                                  "component": "django"
                                },
                                "duration": 71833,
@@ -367,6 +387,7 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "tests.contrib.django_hosts",
+                              "_dd.svc_src": "django",
                               "component": "django"
                             },
                             "duration": 66375,
@@ -383,6 +404,7 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "tests.contrib.django_hosts",
+                           "_dd.svc_src": "django",
                            "component": "django"
                          },
                          "duration": 50959,
@@ -399,6 +421,7 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "tests.contrib.django_hosts",
+                     "_dd.svc_src": "django",
                      "component": "django"
                    },
                    "duration": 46958,
@@ -415,6 +438,7 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django_hosts",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 56916,
@@ -431,6 +455,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django_hosts",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 67209,

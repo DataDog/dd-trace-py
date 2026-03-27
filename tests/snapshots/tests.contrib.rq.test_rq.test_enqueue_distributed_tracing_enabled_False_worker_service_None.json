@@ -41,6 +41,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "rq_worker",
          "component": "rq",
          "job.id": "f465ebfe-5fcc-4800-8f57-10f1020d3c45"
        },

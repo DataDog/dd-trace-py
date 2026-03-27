@@ -24,6 +24,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
+from ddtrace.constants import _SERVICE_SOURCE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
@@ -480,6 +481,14 @@ class Tracer(object):
         if service is not None:
             service = config.service_mapping.get(service, service)
 
+        # Inherit _dd.svc_src from parent when the child stays in the same service,
+        # regardless of whether service was explicitly provided or inherited from None.
+        # Integration code calling maybe_set_service_source_tag afterwards will override
+        # this with the integration name (last writer wins).
+        _inherited_svc_src: Optional[str] = None
+        if parent and service == parent.service:
+            _inherited_svc_src = parent._meta.get(_SERVICE_SOURCE_KEY)
+
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -502,6 +511,9 @@ class Tracer(object):
                 span._local_root = parent._local_root
                 if span._parent.service == service:
                     span._service_entry_span = parent._service_entry_span
+
+            if _inherited_svc_src:
+                span._meta[_SERVICE_SOURCE_KEY] = _inherited_svc_src
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers
