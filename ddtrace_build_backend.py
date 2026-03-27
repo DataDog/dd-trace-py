@@ -336,17 +336,53 @@ def build_sdist(sdist_directory: str, config_settings: dict[Any, Any] | None = N
     return mesonpy.build_sdist(sdist_directory, _with_default_build_dir(config_settings))
 
 
+def _inject_top_level_txt(wheel_directory: str, wheel_name: str) -> str:
+    """Inject top_level.txt into a wheel's dist-info if not already present.
+
+    AIDEV-NOTE: mesonpy.build_wheel delegates directly to meson-python and produces
+    a wheel whose dist-info has no top_level.txt.  Without top_level.txt,
+    importlib.metadata.packages_distributions() does not list 'ddtrace', so
+    IAST's is_first_party() classifies ddtrace modules as user code and patches
+    aspects.py — causing infinite recursion in modulo_aspect.  This post-processing
+    step adds the missing top_level.txt so the installed wheel behaves the same as
+    one built with setuptools (which always writes top_level.txt).
+    """
+    wheel_path = Path(wheel_directory) / wheel_name
+    patched_path = wheel_path.with_suffix(".patched.whl")
+
+    dist_info_prefix: str | None = None
+    has_top_level_txt = False
+    with zipfile.ZipFile(wheel_path, "r") as zf:
+        for info in zf.infolist():
+            if ".dist-info/" in info.filename and dist_info_prefix is None:
+                dist_info_prefix = info.filename.split(".dist-info/")[0] + ".dist-info/"
+            if info.filename.endswith("/top_level.txt") or info.filename == "top_level.txt":
+                has_top_level_txt = True
+
+    if has_top_level_txt or dist_info_prefix is None:
+        return wheel_name
+
+    with zipfile.ZipFile(wheel_path, "r") as src_zip, zipfile.ZipFile(patched_path, "w") as dst_zip:
+        for info in src_zip.infolist():
+            dst_zip.writestr(info, src_zip.read(info.filename))
+        dst_zip.writestr(dist_info_prefix + "top_level.txt", b"ddtrace\n")
+
+    patched_path.replace(wheel_path)
+    return wheel_name
+
+
 def build_wheel(
     wheel_directory: str,
     config_settings: dict[Any, Any] | None = None,
     metadata_directory: str | None = None,
 ) -> str:
     settings = _with_default_wheel_build_settings(config_settings)
-    return mesonpy.build_wheel(
+    wheel_name = mesonpy.build_wheel(
         wheel_directory,
         _with_default_build_dir(settings),
         metadata_directory,
     )
+    return _inject_top_level_txt(wheel_directory, wheel_name)
 
 
 def build_editable(
