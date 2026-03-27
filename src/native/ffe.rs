@@ -215,6 +215,10 @@ pub mod ffe {
                 ),
                 EvaluationError::FlagDisabled => ResolutionDetails::empty(Reason::Disabled),
                 EvaluationError::DefaultAllocationNull => ResolutionDetails::empty(Reason::Default),
+                EvaluationError::TargetingKeyMissing => ResolutionDetails::error(
+                    ErrorCode::TargetingKeyMissing,
+                    "targeting key is missing",
+                ),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }
         }
