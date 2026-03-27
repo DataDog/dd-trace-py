@@ -3,12 +3,14 @@ from pathlib import Path
 import re
 import struct
 import sys
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.fnv import fnv1_64
 
 
@@ -21,6 +23,7 @@ ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
 SVC_USER_TAG = "svc.user"
 SVC_AUTO_TAG = "svc.auto"
+INFO_RETRY_MAX_ATTEMPTS = 3
 
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
 _ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
@@ -95,6 +98,10 @@ def _initialize_process_tags() -> None:
     process_tags, process_tags_list = generate_process_tags()  # type: ignore
 
 
+base_hash, base_hash_bytes = None, b""
+_container_tags_hash = ""
+
+
 def _recompute_base_hash() -> None:
     if not process_tags_config.enabled:
         return
@@ -115,16 +122,45 @@ def compute_base_hash(container_tags_hash):
         return
 
     global _container_tags_hash
+    if _container_tags_hash == container_tags_hash:
+        return
     _container_tags_hash = container_tags_hash
     _recompute_base_hash()
 
 
-base_hash, base_hash_bytes = None, b""
-_container_tags_hash = ""
+@callonce
+def _retrieve_container_tags_hash() -> None:
+    if not process_tags_config.enabled:
+        return
+
+    def _fetch():
+        from ddtrace.internal import agent
+        from ddtrace.internal.utils.retry import retry
+
+        @retry(after=[0.5] * (INFO_RETRY_MAX_ATTEMPTS - 1))
+        def _fetch_info():
+            agent.info()
+
+        try:
+            _fetch_info()
+        except Exception:
+            log.debug("failed to fetch container tags hash from agent /info endpoint", exc_info=True)
+
+    t = threading.Thread(target=_fetch, daemon=True)
+    t.start()
+
+
+@callonce
+def _register_container_tags_hook():
+    from ddtrace.internal import core
+
+    core.on("container_tags_hash.retrieved", compute_base_hash)
 
 
 def __getattr__(name: str) -> Any:
     if "process_tags" in name:
+        _register_container_tags_hook()
+        _retrieve_container_tags_hash()
         _initialize_process_tags()
         _recompute_base_hash()
         if name == "process_tags":

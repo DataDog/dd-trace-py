@@ -202,6 +202,18 @@ class LLMObsServer(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"OK")
 
+    def do_GET(self) -> None:
+        # ddtrace may probe /info on DD_TRACE_AGENT_URL while these tests are running.
+        # Return 404 (agent unsupported) to avoid warning logs from 5xx responses.
+        if self.path == "/info" or self.path == "info":
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"")
+            return
+        self.send_response(501)
+        self.end_headers()
+        self.wfile.write(b"")
+
 
 @pytest.fixture
 def _llmobs_backend():
