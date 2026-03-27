@@ -100,7 +100,7 @@ def ddtrace_injection_artifact():
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 
-        # 3. Copy the ddtrace source code into our temp site-packages.
+        # 3. Copy the ddtrace source code into our temp site-packages
         host_ddtrace_path = os.path.join(PROJECT_ROOT, "ddtrace")
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
