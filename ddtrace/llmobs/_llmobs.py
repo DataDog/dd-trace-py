@@ -30,7 +30,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import core
-from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
@@ -471,8 +470,6 @@ class LLMObs(Service):
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
-        forksafe.register(self._child_after_fork)
-
         self._link_tracker = LinkTracker()
         self._annotations: list[tuple[str, str, dict[str, Any]]] = []
         self._annotation_context_lock = RLock()
@@ -888,12 +885,10 @@ class LLMObs(Service):
                     self.annotate(span, **annotation_kwargs, _suppress_span_kind_error=True)
 
     def _child_after_fork(self) -> None:
-        self._llmobs_span_writer = self._llmobs_span_writer.recreate()
-        self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
-        self._evaluator_runner = self._evaluator_runner.recreate()
+        self._llmobs_span_writer.reset()
+        self._llmobs_eval_metric_writer.reset()
+        self._evaluator_runner.reset()
         LLMObs._prompt_manager = None
-        if self.enabled:
-            self._start_service()
 
     def _start_service(self) -> None:
         try:
@@ -948,8 +943,6 @@ class LLMObs(Service):
             DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH,
             self._link_tracker.on_openai_agent_span_finish,
         )
-
-        forksafe.unregister(self._child_after_fork)
 
     @classmethod
     def enable(

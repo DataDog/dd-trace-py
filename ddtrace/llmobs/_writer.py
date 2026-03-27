@@ -325,15 +325,11 @@ class BaseLLMObsWriter(PeriodicService):
         """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 
-    def recreate(self):
-        return self.__class__(
-            interval=self._interval,
-            timeout=self._timeout,
-            is_agentless=self._agentless,
-            _site=self._site,
-            _api_key=self._api_key,
-            _override_url=self._override_url,
-        )
+    def reset(self) -> None:
+        """Discard buffered events after a fork. The worker thread is restarted automatically."""
+        with self._lock:
+            self._buffer = []
+            self._buffer_size = 0
 
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
