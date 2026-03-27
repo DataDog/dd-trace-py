@@ -4,7 +4,10 @@ import azure.functions as func
 import ddtrace.auto  # noqa: F401
 
 
-CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
+CONNECTION_STRING = (
+    "AccountEndpoint=http://localhost:8081/;"
+    "AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
+)
 COSMOS_DATABASE_NAME = "documents-db"
 COSMOS_CONTAINER_NAME = "documents"
 
