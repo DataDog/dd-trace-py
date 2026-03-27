@@ -39,6 +39,10 @@ def _allocate_1k() -> list[object]:
     return [object() for _ in range(1000)]
 
 
+def _allocate_bytearray_mem_domain(size: int = 4096) -> bytearray:
+    return bytearray(size)
+
+
 _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
@@ -89,6 +93,35 @@ def test_heap_samples_collected() -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_HEAP_SAMPLE_SIZE="16",
+        DD_PROFILING_MEMALLOC_TRACK_ALL_DOMAINS="1",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_memalloc_all_domains_collects_bytearray",
+    )
+)
+def test_memalloc_all_domains_collects_bytearray() -> None:
+    import os
+
+    from ddtrace.profiling import Profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import _allocate_bytearray_mem_domain
+    from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = Profiler()
+    p.start()
+    _ = [_allocate_bytearray_mem_domain() for _ in range(64)]
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    assert len(samples) > 0
+    assert any(has_function_in_profile_sample(profile, sample, _allocate_bytearray_mem_domain) for sample in samples)
 
 
 def test_memory_collector(tmp_path: Path) -> None:
@@ -195,26 +228,33 @@ def test_heap_profiler_large_heap_overhead() -> None:
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
-# Python 3.13 changed bytearray to use an allocation domain that we don't
-# currently profile, so we use None instead of bytearray to test.
+# Python 3.13 changed bytearray to use an allocation domain that is only
+# tracked when DD_PROFILING_MEMALLOC_TRACK_ALL_DOMAINS=1.
+def _all_domains_enabled() -> bool:
+    value = os.getenv("DD_PROFILING_MEMALLOC_TRACK_ALL_DOMAINS")
+    if value is None:
+        return False
+    return value.lower() in ("1", "true", "yes", "on")
+
+
 def one(size: int) -> Union[tuple[None, ...], bytearray]:
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE and not _all_domains_enabled() else bytearray(size)
 
 
 def two(size: int) -> Union[tuple[None, ...], bytearray]:
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE and not _all_domains_enabled() else bytearray(size)
 
 
 def three(size: int) -> Union[tuple[None, ...], bytearray]:
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE and not _all_domains_enabled() else bytearray(size)
 
 
 def four(size: int) -> Union[tuple[None, ...], bytearray]:
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE and not _all_domains_enabled() else bytearray(size)
 
 
 def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE and not _all_domains_enabled() else bytearray(size)
 
 
 def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:

@@ -1,7 +1,9 @@
+#include <array>
 #include <string_view>
 
 #include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
+#include "_memalloc_vm_copy.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
  * CPython API calls that could allocate, free, or touch error state.
@@ -22,6 +24,38 @@ unicode_to_sv_no_alloc(PyObject* obj)
         return std::string_view((const char*)PyUnicode_DATA(obj), (size_t)PyUnicode_GET_LENGTH(obj));
     }
     return "<non-ascii>";
+}
+
+template<size_t N>
+static inline std::string_view
+remote_unicode_to_sv_no_alloc(PyObject* unicode_addr, std::array<char, N>& buffer)
+{
+    if (unicode_addr == NULL) {
+        return "<unknown>";
+    }
+
+    PyASCIIObject remote_ascii{};
+    if (memalloc_copy_type(unicode_addr, remote_ascii)) {
+        return "<unreadable>";
+    }
+
+    if (!remote_ascii.state.compact || !remote_ascii.state.ascii) {
+        return "<non-ascii>";
+    }
+
+    Py_ssize_t len = remote_ascii.length;
+    if (len < 0 || static_cast<size_t>(len) >= N) {
+        return "<too-long>";
+    }
+
+    if (len > 0) {
+        const void* data_addr = reinterpret_cast<const char*>(unicode_addr) + sizeof(PyASCIIObject);
+        if (copy_memory(pid, data_addr, len, buffer.data())) {
+            return "<unreadable>";
+        }
+    }
+
+    return std::string_view(buffer.data(), static_cast<size_t>(len));
 }
 
 /* Helper function to get thread info using C-level APIs and push to sample.
@@ -113,8 +147,114 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
     }
 }
 
+/* Collect frames by copying CPython structs into local storage.
+ * This path is used for non-OBJ domains where callbacks can run without the GIL,
+ * so direct Python-structure dereferences are avoided. */
+static void
+push_stacktrace_to_sample_remote_copy(Datadog::Sample& sample, uint16_t max_nframe)
+{
+    PyThreadState* tstate_addr = memalloc_get_unchecked_tstate_no_gil();
+    if (tstate_addr == NULL) {
+        sample.push_frame("<no thread state>", "<unknown>", 0, 0);
+        return;
+    }
+
+    PyThreadState tstate{};
+    if (memalloc_copy_type(tstate_addr, tstate)) {
+        sample.push_frame("<unreadable thread state>", "<unknown>", 0, 0);
+        return;
+    }
+
+    memalloc_frame_t* current_frame = NULL;
+#ifdef _PY313_AND_LATER
+    current_frame = tstate.current_frame;
+#elif defined(_PY311_AND_LATER)
+    if (tstate.cframe != NULL) {
+        _PyCFrame cframe{};
+        if (memalloc_copy_type(tstate.cframe, cframe)) {
+            sample.push_frame("<unreadable cframe>", "<unknown>", 0, 0);
+            return;
+        }
+        current_frame = cframe.current_frame;
+    }
+#else
+    current_frame = tstate.frame;
+#endif // _PY313_AND_LATER
+
+    if (current_frame == NULL) {
+        sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
+        return;
+    }
+
+    uint16_t pushed_frames = 0;
+    size_t walked_frames = 0;
+    while (current_frame != NULL) {
+        if (++walked_frames > TRACEBACK_MAX_WALKED_NFRAME) {
+            sample.incr_dropped_frames();
+            break;
+        }
+        if (pushed_frames >= max_nframe) {
+            sample.incr_dropped_frames();
+            break;
+        }
+
+        memalloc_frame_t frame{};
+        if (memalloc_copy_type(current_frame, frame)) {
+            sample.incr_dropped_frames();
+            break;
+        }
+
+#ifdef _PY312_AND_LATER
+        if (frame.owner != FRAME_OWNED_BY_THREAD && frame.owner != FRAME_OWNED_BY_GENERATOR) {
+            current_frame = frame.previous;
+            continue;
+        }
+#endif
+
+        PyCodeObject* code_addr = NULL;
+#ifdef _PY314_AND_LATER
+        code_addr = (PyCodeObject*)((uintptr_t)frame.f_executable.bits & ~(uintptr_t)7);
+#elif defined(_PY313_AND_LATER)
+        code_addr = (PyCodeObject*)frame.f_executable;
+#elif defined(_PY311_AND_LATER)
+        code_addr = frame.f_code;
+#else
+        code_addr = frame.f_code;
+#endif // _PY314_AND_LATER
+
+        if (code_addr != NULL) {
+            PyCodeObject code{};
+            int lineno = 0;
+            std::array<char, 256> name_buf{};
+            std::array<char, 512> filename_buf{};
+            std::string_view name_sv = "<remote-python-frame>";
+            std::string_view filename_sv = "<remote>";
+            if (!memalloc_copy_type(code_addr, code)) {
+                int lasti = memalloc_compute_lasti_from_remote_frame(&frame, code_addr);
+                lineno = memalloc_lineno_from_offset(lasti, &code);
+                PyObject* code_name_addr = NULL;
+#ifdef _PY311_AND_LATER
+                code_name_addr = code.co_qualname ? code.co_qualname : code.co_name;
+#else
+                code_name_addr = code.co_name;
+#endif
+                name_sv = remote_unicode_to_sv_no_alloc(code_name_addr, name_buf);
+                filename_sv = remote_unicode_to_sv_no_alloc(code.co_filename, filename_buf);
+            }
+            sample.push_frame(name_sv, filename_sv, 0, lineno);
+            ++pushed_frames;
+        }
+
+#ifdef _PY311_AND_LATER
+        current_frame = frame.previous;
+#else
+        current_frame = frame.f_back;
+#endif // _PY311_AND_LATER
+    }
+}
+
 void
-traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -124,18 +264,38 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
+    std::string_view domain_sv = "<unknown>";
+    switch (domain) {
+        case PYMEM_DOMAIN_OBJ:
+            domain_sv = "obj";
+            break;
+        case PYMEM_DOMAIN_MEM:
+            domain_sv = "mem";
+            break;
+        case PYMEM_DOMAIN_RAW:
+            domain_sv = "raw";
+            break;
+        default:
+            break;
+    }
+
     sample.push_alloc(weighted_size, count);
+    sample.push_label(Datadog::ExportLabelKey::allocator_domain, domain_sv);
     push_threadinfo_to_sample(sample);
-    push_stacktrace_to_sample_no_refcount(sample, max_nframe);
+    if (domain == PYMEM_DOMAIN_OBJ) {
+        push_stacktrace_to_sample_no_refcount(sample, max_nframe);
+    } else {
+        push_stacktrace_to_sample_remote_copy(sample, max_nframe);
+    }
 }
 
 // AIDEV-NOTE: Constructor calls init_sample() which reads CPython structs directly
-traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     if (max_nframe == 0) {
         return;
     }
 
-    init_sample(size, weighted_size, max_nframe);
+    init_sample(size, weighted_size, max_nframe, domain);
 }

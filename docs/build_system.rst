@@ -221,6 +221,15 @@ These environment variables modify aspects of the build process.
         (`malloc -> malloc` or `malloc -> free`). This is intended for memalloc testing and debugging builds, not
         for production use.
 
+  DD_PROFILING_MEMALLOC_TRACK_ALL_DOMAINS:
+    type: Boolean
+    default: True
+
+    description: |
+        Controls memalloc allocator domain coverage at runtime.
+        By default, builds enable OBJ, MEM, and RAW domain hooks.
+        Set to 0 to force OBJ-only behavior.
+
   DD_CMAKE_INCREMENTAL_BUILD:
     type: Boolean
     default: True
