@@ -393,13 +393,8 @@ def test_user_threads_have_native_id():
 
     for _ in range(10):
         try:
-            # The TID should be a positive integer distinct from the main thread's TID.
-            # We do NOT assert a tight upper bound on (t.native_id - getpid()) because
-            # Linux allocates TIDs from a global counter that may have advanced far past
-            # the PID on a loaded CI system (containers with many threads), making an
-            # upper-bound of 100 unreliable.
-            assert t.native_id is not None and t.native_id > 0, t.native_id  # pyright: ignore[reportOptionalOperand]
-            assert t.native_id != getpid(), (t.native_id, getpid())
+            # The TID should be higher than the PID, but not too high
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
