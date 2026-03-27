@@ -77,6 +77,29 @@ def _find_dep_with_cve(events, dep_name, cve_id):
     return None, None
 
 
+def _find_all_cve_metadata(events, dep_name, cve_id):
+    """Collect ALL metadata entries for a specific CVE across all events.
+
+    Returns a list of parsed value dicts for the given CVE.  This is needed
+    to verify deduplication: each unique (CVE, path, method, line) should
+    appear at most once across the entire session.
+    """
+    results = []
+    for dep in _collect_all_deps(events):
+        if dep.get("name") != dep_name:
+            continue
+        for meta_entry in dep.get("metadata", []):
+            if meta_entry.get("type") != "reachability":
+                continue
+            try:
+                value = json.loads(meta_entry["value"])
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+            if value.get("id") == cve_id:
+                results.append(value)
+    return results
+
+
 _SCA_ENV = {
     "DD_APPSEC_SCA_ENABLED": "true",
     "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
@@ -190,3 +213,98 @@ class TestSCAFlaskTelemetry:
             f"Expected caller method 'sca_test_requests', got: {cve_value.get('method', '')}"
         )
         assert cve_value.get("line", 0) > 0, "Expected a non-zero caller line number"
+
+    def test_sca_same_cve_different_call_sites(self, iast_test_token):
+        """Same CVE triggered from two different functions produces two metadata entries.
+
+        /sca-test-requests and /sca-test-requests-alt both call
+        requests.Session.send (CVE-2024-35195) but from different functions
+        (sca_test_requests vs sca_test_requests_alt).  The deduplication key
+        is (CVE, path, method, line), so these should produce two distinct
+        metadata entries.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8053,
+            env=_SCA_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Hit two different endpoints that trigger the same CVE
+            response = flask_client.get(
+                "/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token}
+            )
+            assert response.status_code == 200
+
+            response = flask_client.get(
+                "/sca-test-requests-alt", headers={"X-Datadog-Test-Session-Token": iast_test_token}
+            )
+            assert response.status_code == 200
+
+            time.sleep(4)
+
+        events = _get_dependency_events(iast_test_token)
+        assert len(events) > 0, "No app-dependencies-loaded events found"
+
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
+        assert len(all_cve_entries) >= 2, (
+            f"Expected at least 2 metadata entries for CVE-2024-35195 (one per call site), "
+            f"got {len(all_cve_entries)}: {all_cve_entries}"
+        )
+
+        # Verify the two entries come from different caller methods
+        methods = {entry.get("method", "") for entry in all_cve_entries}
+        assert "sca_test_requests" in str(methods), f"Missing sca_test_requests in methods: {methods}"
+        assert "sca_test_requests_alt" in str(methods), f"Missing sca_test_requests_alt in methods: {methods}"
+
+    def test_sca_deduplication_repeated_calls(self, iast_test_token):
+        """Calling the same vulnerable function multiple times from the same call site
+        produces only ONE metadata entry per unique (CVE, path, method, line).
+
+        This test hits /sca-test-requests five times.  Each call triggers the
+        SCA hook at the same call site (same file, function, line).  The
+        deduplication logic in DependencyEntry.add_metadata should reject
+        duplicates, so only one metadata entry should appear.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8054,
+            env=_SCA_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Hit the same endpoint multiple times
+            for _ in range(5):
+                response = flask_client.get(
+                    "/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token}
+                )
+                assert response.status_code == 200
+
+            time.sleep(4)
+
+        events = _get_dependency_events(iast_test_token)
+        assert len(events) > 0, "No app-dependencies-loaded events found"
+
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
+        assert len(all_cve_entries) >= 1, "Expected at least one CVE-2024-35195 metadata entry"
+
+        # Deduplicate by (path, method, line) — all 5 calls came from the
+        # same call site so there should be exactly one unique entry.
+        unique_keys = {
+            (entry.get("path", ""), entry.get("method", ""), entry.get("line", 0))
+            for entry in all_cve_entries
+        }
+        assert len(unique_keys) == 1, (
+            f"Expected exactly 1 unique (path, method, line) for repeated calls from the same site, "
+            f"got {len(unique_keys)}: {unique_keys}"
+        )

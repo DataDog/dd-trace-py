@@ -213,6 +213,19 @@ def sca_test_requests():
     return "OK_sca", 200
 
 
+@app.route("/sca-test-requests-alt")
+def sca_test_requests_alt():
+    """Alternate endpoint that exercises the same CVE-2024-35195 target from a different call site."""
+    import requests as _requests
+
+    session = _requests.Session()
+    try:
+        session.post("http://localhost:1", data="x")
+    except Exception:
+        pass
+    return "OK_sca_alt", 200
+
+
 @app.route("/submit/file", methods=["POST"])
 def submit_file():
     user_file = request.stream.read()
