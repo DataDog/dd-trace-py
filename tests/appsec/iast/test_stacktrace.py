@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from ddtrace.appsec._iast._stacktrace import get_info_frame
+from ddtrace.appsec._shared._stacktrace import get_info_frame
 
 
 def test_stacktrace():

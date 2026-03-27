@@ -27,7 +27,6 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
-from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_EVENT_TYPE
 from .constants import TELEMETRY_LOG_LEVEL
@@ -35,7 +34,7 @@ from .constants import TELEMETRY_NAMESPACE
 from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
-from .data import update_imported_dependencies
+from .dependency_tracker import DependencyTracker
 from .logging import DDTelemetryErrorHandler
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import MetricTagType
@@ -166,8 +165,7 @@ class TelemetryWriter(PeriodicService):
         self._queued_configs: list[dict] = []
         self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
-        self._imported_dependencies: dict[str, str] = dict()
-        self._modules_already_imported: set[str] = set()
+        self._dependency_tracker = DependencyTracker()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
         self._extended_time = time.monotonic()
@@ -316,7 +314,8 @@ class TelemetryWriter(PeriodicService):
             payload["configurations"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [
-                    {"name": name, "version": version} for name, version in self._imported_dependencies.items()
+                    entry.to_telemetry_dict(include_all_metadata=True)
+                    for entry in self._dependency_tracker.get_all_dependencies().values()
                 ]
             self._extended_time += self._extended_heartbeat_interval
         return payload
@@ -337,15 +336,35 @@ class TelemetryWriter(PeriodicService):
         return configurations
 
     def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
-        """Adds events to report imports done since the last periodic run"""
-        if not config.DEPENDENCY_COLLECTION or not self._enabled:
-            return None
+        """Report newly imported modules and modules with updated SCA metadata.
 
-        with self._service_lock:
-            newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            if not newly_imported_deps:
-                return None
-            return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+        Delegates to DependencyTracker.collect_report().
+        """
+        if not self._enabled:
+            return None
+        return self._dependency_tracker.collect_report()
+
+    def attach_dependency_metadata(
+        self,
+        package_name: str,
+        cve_id: str,
+        reached: bool,
+        path: str,
+        method: str,
+        line: int,
+    ) -> bool:
+        """Attach reachability metadata to an imported dependency.
+
+        Delegates to DependencyTracker.attach_metadata().
+        """
+        return self._dependency_tracker.attach_metadata(package_name, cve_id, reached, path, method, line)
+
+    def enable_sca_metadata(self) -> None:
+        """Activate SCA metadata on all tracked and future dependencies.
+
+        Delegates to DependencyTracker.enable_sca_metadata().
+        """
+        self._dependency_tracker.enable_sca_metadata()
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
@@ -683,7 +702,7 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
-        self._imported_dependencies = {}
+        self._dependency_tracker.reset()
         self._queued_configs = []
         self._sent_configs = []
 

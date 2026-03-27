@@ -1220,9 +1220,9 @@ if not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec._iast._stacktrace",
+                "ddtrace.appsec._shared._stacktrace",
                 sources=[
-                    "ddtrace/appsec/_iast/_stacktrace.c",
+                    "ddtrace/appsec/_shared/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )

@@ -359,7 +359,7 @@ static PyMethodDef StacktraceMethods[] = { { "get_info_frame",
                                            { NULL, NULL, 0, NULL } };
 
 static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
-                                         "ddtrace.appsec._iast._stacktrace",
+                                         "ddtrace.appsec._shared._stacktrace",
                                          "stacktrace module",
                                          -1,
                                          StacktraceMethods };

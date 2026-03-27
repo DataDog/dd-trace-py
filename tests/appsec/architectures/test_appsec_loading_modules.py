@@ -17,7 +17,9 @@ MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
     "ddtrace.appsec._iast._taint_tracking._native",
-    "ddtrace.appsec._iast._stacktrace",
+]
+MODULE_SHARED = [
+    "ddtrace.appsec._shared._stacktrace",
 ]
 
 
@@ -72,6 +74,8 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"
+                    for m in MODULE_SHARED:
+                        assert m not in data["appsec"], f"{m} in {data['appsec']}"
                 print(f"Test passed {i}", flush=True)
                 return
             except HTTPError as e:
