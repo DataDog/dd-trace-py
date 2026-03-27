@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    client-side stats: Disable stats computation by default as it's missing base service in the payload.
