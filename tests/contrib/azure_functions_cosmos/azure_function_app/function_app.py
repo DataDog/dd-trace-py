@@ -42,5 +42,5 @@ def cosmos_trigger(documents: func.DocumentList):
         print("in trigger", file=f)
         for doc in documents:
             print(f"First document: {doc.to_json()}", file=f)
-        #print(documents, file=f)
+        # print(documents, file=f)
     # pass
