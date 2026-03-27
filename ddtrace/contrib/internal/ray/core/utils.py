@@ -24,19 +24,20 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
-from .constants import DD_RAY_TRACE_CTX
-from .constants import RAY_ACTOR_ID
-from .constants import RAY_COMPONENT
-from .constants import RAY_HOSTNAME
-from .constants import RAY_JOB_ID
-from .constants import RAY_METADATA_PREFIX
-from .constants import RAY_NODE_ID
-from .constants import RAY_SUBMISSION_ID
-from .constants import RAY_SUBMISSION_ID_TAG
-from .constants import RAY_TASK_ID
-from .constants import RAY_WORKER_ID
-from .constants import REDACTED_PATH
-from .constants import REDACTED_VALUE
+from ..constants import DD_RAY_TRACE_CTX
+from ..constants import DEFAULT_JOB_NAME
+from ..constants import RAY_ACTOR_ID
+from ..constants import RAY_HOSTNAME
+from ..constants import RAY_JOB_ID
+from ..constants import RAY_JOB_NAME
+from ..constants import RAY_METADATA_PREFIX
+from ..constants import RAY_NODE_ID
+from ..constants import RAY_SUBMISSION_ID
+from ..constants import RAY_SUBMISSION_ID_TAG
+from ..constants import RAY_TASK_ID
+from ..constants import RAY_WORKER_ID
+from ..constants import REDACTED_PATH
+from ..constants import REDACTED_VALUE
 
 
 # The job name regex serves to convert a submission ID in the format job:train_my_model,run:1758573287
@@ -70,11 +71,15 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
+    # Environment variables are used as a process-boundary fallback channel for
+    # context propagation when workers have no active in-process parent span.
     env["traceparent"] = headers.get("traceparent", "")
     env["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
+    # Best-effort extraction: missing either field means there is no usable
+    # distributed context to restore.
     if env.get("traceparent") is not None and env.get("tracestate") is not None:
         return _TraceContext._extract(
             {
@@ -85,17 +90,25 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
     return None
 
 
-def _inject_ray_span_tags_and_metrics(span: Span) -> None:
-    span._set_attribute("component", RAY_COMPONENT)
-    span._set_attribute(RAY_HOSTNAME, socket.gethostname())
+def _get_ray_service_name() -> str:
+    return os.environ.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
+
+
+def _set_dist_ai_metrics(span: Span) -> None:
     span._set_attribute(_AI_OBS_ENABLED_KEY, 1)
     span._set_attribute(_DJM_ENABLED_KEY, 1)
     span._set_attribute(_FILTER_KEPT_KEY, 1)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
-    submission_id = env.get(RAY_SUBMISSION_ID)
-    if submission_id is not None:
+
+def _set_runtime_context_attributes(span: Span, submission_id: Optional[str] = None) -> None:
+    span._set_attribute(RAY_HOSTNAME, socket.gethostname())
+
+    if not submission_id:
+        submission_id = env.get(RAY_SUBMISSION_ID)
+
+    if submission_id:
         span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 
     if ray.is_initialized():
@@ -124,9 +137,9 @@ def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> Non
     and we do not want to rely on _encoding.pyx.
     """
     if sys.getsizeof(tag_value) > MAX_SPAN_META_VALUE_LEN:
-        span.set_tag(tag_name, REDACTED_VALUE)
+        span._set_attribute(tag_name, REDACTED_VALUE)
     else:
-        span.set_tag(tag_name, tag_value)
+        span._set_attribute(tag_name, tag_value)
 
 
 def get_dd_job_name_from_entrypoint(entrypoint: str):
