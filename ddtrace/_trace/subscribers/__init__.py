@@ -1,3 +1,9 @@
 # Import subscriber packages — triggers auto-registration via __init_subclass__
+import sys
+
 import ddtrace._trace.subscribers.http_client  # noqa: F401
 import ddtrace._trace.subscribers.llm  # noqa: F401
+
+
+if "ray" in sys.modules:
+    import ddtrace._trace.subscribers.ray  # noqa: F401
