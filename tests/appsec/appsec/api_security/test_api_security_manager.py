@@ -43,7 +43,7 @@ class TestApiSecurityManager:
         # Create a mock environment with required attributes
         env = MagicMock()
         entry_span = MagicMock(spec=Span)
-        entry_span._meta = {}
+        entry_span._meta = {}  # ast-grep-ignore: span-meta-access
         env.span = MagicMock(spec=Span)
         env.entry_span = entry_span
         env.span.context.sampling_priority = None
@@ -80,7 +80,7 @@ class TestApiSecurityManager:
         Expects that _should_collect_schema is not called.
         """
         entry_span = mock_environment.entry_span
-        entry_span._meta = {api_manager.COLLECTED[0][1]: "some_value"}
+        entry_span._meta = {api_manager.COLLECTED[0][1]: "some_value"}  # ast-grep-ignore: span-meta-access
 
         api_manager._schema_callback(mock_environment)
         api_manager._should_collect_schema.assert_not_called()
@@ -124,8 +124,8 @@ class TestApiSecurityManager:
         mock_environment.waf_callable.assert_called_once()
         mock_report_api_security.assert_called_with(True, 1, "test")
 
-        assert len(entry_span._meta) == 1
-        assert "_dd.appsec.s.req.body" in entry_span._meta
+        assert len(entry_span._meta) == 1  # ast-grep-ignore: span-meta-access
+        assert "_dd.appsec.s.req.body" in entry_span._meta  # ast-grep-ignore: span-meta-access
 
     @pytest.mark.parametrize("should_collect_return", [True, False, None])
     @pytest.mark.parametrize("sampling_priority", [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP])
@@ -207,7 +207,7 @@ class TestApiSecurityManager:
 
         entry_span = mock_environment.entry_span
         # Verify all schemas are stored in span metadata
-        assert len(entry_span._meta) == 7
+        assert len(entry_span._meta) == 7  # ast-grep-ignore: span-meta-access
         for meta in [
             "_dd.appsec.s.req.body",
             "_dd.appsec.s.req.headers",
@@ -217,7 +217,7 @@ class TestApiSecurityManager:
             "_dd.appsec.s.res.headers",
             "_dd.appsec.s.res.body",
         ]:
-            assert meta in entry_span._meta
+            assert meta in entry_span._meta  # ast-grep-ignore: span-meta-access
 
         mock_report_api_security.assert_called_with(True, 7, "test")
 
@@ -239,7 +239,7 @@ class TestApiSecurityManager:
 
             mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
-            assert len(entry_span._meta) == 0
+            assert len(entry_span._meta) == 0  # ast-grep-ignore: span-meta-access
             mock_report_api_security.assert_called_with(True, 0, "test")
 
     def test_schema_callback_parse_response_body_disabled(
@@ -261,7 +261,7 @@ class TestApiSecurityManager:
             call_args = mock_environment.waf_callable.call_args[0][0]
             assert "RESPONSE_BODY" not in call_args
 
-            assert len(mock_environment.entry_span._meta) == 0
+            assert len(mock_environment.entry_span._meta) == 0  # ast-grep-ignore: span-meta-access
             mock_report_api_security.assert_called_with(True, 0, "test")
 
     def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):

@@ -271,7 +271,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
             statsd.distribution.assert_has_calls(
                 [
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
@@ -292,7 +292,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
 
             statsd.distribution.assert_has_calls(
                 [
@@ -317,7 +317,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
 
             client_count = len(writer._clients)
             statsd.distribution.assert_has_calls(
@@ -348,7 +348,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # writer should have has 10 unsent traces, sent traces should be reset to zero
-            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
             statsd.distribution.assert_has_calls(
                 [
                     mock.call("datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None),
@@ -1365,7 +1365,7 @@ def test_trace_with_128bit_trace_ids():
         spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(parent.trace_id >> 64)
 
 
 @pytest.mark.parametrize(

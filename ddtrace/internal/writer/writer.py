@@ -282,13 +282,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
-        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = (
-                1.0 - self._drop_sma.get()
+            trace[0]._set_attribute(
+                _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
             )  # PERF: avoid setting via Span.set_metric
 
     def _reset_connection(self) -> None:
@@ -1068,13 +1068,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
-        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
             # PERF: avoid setting via Span.set_metric
-            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = 1.0 - self._drop_sma.get()
+            trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:

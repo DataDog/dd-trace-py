@@ -228,7 +228,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             url = f"/?{query_params}"
             response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
             assert self.status(response) == 200
-            assert get_entry_span_metric("_dd.appsec.waf.timeouts") > 0, (entry_span()._meta, entry_span()._metrics)
+            assert get_entry_span_metric("_dd.appsec.waf.timeouts") > 0, (
+                entry_span()._get_str_attributes(),
+                entry_span()._get_numeric_attributes(),
+            )
             args_list = [
                 (args[0].value, args[1].value) + args[2:]
                 for args, kwargs in mocked.add_metric.call_args_list
@@ -1944,8 +1947,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
             else:
                 assert get_entry_span_tag("usr.id") is None
-                assert not any(tag.startswith("appsec.events.users.login") for tag in entry_span()._meta)
-                assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._meta)
+                assert not any(
+                    tag.startswith("appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+                )
+                assert not any(
+                    tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+                )
             # check for fingerprints when user events
             if asm_enabled:
                 assert (st := get_entry_span_tag(asm_constants.FINGERPRINTING.HEADER)) is not None, (
@@ -2057,7 +2064,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert get_entry_span_tag("appsec.events.users.login.success.track") == "true"
                 assert get_entry_span_tag("usr.id") == user_id
                 assert get_entry_span_tag("usr.id") == user_id, (user_id, get_entry_span_tag("usr.id"))
-                assert any(tag.startswith("appsec.events.users.login") for tag in entry_span()._meta)
+                assert any(tag.startswith("appsec.events.users.login") for tag in entry_span()._get_str_attributes())
                 assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") == "true"
                 assert any(
                     t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_success") == t[2][0]
@@ -2065,7 +2072,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 ), telemetry_calls
 
             # no auto instrumentation
-            assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._meta)
+            assert not any(
+                tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+            )
 
             # check for fingerprints when user events
             if asm_enabled:
@@ -2089,15 +2098,21 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
             # metadata
             success = "success" if status_code == 200 else "failure"
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", entry_span()._meta
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", (
+                entry_span()._get_str_attributes()
+            )
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
-                entry_span()._meta
+                entry_span()._get_str_attributes()
             )
             assert (
                 get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
-            ), entry_span()._meta
+            ), entry_span()._get_str_attributes()
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])
