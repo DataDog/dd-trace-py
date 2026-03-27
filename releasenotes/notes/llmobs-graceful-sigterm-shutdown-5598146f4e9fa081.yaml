@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds graceful SIGTERM handling so buffered spans and evaluation metrics
+    are flushed before process exit. Set ``DD_LLMOBS_GRACEFUL_TERMINATION_PERIOD`` (default
+    ``0``) to delay shutdown by the given number of seconds, allowing the application to
+    continue writing spans during a Kubernetes graceful termination window before stopping.
