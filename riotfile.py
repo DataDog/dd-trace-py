@@ -3311,6 +3311,17 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="azure_cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_cosmos",
+            pys=select_pys(min_version="3.9", max_version="3.14"),
+            pkgs={
+                "azure.cosmos": ["~=4.6.0", latest],
+                "pytest-asyncio": "==0.23.7",
+                "aiohttp": latest,
+                "six": latest,
+            },
+        ),
+        Venv(
             name="azure_eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3334,6 +3345,17 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
+            },
+        ),
+        Venv(
+            name="azure_functions:cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.cosmos": ["~=4.6.0", latest],
+                "azure.storage.blob": latest,
+                "aiohttp": latest,
             },
         ),
         Venv(
