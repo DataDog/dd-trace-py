@@ -263,7 +263,13 @@ def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
 
     if build_dir:
         _copy_install_plan_to_source(build_dir)
-        _install_iast_native(build_dir)
+        # AIDEV-NOTE: _install_iast_native is intentionally not called here.
+        # cmake's LIBRARY_OUTPUT_DIRECTORY in CMakeLists.txt already places
+        # _native{ext} directly into ddtrace/appsec/_iast/_taint_tracking/ in
+        # the source tree during the cmake build step (before install).  Calling
+        # _install_iast_native would overwrite that correct binary with
+        # native_iast_raw{ext} from the meson build root — which may contain the
+        # wrong binary due to the glob fallback in meson_build_ext.py cmd_cmake.
 
     with zipfile.ZipFile(wheel_path, "r") as src_zip, zipfile.ZipFile(patched_path, "w") as dst_zip:
         for info in src_zip.infolist():

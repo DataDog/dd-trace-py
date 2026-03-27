@@ -653,8 +653,17 @@ def cmd_cmake(args):
 
     # Verify the output was produced
     if not output.exists():
-        # Check if it's in the install_dir with a different name
-        candidates = list(install_dir.glob(f"*{args.ext_suffix}"))
+        # AIDEV-NOTE: cmake names the installed file after the pybind11_add_module
+        # target (e.g. "_native"), not after the meson output variable
+        # (e.g. "native_iast_raw").  For iast_native specifically, search for
+        # "_native*{ext_suffix}" to avoid accidentally picking up other extensions
+        # (e.g. _ddup, _encoding) that also live in the shared @OUTDIR@ meson build
+        # root.  Picking the wrong binary would produce an ImportError:
+        # "dynamic module does not define module export function (PyInit__native)".
+        if component_name == "iast_native":
+            candidates = list(install_dir.glob(f"_native*{args.ext_suffix}"))
+        else:
+            candidates = list(install_dir.glob(f"*{args.ext_suffix}"))
         if candidates:
             shutil.copy2(candidates[0], output)
         else:
