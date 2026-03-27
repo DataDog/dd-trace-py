@@ -21,6 +21,10 @@ COSMOS_CONTAINER_NAME = "documents"
 @pytest.fixture(autouse=True)
 def setup_cosmos_resources():
     client = CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
+    try:
+        client.delete_database(COSMOS_DATABASE_NAME)
+    except Exception:
+        pass
     database = client.create_database_if_not_exists(COSMOS_DATABASE_NAME)
     database.create_container_if_not_exists(id=COSMOS_CONTAINER_NAME, partition_key=PartitionKey(path="/title"))
 
