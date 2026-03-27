@@ -215,7 +215,10 @@ def _patch_editable_loader(loader_text: str) -> str:
     # eliminating any possibility of coverage-related noise from that process.
     patched, count4 = re.subn(
         r"(env\[MARKER\] = os\.pathsep\.join\(\(env\.get\(MARKER, ''\), self\._build_path\)\))",
-        r"\1\n            for _cov_key in [k for k in env if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']:\n                del env[_cov_key]",
+        r"\1"
+        "\n            for _cov_key in [k for k in env"
+        " if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']:"
+        "\n                del env[_cov_key]",
         patched,
         count=1,
     )
