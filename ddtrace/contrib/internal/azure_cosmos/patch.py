@@ -132,6 +132,8 @@ def _build_span_tags(span, client, request_params, request, request_data):
     connection_mode = client.connection_policy.ConnectionMode
     if connection_mode == 0:
         span._set_attribute("cosmosdb.connection.mode", "gateway")
+    elif connection_mode == 1:
+        span._set_attribute("cosmosdb.connection.mode", "direct")
     else:
         span._set_attribute("cosmosdb.connection.mode", "other")
 
