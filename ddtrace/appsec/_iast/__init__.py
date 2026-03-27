@@ -28,13 +28,13 @@ def wrapped_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 """
 
-import os
 import sys
 import types
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 from ._listener import iast_listen
@@ -245,7 +245,6 @@ def disable_iast_propagation():
     # because they are slow and affect serverless startup time
     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-from ddtrace.internal.settings import env
 
     global _iast_propagation_enabled
     if not _iast_propagation_enabled:

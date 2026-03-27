@@ -1,9 +1,9 @@
 from concurrent import futures
-import os
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import RLock
@@ -13,11 +13,9 @@ from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvalu
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
-from ddtrace.internal.settings import env
 
 
 logger = get_logger(__name__)
-
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,

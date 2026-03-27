@@ -1,4 +1,3 @@
-import os
 import sys
 from time import time
 from time import time_ns
@@ -22,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -29,7 +29,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 
 _Producer = confluent_kafka.Producer
@@ -39,9 +38,7 @@ _DeserializingConsumer = (
     confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
 )
 
-
 log = get_logger(__name__)
-
 
 config._add(
     "kafka",
@@ -62,7 +59,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 KAFKA_VERSION_TUPLE = parse_version(get_version())
-
 
 _SerializationContext = confluent_kafka.serialization.SerializationContext if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
 _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None

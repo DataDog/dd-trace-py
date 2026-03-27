@@ -4,7 +4,6 @@ import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
-import os
 import re
 from typing import Any
 from typing import Literal
@@ -12,12 +11,12 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _validate_evaluator_name
 from ddtrace.llmobs.types import JSONType
-from ddtrace.internal.settings import env
 
 
 class LLMClient(Protocol):
@@ -138,7 +137,6 @@ class CategoricalStructuredOutput(BaseStructuredOutput):
 StructuredOutput = Union[
     BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, dict[str, JSONType]
 ]
-
 
 _PUBLISH_PROVIDER_MAPPING = {
     "openai": "openai",
@@ -324,9 +322,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
     client_options = client_options or {}
 
     credentials = client_options.get("credentials")
-    project = (
-        client_options.get("project") or env.get("GOOGLE_CLOUD_PROJECT") or env.get("GCLOUD_PROJECT")
-    )
+    project = client_options.get("project") or env.get("GOOGLE_CLOUD_PROJECT") or env.get("GCLOUD_PROJECT")
 
     if credentials is None:
         try:
@@ -410,10 +406,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     region_name = (
-        client_options.get("region_name")
-        or env.get("AWS_REGION")
-        or env.get("AWS_DEFAULT_REGION")
-        or "us-east-1"
+        client_options.get("region_name") or env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION") or "us-east-1"
     )
 
     try:

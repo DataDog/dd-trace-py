@@ -1,4 +1,3 @@
-import os
 import socket
 
 from ddtrace.internal.settings import env

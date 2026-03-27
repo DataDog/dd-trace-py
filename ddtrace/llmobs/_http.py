@@ -1,15 +1,14 @@
-import os
 import ssl
 from typing import Optional
 from urllib.parse import urlparse
 
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
+from ddtrace.internal.settings import env
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.http import DEFAULT_TIMEOUT
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.settings import env
 
 
 class ProxiedHTTPSConnection(HTTPSConnection):

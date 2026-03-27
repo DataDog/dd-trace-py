@@ -1,6 +1,5 @@
 from collections.abc import Callable
 import importlib
-import os
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -8,12 +7,12 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
-from ddtrace.internal.settings import env
 
 from .internal import telemetry
 from .internal.logger import get_logger
@@ -22,7 +21,6 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 log = get_logger(__name__)
-
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -120,14 +118,12 @@ PATCH_MODULES = {
     "claude_agent_sdk": True,
 }
 
-
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
 # which we need to avoid until as late as possible.
 CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
-
 
 _PATCHED_MODULES = set()
 

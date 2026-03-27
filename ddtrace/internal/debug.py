@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
@@ -9,6 +8,7 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
@@ -49,7 +49,6 @@ def collect() -> dict[str, Any]:
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
     from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"

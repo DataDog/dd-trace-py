@@ -1,5 +1,4 @@
 import importlib.util
-import os
 import platform
 import sys
 from typing import Optional
@@ -11,6 +10,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config
@@ -18,7 +18,6 @@ from ddtrace.internal.settings.profiling import config_str
 
 
 log = get_logger(__name__)
-
 
 is_available = True
 try:
@@ -30,7 +29,6 @@ try:
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_status
-from ddtrace.internal.settings import env
 except ImportError:
     is_available = False
 

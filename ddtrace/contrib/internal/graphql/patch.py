@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from collections.abc import Iterable
 from io import StringIO
-import os
 import re
 import sys
 import traceback
@@ -27,6 +26,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -36,7 +36,6 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 
 _graphql_version_str = graphql.__version__
@@ -72,7 +71,6 @@ config._add(
         _error_extensions=_parse_error_extensions(env.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
     ),
 )
-
 
 _GRAPHQL_SOURCE = "graphql.source"
 _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"

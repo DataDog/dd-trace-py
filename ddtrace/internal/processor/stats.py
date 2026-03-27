@@ -1,6 +1,5 @@
 # coding: utf-8
 from collections import defaultdict
-import os
 from typing import Optional
 from typing import Union
 
@@ -9,11 +8,11 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
-from ddtrace.internal.settings import env
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent

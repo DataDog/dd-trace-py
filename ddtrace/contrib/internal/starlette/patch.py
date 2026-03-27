@@ -1,5 +1,4 @@
 import inspect
-import os
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -21,6 +20,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
@@ -198,7 +198,6 @@ def traced_handler(wrapped, instance, args, kwargs):
     if request_spans:
         if asm_config._iast_enabled:
             from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
-from ddtrace.internal.settings import env
 
             _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
 

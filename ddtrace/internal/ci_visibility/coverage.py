@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -63,7 +64,6 @@ def _start_coverage(root_dir: str):
         collector = ModuleCodeCollector.CollectInContext()
 
         from ddtrace.ext.git import extract_workspace_path
-from ddtrace.internal.settings import env
 
         try:
             workspace_path = Path(extract_workspace_path())

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -25,6 +24,7 @@ from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_pay
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
@@ -33,7 +33,6 @@ log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
-from ddtrace.internal.settings import env
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):

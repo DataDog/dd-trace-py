@@ -1,4 +1,3 @@
-import os
 from typing import Callable
 from typing import Optional
 
@@ -9,7 +8,6 @@ from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
     "deployment.environment": ENV_KEY,
@@ -128,7 +126,6 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }
-
 
 # https://github.com/open-telemetry/opentelemetry-python/blob/v1.34.1/opentelemetry-sdk/src/opentelemetry/sdk/environment_variables/__init__.py
 SUPPORTED_OTEL_ENV_VARS = {

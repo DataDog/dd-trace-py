@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from email.encoders import encode_noop
 from json import loads
 import logging
-import os
 import re
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
@@ -24,13 +23,13 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
-
 
 if TYPE_CHECKING:
     import http.client as httplib
@@ -41,7 +40,6 @@ if TYPE_CHECKING:
 
 ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
 Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
-
 
 log = logging.getLogger(__name__)
 
@@ -278,7 +276,6 @@ def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.internal.settings import env
 
     if parsed.scheme == "https":
         return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)

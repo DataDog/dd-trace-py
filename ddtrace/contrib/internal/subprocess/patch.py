@@ -16,11 +16,11 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

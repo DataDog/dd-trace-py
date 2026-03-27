@@ -3,7 +3,6 @@ import binascii
 from collections import defaultdict
 import functools
 import gzip
-import os
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -19,6 +18,7 @@ from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -58,7 +58,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.vendor.dogstatsd import DogStatsd
 
     from .utils.http import ConnectionType  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -741,7 +740,6 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             # are initialized
             if asm_config._asm_rc_enabled:
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-from ddtrace.internal.settings import env
 
                 enable_appsec_rc()
         except service.ServiceStatusError:
@@ -1248,11 +1246,7 @@ def _use_log_writer() -> bool:
     The LogWriter is required by default in AWS Lambdas when the Datadog Agent extension
     is not available in the Lambda.
     """
-    if (
-        env.get("DD_AGENT_HOST")
-        or env.get("DATADOG_TRACE_AGENT_HOSTNAME")
-        or env.get("DD_TRACE_AGENT_URL")
-    ):
+    if env.get("DD_AGENT_HOST") or env.get("DATADOG_TRACE_AGENT_HOSTNAME") or env.get("DD_TRACE_AGENT_URL"):
         # If one of these variables are set, we definitely have an agent
         return False
     elif in_aws_lambda() and has_aws_lambda_agent_extension():

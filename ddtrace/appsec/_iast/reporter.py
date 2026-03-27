@@ -2,7 +2,6 @@ import dataclasses
 from functools import reduce
 import json
 import operator
-import os
 from typing import Any
 from typing import Optional
 import zlib
@@ -16,6 +15,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -303,7 +303,6 @@ class IastSpanReporter(NotNoneDictable):
         - tuple[set[Source], list[dict]]: Set of Source objects and list of tainted ranges as dictionaries.
         """
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
-from ddtrace.internal.settings import env
 
         sources = list()
         tainted_ranges = get_tainted_ranges(pyobject)

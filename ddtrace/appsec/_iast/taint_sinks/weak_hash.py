@@ -1,10 +1,9 @@
-import os
 from typing import Any
 from typing import Callable
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS

@@ -1,5 +1,4 @@
 from copy import deepcopy
-import os
 import re
 import sys
 from typing import Any  # noqa:F401
@@ -29,6 +28,7 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -214,7 +214,6 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
 
         <style>[,<style>...]
 
-
     The allowed values are:
 
     - "datadog"
@@ -224,9 +223,7 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
     - "baggage"
     - "none"
 
-
     The default value is ``"datadog,tracecontext,baggage"``.
-
 
     Examples::
 
@@ -517,7 +514,6 @@ class Config(object):
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
             from ddtrace.internal.ipc import SharedStringFile
-from ddtrace.internal.settings import env
 
             self._extra_services_queue = SharedStringFile()
 

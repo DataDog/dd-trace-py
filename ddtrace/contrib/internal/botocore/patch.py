@@ -4,7 +4,6 @@ Trace queries to aws api done via botocore client
 
 import collections
 import json
-import os
 from typing import Union  # noqa:F401
 
 from botocore import __version__
@@ -27,12 +26,12 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
-from ddtrace.internal.settings import env
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
@@ -121,7 +120,9 @@ config._add(
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
             service.strip()
-            for service in env.get("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb").split(",")
+            for service in env.get(
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
+            ).split(",")
         ),
     },
 )

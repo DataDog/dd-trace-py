@@ -9,7 +9,6 @@ specific Django apps like Django Rest Framework (DRF).
 
 from inspect import getmro
 from inspect import unwrap
-import os
 from typing import cast
 
 import wrapt
@@ -28,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -343,7 +343,6 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
     from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.settings import env
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)

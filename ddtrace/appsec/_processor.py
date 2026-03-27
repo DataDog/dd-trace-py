@@ -2,7 +2,6 @@ import dataclasses
 import errno
 import functools
 from json.decoder import JSONDecodeError
-import os
 from typing import Any
 from typing import ClassVar
 from typing import Optional
@@ -37,6 +36,7 @@ from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -199,7 +199,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib.internal import trace_utils
-from ddtrace.internal.settings import env
 
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()

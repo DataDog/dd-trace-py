@@ -34,7 +34,6 @@ import collections
 from dataclasses import dataclass
 from dataclasses import field
 import logging
-import os
 import time
 import traceback
 from typing import DefaultDict
@@ -78,9 +77,7 @@ class LoggerPrefix:
     def build_trie(cls):
         trie = cls(prefix="ddtrace", level=None, children={})
 
-        for logger_name, level in (
-            (k, v) for k, v in env.items() if k.startswith("_DD_") and k.endswith("_LOG_LEVEL")
-        ):
+        for logger_name, level in ((k, v) for k, v in env.items() if k.startswith("_DD_") and k.endswith("_LOG_LEVEL")):
             # Remove the _DD_ prefix and _LOG_LEVEL suffix
             logger_name = logger_name[4:-10]
             parts = logger_name.lower().split("_")

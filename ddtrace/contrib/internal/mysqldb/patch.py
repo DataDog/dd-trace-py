@@ -1,5 +1,3 @@
-import os
-
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
@@ -17,6 +15,7 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -71,7 +70,6 @@ def patch():
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
         from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.internal.settings import env
 
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 

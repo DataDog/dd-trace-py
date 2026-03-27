@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import typing as t
 
@@ -67,6 +66,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -101,7 +101,6 @@ if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
-
 
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -1012,7 +1011,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     try:
         if asm_config._iast_enabled:
             from ddtrace.appsec._iast._pytest_plugin import print_iast_report
-from ddtrace.internal.settings import env
 
             print_iast_report(terminalreporter)
     except Exception:  # noqa: E722

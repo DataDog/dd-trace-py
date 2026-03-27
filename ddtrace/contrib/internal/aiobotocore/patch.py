@@ -1,5 +1,3 @@
-import os
-
 import aiobotocore.client
 import wrapt
 
@@ -18,13 +16,13 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -36,10 +34,8 @@ if AIOBOTOCORE_VERSION <= (0, 10, 0):
 elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
     from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
-
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
-
 
 config._add(
     "aiobotocore",

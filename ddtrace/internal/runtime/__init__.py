@@ -1,10 +1,9 @@
-import os
 import typing as t
 import uuid
 
-from .. import forksafe
-
 from ddtrace.internal.settings import env
+
+from .. import forksafe
 
 
 __all__ = [

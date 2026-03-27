@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import os
 import typing as t
 
 from envier import Env
@@ -14,6 +13,7 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
@@ -68,7 +68,6 @@ def _check_for_ddup_available():
 def _check_for_stack_available():
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
-from ddtrace.internal.settings import env
 
     return (stack.failure_msg, stack.is_available)
 

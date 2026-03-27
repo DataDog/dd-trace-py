@@ -1,10 +1,9 @@
-import os
 from typing import Optional  # noqa:F401
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
-from ddtrace.internal.settings import env
 
 from .http import HttpConfig
 
@@ -46,9 +45,13 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
 
-        service = env.get("DD_%s_SERVICE" % name.upper(),
-        default=env.get("DD_%s_SERVICE_NAME" % name.upper(),
-        default=None,),)
+        service = env.get(
+            "DD_%s_SERVICE" % name.upper(),
+            default=env.get(
+                "DD_%s_SERVICE_NAME" % name.upper(),
+                default=None,
+            ),
+        )
         self.setdefault("service", service)
         # TODO[v1.0]: this is required for backwards compatibility since some
         # integrations use service_name instead of service. These should be

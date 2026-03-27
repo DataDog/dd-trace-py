@@ -1,6 +1,5 @@
 from importlib import import_module
 import inspect
-import os
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -18,11 +17,11 @@ from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.internal.settings import env
 
 
 # These will be initialized lazily to avoid circular imports
@@ -66,8 +65,7 @@ config._add(
             or env.get("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
         ),
         trace_connect=asbool(
-            env.get("DD_PSYCOPG_TRACE_CONNECT", default=False)
-            or env.get("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+            env.get("DD_PSYCOPG_TRACE_CONNECT", default=False) or env.get("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",

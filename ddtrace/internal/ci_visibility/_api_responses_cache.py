@@ -6,8 +6,8 @@ import shutil
 import typing as t
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)

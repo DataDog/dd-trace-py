@@ -65,6 +65,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALU
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
@@ -75,7 +76,6 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

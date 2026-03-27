@@ -9,20 +9,18 @@ The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
 """
 
 import dis
-import os
 import sys
 from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec

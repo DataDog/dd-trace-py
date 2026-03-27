@@ -1,5 +1,3 @@
-import os
-
 # 3p
 import kombu
 import wrapt
@@ -19,12 +17,12 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS

@@ -1,10 +1,9 @@
-import os
 from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import asbool
 
 
 class APMTracingEnabledFilter(TraceProcessor):

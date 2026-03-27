@@ -1,5 +1,4 @@
 from http.client import RemoteDisconnected
-import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401

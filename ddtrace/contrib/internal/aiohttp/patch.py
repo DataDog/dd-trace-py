@@ -1,5 +1,3 @@
-import os
-
 import aiohttp
 import wrapt
 from yarl import URL
@@ -21,16 +19,15 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 # Server config
 config._add(

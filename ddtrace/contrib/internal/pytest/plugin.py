@@ -12,8 +12,6 @@ to be run at specific points during pytest execution. The most important hooks u
 
 """
 
-import os
-
 import pytest
 
 from ddtrace import config
@@ -31,13 +29,13 @@ from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # n
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 from ddtrace.contrib.internal.pytest._utils import _extract_span
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 if asm_config._iast_enabled:
     from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
-
 
 # pytest default settings
 config._add(
@@ -47,7 +45,6 @@ config._add(
         operation_name=env.get("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
     ),
 )
-
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
@@ -163,6 +160,5 @@ def patch_all(request):
     """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         from ddtrace._monkey import _patch_all
-from ddtrace.internal.settings import env
 
         _patch_all()

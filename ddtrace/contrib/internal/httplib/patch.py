@@ -1,6 +1,5 @@
 import functools
 import http.client as httplib
-import os
 import sys
 from urllib import parse
 
@@ -18,6 +17,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
@@ -28,7 +28,6 @@ span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
-
 
 config._add(
     "httplib",
@@ -80,7 +79,6 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 def _call_asm_wrap(func, instance, *args, **kwargs):
     from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
-from ddtrace.internal.settings import env
 
     _wrap_request_asm(func, instance, args, kwargs)
 

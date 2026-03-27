@@ -3,7 +3,6 @@ import base64
 from collections import defaultdict
 from functools import partial
 import gzip
-import os
 import struct
 import threading
 import time
@@ -16,13 +15,13 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
-from ddtrace.internal.settings import env
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -50,7 +49,6 @@ The processor flushes stats periodically (every 10 sec) to the Datadog agent.
 This powers the data streams monitoring product. More details about the product can be found here:
 https://docs.datadoghq.com/data_streams/
 """
-
 
 log = get_logger(__name__)
 

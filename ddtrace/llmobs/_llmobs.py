@@ -5,7 +5,6 @@ from dataclasses import field
 import inspect
 import json
 import math
-import os
 import sys
 import time
 from typing import Any
@@ -38,6 +37,7 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -174,11 +174,9 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 SUPPORTED_LLMOBS_INTEGRATIONS = {
     "anthropic": "anthropic",

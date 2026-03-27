@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Optional
 
@@ -7,14 +6,13 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")[:3])

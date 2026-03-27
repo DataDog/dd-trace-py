@@ -1,5 +1,3 @@
-import os
-
 import mysql.connector
 import wrapt
 
@@ -12,6 +10,7 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -55,7 +54,6 @@ def patch():
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
         from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.internal.settings import env
 
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
     mysql.connector._datadog_patch = True

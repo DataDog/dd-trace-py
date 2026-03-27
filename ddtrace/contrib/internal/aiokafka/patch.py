@@ -1,4 +1,3 @@
-import os
 from time import time_ns
 
 import aiokafka
@@ -22,12 +21,12 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.settings import env
 
 
 config._add(

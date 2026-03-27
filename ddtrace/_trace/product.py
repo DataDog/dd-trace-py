@@ -1,11 +1,11 @@
 import enum
 import json
-import os
 import typing as t
 
 from envier import En
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -164,7 +164,6 @@ def _convert_optional_bool(lib_config, key):
 def _apply_config_change(config_name, config_value, dd_config):
     """Apply configuration change and log the update."""
     from ddtrace import tracer
-from ddtrace.internal.settings import env
 
     if config_name == "_trace_sampling_rules":
         tracer._sampler.set_sampling_rules(config_value)

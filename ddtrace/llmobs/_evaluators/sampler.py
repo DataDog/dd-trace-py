@@ -1,16 +1,15 @@
 import json
 from json.decoder import JSONDecodeError
-import os
 from typing import Optional
 from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.settings import env
 
 
 logger = get_logger(__name__)
