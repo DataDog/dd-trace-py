@@ -80,8 +80,8 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         metadata_job_name = metadata.get("job_name", None)
         job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
-    # These dictionnary are useful to inject the context in environment variables
-    # that are going to be shared with all ray workers
+    # These dictionary are used to inject the tracing context in env variables
+    # that are going to be sent to all ray workers
     runtime_env = kwargs.get("runtime_env") or {}
     kwargs["runtime_env"] = runtime_env
     env_vars = runtime_env.get("env_vars") or {}
