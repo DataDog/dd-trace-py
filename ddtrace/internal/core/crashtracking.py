@@ -18,7 +18,6 @@ from ddtrace.internal.settings.profiling import config_str
 
 
 log = get_logger(__name__)
-_CRASHTRACKING_SITE_PACKAGES_ENV = "_DD_CRASHTRACKING_SITE_PACKAGES"
 
 
 is_available = True
@@ -84,33 +83,6 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
     return tags
 
 
-def _get_active_site_packages() -> list[str]:
-    site_packages = []
-    seen = set()
-    for path in sys.path:
-        if not path:
-            continue
-
-        real_path = os.path.realpath(path)
-        if not os.path.isdir(real_path):
-            continue
-        if os.path.basename(real_path) not in ("site-packages", "dist-packages"):
-            continue
-        if real_path in seen:
-            continue
-
-        seen.add(real_path)
-        site_packages.append(real_path)
-
-    return site_packages
-
-
-def _get_receiver_pythonpath(receiver_script_path: str) -> str:
-    receiver_commands_dir = os.path.dirname(os.path.realpath(receiver_script_path))
-    receiver_package_dir = os.path.dirname(receiver_commands_dir)
-    return os.path.dirname(receiver_package_dir)
-
-
 def _get_args(additional_tags: Optional[dict[str, str]]):
     # Instead of searching PATH for the receiver binary, invoke the receiver script
     # directly with the current Python interpreter. This is more reliable and doesn't
@@ -167,22 +139,12 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     inherited_env_vars = [
         "LD_LIBRARY_PATH",  # for loading native ext (Linux)
         "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
+        "PYTHONPATH",  # for loading Python, for the receiver script
     ]
     for env_var in inherited_env_vars:
         env_value = os.environ.get(env_var)
         if env_value is not None:
             receiver_env[env_var] = env_value
-
-    # Give the receiver a minimal import root for ddtrace without inheriting
-    # the caller's full PYTHONPATH, which can trigger unrelated sitecustomize
-    # startup before the receiver applies its own bootstrap.
-    receiver_env["PYTHONPATH"] = _get_receiver_pythonpath(receiver_script_path)
-
-    site_packages = _get_active_site_packages()
-    if site_packages:
-        # Replay the parent's active site-packages in the receiver so .pth-based
-        # editable installs remain importable without inheriting the full env.
-        receiver_env[_CRASHTRACKING_SITE_PACKAGES_ENV] = os.pathsep.join(site_packages)
 
     # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py
     receiver_config = CrashtrackerReceiverConfig(
