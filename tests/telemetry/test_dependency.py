@@ -131,13 +131,21 @@ class TestDependencyEntry:
         result = entry.to_telemetry_dict(include_all_metadata=True)
         assert len(result["metadata"]) == 2
 
-    def test_to_telemetry_dict_no_metadata_key_when_all_sent(self):
+    def test_to_telemetry_dict_include_all_metadata_false(self):
         """When all metadata is sent and include_all_metadata=False, no metadata key."""
         entry = DependencyEntry(name="pkg", version="1.0")
         entry.add_metadata(ReachabilityMetadata(type="reachability", value={"id": "CVE-1"}))
         entry.mark_all_metadata_sent()
         result = entry.to_telemetry_dict(include_all_metadata=False)
+        assert len(result["metadata"]) == 0
+
+    def test_to_telemetry_empty_dict_include_all_metadata_false(self):
+        """When all metadata is sent and include_all_metadata=False, no metadata key."""
+        entry = DependencyEntry(name="pkg", version="1.0")
+        result = entry.to_telemetry_dict(include_all_metadata=False)
         assert "metadata" not in result
+        assert "name" in result
+        assert "version" in result
 
 
 class TestAttachReachabilityMetadata:
