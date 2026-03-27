@@ -48,31 +48,6 @@ def _get_known_tests_max_pages() -> int:
     return value
 
 
-def _parse_known_test_ref(raw: t.Any, suite_ref: SuiteRef) -> t.Optional[TestRef]:
-    """Parse one libraries-tests list entry to a TestRef. Supports legacy string names."""
-    if isinstance(raw, str):
-        return TestRef(suite_ref, raw)
-
-    if isinstance(raw, dict):
-        name = raw.get("name")
-        if name is None:
-            name = raw.get("test_name")
-        if not name:
-            log.warning(
-                "Known tests entry missing name/test_name for suite %s/%s", suite_ref.module.name, suite_ref.name
-            )
-            return None
-        return TestRef(suite_ref, str(name))
-
-    log.warning(
-        "Unknown known tests entry type %s for suite %s/%s",
-        type(raw).__name__,
-        suite_ref.module.name,
-        suite_ref.name,
-    )
-    return None
-
-
 class APIClient:
     def __init__(
         self,
@@ -158,7 +133,7 @@ class APIClient:
         )
 
         page_state: t.Optional[str] = None
-        known_tests: set[TestRef] = set()
+        known_test_ids: set[TestRef] = set()
         max_pages = _get_known_tests_max_pages()
 
         for page_number in range(max_pages):
@@ -203,9 +178,7 @@ class APIClient:
                     for suite, tests in suites.items():
                         suite_ref = SuiteRef(module_ref, suite)
                         for test in tests:
-                            tr = _parse_known_test_ref(test, suite_ref)
-                            if tr is not None:
-                                known_tests.add(tr)
+                            known_test_ids.add(TestRef(suite_ref, test))
 
                 page_info = attributes.get("page_info")
                 if not page_info:
@@ -234,8 +207,8 @@ class APIClient:
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
-        self.telemetry_api.record_known_tests_count(len(known_tests))
-        return known_tests
+        self.telemetry_api.record_known_tests_count(len(known_test_ids))
+        return known_test_ids
 
     def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(

@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+from ddtrace.debugging._debugger import Debugger
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -30,9 +31,8 @@ from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.flaky_snapshot import FLAKY_SNAPSHOT_ENABLED
+from ddtrace.testing.internal.pytest.flaky_snapshot import flaky_snapshot_context
 from ddtrace.testing.internal.pytest.flaky_snapshot import is_known_flaky_test
-from ddtrace.testing.internal.pytest.flaky_snapshot import known_flaky_probe_context
-from ddtrace.testing.internal.pytest.flaky_snapshot import maybe_disable_debugger_started_for_known_flaky
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
@@ -245,8 +245,8 @@ class TestOptPlugin:
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
-        self._known_flaky_debugger_started_here = False
-        self._known_flaky_probe_serial = 0
+        self._flaky_snapshot_debugger_started = False
+        self._flaky_snapshot_run_serial = 0
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -322,8 +322,12 @@ class TestOptPlugin:
 
         self.manager.finish()
 
-        maybe_disable_debugger_started_for_known_flaky(self._known_flaky_debugger_started_here)
-        self._known_flaky_debugger_started_here = False
+        if self._flaky_snapshot_debugger_started:
+            try:
+                Debugger.disable()
+            except Exception:
+                log.debug("Failed to disable Debugger after flaky snapshots", exc_info=True)
+            self._flaky_snapshot_debugger_started = False
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -472,9 +476,6 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    def _mark_debugger_started_for_known_flaky(self) -> None:
-        self._known_flaky_debugger_started_here = True
-
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
@@ -487,18 +488,17 @@ class TestOptPlugin:
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
         if FLAKY_SNAPSHOT_ENABLED and is_known_flaky_test(self.manager, test_ref):
-            self._known_flaky_probe_serial += 1
-            with known_flaky_probe_context(
-                item,
-                self._known_flaky_probe_serial,
-                self._mark_debugger_started_for_known_flaky,
-            ) as probe_result:
+            if not self._flaky_snapshot_debugger_started and Debugger._instance is None:
+                Debugger.enable()
+                self._flaky_snapshot_debugger_started = True
+            self._flaky_snapshot_run_serial += 1
+            with flaky_snapshot_context(item, self._flaky_snapshot_run_serial, Debugger._instance) as snapshot:
                 reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
-            if probe_result and "snapshot_id" in probe_result:
+            if snapshot and "snapshot_id" in snapshot:
                 test_run.tags[TestTag.KNOWN_FLAKY_DEBUG_INFO_CAPTURED] = "true"
-                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_ID] = probe_result["snapshot_id"]
-                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_FILE] = probe_result["file"]
-                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_LINE] = probe_result["line"]
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_ID] = snapshot["snapshot_id"]
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_FILE] = snapshot["file"]
+                test_run.tags[TestTag.KNOWN_FLAKY_SNAPSHOT_LINE] = snapshot["line"]
         else:
             reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
 

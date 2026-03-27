@@ -122,7 +122,7 @@ class TestKnownFlakySnapshotIntegration:
         mock_dbg = Mock()
 
         # Simulate the probe firing: when _on_configuration receives NEW_PROBES
-        # the collector.push wrapper is already in place (known_flaky_probe_context
+        # the collector.push wrapper is already in place (flaky_snapshot_context
         # wraps before registering), so pushing here triggers UUID capture.
         def simulate_probe_fire(event: ProbePollerEvent, probes: list) -> None:
             if event == ProbePollerEvent.NEW_PROBES and probes:
@@ -145,14 +145,12 @@ class TestKnownFlakySnapshotIntegration:
                 ),
             ),
             setup_standard_mocks(),
-            patch("ddtrace.testing.internal.pytest.flaky_snapshot.Debugger") as MockDebugger,
+            patch("ddtrace.testing.internal.pytest.plugin.Debugger") as MockDebugger,
             patch("ddtrace.testing.internal.pytest.flaky_snapshot.SignalUploader") as MockUploader,
-            patch("ddtrace.testing.internal.pytest.flaky_snapshot.FLAKY_SNAPSHOT_ENABLED", True),
             patch("ddtrace.testing.internal.pytest.plugin.FLAKY_SNAPSHOT_ENABLED", True),
         ):
             MockDebugger._instance = None
             MockDebugger.enable.side_effect = lambda: setattr(MockDebugger, "_instance", mock_dbg)
-            # Collector must be non-None so the "unavailable" guard passes.
             mock_collector = Mock()
             MockUploader.get_collector.return_value = mock_collector
 
