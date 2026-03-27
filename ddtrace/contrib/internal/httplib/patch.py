@@ -69,7 +69,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             if span:
                 if resp:
                     trace_utils.set_http_meta(
-                        span, config.httplib, status_code=resp.status, response_headers=resp.getheaders()
+                        span, config.httplib, status_code=resp.status, response_headers=dict(resp.getheaders())
                     )
 
                 span.finish()

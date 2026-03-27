@@ -1,8 +1,24 @@
+from __future__ import annotations
+
 import io
 import json
 import os
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 from typing import Iterable
+from typing import MutableMapping
+from typing import Protocol
 from typing import Union
+
+
+if TYPE_CHECKING:
+    from http.client import HTTPConnection
+    from http.client import HTTPResponse
+    import pathlib
+    from types import ModuleType
+    from urllib.request import OpenerDirector
+    from urllib.response import addinfourl
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -30,11 +46,11 @@ _RASP_SYSTEM = "rasp_os.system"
 _RASP_POPEN = "rasp_Popen"
 
 
-def patch_common_modules():
+def patch_common_modules() -> None:
     global _is_patched
 
     @ModuleWatchdog.after_module_imported("subprocess")
-    def _(module):
+    def _(module: ModuleType) -> None:
         # ensure that the subprocess patch is applied even after one click activation
         subprocess_patch.patch()
         subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
@@ -63,7 +79,7 @@ def patch_common_modules():
     _is_patched = True
 
 
-def unpatch_common_modules():
+def unpatch_common_modules() -> None:
     global _is_patched
     if not _is_patched:
         return
@@ -115,7 +131,9 @@ def _get_rasp_capability(capability: str) -> bool:
     return False
 
 
-def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
+def wrapped_open_CFDDB7ABBA9081B6(
+    original_open_callable: Callable[..., object], instance: None, args: Any, kwargs: Any
+) -> object:
     """
     wrapper for open file function
     """
@@ -152,13 +170,20 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     try:
         return original_open_callable(*args, **kwargs)
     except Exception as e:
-        previous_frame = e.__traceback__.tb_frame.f_back
+        traceback = e.__traceback__
+        if traceback is None:
+            raise
+        previous_frame = traceback.tb_frame.f_back
+        if previous_frame is None:
+            raise
         raise e.with_traceback(
-            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
+            traceback.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
         )
 
 
-def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs):
+def wrapped_path_open_rasp_lfi(
+    original_method_callable: Callable[..., object], instance: pathlib.Path, args: Any, kwargs: Any
+) -> object:
     """
     wrapper for pathlib.Path.open() method
     """
@@ -190,9 +215,14 @@ def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs)
     try:
         return original_method_callable(*args, **kwargs)
     except Exception as e:
-        previous_frame = e.__traceback__.tb_frame.f_back
+        traceback = e.__traceback__
+        if traceback is None:
+            raise
+        previous_frame = traceback.tb_frame.f_back
+        if previous_frame is None:
+            raise
         raise e.with_traceback(
-            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
+            traceback.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
         )
 
 
@@ -210,7 +240,9 @@ def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[
     return res
 
 
-def wrapped_request(original_request_callable, instance, args, kwargs):
+def wrapped_request(
+    original_request_callable: Callable[..., None], instance: HTTPConnection, args: Any, kwargs: Any
+) -> None:
     full_url = core.find_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
@@ -237,7 +269,9 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
     return original_request_callable(*args, **kwargs)
 
 
-def wrapped_response(original_response_callable, instance, args, kwargs):
+def wrapped_response(
+    original_response_callable: Callable[..., HTTPResponse], instance: HTTPConnection, args: Any, kwargs: Any
+) -> HTTPResponse:
     response = original_response_callable(*args, *kwargs)
     env = _get_asm_context()
     try:
@@ -255,12 +289,12 @@ def wrapped_response(original_response_callable, instance, args, kwargs):
     return response
 
 
-def _parse_http_response_body(response):
+def _parse_http_response_body(response: HTTPResponse) -> Any:
     try:
         if response.length and response.headers.get("content-type", None) == "application/json":
             length = response.length
             body = response.read()
-            response.fp = io.BytesIO(body)
+            response.fp = io.BytesIO(body)  # type: ignore[assignment]  # replacing internal buffer for re-read
             response.length = length
             return json.loads(body)
     except Exception:
@@ -268,7 +302,12 @@ def _parse_http_response_body(response):
     return None
 
 
-def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs):
+def wrapped_open_ED4CF71136E15EBF(
+    original_open_callable: Callable[..., Union[HTTPResponse, addinfourl]],
+    instance: OpenerDirector,
+    args: Any,
+    kwargs: Any,
+) -> Union[HTTPResponse, addinfourl]:
     """
     wrapper for open url function
     """
@@ -287,13 +326,20 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
             url = url.get_full_url()
         valid_url = isinstance(url, str) and bool(url)
         if valid_url and url and (ctx := _get_asm_context()):
+            from http.client import HTTPResponse
+            from urllib.error import HTTPError
+
             use_body = should_analyze_body_response(ctx)
             with core.context_with_data("url_open_analysis", full_url=url, use_body=use_body):
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_open_callable(*args, **kwargs)
                     # api10 response handler for regular responses
-                    if response.__class__.__name__ == "HTTPResponse" and not (300 <= response.status < 400):
+                    if (
+                        isinstance(response, HTTPResponse)
+                        and response.status is not None
+                        and not (300 <= response.status < 400)
+                    ):
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
                             "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
@@ -302,40 +348,45 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                             addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
                         call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
-                except Exception as e:
+                except HTTPError as e:
                     # api10 response handler for error responses
-                    if e.__class__.__name__ == "HTTPError":
-                        try:
-                            status_code = e.code
-                        except Exception:
-                            status_code = None
-                        try:
-                            response_headers = _build_headers(e.headers.items())
-                        except Exception:
-                            response_headers = None
-                        if status_code is not None or response_headers is not None:
-                            call_waf_callback(
-                                {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
-                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
-                            )
+                    status_code = e.code
+                    response_headers = _build_headers(e.headers.items())
+                    call_waf_callback(
+                        {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
+                        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+                    )
                     raise
         elif valid_url:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_open_callable(*args, **kwargs)
 
 
-def _parse_headers_urllib3(headers):
+def _parse_headers_urllib3(headers: MutableMapping[str, str]) -> dict[str, str]:
     try:
         return dict(headers)
     except Exception:
         return {}
 
 
-def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
+class Urllib3HTTPConnectionPool(Protocol): ...
+
+
+class Urllib3BaseHTTPResponse(Protocol):
+    status: int
+    headers: MutableMapping[str, str]
+
+
+def wrapped_urllib3_make_request(
+    original_request_callable: Callable[..., Urllib3BaseHTTPResponse],
+    instance: Urllib3HTTPConnectionPool,
+    args: Any,
+    kwargs: Any,
+) -> Urllib3BaseHTTPResponse:
     full_url = core.find_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
-    if do_rasp:
+    if do_rasp and env is not None:
         use_body = core.find_item("use_body", False)
         method = args[1] if len(args) > 1 else kwargs.get("method", None)
         body = args[3] if len(args) > 3 else kwargs.get("body", None)
@@ -370,7 +421,12 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
     return response
 
 
-def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
+def wrapped_urllib3_urlopen(
+    original_open_callable: Callable[..., Urllib3BaseHTTPResponse],
+    instance: Urllib3HTTPConnectionPool,
+    args: Any,
+    kwargs: Any,
+) -> Urllib3BaseHTTPResponse:
     full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
     if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
@@ -380,7 +436,9 @@ def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
         core.discard_item("full_url")
 
 
-def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
+def wrapped_request_D8CB81E472AF98A2(
+    original_request_callable: Callable[..., Any], instance: object, args: Any, kwargs: Any
+) -> Any:
     """
     wrapper for third party requests.request function
     https://requests.readthedocs.io
@@ -487,7 +545,7 @@ _DB_DIALECTS = {
 }
 
 
-def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
+def execute_4C9BAC8E228EB347(instrument_self: object, query: object, args: object, kwargs: object) -> None:
     """
     listener for dbapi execute and executemany function
     parameters are ignored as they are properly handled by the dbapi without risk of injections
