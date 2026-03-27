@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    profiling: Add ``DD_PROFILING_LOCK_EXCLUDE_MODULES`` to skip lock profiling
+    for specified modules. Set it to a comma-separated list of module prefixes
+    (e.g., ``django.db,sqlalchemy.pool,urllib3``) to exclude framework-internal
+    locks that are typically uninteresting. Excluded locks remain native with
+    zero profiling overhead.
