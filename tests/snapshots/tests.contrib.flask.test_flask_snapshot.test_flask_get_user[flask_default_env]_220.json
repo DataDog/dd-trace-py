@@ -74,6 +74,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 70625,
@@ -91,6 +92,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 106334,
@@ -108,6 +110,7 @@
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
+               "_dd.svc_src": "flask",
                "component": "flask"
              },
              "duration": 36000,
@@ -125,6 +128,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 28708,
@@ -142,6 +146,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 31000,
@@ -159,6 +164,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 23500,

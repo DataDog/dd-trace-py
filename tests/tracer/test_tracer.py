@@ -2005,8 +2005,8 @@ def test_service_source_inherited_by_child_when_service_is_inherited(tracer):
     assert child.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
 
 
-def test_service_source_not_inherited_when_child_has_explicit_service(tracer):
-    """When a child span is given an explicit service, _dd.svc_src is NOT inherited."""
+def test_service_source_not_inherited_when_child_has_different_explicit_service(tracer):
+    """When a child span is given a different explicit service, _dd.svc_src is NOT inherited."""
     with tracer.start_span("parent") as parent:
         parent.set_tag(SERVICE_KEY, "custom-svc")
 
@@ -2014,6 +2014,17 @@ def test_service_source_not_inherited_when_child_has_explicit_service(tracer):
             pass
 
     assert child.get_tag(_SERVICE_SOURCE_KEY) is None
+
+
+def test_service_source_inherited_when_child_has_same_explicit_service(tracer):
+    """When a child span is given the same explicit service as parent, _dd.svc_src IS inherited."""
+    with tracer.start_span("parent") as parent:
+        parent.set_tag(SERVICE_KEY, "custom-svc")
+
+        with tracer.start_span("child", child_of=parent, service="custom-svc") as child:
+            pass
+
+    assert child.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
 
 
 def test_service_source_not_inherited_when_parent_has_no_source(tracer):

@@ -471,17 +471,23 @@ class Tracer(object):
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
-        _inherited_svc_src: Optional[str] = None
         if service is None:
             if parent:
                 service = parent.service
-                _inherited_svc_src = parent._meta.get(_SERVICE_SOURCE_KEY)
             else:
                 service = config.service
 
         # Update the service name based on any mapping
         if service is not None:
             service = config.service_mapping.get(service, service)
+
+        # Inherit _dd.svc_src from parent when the child stays in the same service,
+        # regardless of whether service was explicitly provided or inherited from None.
+        # Integration code calling maybe_set_service_source_tag afterwards will override
+        # this with the integration name (last writer wins).
+        _inherited_svc_src: Optional[str] = None
+        if parent and service == parent.service:
+            _inherited_svc_src = parent._meta.get(_SERVICE_SOURCE_KEY)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
