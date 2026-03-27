@@ -8,6 +8,9 @@ METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
+# All ragas traces have this context item set so we can differentiate
+# spans generated from the ragas integration vs user application spans.
+IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
@@ -86,10 +89,6 @@ ROOT_PARENT_ID = "undefined"
 # Used to differentiate traces of Datadog-run operations vs user-application operations.
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_SPAN = "_ml_obs.evaluation_span"
-
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
@@ -109,9 +108,6 @@ PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method
 PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
-
-DECORATOR = "_ml_obs.decorator"
-INTEGRATION = "_ml_obs.integration"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
@@ -166,7 +162,7 @@ PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""
 
-    KEY: Final = "llmobs"
+    KEY: Final = "_llmobs"
     NAME: Final = "name"
     PARENT_ID: Final = "parent_id"
     TRACE_ID: Final = "trace_id"
@@ -177,10 +173,8 @@ class LLMOBS_STRUCT:
     METRICS: Final = "metrics"
     METADATA: Final = "metadata"
     SPAN_LINKS: Final = "span_links"
-    # All ragas traces have this context item set so we can differentiate
-    # spans generated from the ragas integration vs user application spans.
-    IS_EVALUATION_SPAN: Final = "is_evaluation_span"
     META: Final = "meta"
+    ERROR: Final = "error"
     TOOL_DEFINITIONS: Final = "tool_definitions"
     INPUT: Final = "input"
     OUTPUT: Final = "output"
