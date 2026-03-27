@@ -367,6 +367,12 @@ MCP
 ^^^
 .. automodule:: ddtrace.contrib.internal.mcp
 
+.. _mlflow:
+
+MLflow
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.mlflow
+
 
 .. _mariadb:
 

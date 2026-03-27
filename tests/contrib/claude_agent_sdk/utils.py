@@ -94,6 +94,8 @@ def create_mock_result_message(
     total_cost_usd: float = 0.0484227,
     result: str = "4",
     usage: dict = None,
+    stop_reason: str = "end_turn",
+    structured_output: object = None,
 ) -> ResultMessage:
     """Create a mock ResultMessage for testing with realistic usage data.
 
@@ -109,7 +111,7 @@ def create_mock_result_message(
             "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
             "service_tier": "standard",
         }
-    return ResultMessage(
+    msg = ResultMessage(
         subtype=subtype,
         duration_ms=duration_ms,
         duration_api_ms=duration_api_ms,
@@ -120,6 +122,11 @@ def create_mock_result_message(
         usage=usage,
         result=result,
     )
+    # stop_reason and structured_output fields were added in newer claude-agent-sdk versions;
+    # set via setattr for compatibility with older SDK versions that lack these fields
+    msg.stop_reason = stop_reason
+    msg.structured_output = structured_output
+    return msg
 
 
 def create_mock_user_message(content: str) -> UserMessage:
@@ -185,6 +192,17 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
+MOCK_STRUCTURED_OUTPUT = {"answer": 4, "unit": "integer"}
+MOCK_STRUCTURED_RESULT_MESSAGE = create_mock_result_message(
+    result=None,
+    structured_output=MOCK_STRUCTURED_OUTPUT,
+)
+MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_STRUCTURED_RESULT_MESSAGE,
+]
+
 EXPECTED_CACHE_WRITE_INPUT_TOKENS = 12742
 EXPECTED_CACHE_READ_INPUT_TOKENS = 1854
 EXPECTED_INPUT_TOKENS = 3 + EXPECTED_CACHE_WRITE_INPUT_TOKENS + EXPECTED_CACHE_READ_INPUT_TOKENS
@@ -209,6 +227,7 @@ MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "result",
         "subtype": "success",
+        "stop_reason": "end_turn",
         "duration_ms": 100,
         "duration_api_ms": 90,
         "is_error": False,
