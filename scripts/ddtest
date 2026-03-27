@@ -56,8 +56,6 @@ fi
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
-RIOT_ENV_ARGS=()
-
 # Generate a per-run compose project name from the project root path so that
 # concurrent runs in different worktrees get isolated compose projects.
 if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
@@ -73,8 +71,7 @@ fi
 
 docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
-       "${RIOT_ENV_ARGS[@]}" \
        --rm \
        -i \
        testrunner \
-       bash -c "(git config --global --add safe.directory /home/bits/project || true) && ($RIOT_INSTALL_CMD) && $CMD"
+       bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
