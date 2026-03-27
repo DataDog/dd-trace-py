@@ -42,6 +42,7 @@ from .telemetry.payload import record_endpoint_payload_request_time
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.utils.http import Response  # noqa:F401
+from ddtrace.internal.settings import env
 
 
 class CIVisibilityEventClient(WriterClientBase):

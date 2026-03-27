@@ -9,6 +9,7 @@ from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.http import DEFAULT_TIMEOUT
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.settings import env
 
 
 class ProxiedHTTPSConnection(HTTPSConnection):

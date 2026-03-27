@@ -13,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
+from ddtrace.internal.settings import env
 
 from .internal import telemetry
 from .internal.logger import get_logger

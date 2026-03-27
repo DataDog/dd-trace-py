@@ -25,6 +25,7 @@ from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

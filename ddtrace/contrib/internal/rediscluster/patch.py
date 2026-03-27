@@ -24,6 +24,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,

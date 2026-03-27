@@ -174,6 +174,7 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

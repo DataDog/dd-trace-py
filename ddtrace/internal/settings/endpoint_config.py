@@ -15,6 +15,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

@@ -22,6 +22,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.internal.settings import env
 
 from .utils import httpx_url_to_str
 

@@ -49,6 +49,7 @@ def collect() -> dict[str, Any]:
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
     from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"

@@ -18,6 +18,7 @@ from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

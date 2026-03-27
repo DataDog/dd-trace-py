@@ -24,6 +24,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")

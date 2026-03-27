@@ -12,6 +12,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 from .constants import DEFAULT_TEMPLATE_NAME
 

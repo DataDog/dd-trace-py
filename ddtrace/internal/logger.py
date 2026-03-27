@@ -42,6 +42,8 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.settings import env
+
 
 SECOND = 1
 MINUTE = 60 * SECOND

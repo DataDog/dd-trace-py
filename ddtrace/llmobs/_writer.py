@@ -48,6 +48,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.version import __version__
+from ddtrace.internal.settings import env
 
 
 logger = get_logger(__name__)

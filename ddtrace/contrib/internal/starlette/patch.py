@@ -198,6 +198,7 @@ def traced_handler(wrapped, instance, args, kwargs):
     if request_spans:
         if asm_config._iast_enabled:
             from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
+from ddtrace.internal.settings import env
 
             _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
 

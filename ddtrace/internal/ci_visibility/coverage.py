@@ -63,6 +63,7 @@ def _start_coverage(root_dir: str):
         collector = ModuleCodeCollector.CollectInContext()
 
         from ddtrace.ext.git import extract_workspace_path
+from ddtrace.internal.settings import env
 
         try:
             workspace_path = Path(extract_workspace_path())

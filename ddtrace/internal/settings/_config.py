@@ -517,6 +517,7 @@ class Config(object):
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
             from ddtrace.internal.ipc import SharedStringFile
+from ddtrace.internal.settings import env
 
             self._extra_services_queue = SharedStringFile()
 

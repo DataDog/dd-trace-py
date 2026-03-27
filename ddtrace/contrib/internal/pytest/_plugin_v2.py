@@ -1012,6 +1012,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     try:
         if asm_config._iast_enabled:
             from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+from ddtrace.internal.settings import env
 
             print_iast_report(terminalreporter)
     except Exception:  # noqa: E722

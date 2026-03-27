@@ -6,6 +6,7 @@ import wrapt
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.settings import env
 
 from .middleware import TraceMiddleware
 

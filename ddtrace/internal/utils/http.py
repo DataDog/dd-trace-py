@@ -278,6 +278,7 @@ def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.settings import env
 
     if parsed.scheme == "https":
         return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)

@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.celery.app import unpatch_app
 from ddtrace.contrib.internal.celery.constants import PRODUCER_SERVICE
 from ddtrace.contrib.internal.celery.constants import WORKER_SERVICE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 # Celery default settings

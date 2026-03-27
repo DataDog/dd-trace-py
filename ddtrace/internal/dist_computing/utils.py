@@ -1,5 +1,7 @@
 import os
 
+from ddtrace.internal.settings import env
+
 
 def in_ray_job():
     # type: () -> bool

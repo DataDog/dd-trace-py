@@ -21,6 +21,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 
 log = logging.getLogger(__name__)

@@ -55,6 +55,7 @@ def patch():
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
         from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.internal.settings import env
 
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
     mysql.connector._datadog_patch = True

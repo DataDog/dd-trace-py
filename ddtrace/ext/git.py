@@ -20,6 +20,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.internal.settings import env
 
 
 GitNotFoundError = FileNotFoundError

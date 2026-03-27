@@ -23,6 +23,7 @@ from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings import env
 
 
 def _validate_non_negative_int(r: int) -> None:

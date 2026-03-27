@@ -23,6 +23,8 @@ from ._native import store_metadata  # noqa: F401
 try:
     from ._native import DDSketch  # noqa: F401
     from ._native import ffe  # noqa: F401
+
+from ddtrace.internal.settings import env
 except ImportError:
     pass
 

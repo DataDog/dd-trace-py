@@ -30,6 +30,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

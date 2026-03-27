@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 from ddtrace.ext import git
 from ddtrace.ext.ci import github_actions
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 # CI app dd_origin tag

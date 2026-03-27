@@ -17,6 +17,7 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _validate_evaluator_name
 from ddtrace.llmobs.types import JSONType
+from ddtrace.internal.settings import env
 
 
 class LLMClient(Protocol):

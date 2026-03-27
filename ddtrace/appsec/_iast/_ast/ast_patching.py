@@ -15,6 +15,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 from .visitor import AstVisitor
 

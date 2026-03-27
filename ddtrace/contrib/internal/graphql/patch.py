@@ -36,6 +36,7 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 _graphql_version_str = graphql.__version__

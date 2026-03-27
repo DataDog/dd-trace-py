@@ -80,6 +80,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 def _call_asm_wrap(func, instance, *args, **kwargs):
     from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
+from ddtrace.internal.settings import env
 
     _wrap_request_asm(func, instance, args, kwargs)
 

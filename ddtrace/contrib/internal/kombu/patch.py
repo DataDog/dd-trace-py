@@ -24,6 +24,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS

@@ -15,6 +15,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 
 config._add(

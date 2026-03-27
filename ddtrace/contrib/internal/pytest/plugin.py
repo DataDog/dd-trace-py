@@ -163,5 +163,6 @@ def patch_all(request):
     """
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
         from ddtrace._monkey import _patch_all
+from ddtrace.internal.settings import env
 
         _patch_all()

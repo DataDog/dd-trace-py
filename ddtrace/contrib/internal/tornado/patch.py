@@ -11,6 +11,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 from . import application
 from . import decorators

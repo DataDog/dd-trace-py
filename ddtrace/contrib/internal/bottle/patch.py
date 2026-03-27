@@ -5,6 +5,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 from .trace import TracePlugin
 

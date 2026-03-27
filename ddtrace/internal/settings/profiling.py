@@ -68,6 +68,7 @@ def _check_for_ddup_available():
 def _check_for_stack_available():
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.settings import env
 
     return (stack.failure_msg, stack.is_available)
 

@@ -9,6 +9,7 @@ import typing  # noqa:F401
 
 import ddtrace
 from ddtrace.version import __version__
+from ddtrace.internal.settings import env
 
 
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:

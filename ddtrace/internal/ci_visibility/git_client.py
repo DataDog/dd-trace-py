@@ -26,6 +26,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Tracer  # noqa: F401
+from ddtrace.internal.settings import env
 
 from .. import telemetry
 from ..evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH

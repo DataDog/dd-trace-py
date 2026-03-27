@@ -8,6 +8,7 @@ import typing as t
 from ddtrace import config
 from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 def _get_default_test_visibility_contrib_config() -> dict[str, t.Any]:

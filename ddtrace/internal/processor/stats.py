@@ -13,6 +13,7 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
+from ddtrace.internal.settings import env
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent

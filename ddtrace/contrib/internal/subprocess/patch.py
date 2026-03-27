@@ -20,6 +20,7 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

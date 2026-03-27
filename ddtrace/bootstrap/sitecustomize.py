@@ -21,6 +21,7 @@ import sys
 import ddtrace.bootstrap.cloning as cloning
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 config._add(

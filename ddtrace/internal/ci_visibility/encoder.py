@@ -33,6 +33,7 @@ log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace.internal.settings import env
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):

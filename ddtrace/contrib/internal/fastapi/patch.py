@@ -150,6 +150,7 @@ def patch():
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.internal.settings import env
 
         _on_iast_fastapi_patch()
 

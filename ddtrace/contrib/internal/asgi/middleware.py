@@ -31,6 +31,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

@@ -29,6 +29,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 _Producer = confluent_kafka.Producer

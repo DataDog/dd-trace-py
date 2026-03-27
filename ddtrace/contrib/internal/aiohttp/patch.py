@@ -26,6 +26,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

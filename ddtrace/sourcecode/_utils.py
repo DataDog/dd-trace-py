@@ -58,6 +58,8 @@ def normalize_repository_url(url):
 def _query_git(args):
     import subprocess  # don't import subprocess (and maybe activate the integration) if not needed
 
+from ddtrace.internal.settings import env
+
     ver = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE).communicate()[0]
     return ver.strip().decode("utf-8")
 

@@ -4,6 +4,7 @@ from typing import Optional  # noqa:F401
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.settings import env
 
 from .http import HttpConfig
 

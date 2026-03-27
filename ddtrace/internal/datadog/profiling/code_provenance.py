@@ -12,6 +12,7 @@ import typing as t
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
+from ddtrace.internal.settings import env
 
 
 class Library:

@@ -29,6 +29,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.internal.settings import env
 
 
 LOG = logging.getLogger(__name__)

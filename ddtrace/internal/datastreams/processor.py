@@ -22,6 +22,7 @@ from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
+from ddtrace.internal.settings import env
 
 from .._encoding import packb
 from ..agent import get_connection

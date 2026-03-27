@@ -164,6 +164,7 @@ def _convert_optional_bool(lib_config, key):
 def _apply_config_change(config_name, config_value, dd_config):
     """Apply configuration change and log the update."""
     from ddtrace import tracer
+from ddtrace.internal.settings import env
 
     if config_name == "_trace_sampling_rules":
         tracer._sampler.set_sampling_rules(config_value)

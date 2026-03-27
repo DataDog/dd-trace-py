@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+from ddtrace.internal.settings import env
 
 
 DEFAULT_DATADOG_SITE = "datadoghq.com"

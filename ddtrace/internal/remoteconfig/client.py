@@ -36,6 +36,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

@@ -741,6 +741,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             # are initialized
             if asm_config._asm_rc_enabled:
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+from ddtrace.internal.settings import env
 
                 enable_appsec_rc()
         except service.ServiceStatusError:

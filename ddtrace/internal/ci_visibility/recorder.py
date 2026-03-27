@@ -75,6 +75,7 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

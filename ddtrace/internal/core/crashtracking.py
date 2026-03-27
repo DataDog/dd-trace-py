@@ -30,6 +30,7 @@ try:
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_status
+from ddtrace.internal.settings import env
 except ImportError:
     is_available = False
 

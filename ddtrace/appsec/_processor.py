@@ -199,6 +199,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib.internal import trace_utils
+from ddtrace.internal.settings import env
 
         if isinstance(self._ddwaf, _DDWafNotInitialized):
             self.delayed_init()

@@ -22,6 +22,7 @@ from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.internal.settings import env
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import RAY_ACTOR_ID

@@ -343,6 +343,7 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
     from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.settings import env
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)

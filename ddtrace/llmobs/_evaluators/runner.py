@@ -13,6 +13,7 @@ from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvalu
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
+from ddtrace.internal.settings import env
 
 
 logger = get_logger(__name__)

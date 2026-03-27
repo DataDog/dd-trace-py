@@ -5,6 +5,7 @@ from typing import Optional
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

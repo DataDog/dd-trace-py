@@ -4,6 +4,8 @@ import uuid
 
 from .. import forksafe
 
+from ddtrace.internal.settings import env
+
 
 __all__ = [
     "get_ancestor_runtime_id",

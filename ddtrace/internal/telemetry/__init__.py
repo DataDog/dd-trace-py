@@ -19,6 +19,7 @@ from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)

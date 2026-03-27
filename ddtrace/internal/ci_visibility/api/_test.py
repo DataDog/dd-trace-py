@@ -43,6 +43,7 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationD
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
