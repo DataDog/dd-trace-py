@@ -1411,14 +1411,14 @@ venv = Venv(
                             pys=["3.9"],
                             pkgs={
                                 "psycopg": "~=3.0.0",
-                                "pytest-asyncio": "==0.21.1",
+                                "pytest-asyncio": "~=0.23.0",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                             pkgs={
                                 "psycopg": latest,
-                                "pytest-asyncio": "==0.21.1",
+                                "pytest-asyncio": "~=0.23.0",
                             },
                         ),
                         Venv(
@@ -1519,7 +1519,7 @@ venv = Venv(
             name="starlette",
             command="pytest {cmdargs} tests/contrib/starlette",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "greenlet": "~=3.0",
                 "requests": latest,
                 "aiofiles": latest,
@@ -1707,7 +1707,7 @@ venv = Venv(
         Venv(
             name="asgi",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "httpx": "<0.28.0",
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
                 "pytest-randomly": latest,
@@ -1812,7 +1812,7 @@ venv = Venv(
             name="aiobotocore",
             command="pytest {cmdargs} --no-cov tests/contrib/aiobotocore",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "async_generator": ["~=1.10"],
                 "pytest-randomly": latest,
             },
@@ -1834,7 +1834,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
                 "httpx": "<=0.27.2",
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "python-multipart": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
@@ -1865,7 +1865,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={
                         "pytest-randomly": latest,
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "~=0.23.0",
                         "aiomysql": ["~=0.1.0", latest],
                     },
                 ),
@@ -2182,7 +2182,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
                         "graphene": ["~=3.0.0", latest],
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "~=0.23.0",
                     },
                 ),
                 Venv(
@@ -2199,7 +2199,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/graphql",
             pys=select_pys(),
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "graphql-core": ["~=3.2.0", latest],
                 "pytest-randomly": latest,
             },
@@ -2208,7 +2208,7 @@ venv = Venv(
             name="rq",
             command="pytest {cmdargs} tests/contrib/rq",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2236,7 +2236,7 @@ venv = Venv(
             name="httpx",
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
                 "httpx": [
                     "~=0.25.0",
@@ -2478,7 +2478,7 @@ venv = Venv(
             pys="3.9",
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "aredis": latest,
                 "pytest-randomly": latest,
             },
@@ -2505,7 +2505,7 @@ venv = Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2524,7 +2524,7 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
@@ -2690,7 +2690,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2750,7 +2750,7 @@ venv = Venv(
             env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "mock": latest,
@@ -2799,7 +2799,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.12"),
                     pkgs={
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "~=0.23.0",
                     },
                 ),
                 Venv(
@@ -2816,7 +2816,7 @@ venv = Venv(
             pkgs={
                 "vcrpy": latest,
                 "urllib3": "~=1.26",
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2848,7 +2848,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": "==0.21.1"},
+                    pkgs={"pytest-asyncio": "~=0.23.0"},
                 ),
                 Venv(
                     command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
@@ -3268,7 +3268,7 @@ venv = Venv(
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=6.105.0", latest],
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
             },
         ),
@@ -3433,7 +3433,7 @@ venv = Venv(
                         "openai": latest,
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "~=0.23.0",
                         "ragas": "==0.1.21",
                         "langchain": latest,
                         "pandas": latest,
@@ -3467,7 +3467,7 @@ venv = Venv(
             name="vllm",
             command="pytest {cmdargs} tests/contrib/vllm",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
                 "torch": latest,
                 "vllm": ">=0.10.2",
@@ -3504,7 +3504,7 @@ venv = Venv(
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.23.0",
                 "pytest-randomly": latest,
                 "numpy": latest,
             },
