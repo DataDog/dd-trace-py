@@ -16,6 +16,106 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess()
+def test_untrack_parent_before_child_no_keyerror() -> None:
+    """Untracking a parent greenlet before its linked child must not raise KeyError.
+
+    When _untrack_greenlet_by_id(parent) is called, _parent_greenlet_count[parent]
+    is popped. If the child is later untracked and tries to decrement that entry,
+    a KeyError was raised. This test verifies the fix.
+    """
+    from unittest.mock import patch
+
+    from ddtrace.profiling import _gevent as _gevent_module
+
+    saved_tracked = set(_gevent_module._tracked_greenlets)
+    saved_count = dict(_gevent_module._parent_greenlet_count)
+    saved_map = dict(_gevent_module._greenlet_parent_map)
+
+    try:
+        with patch.object(_gevent_module, "stack"):
+            parent_id, child_id = 100001, 100002
+            _gevent_module._tracked_greenlets.update({parent_id, child_id})
+            _gevent_module.link_greenlets(child_id, parent_id)
+
+            assert _gevent_module._parent_greenlet_count.get(parent_id) == 1
+
+            _gevent_module._untrack_greenlet_by_id(parent_id)
+
+            assert parent_id not in _gevent_module._tracked_greenlets
+            assert parent_id not in _gevent_module._parent_greenlet_count
+
+            _gevent_module._untrack_greenlet_by_id(child_id)
+
+            assert child_id not in _gevent_module._tracked_greenlets
+            assert child_id not in _gevent_module._greenlet_parent_map
+            assert parent_id not in _gevent_module._parent_greenlet_count
+    finally:
+        _gevent_module._tracked_greenlets.clear()
+        _gevent_module._tracked_greenlets.update(saved_tracked)
+        _gevent_module._parent_greenlet_count.clear()
+        _gevent_module._parent_greenlet_count.update(saved_count)
+        _gevent_module._greenlet_parent_map.clear()
+        _gevent_module._greenlet_parent_map.update(saved_map)
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_untrack_parent_before_child_no_keyerror_real_greenlets() -> None:
+    """Regression test: no KeyError when a timed-out joiner is untracked before the joined greenlet.
+
+    When a greenlet calls .join() with a Timeout, the joiner can exit before
+    the joined greenlet finishes. This causes _untrack_greenlet_by_id(joiner)
+    to pop joiner's _parent_greenlet_count entry, after which untracking the
+    joined greenlet would raise KeyError trying to decrement that entry.
+    """
+    from unittest.mock import patch
+
+    import gevent
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+    from ddtrace.profiling import _gevent as _gevent_module
+    from ddtrace.profiling._gevent import Greenlet
+
+    caught: list[Exception] = []
+    original = _gevent_module._untrack_greenlet_by_id
+
+    def _spy(greenlet_id: int) -> None:
+        try:
+            original(greenlet_id)
+        except KeyError as e:
+            caught.append(e)
+            raise
+
+    with patch.object(_gevent_module, "_untrack_greenlet_by_id", _spy):
+
+        def slow_task() -> None:
+            gevent.sleep(0.5)
+
+        def joiner() -> None:
+            slow = Greenlet.spawn(slow_task)
+            try:
+                with gevent.Timeout(0.05):
+                    slow.join()
+            except gevent.Timeout:
+                pass
+
+        g = Greenlet.spawn(joiner)
+        g.join()
+        gevent.sleep(1.0)
+
+    assert not caught, f"KeyError raised during untrack: {caught[0]}"
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
 def test_joinall_links_to_calling_greenlet_not_hub() -> None:
     """joinall must link joined greenlets to the *calling* Greenlet, not the Hub.
 
