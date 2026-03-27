@@ -6,6 +6,7 @@ from celery import registry
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import _SERVICE_SOURCE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -56,7 +57,7 @@ def trace_prerun(*args, **kwargs):
     span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
     # Use inline check for worker default service
     if span.service == config.celery["_default_service_worker"]:
-        span.set_tag("_dd.svc_src", "celery")
+        span.set_tag(_SERVICE_SOURCE_KEY, "celery")
 
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
@@ -131,7 +132,7 @@ def trace_before_publish(*args, **kwargs):
     span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
     # Use inline check for producer default service
     if span.service == config.celery["_default_service_producer"]:
-        span.set_tag("_dd.svc_src", "celery")
+        span.set_tag(_SERVICE_SOURCE_KEY, "celery")
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)

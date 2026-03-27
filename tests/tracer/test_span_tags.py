@@ -10,6 +10,8 @@ import sys
 import mock
 import pytest
 
+from ddtrace.constants import _SERVICE_SOURCE_KEY
+from ddtrace.constants import _SERVICE_SOURCE_MANUAL
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -583,3 +585,37 @@ def test_set_metric_visible_via_get_attribute():
     s = Span(name="test.span")
     s._set_attribute("key", 3.14)
     assert s._get_attribute("key") == 3.14
+
+
+# ---------------------------------------------------------------------------
+# Service source attribution (manual use case, RFC: Service Override Source Attribution)
+# ---------------------------------------------------------------------------
+
+
+def test_set_service_via_set_tag_marks_manual_source():
+    """set_tag("service.name", ...) must set _dd.svc_src = "m"."""
+    s = Span(name="test.span")
+    s.set_tag(SERVICE_KEY, "custom-service")
+    assert s.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
+
+
+def test_set_service_via_set_tag_none_does_not_set_source():
+    """set_tag("service.name", None) must NOT set _dd.svc_src."""
+    s = Span(name="test.span")
+    s.set_tag(SERVICE_KEY, None)
+    assert s.get_tag(_SERVICE_SOURCE_KEY) is None
+
+
+def test_set_service_source_override_wins():
+    """Explicitly setting _dd.svc_src after set_tag(SERVICE_KEY) overrides "m"."""
+    s = Span(name="test.span")
+    s.set_tag(SERVICE_KEY, "custom-service")
+    assert s.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
+    s.set_tag(_SERVICE_SOURCE_KEY, "redis")
+    assert s.get_tag(_SERVICE_SOURCE_KEY) == "redis"
+
+
+def test_span_created_with_default_service_has_no_source():
+    """A span created without explicitly setting service.name has no _dd.svc_src."""
+    s = Span(name="test.span", service="default-svc")
+    assert s.get_tag(_SERVICE_SOURCE_KEY) is None

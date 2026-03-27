@@ -24,6 +24,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
+from ddtrace.constants import _SERVICE_SOURCE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
@@ -470,9 +471,11 @@ class Tracer(object):
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
+        _inherited_svc_src: Optional[str] = None
         if service is None:
             if parent:
                 service = parent.service
+                _inherited_svc_src = parent._meta.get(_SERVICE_SOURCE_KEY)
             else:
                 service = config.service
 
@@ -502,6 +505,9 @@ class Tracer(object):
                 span._local_root = parent._local_root
                 if span._parent.service == service:
                     span._service_entry_span = parent._service_entry_span
+
+            if _inherited_svc_src:
+                span._meta[_SERVICE_SOURCE_KEY] = _inherited_svc_src
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers

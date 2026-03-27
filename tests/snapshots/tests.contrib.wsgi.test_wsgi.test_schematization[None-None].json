@@ -1,84 +1,89 @@
-[[
-  {
-    "name": "wsgi.request",
-    "service": "wsgi",
-    "resource": "GET /",
-    "trace_id": 0,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "web",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "ddtrace_subprocess_dir",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "699da0a600000000",
-      "_dd.svc_src": "wsgi",
-      "component": "wsgi",
-      "http.method": "GET",
-      "http.status_code": "200",
-      "http.status_msg": "OK",
-      "http.url": "http://localhost:80/",
-      "language": "python",
-      "runtime-id": "113caaabc4934941b8527f80fb8e71e9",
-      "span.kind": "server"
+[
+  [
+    {
+      "name": "wsgi.request",
+      "service": "wsgi",
+      "resource": "GET /",
+      "trace_id": 0,
+      "span_id": 1,
+      "parent_id": 0,
+      "type": "web",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "ddtrace_subprocess_dir",
+        "_dd.p.dm": "-0",
+        "_dd.p.tid": "699da0a600000000",
+        "_dd.svc_src": "wsgi",
+        "component": "wsgi",
+        "http.method": "GET",
+        "http.status_code": "200",
+        "http.status_msg": "OK",
+        "http.url": "http://localhost:80/",
+        "language": "python",
+        "runtime-id": "113caaabc4934941b8527f80fb8e71e9",
+        "span.kind": "server"
+      },
+      "metrics": {
+        "_dd.top_level": 1.0,
+        "_dd.tracer_kr": 1.0,
+        "_sampling_priority_v1": 1.0,
+        "process_id": 92784.0
+      },
+      "duration": 1527000,
+      "start": 1771937958719807052
     },
-    "metrics": {
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 92784.0
+    {
+      "name": "wsgi.application",
+      "service": "wsgi",
+      "resource": "wsgi.application",
+      "trace_id": 0,
+      "span_id": 2,
+      "parent_id": 1,
+      "type": "",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "ddtrace_subprocess_dir",
+        "component": "wsgi",
+        "_dd.svc_src": "wsgi"
+      },
+      "duration": 441000,
+      "start": 1771937958720619802
     },
-    "duration": 1527000,
-    "start": 1771937958719807052
-  },
-     {
-       "name": "wsgi.application",
-       "service": "wsgi",
-       "resource": "wsgi.application",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "component": "wsgi"
-       },
-       "duration": 441000,
-       "start": 1771937958720619802
-     },
-        {
-          "name": "wsgi.start_response",
-          "service": "wsgi",
-          "resource": "wsgi.start_response",
-          "trace_id": 0,
-          "span_id": 4,
-          "parent_id": 2,
-          "type": "web",
-          "error": 0,
-          "meta": {
-            "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.svc_src": "wsgi",
-            "component": "wsgi",
-            "span.kind": "server"
-          },
-          "duration": 78083,
-          "start": 1771937958720743469
-        },
-     {
-       "name": "wsgi.response",
-       "service": "wsgi",
-       "resource": "wsgi.response",
-       "trace_id": 0,
-       "span_id": 3,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "component": "wsgi",
-         "result_class": "list"
-       },
-       "duration": 230958,
-       "start": 1771937958721091927
-     }]]
+    {
+      "name": "wsgi.start_response",
+      "service": "wsgi",
+      "resource": "wsgi.start_response",
+      "trace_id": 0,
+      "span_id": 4,
+      "parent_id": 2,
+      "type": "web",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "ddtrace_subprocess_dir",
+        "_dd.svc_src": "wsgi",
+        "component": "wsgi",
+        "span.kind": "server"
+      },
+      "duration": 78083,
+      "start": 1771937958720743469
+    },
+    {
+      "name": "wsgi.response",
+      "service": "wsgi",
+      "resource": "wsgi.response",
+      "trace_id": 0,
+      "span_id": 3,
+      "parent_id": 1,
+      "type": "",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "ddtrace_subprocess_dir",
+        "component": "wsgi",
+        "result_class": "list",
+        "_dd.svc_src": "wsgi"
+      },
+      "duration": 230958,
+      "start": 1771937958721091927
+    }
+  ]
+]

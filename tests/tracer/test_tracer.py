@@ -18,6 +18,9 @@ import ddtrace
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SERVICE_SOURCE_KEY
+from ddtrace.constants import _SERVICE_SOURCE_MANUAL
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -1983,3 +1986,42 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert active.span_id == 1
 
     assert tracer.context_provider.active() is None
+
+
+# ---------------------------------------------------------------------------
+# Service source attribution — inheritance (RFC: Service Override Source Attribution)
+# ---------------------------------------------------------------------------
+
+
+def test_service_source_inherited_by_child_when_service_is_inherited(tracer):
+    """When a child span inherits service from parent, it also inherits _dd.svc_src."""
+    with tracer.start_span("parent") as parent:
+        parent.set_tag(SERVICE_KEY, "custom-svc")
+        assert parent.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
+
+        with tracer.start_span("child", child_of=parent) as child:
+            pass
+
+    assert child.get_tag(_SERVICE_SOURCE_KEY) == _SERVICE_SOURCE_MANUAL
+
+
+def test_service_source_not_inherited_when_child_has_explicit_service(tracer):
+    """When a child span is given an explicit service, _dd.svc_src is NOT inherited."""
+    with tracer.start_span("parent") as parent:
+        parent.set_tag(SERVICE_KEY, "custom-svc")
+
+        with tracer.start_span("child", child_of=parent, service="other-svc") as child:
+            pass
+
+    assert child.get_tag(_SERVICE_SOURCE_KEY) is None
+
+
+def test_service_source_not_inherited_when_parent_has_no_source(tracer):
+    """When parent has no _dd.svc_src, child inheriting service also has none."""
+    with tracer.start_span("parent", service="some-svc") as parent:
+        assert parent.get_tag(_SERVICE_SOURCE_KEY) is None
+
+        with tracer.start_span("child", child_of=parent) as child:
+            pass
+
+    assert child.get_tag(_SERVICE_SOURCE_KEY) is None
