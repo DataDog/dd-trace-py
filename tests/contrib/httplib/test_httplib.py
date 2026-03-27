@@ -303,6 +303,37 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         assert_span_http_status_code(span, 404)
         self.assertEqual(span.get_tag("http.url"), URL_404)
 
+    def test_httplib_request_custom_client_error_statuses(self):
+        """
+        When making a GET request via httplib.HTTPConnection.request
+            when DD_TRACE_HTTP_CLIENT_ERROR_STATUSES includes 4xx
+                we mark the span as an error for a 404 response
+                we capture the correct span tags
+        """
+        original = config._http_client.error_statuses
+        try:
+            config._http_client.error_statuses = "400-499"
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request("GET", "/status/404")
+                conn.getresponse()
+            spans = self.pop_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assert_is_not_measured(span)
+            self.assertEqual(span.span_type, "http")
+            self.assertEqual(span.service, "tests.contrib.httplib")
+            self.assertEqual(span.name, self.SPAN_NAME)
+            self.assertEqual(span.error, 1)
+            self.assertEqual(span.get_tag("http.method"), "GET")
+            self.assertEqual(span.get_tag("component"), "httplib")
+            self.assertEqual(span.get_tag("span.kind"), "client")
+            self.assertEqual(span.get_tag("out.host"), "localhost")
+            assert_span_http_status_code(span, 404)
+            self.assertEqual(span.get_tag("http.url"), URL_404)
+        finally:
+            config._http_client.error_statuses = original
+
     def test_httplib_request_get_request_disabled(self):
         """
         When making a GET request via httplib.HTTPConnection.request

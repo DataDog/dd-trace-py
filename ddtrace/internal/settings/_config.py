@@ -428,6 +428,43 @@ class Config(object):
                     return True
             return False
 
+    class _HTTPClientConfig(object):
+        # If DD_TRACE_HTTP_CLIENT_ERROR_STATUSES is explicitly set, use it.
+        # Otherwise fall back to DD_TRACE_HTTP_SERVER_ERROR_STATUSES (for backward
+        # compatibility with users who relied on the server setting to classify
+        # client spans), and only then default to "500-599".
+        _unset = object()
+        _client_configured = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", _unset, report_telemetry=False)
+        if _client_configured is not _unset:
+            _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "500-599")
+        else:
+            _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
+        del _unset, _client_configured
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
+        @property
+        def error_statuses(self) -> str:
+            return self._error_statuses
+
+        @error_statuses.setter
+        def error_statuses(self, value: str) -> None:
+            self._error_statuses = value
+            self._error_ranges = get_error_ranges(value)
+            # Mypy can't catch cached method's invalidate()
+            self.is_error_code.cache_clear()  # type: ignore[attr-defined]
+
+        @property
+        def error_ranges(self) -> list[tuple[int, int]]:
+            return self._error_ranges
+
+        @cachedmethod()
+        def is_error_code(self, status_code: int) -> bool:
+            """Returns a boolean representing whether or not a status code is an error code."""
+            for error_range in self.error_ranges:
+                if error_range[0] <= status_code <= error_range[1]:
+                    return True
+            return False
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -511,6 +548,7 @@ class Config(object):
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
