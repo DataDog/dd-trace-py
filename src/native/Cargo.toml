@@ -6,7 +6,7 @@ resolver = "2"
 
 [profile.release]
 lto = true
-debug = "none"
+debug = "line-tables-only"
 opt-level = 's'
 codegen-units = 1
 
