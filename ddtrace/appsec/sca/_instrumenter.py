@@ -4,13 +4,21 @@ Provides functionality to instrument Python functions at runtime using
 bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 """
 
+from __future__ import annotations
+
 import os
 from threading import Lock
 from types import FunctionType
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
+
+
+if TYPE_CHECKING:
+    from ddtrace.appsec.sca._registry import InstrumentationRegistry
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
 
 
 log = get_logger(__name__)
@@ -45,19 +53,18 @@ def _get_caller_info() -> tuple[str, int, str]:
 # AIDEV-NOTE: _registry is read on every hook invocation (hot path).
 # We do NOT acquire a lock for reads — Python's GIL makes reference reads
 # safe, and the reference is only set once at startup via set_registry().
-_registry: Optional["InstrumentationRegistry"] = None  # noqa: F821
-
+_registry: Optional[InstrumentationRegistry] = None
 # _telemetry_writer is lazily cached on first hook invocation to avoid
 # the overhead of import-lock acquisition on every call.
 _telemetry_writer = None
 
 # Singleton Instrumenter instance, shared across all instrumentation
 # operations so per-target locks are preserved.
-_instrumenter_instance: Optional["Instrumenter"] = None
+_instrumenter_instance: Optional[Instrumenter] = None
 _instrumenter_lock = Lock()
 
 
-def _reset_after_fork():
+def _reset_after_fork() -> None:
     """Reset module-level references after fork."""
     global _registry, _telemetry_writer, _instrumenter_instance, _instrumenter_lock
     _registry = None
@@ -70,13 +77,13 @@ if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=_reset_after_fork)
 
 
-def set_registry(registry: "InstrumentationRegistry") -> None:  # noqa: F821
+def set_registry(registry: InstrumentationRegistry) -> None:
     """Set global registry reference. Called once at startup."""
     global _registry
     _registry = registry
 
 
-def _get_telemetry_writer():
+def _get_telemetry_writer() -> TelemetryWriter:
     """Lazily cache and return the telemetry writer singleton."""
     global _telemetry_writer
     if _telemetry_writer is None:
@@ -86,7 +93,7 @@ def _get_telemetry_writer():
     return _telemetry_writer
 
 
-def get_instrumenter(registry: "InstrumentationRegistry") -> "Instrumenter":  # noqa: F821
+def get_instrumenter(registry: InstrumentationRegistry) -> Instrumenter:
     """Get or create the singleton Instrumenter instance."""
     global _instrumenter_instance
     with _instrumenter_lock:
@@ -135,7 +142,7 @@ def sca_detection_hook(qualified_name: str) -> None:
 class Instrumenter:
     """Manages bytecode instrumentation of target functions."""
 
-    def __init__(self, registry: "InstrumentationRegistry"):  # noqa: F821
+    def __init__(self, registry: InstrumentationRegistry) -> None:
         self.registry = registry
         self._instrumentation_locks: dict[str, Lock] = {}
         self._locks_lock = Lock()
@@ -201,7 +208,7 @@ def apply_instrumentation_updates(targets: list[dict]) -> None:
         log.debug("Fatal error in apply_instrumentation_updates", exc_info=True)
 
 
-def _process_additions(instrumenter, registry, targets):
+def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegistry, targets: list[dict]) -> None:
     """Process target additions: resolve and instrument, or defer via ModuleWatchdog."""
     from ddtrace.appsec.sca._resolver import SymbolResolver
 
@@ -240,7 +247,7 @@ def _process_additions(instrumenter, registry, targets):
             log.debug("Failed to process target %s: %s", target_name, e, exc_info=True)
 
 
-def _register_lazy_hook(module_name, target_name):
+def _register_lazy_hook(module_name: str, target_name: str) -> None:
     """Register a ModuleWatchdog hook to instrument target when module is imported.
 
     AIDEV-NOTE: Uses get_global_registry() inside the callback (not a closure
@@ -249,7 +256,7 @@ def _register_lazy_hook(module_name, target_name):
     """
     from ddtrace.internal.module import ModuleWatchdog
 
-    def _on_module_import(module):
+    def _on_module_import(module: object) -> None:
         """Called when the target's module is imported."""
         from ddtrace.appsec.sca._registry import get_global_registry
         from ddtrace.appsec.sca._resolver import SymbolResolver

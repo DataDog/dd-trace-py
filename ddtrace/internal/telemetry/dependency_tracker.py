@@ -186,7 +186,7 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        metadata = [] if sca_metadata_enabled else None
+        metadata: Optional[list] = [] if sca_metadata_enabled else None
         entry = DependencyEntry(name=name, version=version, metadata=metadata)
         already_imported[name] = entry
         deps.append(entry.to_telemetry_dict())

@@ -60,7 +60,7 @@ class InstrumentationRegistry:
     registration.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._targets: dict[str, InstrumentationState] = {}
         self._lock = Lock()
 
@@ -144,7 +144,7 @@ _global_registry: Optional[InstrumentationRegistry] = None
 _registry_lock = Lock()
 
 
-def _reset_global_registry_after_fork():
+def _reset_global_registry_after_fork() -> None:
     """Reset global registry and lock after fork to prevent stale state and deadlocks."""
     global _global_registry, _registry_lock
     _global_registry = None

@@ -90,7 +90,7 @@ class SymbolResolver:
             return None
 
     @staticmethod
-    def _extract_function(target) -> Optional[FunctionType]:
+    def _extract_function(target: object) -> Optional[FunctionType]:
         """Extract FunctionType from various callable types.
 
         Handles wrapt FunctionWrapper (used by ddtrace monkey-patching)
