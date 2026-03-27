@@ -1642,6 +1642,7 @@ def test_cached_view():
                 "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
             ),
             "_dd.base_service": "ddtrace_subprocess_dir",
+            "_dd.svc_src": "django",
         }
 
         expected_meta_header = {
@@ -1649,6 +1650,7 @@ def test_cached_view():
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
             "_dd.base_service": "ddtrace_subprocess_dir",
+            "_dd.svc_src": "django",
         }
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
