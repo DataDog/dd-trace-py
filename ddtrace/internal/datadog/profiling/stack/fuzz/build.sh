@@ -50,6 +50,7 @@ pip3 install setuptools_rust cython cmake --break-system-packages 2>/dev/null ||
 
 # Derive key paths (same variables as build_standalone.sh)
 EXTENSION_SUFFIX="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")"
+PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")"
 NATIVE_EXTENSION_LOCATION="$(cd "${PROFILING_DIR}/../../native" && pwd)"
 LIB_INSTALL_DIR="${BUILD_DIR}/lib"
 
@@ -87,7 +88,7 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
       -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
-      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined -Wl,-rpath,${PYTHON_LIBDIR}" \
   && cmake --build "${BUILD_DIR}" -j
 
 # Copy LSan suppression file next to the binaries so it can be referenced at runtime
