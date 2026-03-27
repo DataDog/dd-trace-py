@@ -1,7 +1,9 @@
 use libdd_data_pipeline::trace_exporter::{
-    agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
+    agent_response::AgentResponse, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+#[cfg(feature = "telemetry")]
+use libdd_data_pipeline::trace_exporter::TelemetryConfig;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
@@ -143,6 +145,7 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+#[cfg(feature = "telemetry")]
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
