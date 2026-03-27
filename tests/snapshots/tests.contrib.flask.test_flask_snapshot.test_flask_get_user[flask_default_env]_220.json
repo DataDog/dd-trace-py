@@ -54,6 +54,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "flask",
          "component": "flask",
          "flask.endpoint": "identify",
          "flask.url_rule": "/identify"
@@ -175,6 +176,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "flask",
          "component": "flask"
        },
        "duration": 431625,

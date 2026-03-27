@@ -69,7 +69,8 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "tests.contrib.fastapi"
+         "_dd.base_service": "tests.contrib.fastapi",
+         "_dd.svc_src": "fastapi"
        },
        "duration": 107792,
        "start": 1771927352227329468
