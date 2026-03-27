@@ -60,22 +60,27 @@ function(add_fuzz_target TARGET_NAME)
         target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})
     endif()
 
-    # Set RPATH so the fuzz binary can find dd_wrapper and _native at runtime.
+    # Set RPATH so the fuzz binary can find dd_wrapper, libpython, and _native at runtime.
+    # $ORIGIN allows finding shared libraries co-located with the binary (e.g. in /fuzzer/builds/).
     if(LIB_INSTALL_DIR)
-        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "${LIB_INSTALL_DIR}" INSTALL_RPATH
-                                                                                         "${LIB_INSTALL_DIR}")
+        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN;${LIB_INSTALL_DIR}" INSTALL_RPATH
+                                                                                                 "$ORIGIN;${LIB_INSTALL_DIR}")
+    else()
+        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")
     endif()
 endfunction()
 
 # Register all fuzz targets
-add_fuzz_target(fuzz_echion_remote_read)
-add_fuzz_target(fuzz_echion_strings)
-add_fuzz_target(fuzz_echion_mirrors)
-add_fuzz_target(fuzz_echion_stacks)
-add_fuzz_target(fuzz_echion_tasks)
-add_fuzz_target(fuzz_echion_long)
-add_fuzz_target(fuzz_echion_interp)
-add_fuzz_target(fuzz_echion_pyunicode)
+add_fuzz_target(fuzz_echion_frame_create)
 add_fuzz_target(fuzz_echion_frame_read)
-add_fuzz_target(fuzz_echion_task_unwind)
 add_fuzz_target(fuzz_echion_greenlet)
+add_fuzz_target(fuzz_echion_interp)
+add_fuzz_target(fuzz_echion_long)
+add_fuzz_target(fuzz_echion_mirrors)
+add_fuzz_target(fuzz_echion_pyunicode)
+add_fuzz_target(fuzz_echion_stacks)
+add_fuzz_target(fuzz_echion_strings)
+add_fuzz_target(fuzz_echion_task_unwind)
+add_fuzz_target(fuzz_echion_tasks)
+add_fuzz_target(fuzz_echion_thread_unwind_tasks)
+add_fuzz_target(fuzz_echion_thread_unwind)
