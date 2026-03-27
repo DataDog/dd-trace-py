@@ -25,7 +25,7 @@ def rel_path(file_name: str) -> str:
     """Relativize an absolute file path for vulnerability/reachability reporting.
 
     Used by both IAST and SCA to produce short, readable paths in telemetry
-    payloads.  Tries CWD-relative first, then purelib, then stdlib, then
+    payloads.  Tries purelib first, then stdlib, then CWD-relative, then
     site-packages.  Returns empty string if the path cannot be relativized.
     """
     file_name_norm = file_name.replace("\\", "/")
@@ -41,6 +41,37 @@ def rel_path(file_name: str) -> str:
     if (idx := file_name_norm.find("/site-packages/")) != -1:
         return file_name_norm[idx:]
     return ""
+
+
+def get_caller_frame_info() -> tuple:
+    """Walk the stack and return (file_name, line_number, function_name, class_name).
+
+    Uses the native C get_info_frame() to skip ddtrace, stdlib, and special
+    frames, then relativizes the path.  Shared by IAST vulnerability
+    reporting and SCA reachability detection.
+
+    Returns (None, None, None, None) when no relevant frame is found.
+    """
+    try:
+        from ddtrace.appsec._shared._stacktrace import get_info_frame
+    except ImportError:
+        return None, None, None, None
+
+    frame_info = get_info_frame()
+    if not frame_info or frame_info[0] in ("", -1, None):
+        return None, None, None, None
+
+    file_name, line_number, function_name, class_name = frame_info
+    if not file_name:
+        return None, None, None, None
+
+    file_name = rel_path(file_name)
+    if not file_name:
+        return None, None, None, None
+
+    return file_name, line_number, function_name, class_name
+
+
 _DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 
 

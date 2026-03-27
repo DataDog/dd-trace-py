@@ -7,10 +7,7 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 import os
 from threading import Lock
 from types import FunctionType
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
@@ -19,7 +16,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _get_caller_info() -> Tuple[str, int, str]:
+def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
 
     Returns (path, line, method) where:
@@ -27,32 +24,21 @@ def _get_caller_info() -> Tuple[str, int, str]:
     - line: line number in the caller
     - method: function (or Class.method) name of the caller
 
-    AIDEV-NOTE: Reuses IAST's native C get_info_frame() which walks the
-    stack skipping ddtrace, stdlib, and special frames — same logic as
-    IAST vulnerability location reporting.  The _rel_path helper
-    relativizes the absolute filename.
+    AIDEV-NOTE: Delegates to the shared get_caller_frame_info() which uses
+    IAST's native C get_info_frame() + rel_path().  SCA just reshapes the
+    4-tuple into a 3-tuple by combining class_name and function_name.
     """
     try:
-        from ddtrace.appsec._patch_utils import rel_path
-        from ddtrace.appsec._shared._stacktrace import get_info_frame
+        from ddtrace.appsec._patch_utils import get_caller_frame_info
 
-        frame_info = get_info_frame()
-        if not frame_info or frame_info[0] in ("", -1, None):
-            return "", 0, ""
-
-        file_name, line_number, function_name, class_name = frame_info
+        file_name, line_number, function_name, class_name = get_caller_frame_info()
         if not file_name:
             return "", 0, ""
 
-        path = rel_path(file_name)
-        if not path:
-            path = file_name
-
         method = f"{class_name}.{function_name}" if class_name else (function_name or "")
-
-        return path, line_number or 0, method
+        return file_name, line_number or 0, method
     except Exception:
-        log.debug("Failed to get caller info via get_info_frame", exc_info=True)
+        log.debug("Failed to get caller info via get_caller_frame_info", exc_info=True)
         return "", 0, ""
 
 
@@ -95,6 +81,7 @@ def _get_telemetry_writer():
     global _telemetry_writer
     if _telemetry_writer is None:
         from ddtrace.internal.telemetry import telemetry_writer
+
         _telemetry_writer = telemetry_writer
     return _telemetry_writer
 
@@ -150,7 +137,7 @@ class Instrumenter:
 
     def __init__(self, registry: "InstrumentationRegistry"):  # noqa: F821
         self.registry = registry
-        self._instrumentation_locks: Dict[str, Lock] = {}
+        self._instrumentation_locks: dict[str, Lock] = {}
         self._locks_lock = Lock()
         set_registry(registry)
 
@@ -189,16 +176,8 @@ class Instrumenter:
                 log.debug("Failed to instrument %s", qualified_name, exc_info=True)
                 return False
 
-    def uninstrument(self, qualified_name: str) -> bool:
-        """Remove instrumentation from a function. Not yet implemented."""
-        log.debug("Uninstrumentation not yet implemented: %s", qualified_name)
-        return False
 
-
-def apply_instrumentation_updates(
-    targets: List[Dict],
-    targets_to_remove: Optional[List[str]] = None,
-) -> None:
+def apply_instrumentation_updates(targets: list[dict]) -> None:
     """Apply instrumentation updates from CVE data or Remote Configuration.
 
     For each target:
@@ -209,7 +188,6 @@ def apply_instrumentation_updates(
 
     Args:
         targets: List of dicts with keys: target, dependency_name, cve_ids.
-        targets_to_remove: Optional list of qualified names to uninstrument.
     """
     try:
         from ddtrace.appsec.sca._registry import get_global_registry
@@ -217,30 +195,15 @@ def apply_instrumentation_updates(
         registry = get_global_registry()
         instrumenter = get_instrumenter(registry)
 
-        _process_removals(instrumenter, registry, targets_to_remove or [])
         _process_additions(instrumenter, registry, targets)
 
     except Exception:
         log.debug("Fatal error in apply_instrumentation_updates", exc_info=True)
 
 
-def _process_removals(instrumenter, registry, targets_to_remove):
-    """Process target removals."""
-    for target_name in targets_to_remove:
-        try:
-            uninstrument_success = instrumenter.uninstrument(target_name)
-            if uninstrument_success or not registry.is_instrumented(target_name):
-                registry.remove_target(target_name)
-            else:
-                log.debug("Uninstrumentation failed for %s, keeping in registry", target_name)
-        except Exception as e:
-            log.debug("Failed to remove target %s: %s", target_name, e, exc_info=True)
-
-
 def _process_additions(instrumenter, registry, targets):
     """Process target additions: resolve and instrument, or defer via ModuleWatchdog."""
     from ddtrace.appsec.sca._resolver import SymbolResolver
-    from ddtrace.internal.module import ModuleWatchdog
 
     for target_info in targets:
         target_name = target_info["target"]
@@ -255,7 +218,10 @@ def _process_additions(instrumenter, registry, targets):
             # Register target with CVE info (even if not yet resolvable)
             if not registry.has_target(target_name):
                 registry.add_target(
-                    target_name, pending=True, package_name=dep_name, cve_ids=cve_ids,
+                    target_name,
+                    pending=True,
+                    package_name=dep_name,
+                    cve_ids=cve_ids,
                 )
 
             # Try to resolve and instrument now

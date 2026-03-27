@@ -52,25 +52,13 @@ class DependencyTracker:
         Adds a DependencyEntry for each newly discovered package.
         Returns serialized dependency dicts ready for the telemetry payload.
 
+        AIDEV-NOTE: Delegates to the module-level update_imported_dependencies
+        function so that monkey-patching it (e.g. in tests/appsec/architectures/mini.py)
+        intercepts the production telemetry path.
+
         Caller must hold self._lock (called internally from collect_report).
         """
-        deps: list[dict] = []
-        for module_name in new_modules:
-            dists = get_module_distribution_versions(module_name)
-            if not dists:
-                continue
-
-            name, version = dists
-            if name == "ddtrace":
-                continue
-            if name in self._imported_dependencies:
-                continue
-
-            metadata = [] if self._sca_metadata_enabled else None
-            entry = DependencyEntry(name=name, version=version, metadata=metadata)
-            self._imported_dependencies[name] = entry
-            deps.append(entry.to_telemetry_dict())
-        return deps
+        return update_imported_dependencies(self._imported_dependencies, new_modules, self._sca_metadata_enabled)
 
     def collect_report(self) -> Optional[list[dict[str, Any]]]:
         """Discover new modules, collect re-reports, mark sent. Return payload or None.
@@ -138,9 +126,7 @@ class DependencyTracker:
                     ver = importlib_metadata_version(package_name)
                 except Exception:
                     ver = ""
-                self._imported_dependencies[package_name] = DependencyEntry(
-                    name=package_name, version=ver, metadata=[]
-                )
+                self._imported_dependencies[package_name] = DependencyEntry(name=package_name, version=ver, metadata=[])
             return attach_reachability_metadata(
                 self._imported_dependencies, package_name, cve_id, reached, path, method, line
             )

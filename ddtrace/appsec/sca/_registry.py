@@ -9,8 +9,6 @@ from dataclasses import field
 import os
 from threading import Lock
 from types import CodeType
-from typing import Dict
-from typing import List
 from typing import NamedTuple
 from typing import Optional
 
@@ -38,7 +36,7 @@ class InstrumentationState:
 
     qualified_name: str
     package_name: str = ""
-    cve_ids: List[str] = field(default_factory=list)
+    cve_ids: list[str] = field(default_factory=list)
     line: int = 0
     is_instrumented: bool = False
     is_pending: bool = False
@@ -63,7 +61,7 @@ class InstrumentationRegistry:
     """
 
     def __init__(self):
-        self._targets: Dict[str, InstrumentationState] = {}
+        self._targets: dict[str, InstrumentationState] = {}
         self._lock = Lock()
 
     def add_target(
@@ -71,7 +69,7 @@ class InstrumentationRegistry:
         qualified_name: str,
         pending: bool = False,
         package_name: str = "",
-        cve_ids: Optional[List[str]] = None,
+        cve_ids: Optional[list[str]] = None,
         line: int = 0,
     ) -> None:
         with self._lock:
@@ -107,11 +105,6 @@ class InstrumentationRegistry:
             state = self._targets.get(qualified_name)
             return state.is_instrumented if state else False
 
-    def is_pending(self, qualified_name: str) -> bool:
-        with self._lock:
-            state = self._targets.get(qualified_name)
-            return state.is_pending if state else False
-
     def mark_instrumented(self, qualified_name: str, original_code: CodeType) -> None:
         with self._lock:
             state = self._targets.get(qualified_name)
@@ -128,11 +121,6 @@ class InstrumentationRegistry:
         if state:
             state.hit_count += 1
 
-    def get_hit_count(self, qualified_name: str) -> int:
-        with self._lock:
-            state = self._targets.get(qualified_name)
-            return state.hit_count if state else 0
-
     def get_target_info(self, qualified_name: str) -> Optional[TargetInfo]:
         """Get vulnerability info for a target (used by the SCA hook).
 
@@ -144,17 +132,6 @@ class InstrumentationRegistry:
         if state:
             return state._cached_info
         return None
-
-    def get_stats(self) -> Dict[str, Dict]:
-        with self._lock:
-            return {
-                name: {
-                    "is_instrumented": state.is_instrumented,
-                    "is_pending": state.is_pending,
-                    "hit_count": state.hit_count,
-                }
-                for name, state in self._targets.items()
-            }
 
     def clear(self) -> None:
         with self._lock:

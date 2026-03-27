@@ -14,8 +14,6 @@ import base64
 import json
 import time
 
-import pytest
-
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.utils_testagent import _get_agent_client
 
@@ -184,9 +182,7 @@ class TestSCAFlaskTelemetry:
             assert response.status_code == 200
 
             # Trigger the vulnerable code path
-            response = flask_client.get(
-                "/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token}
-            )
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
 
             # Wait for telemetry to flush with the metadata
@@ -199,8 +195,7 @@ class TestSCAFlaskTelemetry:
         dep, cve_value = _find_dep_with_cve(events, "requests", "CVE-2024-35195")
 
         assert dep is not None, (
-            "CVE-2024-35195 not found in requests dependency metadata. "
-            f"Events: {json.dumps(events, indent=2)[:2000]}"
+            f"CVE-2024-35195 not found in requests dependency metadata. Events: {json.dumps(events, indent=2)[:2000]}"
         )
         assert dep["name"] == "requests"
         assert cve_value["id"] == "CVE-2024-35195"
@@ -236,9 +231,7 @@ class TestSCAFlaskTelemetry:
             assert response.status_code == 200
 
             # Hit two different endpoints that trigger the same CVE
-            response = flask_client.get(
-                "/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token}
-            )
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
 
             response = flask_client.get(
@@ -301,8 +294,7 @@ class TestSCAFlaskTelemetry:
         # Deduplicate by (path, method, line) — all 5 calls came from the
         # same call site so there should be exactly one unique entry.
         unique_keys = {
-            (entry.get("path", ""), entry.get("method", ""), entry.get("line", 0))
-            for entry in all_cve_entries
+            (entry.get("path", ""), entry.get("method", ""), entry.get("line", 0)) for entry in all_cve_entries
         }
         assert len(unique_keys) == 1, (
             f"Expected exactly 1 unique (path, method, line) for repeated calls from the same site, "

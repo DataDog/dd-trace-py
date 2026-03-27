@@ -259,9 +259,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer, tracker = self._make_writer_with_tracker(sca_enabled=True)
 
-        with patch(
-            "ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version", return_value="2.28.0"
-        ):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version", return_value="2.28.0"):
             result = writer.attach_dependency_metadata("requests", "CVE-1", True, "mod", "func", 1)
 
         assert result is True

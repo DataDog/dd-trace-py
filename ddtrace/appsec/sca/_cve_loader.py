@@ -9,8 +9,6 @@ package versions so only applicable vulnerabilities are registered.
 import json
 import os
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
@@ -34,7 +32,7 @@ def _parse_version_constraint(constraint: str) -> Optional[tuple]:
     constraint = constraint.strip()
     for op in ("<=", ">=", "==", "!=", "<", ">"):
         if constraint.startswith(op):
-            ver_str = constraint[len(op):].strip()
+            ver_str = constraint[len(op) :].strip()
             try:
                 return (op, Version(ver_str))
             except InvalidVersion:
@@ -84,7 +82,7 @@ def _version_matches(installed_version: str, constraint: str) -> bool:
     return False
 
 
-def load_cve_targets(installed_packages: Dict[str, str]) -> List[Dict[str, Any]]:
+def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]:
     """Load CVE targets from the static JSON, filtering by installed versions.
 
     Args:
@@ -103,7 +101,7 @@ def load_cve_targets(installed_packages: Dict[str, str]) -> List[Dict[str, Any]]
         log.debug("Failed to load CVE data from %s: %s", _CVE_DATA_PATH, e)
         return []
 
-    applicable_targets: List[Dict[str, Any]] = []
+    applicable_targets: list[dict[str, Any]] = []
 
     for entry in data.get("targets", []):
         dep_name = entry.get("dependency_name", "")

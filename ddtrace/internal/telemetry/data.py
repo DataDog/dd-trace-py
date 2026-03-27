@@ -1,7 +1,6 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -11,6 +10,7 @@ from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 from ..logger import get_logger
+from .dependency_tracker import update_imported_dependencies  # noqa: F401,E402
 
 
 log = get_logger(__name__)
@@ -69,11 +69,6 @@ def _get_application(key: tuple[str, str, str]) -> dict:
         application["process_tags"] = p_tags
 
     return application
-
-
-# AIDEV-NOTE: update_imported_dependencies has been moved to dependency_tracker.py.
-# This re-export preserves backward compatibility for external callers.
-from .dependency_tracker import update_imported_dependencies  # noqa: F401
 
 
 def get_application(service: str, version: str, env: str) -> dict:

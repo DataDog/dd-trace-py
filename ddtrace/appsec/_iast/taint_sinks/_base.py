@@ -2,11 +2,11 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec._patch_utils import rel_path
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
+from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -18,7 +18,6 @@ from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._span_metrics import increment_iast_span_metric
-from ..._shared._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -106,24 +105,6 @@ class VulnerabilityBase:
         return True
 
     @classmethod
-    def _compute_file_line(cls) -> tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
-        file_name = line_number = function_name = class_name = None
-        frame_info = get_info_frame()
-        if not frame_info or frame_info[0] in ("", -1):
-            return file_name, line_number, function_name, class_name
-
-        file_name, line_number, function_name, class_name = frame_info
-        if not file_name:
-            return None, None, None, None
-
-        file_name = rel_path(file_name)
-        if not file_name:
-            log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
-            return None, None, None, None
-
-        return file_name, line_number, function_name, class_name
-
-    @classmethod
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
@@ -155,7 +136,7 @@ class VulnerabilityBase:
             file_name = line_number = function_name = class_name = None
 
             if not getattr(cls, "skip_location", False):
-                file_name, line_number, function_name, class_name = cls._compute_file_line()
+                file_name, line_number, function_name, class_name = get_caller_frame_info()
                 if file_name is None:
                     rollback_quota(cls.vulnerability_type)
                     return result

@@ -7,7 +7,6 @@ to actual Python callables that can be instrumented.
 import importlib
 from types import FunctionType
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 
@@ -25,7 +24,7 @@ class SymbolResolver:
     """
 
     @staticmethod
-    def resolve(qualified_name: str) -> Optional[Tuple[str, FunctionType]]:
+    def resolve(qualified_name: str) -> Optional[tuple[str, FunctionType]]:
         """Resolve a qualified name to a callable.
 
         Args:

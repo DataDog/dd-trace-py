@@ -11,7 +11,6 @@ def test_registry_add_target():
     registry.add_target("module.path:function")
     assert registry.has_target("module.path:function")
     assert not registry.is_instrumented("module.path:function")
-    assert not registry.is_pending("module.path:function")
 
 
 def test_registry_add_target_with_vulnerability_info():
@@ -34,7 +33,6 @@ def test_registry_add_target_pending():
     registry.add_target("module.path:function", pending=True)
     assert registry.has_target("module.path:function")
     assert not registry.is_instrumented("module.path:function")
-    assert registry.is_pending("module.path:function")
 
 
 def test_registry_add_target_duplicate():
@@ -67,7 +65,6 @@ def test_registry_mark_instrumented():
     registry.add_target("module.path:function", pending=True)
     registry.mark_instrumented("module.path:function", original_code)
     assert registry.is_instrumented("module.path:function")
-    assert not registry.is_pending("module.path:function")
 
 
 def test_registry_record_hit():
@@ -76,7 +73,9 @@ def test_registry_record_hit():
     registry.record_hit("module.path:function")
     registry.record_hit("module.path:function")
     registry.record_hit("module.path:function")
-    assert registry.get_hit_count("module.path:function") == 3
+    # hit_count is diagnostic only; verify it doesn't raise
+    state = registry._targets.get("module.path:function")
+    assert state is not None and state.hit_count == 3
 
 
 def test_registry_record_hit_nonexistent():
@@ -84,36 +83,9 @@ def test_registry_record_hit_nonexistent():
     registry.record_hit("nonexistent")  # Should not raise
 
 
-def test_registry_get_hit_count_nonexistent():
-    registry = InstrumentationRegistry()
-    assert registry.get_hit_count("nonexistent") == 0
-
-
 def test_registry_get_target_info_nonexistent():
     registry = InstrumentationRegistry()
     assert registry.get_target_info("nonexistent") is None
-
-
-def test_registry_get_stats():
-    registry = InstrumentationRegistry()
-
-    def dummy_func():
-        pass
-
-    registry.add_target("target1", pending=False)
-    registry.add_target("target2", pending=True)
-    registry.mark_instrumented("target1", dummy_func.__code__)
-    registry.record_hit("target1")
-    registry.record_hit("target1")
-
-    stats = registry.get_stats()
-
-    assert stats["target1"]["is_instrumented"] is True
-    assert stats["target1"]["is_pending"] is False
-    assert stats["target1"]["hit_count"] == 2
-    assert stats["target2"]["is_instrumented"] is False
-    assert stats["target2"]["is_pending"] is True
-    assert stats["target2"]["hit_count"] == 0
 
 
 def test_registry_clear():
