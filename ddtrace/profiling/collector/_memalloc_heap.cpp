@@ -166,7 +166,7 @@ std::unique_ptr<traceback_t>
 heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
-    if (!pool.empty()) {
+    if (MEMALLOC_LIKELY(!pool.empty())) {
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
@@ -181,7 +181,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
 void
 heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 {
-    if (!tb) {
+    if (MEMALLOC_UNLIKELY(!tb)) {
         return;
     }
 
@@ -189,7 +189,7 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     tb->sample.clear();
 
     /* Try to return the traceback to the pool */
-    if (pool.size() < POOL_CAPACITY) {
+    if (MEMALLOC_LIKELY(pool.size() < POOL_CAPACITY)) {
         pool.push_back(std::move(tb));
     }
     /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
@@ -225,7 +225,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
+    if (MEMALLOC_UNLIKELY(!node.empty())) {
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
@@ -238,11 +238,11 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
     *allocated_memory_val = allocated_memory;
 
     /* Check if we have enough sample or not */
-    if (allocated_memory < current_sample_size) {
+    if (MEMALLOC_LIKELY(allocated_memory < current_sample_size)) {
         return false;
     }
 
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
+    if (MEMALLOC_UNLIKELY(allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT)) {
         /* TODO(nick) this is vestigial from the original array-based
          * implementation. Do we actually want this? It gives us bounded memory
          * use, but the size limit is arbitrary and once we hit the arbitrary
@@ -341,7 +341,7 @@ memalloc_heap_tracker_deinit_no_cpython(void)
 void
 memalloc_heap_untrack_no_cpython(void* ptr)
 {
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->untrack_no_cpython(ptr);
     }
 }
@@ -351,18 +351,18 @@ void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     (void)domain; // Parameter kept for API consistency but not currently used
-    if (!heap_tracker_t::instance) {
+    if (MEMALLOC_UNLIKELY(!heap_tracker_t::instance)) {
         return;
     }
     uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+    if (MEMALLOC_LIKELY(!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val))) {
         return;
     }
 
     /* Skip tracking if we're already inside the malloc hook on this thread.
      * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
-    if (!guard) {
+    if (MEMALLOC_UNLIKELY(!guard)) {
         return;
     }
 
@@ -416,7 +416,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     tb->sample.push_heap(allocated_memory_val);
 
     // Check that instance is still valid after GIL release in constructor
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
@@ -425,7 +425,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 void
 memalloc_heap_no_cpython(void)
 {
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->export_heap_no_cpython();
     }
 }
@@ -433,7 +433,7 @@ memalloc_heap_no_cpython(void)
 void
 memalloc_heap_postfork_child(void)
 {
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->postfork_child();
     }
 }
