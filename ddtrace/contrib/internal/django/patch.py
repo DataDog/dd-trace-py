@@ -7,7 +7,9 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
+import contextlib
 from inspect import getmro
+from inspect import iscoroutinefunction
 from inspect import unwrap
 import os
 from typing import cast
@@ -158,10 +160,43 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 
 def traced_func(django, name, resource=None, ignored_excs=None):
+    @contextlib.asynccontextmanager
+    async def _async_context(tags, pin):
+        with (
+            core.context_with_data(
+                "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+            ) as ctx,
+            ctx.span,
+        ):
+            yield ctx
+
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
+
+        if iscoroutinefunction(func):
+
+            async def _async():
+                async with _async_context(tags, pin) as ctx:
+                    core.dispatch(
+                        "django.func.wrapped",
+                        (
+                            args,
+                            kwargs,
+                            django.core.handlers.wsgi.WSGIRequest
+                            if hasattr(django.core.handlers, "wsgi")
+                            else object,
+                            ctx,
+                            ignored_excs,
+                        ),
+                    )
+                    return await func(*args, **kwargs)
+
+            return _async()
+
         with (
-            core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
+            core.context_with_data(
+                "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+            ) as ctx,
             ctx.span,
         ):
             core.dispatch(

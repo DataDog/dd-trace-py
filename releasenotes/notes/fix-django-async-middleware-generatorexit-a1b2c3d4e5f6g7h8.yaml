@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: fix ``RuntimeError: coroutine ignored GeneratorExit`` under ASGI with async middleware on Python 3.13+
