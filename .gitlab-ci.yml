@@ -351,58 +351,32 @@ codeowners:
         xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
-    - |
-      export MESSAGE="$(awk '{printf "%s\\n", $0}' codeowners.txt | sed 's/\"/\\"/g')"
-    - |
-      if [ ! -z "$MESSAGE" ]; then
-        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-        chmod +x authanywhere-linux-amd64
-        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
-          -H "$(./authanywhere-linux-amd64)" \
-          -X PATCH -d "{ \
-            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-            \"message\": \"$MESSAGE\", \
-            \"header\": \"Codeowners resolved as\", \
-            \"org\": \"Datadog\", \
-            \"repo\": \"dd-trace-py\" \
-          }"
-      fi
+    - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
 
 detect_circular_imports:
   stage: tests
   needs: []
   extends: .testrunner
-  rules:
-    - if: !reference [.is_main]
-      when: never
   script:
+    - pip install uv
     - cd ..
-    - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
-    - cp dd-trace-py/scripts/import-analysis/cycles.py .
-    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+    # Keep copies of PR scripts so they survive the git checkout main below
+    - cp dd-trace-py/scripts/import-analysis/cycles.py cycles.py
+    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
+    - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-pr.json
     - cat cycles-pr.json
     - cd dd-trace-py && git checkout main && cd ..
-    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+    # Analyse main branch ddtrace using the PR version of cycles.py (has uv metadata)
+    - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
-    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
-    - CYCLES_REPORT="$(cat cycles_report.txt)"
-    - cat cycles_report.txt
     - |
-      if [ ! -z "$CYCLES_REPORT" ]; then
-        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-        chmod +x authanywhere-linux-amd64
-        export MESSAGE="$(awk '{printf "%s\\n", $0}' cycles_report.txt | sed 's/\"/\\"/g')"
-        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
-          -H "$(./authanywhere-linux-amd64)" \
-          -X PATCH -d "{ \
-            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-            \"message\": \"$MESSAGE\", \
-            \"header\": \"\", \
-            \"org\": \"Datadog\", \
-            \"repo\": \"dd-trace-py\" \
-          }"
-        exit 1
-      fi
+      set +e
+      uv run --script cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
+      COMPARE_EXIT=$?
+      set -e
+    - cat cycles_report.txt
+    - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
+    - exit $COMPARE_EXIT
 
 
 package-oci:
@@ -555,7 +529,7 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
-  timeout: 90m
+  timeout: 15m
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"

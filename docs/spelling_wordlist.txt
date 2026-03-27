@@ -57,6 +57,7 @@ cattrs
 cetera
 CGroup
 cgroups
+cmake
 cherrypy
 ciapp
 claude
@@ -87,11 +88,13 @@ dbapi
 ddtrace
 deallocating
 debuggability
+deps
 decompiling
 deprecations
 dereferences
 DES
 deserializing
+dev
 django
 docstring
 docstrings
@@ -202,6 +205,8 @@ microservices
 middleware
 middlewares
 misencoded
+mlflow
+MLflow
 moderations
 mongoengine
 msgpack
@@ -307,6 +312,7 @@ starlette
 statsd
 stderr
 stdout
+setuptools
 stringable
 struct
 structlog
