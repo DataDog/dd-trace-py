@@ -74,7 +74,7 @@ def _check_for_stack_available():
 
 def _injection_enabled_has_profiler() -> bool:
     """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
-    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    injection_enabled = env.get("DD_INJECTION_ENABLED")
     if injection_enabled is None:
         return False
 
@@ -110,7 +110,7 @@ def _enrich_tags(tags) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
             tags.items(),
         )
     }

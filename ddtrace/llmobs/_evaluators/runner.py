@@ -48,7 +48,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
+        evaluator_str = env.get(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 

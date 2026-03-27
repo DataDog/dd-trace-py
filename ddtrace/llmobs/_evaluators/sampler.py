@@ -60,7 +60,7 @@ class EvaluatorRunnerSampler:
     def parse_rules(self) -> list[EvaluatorRunnerSamplingRule]:
         rules = []
 
-        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
+        sampling_rules_str = env.get(self.SAMPLING_RULES_ENV_VAR)
         telemetry_writer.add_configuration(self.SAMPLING_RULES_ENV_VAR, sampling_rules_str, origin="env")
 
         def parsing_failed_because(msg, maybe_throw_this):

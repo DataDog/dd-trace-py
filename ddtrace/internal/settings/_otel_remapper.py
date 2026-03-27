@@ -52,7 +52,7 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     elif otel_value == "parentbased_always_off":
         rate = "0.0"
     elif otel_value == "parentbased_traceidratio":
-        rate = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+        rate = env.get("OTEL_TRACES_SAMPLER_ARG", "1")
 
     if rate is not None:
         return f'[{{"sample_rate":{rate}}}]'
@@ -162,7 +162,7 @@ SUPPORTED_OTEL_ENV_VARS = {
 
 def parse_otel_env(otel_env: str) -> tuple[str, Optional[str]]:
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
-    raw_value = os.environ.get(otel_env, "")
+    raw_value = env.get(otel_env, "")
     if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
         # Resource attributes and service name are case-insensitive
         raw_value = raw_value.lower()

@@ -63,14 +63,14 @@ def _query_git(args):
 
 
 def get_commit_sha():
-    commit_sha = os.environ.get("DD_GIT_COMMIT_SHA")
+    commit_sha = env.get("DD_GIT_COMMIT_SHA")
     if commit_sha:
         return commit_sha
     return _query_git(["rev-parse", "HEAD"])
 
 
 def get_repository_url():
-    repository_url = os.environ.get("DD_GIT_REPOSITORY_URL")
+    repository_url = env.get("DD_GIT_REPOSITORY_URL")
     if repository_url:
         return repository_url
     return _query_git(["config", "--get", "remote.origin.url"])

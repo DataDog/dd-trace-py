@@ -79,7 +79,7 @@ def get_rules() -> str:
 
 
 def _get_rate_limiter() -> RateLimiter:
-    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
+    return RateLimiter(int(env.get("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
 @dataclasses.dataclass(eq=False)

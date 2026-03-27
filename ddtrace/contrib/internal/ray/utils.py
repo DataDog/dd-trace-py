@@ -69,16 +69,16 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
-    os.environ["traceparent"] = headers.get("traceparent", "")
-    os.environ["tracestate"] = headers.get("tracestate", "")
+    env["traceparent"] = headers.get("traceparent", "")
+    env["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    if os.environ.get("traceparent") is not None and os.environ.get("tracestate") is not None:
+    if env.get("traceparent") is not None and env.get("tracestate") is not None:
         return _TraceContext._extract(
             {
-                "traceparent": os.environ.get("traceparent"),
-                "tracestate": os.environ.get("tracestate"),
+                "traceparent": env.get("traceparent"),
+                "tracestate": env.get("tracestate"),
             }
         )
     return None
@@ -93,7 +93,7 @@ def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
-    submission_id = os.environ.get(RAY_SUBMISSION_ID)
+    submission_id = env.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
         span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 

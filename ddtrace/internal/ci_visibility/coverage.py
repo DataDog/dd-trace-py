@@ -26,7 +26,7 @@ _global_relative_file_paths_for_cov: dict[str, dict[str, str]] = {}
 
 # This feature-flags experimental collection of code coverage via our internal ModuleCodeCollector.
 # It is disabled by default because it is not production-ready.
-USE_DD_COVERAGE = asbool(os.environ.get("_DD_USE_INTERNAL_COVERAGE", "false"))
+USE_DD_COVERAGE = asbool(env.get("_DD_USE_INTERNAL_COVERAGE", "false"))
 
 try:
     from coverage import Coverage

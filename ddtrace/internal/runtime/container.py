@@ -174,7 +174,7 @@ def update_headers(headers: dict) -> None:
 
     # Get the external environment info from the environment variable and add it
     # to the headers
-    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
+    external_info = env.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
     if external_info:
         headers.update(
             {

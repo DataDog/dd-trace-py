@@ -30,7 +30,7 @@ def in_venv() -> bool:
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
-        "VIRTUAL_ENV" in os.environ
+        "VIRTUAL_ENV" in env
         or hasattr(sys, "real_prefix")
         or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
     )
@@ -126,7 +126,7 @@ def collect() -> dict[str, Any]:
         sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
-        enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
+        enabled_cli="ddtrace" in env.get("PYTHONPATH", ""),
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
@@ -146,7 +146,7 @@ def collect() -> dict[str, Any]:
         git_repository_url=git_repository_url,
         git_commit_sha=git_commit_sha,
         git_main_package=git_main_package,
-        log_level_override=os.getenv("DD_TRACE_LOG_LEVEL"),
+        log_level_override=env.get("DD_TRACE_LOG_LEVEL"),
     )
 
 

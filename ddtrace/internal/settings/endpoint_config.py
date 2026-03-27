@@ -21,8 +21,8 @@ log = get_logger(__name__)
 
 RETRIES = 1
 try:
-    if _CONFIG_ENDPOINT_RETRIES_ENV in os.environ:
-        RETRIES = int(os.getenv(_CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
+    if _CONFIG_ENDPOINT_RETRIES_ENV in env:
+        RETRIES = int(env.get(_CONFIG_ENDPOINT_RETRIES_ENV, str(RETRIES)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", _CONFIG_ENDPOINT_RETRIES_ENV, RETRIES)
 
@@ -33,8 +33,8 @@ def _get_retries():
 
 TIMEOUT = DEFAULT_TIMEOUT
 try:
-    if _CONFIG_ENDPOINT_TIMEOUT_ENV in os.environ:
-        TIMEOUT = int(os.getenv(_CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
+    if _CONFIG_ENDPOINT_TIMEOUT_ENV in env:
+        TIMEOUT = int(env.get(_CONFIG_ENDPOINT_TIMEOUT_ENV, str(TIMEOUT)))
 except ValueError:
     log.error("Invalid value for %s. Using default value: %s", _CONFIG_ENDPOINT_TIMEOUT_ENV, TIMEOUT)
 
@@ -60,7 +60,7 @@ def fetch_config_from_endpoint() -> dict:
     """
     Fetch the configuration from the configuration endpoint.
     """
-    config_endpoint = os.getenv(_CONFIG_ENDPOINT_ENV, None)
+    config_endpoint = env.get(_CONFIG_ENDPOINT_ENV, None)
 
     if config_endpoint is None:
         return {}

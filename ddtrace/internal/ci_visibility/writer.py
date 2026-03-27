@@ -51,7 +51,7 @@ class CIVisibilityEventClient(WriterClientBase):
             "*",
             {
                 "language": "python",
-                "env": os.getenv("_CI_DD_ENV", config.env),
+                "env": env.get("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
                 "library_version": __version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
@@ -152,7 +152,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = intake_url if intake_url else config._ci_visibility_agentless_url
             intake_cov_url = intake_url
         if not intake_url:
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, env.get("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
         clients: list[WriterClientBase] = (
@@ -164,7 +164,7 @@ class CIVisibilityWriter(HTTPWriter):
 
         if self._coverage_enabled:
             if not intake_cov_url:
-                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
+                intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, env.get("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
                 CIVisibilityProxiedCoverageClient(
                     intake_url=intake_cov_url,
@@ -190,7 +190,7 @@ class CIVisibilityWriter(HTTPWriter):
                 # For agentless, use the ci-intake URL for coverage reports
                 coverage_report_url = "%s.%s" % (
                     AGENTLESS_COVERAGE_REPORT_BASE_URL,
-                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                    env.get("DD_SITE", AGENTLESS_DEFAULT_SITE),
                 )
 
             # For coverage reports in EVP mode, we need the coverage subdomain

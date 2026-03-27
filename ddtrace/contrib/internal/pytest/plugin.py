@@ -44,7 +44,7 @@ config._add(
     "pytest",
     dict(
         _default_service="pytest",
-        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
+        operation_name=env.get("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
     ),
 )
 

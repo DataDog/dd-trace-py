@@ -109,7 +109,7 @@ class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
-    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
+    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in env), repr=False)
 
     def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())

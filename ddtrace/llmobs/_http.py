@@ -21,9 +21,9 @@ class ProxiedHTTPSConnection(HTTPSConnection):
     def __init__(
         self, host: str, port: Optional[int] = None, context: Optional[ssl.SSLContext] = None, **kwargs
     ) -> None:
-        if "HTTPS_PROXY" in os.environ:
+        if "HTTPS_PROXY" in env:
             tunnel_port = port or 443
-            proxy = urlparse(os.environ["HTTPS_PROXY"])
+            proxy = urlparse(env["HTTPS_PROXY"])
             proxy_host = proxy.hostname or ""
             # Default to 3128 (Squid's default port, de facto standard for HTTP proxies)
             proxy_port = proxy.port or 3128

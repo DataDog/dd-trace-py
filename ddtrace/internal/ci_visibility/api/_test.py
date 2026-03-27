@@ -113,7 +113,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _start_span(self, context: Optional[Context] = None) -> None:
         super()._start_span(context)
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
+        if asbool(env.get("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
             self._main_tracer_context = ddtrace.tracer._activate_context(
                 Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
             )
@@ -122,7 +122,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _finish_span(self) -> None:
         super()._finish_span()
 
-        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
+        if asbool(env.get("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
             self._main_tracer_context.__exit__(None, None, None)
 
     def __repr__(self) -> str:

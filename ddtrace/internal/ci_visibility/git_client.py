@@ -151,7 +151,7 @@ class CIVisibilityGitClient(object):
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
                 "https://api.{}".format(
-                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                    env.get("DD_SITE", AGENTLESS_DEFAULT_SITE),
                 ),
                 GIT_API_BASE_PATH,
             )

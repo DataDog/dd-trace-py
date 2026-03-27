@@ -22,7 +22,7 @@ config._add(
     "tornado",
     dict(
         _default_service=schematize_service_name(config._get_service("tornado-web")),
-        distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(env.get("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

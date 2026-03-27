@@ -49,7 +49,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         super(CIVisibilityEncoderV01, self).__init__()  # type: ignore[call-arg]
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
-        self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None
+        self._is_xdist_worker = env.get("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
 
     def __len__(self):

@@ -15,7 +15,7 @@ def _get_default_test_visibility_contrib_config() -> dict[str, t.Any]:
         _default_service="default_test_visibility_service",
         itr_skipping_level=(
             ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
+            if asbool(env.get("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
             else ITR_SKIPPING_LEVEL.TEST
         ),
         _itr_skipping_ignore_parameters=False,

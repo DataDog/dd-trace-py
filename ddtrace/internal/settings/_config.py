@@ -552,7 +552,7 @@ class Config(object):
         )
 
         # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
-        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in os.environ:
+        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env:
             deprecate(
                 "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated",
                 message="128-bit trace ID generation will become mandatory in version 5.0.0.",
@@ -654,7 +654,7 @@ class Config(object):
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+            env["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")

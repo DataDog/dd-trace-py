@@ -89,7 +89,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._enabled: bool = True
         self._agent_url = agent_url or agent.config.trace_agent_url

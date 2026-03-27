@@ -348,8 +348,8 @@ def _patch_all(**patch_modules: bool) -> None:
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
-            modules[module] = formats.asbool(os.environ[env_var])
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in env:
+            modules[module] = formats.asbool(env[env_var])
 
         # Enable all dependencies for the module
         if modules[module]:

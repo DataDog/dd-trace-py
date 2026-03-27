@@ -43,7 +43,7 @@ TRACED_ARGS = {"params", "path", "verb"}
 config._add(
     "aiobotocore",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 

@@ -30,7 +30,7 @@ def post_preload():
     if _config.enabled:
         from ddtrace._monkey import _patch_all
 
-        modules_to_patch = os.getenv("DD_PATCH_MODULES")
+        modules_to_patch = env.get("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         _patch_all(**modules_to_bool)

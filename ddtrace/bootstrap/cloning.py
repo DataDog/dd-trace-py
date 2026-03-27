@@ -13,7 +13,7 @@ MODULES_REQUIRING_CLEANUP = ("gevent",)
 
 enabled = (
     any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
-    if (_unload_modules := os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
+    if (_unload_modules := env.get("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
     else asbool(_unload_modules)
 )
 

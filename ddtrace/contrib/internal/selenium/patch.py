@@ -30,7 +30,7 @@ _DEFAULT_FLUSH_SLEEP_MS = 500
 
 
 def _get_flush_sleep_ms() -> int:
-    env_flush_sleep_ms = os.getenv("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
+    env_flush_sleep_ms = env.get("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
     if env_flush_sleep_ms is None:
         return _DEFAULT_FLUSH_SLEEP_MS
 

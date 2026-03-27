@@ -45,13 +45,9 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
 
-        service = os.getenv(
-            "DD_%s_SERVICE" % name.upper(),
-            default=os.getenv(
-                "DD_%s_SERVICE_NAME" % name.upper(),
-                default=None,
-            ),
-        )
+        service = env.get("DD_%s_SERVICE" % name.upper(),
+        default=env.get("DD_%s_SERVICE_NAME" % name.upper(),
+        default=None,),)
         self.setdefault("service", service)
         # TODO[v1.0]: this is required for backwards compatibility since some
         # integrations use service_name instead of service. These should be
@@ -68,7 +64,7 @@ class IntegrationConfig(AttrDict):
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
-            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            dd_http_server_tag_query_string = value if value else env.get("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
         return False

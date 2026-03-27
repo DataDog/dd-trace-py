@@ -334,9 +334,9 @@ def _get_blocked_template(accept_header_value: str, security_response_id: str) -
         return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
     if need_html_template:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
+        template_path = env.get("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
     else:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
+        template_path = env.get("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
     if template_path:
         try:

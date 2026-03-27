@@ -291,7 +291,7 @@ def astpatch_module(module: ModuleType) -> tuple[str, Optional[ast.Module]]:
         iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
+    if not asbool(env.get(IAST.ENV_NO_DIR_PATCH, "false")):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
         source_text += _DIR_WRAPPER
 

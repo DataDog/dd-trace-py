@@ -16,7 +16,7 @@ from ddtrace.internal.utils.wrappers import unwrap
 config._add(
     "mariadb",
     dict(
-        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
         _default_service=schematize_service_name("mariadb"),
         _dbapi_span_name_prefix="mariadb",
     ),

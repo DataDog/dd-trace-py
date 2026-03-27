@@ -303,7 +303,7 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if APPSEC_ENV in os.environ:
+        if APPSEC_ENV in env:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
@@ -312,10 +312,10 @@ class ASMConfig(DDConfig):
         self.__init__()
 
     def _eval_asm_can_be_enabled(self) -> None:
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._asm_can_be_enabled = APPSEC_ENV not in env and tracer_config._remote_config_enabled
         self._load_modules = bool(self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
-        if APPSEC_ENV in os.environ and self._asm_enabled:
+        if APPSEC_ENV in env and self._asm_enabled:
             tracer_config._trace_resource_renaming_enabled = True
 
     @property

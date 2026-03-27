@@ -58,7 +58,7 @@ def _get_diag_dirs() -> list[str]:
     system = platform.system()
     if system == "Windows":
         candidates = []
-        program_files = os.environ.get("ProgramFiles")
+        program_files = env.get("ProgramFiles")
         if program_files:
             candidates.extend(
                 [
@@ -66,7 +66,7 @@ def _get_diag_dirs() -> list[str]:
                     os.path.join(program_files, "actions-runner", "_diag"),
                 ]
             )
-        program_files_x86 = os.environ.get("ProgramFiles(x86)")
+        program_files_x86 = env.get("ProgramFiles(x86)")
         if program_files_x86:
             candidates.extend(
                 [
