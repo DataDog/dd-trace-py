@@ -10,15 +10,6 @@ try:
 except Exception:
     COLS = 80
 CWD = Path.cwd()
-# AIDEV-NOTE: Meson/Riot editable installs rely on bootstrap helpers such as
-# sitecustomize.py and generated _riot_site_packages_<hash>.py modules. These
-# framework injection tests should report target project imports, not startup
-# harness files that only activate the editable environment.
-_BOOTSTRAP_FILENAMES = {"sitecustomize.py", "usercustomize.py"}
-
-
-def is_bootstrap_helper(path: Path) -> bool:
-    return path.name in _BOOTSTRAP_FILENAMES or path.stem.startswith("_riot_site_packages")
 
 
 # Taken from Python 3.9. This is not implemented in older versions of Python
@@ -36,8 +27,7 @@ def from_editable_install(module: ModuleType, config) -> bool:
     if o is None:
         return False
     return (
-        not is_bootstrap_helper(o)
-        and o.is_relative_to(CWD)
+        o.is_relative_to(CWD)
         and not any(_.stem.startswith("test") for _ in o.parents)
         and (config.venv is None or not o.is_relative_to(config.venv))
     )

@@ -179,13 +179,6 @@ def _get_default_os_env_vars():
     os_env_keys = {
         "PATH",
         "PYTHONPATH",
-        # AIDEV-NOTE: RIOT_SITE_PACKAGES is set by riot 0.21+ before running the
-        # test command; read by riot-site-packages-bootstrap.pth to add the deps
-        # venv to sys.path via site.addsitedir().  Without it, subprocesses
-        # spawned inside tests cannot import packages installed in the deps venv
-        # (e.g. pytest-xdist).  riot 0.20 used PYTHONPATH instead (preserved
-        # above); riot 0.21+ switched to RIOT_SITE_PACKAGES.
-        "RIOT_SITE_PACKAGES",
         "DD_TRACE_AGENT_URL",
         "DD_AGENT_PORT",
         "DD_TRACE_AGENT_PORT",
