@@ -2784,8 +2784,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
-                    pkgs={"openfeature-sdk": ["~=0.6.0", "~=0.7.0", latest]},
+                    # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
+                    pkgs={"openfeature-sdk": ["~=0.8.0", latest]},
                 ),
             ],
         ),
@@ -3448,7 +3448,8 @@ venv = Venv(
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                "pydantic-evals": latest,
+                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
+                                "pydantic-evals": "<1.31",
                             },
                         ),
                     ],
