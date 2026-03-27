@@ -1,3 +1,4 @@
+import glob
 import os
 import platform
 import shutil
@@ -30,6 +31,30 @@ def _get_ddtrace_core_dependencies():
 
 
 DDTRACE_CORE_DEPENDENCIES = _get_ddtrace_core_dependencies()
+
+
+def _find_dist_info_path(package_name: str):
+    """Return the path of the installed .dist-info (or .egg-info) directory for *package_name*.
+
+    AIDEV-NOTE: We cannot use importlib.metadata's public API to get the on-disk path of a
+    distribution's metadata directory (it's not exposed).  Instead we walk sys.path dirs with
+    glob.  Using sys.path (rather than site.getsitepackages()) is important for riot's stacked
+    venv setup: riot installs ddtrace as an editable install in the *base* venv layer
+    (.riot/venv_py<ver>), but test dependencies land in a separate *deps* layer
+    (.riot/venv_py<ver>_deps) whose sys.executable is used at runtime.  Both layers appear in
+    sys.path, so searching sys.path finds the dist-info even across the layer boundary.
+    This is used to copy metadata into the fake site-packages tree so that entry-point
+    discovery works without calling setup.py (which requires cmake+setuptools_rust that are not
+    present in the meson build's pyproject.toml build-system.requires).
+    """
+    for sp in sys.path:
+        if not os.path.isdir(sp):
+            continue
+        for suffix in ("dist-info", "egg-info"):
+            matches = glob.glob(os.path.join(sp, f"{package_name}-*.{suffix}"))
+            if matches:
+                return matches[0]
+    return None
 
 
 def get_platform_details():
@@ -93,18 +118,18 @@ def ddtrace_injection_artifact():
                 timeout=180,
             )
 
-        setup_py_path = os.path.join(PROJECT_ROOT, "setup.py")
-        if not os.path.exists(setup_py_path):
-            pytest.fail(f"setup.py not found at {setup_py_path}. This test requires it to generate package metadata.")
-
-        # 5. Generate the .egg-info metadata directory right into our site-packages.
-        subprocess.check_call(
-            [sys.executable, "setup.py", "egg_info", f"--egg-base={target_site_packages_path}"],
-            cwd=PROJECT_ROOT,
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            text=True,
-            timeout=120,
+        # 4-5. Copy the installed ddtrace dist-info into our fake site-packages so that
+        # entry-point discovery works.  setup.py egg_info is not usable here because
+        # setup.py imports setuptools_rust at module level, which is not listed in the
+        # meson build's pyproject.toml build-system.requires.
+        dist_info_src = _find_dist_info_path("ddtrace")
+        if dist_info_src is None:
+            pytest.fail(
+                "No installed ddtrace dist-info or egg-info found in sys.path. Cannot generate package metadata."
+            )
+        shutil.copytree(
+            dist_info_src,
+            os.path.join(target_site_packages_path, os.path.basename(dist_info_src)),
         )
 
         # 5. Write the ddtrace version file

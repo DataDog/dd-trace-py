@@ -13,6 +13,12 @@ variables:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
+    # Re-touch meson build-dir outputs to a far-future timestamp after GitLab
+    # artifact extraction (which resets all timestamps to "now").  Without
+    # this, the meson-python editable loader's ninja check finds build outputs
+    # at the same time as freshly-checked-out source files and triggers a full
+    # cmake/Abseil rebuild, which OOMs the runner.
+    - find build/mesonpy-*/ -exec touch -d "2099-01-01 00:00:00 UTC" {} + 2>/dev/null || true
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh

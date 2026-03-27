@@ -26,8 +26,28 @@ build_base_venvs:
     fi
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
+    # AIDEV-NOTE: Copy meson-built Cython/native extensions from the meson build
+    # directory into the ddtrace/ source tree BEFORE the smoke test.  _ddup.so
+    # has RPATH $ORIGIN/.. to find libdd_wrapper.so at runtime.  The ext_cache
+    # restores _ddup.so into the source tree but not libdd_wrapper.so.  If
+    # _ddup.so is loaded from the source tree (e.g. because the editable loader's
+    # ninja rebuild encounters an issue), $ORIGIN/.. resolves to the source tree's
+    # profiling/ dir where libdd_wrapper.so does not exist, causing an import
+    # failure.  Copying before the smoke test ensures libdd_wrapper.so is present
+    # alongside _ddup.so in the source tree regardless of which path is used.
+    # See scripts/copy_meson_extensions.py for full rationale.  We call a
+    # standalone script here (rather than using a heredoc) to avoid YAML
+    # block-scalar indentation issues: content at column 0 inside a `script: |`
+    # block terminates the YAML literal block.
+    python scripts/copy_meson_extensions.py
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    # Touch all files in the meson build directory to a far-future timestamp so
+    # that ninja considers every output up-to-date in downstream test jobs.
+    # Without this, `git checkout` in each test job stamps source files with the
+    # current time, which is newer than the build-dir artifacts, causing ninja to
+    # trigger a full cmake rebuild (Abseil + IAST native) and OOM the runner.
+    find build/mesonpy-*/ -exec touch -d "2099-01-01 00:00:00 UTC" {{}} + 2>/dev/null || true
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
@@ -35,3 +55,4 @@ build_base_venvs:
       - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/test/test_*
+      - build/mesonpy-*/
