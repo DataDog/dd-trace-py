@@ -60,11 +60,11 @@ function(add_fuzz_target TARGET_NAME)
         target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})
     endif()
 
-    # Set RPATH so the fuzz binary can find dd_wrapper, libpython, and _native at runtime.
-    # $ORIGIN allows finding shared libraries co-located with the binary (e.g. in /fuzzer/builds/).
+    # Set RPATH so the fuzz binary can find dd_wrapper, libpython, and _native at runtime. $ORIGIN allows finding shared
+    # libraries co-located with the binary (e.g. in /fuzzer/builds/).
     if(LIB_INSTALL_DIR)
-        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN;${LIB_INSTALL_DIR}" INSTALL_RPATH
-                                                                                                 "$ORIGIN;${LIB_INSTALL_DIR}")
+        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN;${LIB_INSTALL_DIR}"
+                                                        INSTALL_RPATH "$ORIGIN;${LIB_INSTALL_DIR}")
     else()
         set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")
     endif()
