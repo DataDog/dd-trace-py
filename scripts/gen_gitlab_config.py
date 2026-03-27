@@ -26,7 +26,7 @@ import subprocess
 import typing as t
 
 
-MAX_BENCHMARKS_PER_GROUP = 6
+MAX_BENCHMARKS_PER_GROUP = 3
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
