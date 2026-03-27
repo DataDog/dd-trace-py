@@ -248,6 +248,25 @@ def _patch_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
             elif info.filename.endswith(".dist-info/METADATA"):
                 data = _patch_editable_metadata(data.decode("utf-8")).encode("utf-8")
             dst.writestr(info, data)
+        # AIDEV-NOTE: Inject a .pth file named with a leading '0' (ASCII 48) so
+        # it sorts before _riot_site_packages_*.pth (ASCII 95) during Python's
+        # site-packages initialisation.  Python processes .pth files in sorted
+        # order; when a test subprocess (P1) starts it inherits COV_CORE_SOURCE
+        # from the outer pytest process.  riot's activate() calls
+        # site.addsitedir(..., known_paths=set()) for each extra site-packages
+        # directory, which re-executes pytest-cov.pth and calls init() again.
+        # init() tries to claim sys.monitoring tool ID 1 (COVERAGE_ID); on the
+        # second and subsequent calls it fails with ValueError('tool 1 is
+        # already in use'), writing the message to stderr.  Because tests assert
+        # err == b"" this causes spurious failures.  Stripping COV_CORE_* and
+        # COVERAGE_PROCESS_START from the environment before activate() runs
+        # makes init() a no-op in all subsequent calls, so no error is written.
+        _cov_strip_code = (
+            "import os as _os; "
+            "[_os.environ.pop(_k) for _k in [k for k in list(_os.environ)"
+            " if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']]\n"
+        )
+        dst.writestr("0_ddtrace_strip_cov.pth", _cov_strip_code.encode("utf-8"))
 
     patched_path.replace(wheel_path)
     return wheel_name
