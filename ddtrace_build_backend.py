@@ -196,6 +196,31 @@ def _patch_editable_loader(loader_text: str) -> str:
     )
     if count3 != 1:
         raise RuntimeError("Could not find editable loader non-verbose subprocess.run to patch with stderr=DEVNULL")
+
+    # AIDEV-NOTE: Strip pytest-cov subprocess-coverage env vars from the ninja
+    # rebuild environment.  When pytest-cov is active, COV_CORE_SOURCE (and
+    # siblings) are set in the outer pytest process and inherited by test
+    # subprocesses.  ninja is launched as [sys.executable, '-m', 'ninja'] — a
+    # full Python process — so its startup processes all .pth files including
+    # pytest-cov.pth.  That .pth file calls `from pytest_cov.embed import
+    # init; init()` which tries to claim sys.monitoring tool ID 1 (COVERAGE_ID).
+    # If coverage.py already claimed it in the parent, init() raises
+    # ValueError('tool 1 is already in use').  The riot _riot_site_packages_*
+    # activate() mechanism reprocesses site-packages directories and evicts
+    # coverage from sys.modules between directories, causing pytest-cov.pth to
+    # run multiple times in a single subprocess — producing several copies of
+    # the error even with stderr=DEVNULL held by the parent's pipe.  Stripping
+    # COV_CORE_* and COVERAGE_PROCESS_START from the ninja env prevents
+    # pytest-cov from activating inside the rebuild subprocess entirely,
+    # eliminating any possibility of coverage-related noise from that process.
+    patched, count4 = re.subn(
+        r"(env\[MARKER\] = os\.pathsep\.join\(\(env\.get\(MARKER, ''\), self\._build_path\)\))",
+        r"\1\n            for _cov_key in [k for k in env if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']:\n                del env[_cov_key]",
+        patched,
+        count=1,
+    )
+    if count4 != 1:
+        raise RuntimeError("Could not find editable loader env setup to patch with COV_CORE_* stripping")
     return patched
 
 
