@@ -21,12 +21,14 @@ import wrapt
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -451,7 +453,20 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             span._set_attribute(http.STATUS_CODE, str(status_code))
-            http_config = config._http_client if span.span_type == SpanTypes.HTTP else config._http_server
+            span_kind = span.get_tag(SPAN_KIND)
+            if span_kind == SpanKind.CLIENT:
+                http_config = config._http_client
+            elif span_kind == SpanKind.SERVER:
+                http_config = config._http_server
+            else:
+                log.warning(
+                    "span.kind not set on span %r, please set span.kind to '%s' or '%s'",
+                    span.name,
+                    SpanKind.CLIENT,
+                    SpanKind.SERVER,
+                )
+                # Backward compat: fall back to span_type to determine the config
+                http_config = config._http_client if span.span_type == SpanTypes.HTTP else config._http_server
             if http_config.is_error_code(int_status_code):
                 span.error = 1
 

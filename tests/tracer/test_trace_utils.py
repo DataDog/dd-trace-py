@@ -437,7 +437,7 @@ def test_set_http_meta_custom_client_errors(mock_log, tracer, int_config, error_
         mock_log.exception.assert_not_called()
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "404-412"})
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "404-412"}, err=None)
 def test_set_http_meta_custom_client_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -459,7 +459,7 @@ def test_set_http_meta_custom_client_errors_via_env():
         assert span3.error == 0
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}, err=None)
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -480,7 +480,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}, err=None)
 def test_set_http_meta_server_env_applies_to_client_spans():
     """DD_TRACE_HTTP_SERVER_ERROR_STATUSES must still classify client spans when
     DD_TRACE_HTTP_CLIENT_ERROR_STATUSES is not explicitly configured (backward compat).
@@ -1061,7 +1061,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""}, err=None)
 def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -1085,7 +1085,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
 
 
 # TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
-@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""}, err=None)
 def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # Test that query strings are not added to urls when the obfuscation regex is an empty string
     # and obfuscation is enabled (not disabled xD)
