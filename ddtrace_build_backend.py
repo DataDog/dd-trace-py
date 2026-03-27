@@ -261,9 +261,18 @@ def _patch_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
         # err == b"" this causes spurious failures.  Stripping COV_CORE_* and
         # COVERAGE_PROCESS_START from the environment before activate() runs
         # makes init() a no-op in all subsequent calls, so no error is written.
+        # AIDEV-NOTE: The .pth code uses __import__('os') instead of importing
+        # os at the top and aliasing it.  Python 3.9-3.11 exec()s .pth lines
+        # without creating proper cell objects for local variables, so list
+        # comprehensions inside exec'd code cannot access outer exec-local
+        # names via closure (LOAD_DEREF).  PEP 709 (Python 3.12) inlined
+        # comprehensions fixed this, but for older Pythons we must use only
+        # builtins and constants inside the comprehension — __import__ is a
+        # builtin (LOAD_GLOBAL) and thus always accessible.
         _cov_strip_code = (
-            "import os as _os; "
-            "[_os.environ.pop(_k) for _k in [k for k in list(_os.environ)"
+            "import sys; "
+            "[__import__('os').environ.pop(k) for k in"
+            " [k for k in list(__import__('os').environ)"
             " if k.startswith('COV_CORE') or k == 'COVERAGE_PROCESS_START']]\n"
         )
         dst.writestr("0_ddtrace_strip_cov.pth", _cov_strip_code.encode("utf-8"))
