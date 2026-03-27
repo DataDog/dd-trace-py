@@ -634,7 +634,15 @@ def _openai_parse_input_response_messages(
             )
         elif item_type == "function_call_output":
             # Process `FunctionCallOutput` type from input messages
-            if not isinstance(output, str):
+            if isinstance(output, list):
+                # output can be a list of ResponseFunctionCallOutputItem (input_text, input_image, input_file).
+                # Only text items are captured; image/file content in tool results is not currently supported.
+                output = "".join(
+                    str(_get_attr(part, "text", ""))
+                    for part in output
+                    if _get_attr(part, "type", None) == INPUT_TYPE_TEXT
+                )
+            elif not isinstance(output, str):
                 output = safe_json(output)
             tool_result_info = ToolResult(
                 tool_id=str(call_id),

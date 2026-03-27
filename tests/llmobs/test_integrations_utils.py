@@ -297,6 +297,32 @@ class TestOpenAIParseInputResponseMessages:
         assert processed[2]["tool_results"][0]["tool_id"] == "call_mixed_1"
         assert tool_call_ids == ["call_mixed_1"]
 
+    def test_function_call_output_list_output(self):
+        """output as a list: only input_text parts are captured; images/files are skipped."""
+
+        class TextPart:
+            type = "input_text"
+            text = "42 degrees"
+
+        class ImagePart:
+            type = "input_image"
+            image_url = "https://example.com/img.png"
+
+        messages = [
+            {
+                "type": "function_call_output",
+                "call_id": "call_list",
+                "output": [TextPart(), ImagePart()],
+            }
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        tr = processed[0]["tool_results"][0]
+        assert tr["tool_id"] == "call_list"
+        assert tr["result"] == "42 degrees"
+        assert tool_call_ids == ["call_list"]
+
     def test_sdk_reasoning_item_skipped(self):
         """ResponseReasoningItem (type='reasoning') should be skipped silently."""
 
