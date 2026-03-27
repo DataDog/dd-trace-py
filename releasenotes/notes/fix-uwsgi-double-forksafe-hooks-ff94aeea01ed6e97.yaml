@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where forksafe hooks ran twice in uWSGI workers when
+    ``--py-call-uwsgi-fork-hooks`` was set alongside ``ddtrace.auto``. The duplicate execution
+    caused tracing products to be started and then immediately restarted in each worker.

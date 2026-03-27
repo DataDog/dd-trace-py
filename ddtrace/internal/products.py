@@ -208,9 +208,16 @@ class ProductManager:
     def run_protocol(self) -> None:
         self._load_products()
 
+        def _uwsgi_worker_callback():
+            # When --py-call-uwsgi-fork-hooks is set, os.register_at_fork()
+            # already triggered ddtrace_after_in_child via PyOS_AfterFork_Child.
+            # Skip the duplicate call to avoid running forksafe hooks twice.
+            if not forksafe.is_fork_child():
+                forksafe.ddtrace_after_in_child()
+
         # uWSGI support
         try:
-            check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)
+            check_uwsgi(worker_callback=_uwsgi_worker_callback)
         except uWSGIMasterProcess:
             # We are in the uWSGI master process, we should handle products in the
             # post-fork callback
