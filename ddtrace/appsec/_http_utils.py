@@ -21,7 +21,7 @@ def normalize_headers(
     headers: dict[str, str] = {}
     for key, value in request_headers.items():
         normalized_key = http_utils.normalize_header_name(key)
-        if value:
+        if normalized_key is not None:
             headers[normalized_key] = str(value).strip()
     return headers
 
