@@ -85,6 +85,7 @@ jobs:
 
           cd "$ISOLATED_DIR"
 
+          # Keep PyTorch on CUDA 12-compatible releases for current runner drivers.
           uv run \
             --no-project \
             --with "$WHEEL_PATH" \
@@ -93,7 +94,7 @@ jobs:
             --with pytest-cov \
             --with requests \
             --with hypothesis \
-            --with "torch>=1.8.1" \
-            --with torchvision \
+            --with "torch>=1.8.1,<2.9" \
+            --with "torchvision<0.24" \
             --with zstandard \
             pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys
