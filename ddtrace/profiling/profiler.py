@@ -127,7 +127,7 @@ class _ProfilerInstance(service.Service):
         self,
         service: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
-        env: Optional[str] = None,
+        dd_env: Optional[str] = None,
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
@@ -143,7 +143,7 @@ class _ProfilerInstance(service.Service):
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
         self.tags: dict[str, str] = tags if tags is not None else profiling_config.tags
-        self.env: Optional[str] = env if env is not None else config.env
+        self.env: Optional[str] = dd_env if dd_env is not None else config.env
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key

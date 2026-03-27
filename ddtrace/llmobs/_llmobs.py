@@ -963,7 +963,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
         project_name: Optional[str] = None,
-        env: Optional[str] = None,
+        dd_env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
         _tracer: Optional[Tracer] = None,
@@ -980,7 +980,7 @@ class LLMObs(Service):
         :param str api_key: Your datadog api key.
         :param str app_key: Your datadog application key.
         :param str project_name: Your project name used for experiments.
-        :param str env: Your environment name.
+        :param str dd_env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
@@ -999,7 +999,7 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
-        config.env = env or config.env
+        config.env = dd_env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls

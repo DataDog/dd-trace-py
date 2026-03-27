@@ -432,30 +432,30 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     return tags
 
 
-def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
+def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
-    env = env if env is None else env
+    environ = environ if environ is None else environ
 
-    branch = normalize_ref(env.get("DD_GIT_BRANCH"))
-    tag = normalize_ref(env.get("DD_GIT_TAG"))
+    branch = normalize_ref(environ.get("DD_GIT_BRANCH"))
+    tag = normalize_ref(environ.get("DD_GIT_TAG"))
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
+    if is_ref_a_tag(environ.get("DD_GIT_BRANCH")):
         tag = branch
         branch = None
 
     tags = {}
-    tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
-    tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
+    tags[REPOSITORY_URL] = environ.get("DD_GIT_REPOSITORY_URL")
+    tags[COMMIT_SHA] = environ.get("DD_GIT_COMMIT_SHA")
     tags[BRANCH] = branch
     tags[TAG] = tag
-    tags[COMMIT_MESSAGE] = env.get("DD_GIT_COMMIT_MESSAGE")
-    tags[COMMIT_AUTHOR_DATE] = env.get("DD_GIT_COMMIT_AUTHOR_DATE")
-    tags[COMMIT_AUTHOR_EMAIL] = env.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
-    tags[COMMIT_AUTHOR_NAME] = env.get("DD_GIT_COMMIT_AUTHOR_NAME")
-    tags[COMMIT_COMMITTER_DATE] = env.get("DD_GIT_COMMIT_COMMITTER_DATE")
-    tags[COMMIT_COMMITTER_EMAIL] = env.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
-    tags[COMMIT_COMMITTER_NAME] = env.get("DD_GIT_COMMIT_COMMITTER_NAME")
+    tags[COMMIT_MESSAGE] = environ.get("DD_GIT_COMMIT_MESSAGE")
+    tags[COMMIT_AUTHOR_DATE] = environ.get("DD_GIT_COMMIT_AUTHOR_DATE")
+    tags[COMMIT_AUTHOR_EMAIL] = environ.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
+    tags[COMMIT_AUTHOR_NAME] = environ.get("DD_GIT_COMMIT_AUTHOR_NAME")
+    tags[COMMIT_COMMITTER_DATE] = environ.get("DD_GIT_COMMIT_COMMITTER_DATE")
+    tags[COMMIT_COMMITTER_EMAIL] = environ.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
+    tags[COMMIT_COMMITTER_NAME] = environ.get("DD_GIT_COMMIT_COMMITTER_NAME")
 
     return tags
 

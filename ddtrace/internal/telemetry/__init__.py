@@ -51,9 +51,9 @@ def get_config(
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
 
-    for env in envs:
-        if env in LOCAL_CONFIG:
-            val = LOCAL_CONFIG[env]
+    for env_name in envs:
+        if env_name in LOCAL_CONFIG:
+            val = LOCAL_CONFIG[env_name]
             if modifier:
                 val = modifier(val)
 
@@ -76,30 +76,30 @@ def get_config(
         else:
             _invalid_otel_config(otel_env)
 
-    for env in envs:
-        if env in env:
-            val = env[env]
+    for env_name in envs:
+        if env_name in env:
+            val = env[env_name]
             if modifier:
                 val = modifier(val)
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "env_var")
                 if otel_env is not None and otel_env in env:
-                    _hiding_otel_config(otel_env, env)
+                    _hiding_otel_config(otel_env, env_name)
             effective_val = val
             break
 
-    for env in envs:
-        if env in FLEET_CONFIG:
-            val = FLEET_CONFIG[env]
-            config_id = FLEET_CONFIG_IDS.get(env)
+    for env_name in envs:
+        if env_name in FLEET_CONFIG:
+            val = FLEET_CONFIG[env_name]
+            config_id = FLEET_CONFIG_IDS.get(env_name)
             if modifier:
                 val = modifier(val)
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
                 if otel_env is not None and otel_env in env:
-                    _hiding_otel_config(otel_env, env)
+                    _hiding_otel_config(otel_env, env_name)
             effective_val = val
             break
 
