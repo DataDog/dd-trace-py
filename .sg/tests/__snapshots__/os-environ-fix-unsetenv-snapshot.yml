@@ -1,9 +1,0 @@
-id: os-environ-fix-unsetenv
-snapshots:
-  os.unsetenv("KEY"):
-    fixed: env.pop("KEY", None)
-    labels:
-    - source: os.unsetenv("KEY")
-      style: primary
-      start: 0
-      end: 18
