@@ -166,6 +166,9 @@ class TestOptWriter(BaseWriter):
 
             self.connector.close()
 
+            if result.error_type:
+                log.warning("Failed to upload %d test cycle events: %s", len(events), result.error_description)
+
             TelemetryAPI.get().record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
@@ -227,6 +230,9 @@ class TestCoverageWriter(BaseWriter):
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
             self.connector.close()
+
+            if result.error_type:
+                log.warning("Failed to upload %d code coverage events: %s", len(events), result.error_description)
 
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",
