@@ -270,7 +270,9 @@ def _make_simple_editable_wheel(wheel_directory: str, wheel_name: str) -> str:
     top_level_content = b"ddtrace\n"
     top_level_name = (dist_info_prefix + "top_level.txt") if (dist_info_prefix and not has_top_level_txt) else None
     if top_level_name:
-        top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(b"=").decode("ascii")
+        top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(
+            b"="
+        ).decode("ascii")
         top_level_record_line = f"{top_level_name},{top_level_hash},{len(top_level_content)}\n"
     record_name = (dist_info_prefix + "RECORD") if dist_info_prefix else None
 
@@ -370,7 +372,9 @@ def _inject_top_level_txt(wheel_directory: str, wheel_name: str) -> str:
 
     top_level_content = b"ddtrace\n"
     top_level_name = dist_info_prefix + "top_level.txt"
-    top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(b"=").decode("ascii")
+    top_level_hash = "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(top_level_content).digest()).rstrip(
+        b"="
+    ).decode("ascii")
     top_level_record_line = f"{top_level_name},{top_level_hash},{len(top_level_content)}\n"
 
     record_name = dist_info_prefix + "RECORD"

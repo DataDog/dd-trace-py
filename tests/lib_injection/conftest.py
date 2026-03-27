@@ -124,7 +124,9 @@ def ddtrace_injection_artifact():
         # meson build's pyproject.toml build-system.requires.
         dist_info_src = _find_dist_info_path("ddtrace")
         if dist_info_src is None:
-            pytest.fail("No installed ddtrace dist-info or egg-info found in sys.path. Cannot generate package metadata.")
+            pytest.fail(
+                "No installed ddtrace dist-info or egg-info found in sys.path. Cannot generate package metadata."
+            )
         shutil.copytree(
             dist_info_src,
             os.path.join(target_site_packages_path, os.path.basename(dist_info_src)),
