@@ -3747,20 +3747,20 @@ venv = Venv(
                 ),
             ],
         ),
+        # In-process tests (fast): test_iast_flask.py, test_appsec_flask_telemetry.py, and class-based
+        # tests in test_appsec_flask.py. No subprocess/gunicorn overhead.
         Venv(
             name="appsec_integrations_flask",
-            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
+            command="pytest -vvv {cmdargs}"
+            " tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
-                "requests": latest,
-                "gunicorn": latest,
-                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
@@ -3783,13 +3783,46 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
-                        "flask": "~=3.0",
+                        "flask": "~=3.1",
+                        "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        # Subprocess/testagent tests (slow): gunicorn, remoteconfig, patching, entrypoint tests.
+        # Reduced Flask version matrix since these test IAST/AppSec internals, not Flask-specific behavior.
+        Venv(
+            name="appsec_integrations_flask_testagent",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/"
+            " --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11"),
+                    pys="3.13",
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
