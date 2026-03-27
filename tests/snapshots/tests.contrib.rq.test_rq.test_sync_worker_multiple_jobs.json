@@ -41,6 +41,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
+         "_dd.svc_src": "rq_worker",
          "component": "rq",
          "job.id": "9f987dd6-9964-45fe-9dc7-b6bad4db2bf1"
        },
@@ -90,6 +91,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
+         "_dd.svc_src": "rq_worker",
          "component": "rq",
          "job.id": "482de295-33bd-4765-ba2e-b9a33ddef0dd"
        },
@@ -232,6 +234,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
+         "_dd.svc_src": "rq_worker",
          "component": "rq",
          "job.id": "d40e9068-6082-4ada-8e38-1270dc05d385"
        },
