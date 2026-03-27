@@ -242,6 +242,9 @@ variables:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "6"
     CARGO_BUILD_JOBS: "6"
+  pre_get_sources_script:
+    # Remove stale git lock files left by crashed git processes on Windows runners.
+    - Get-ChildItem -Path .git -Filter "*.lock" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
