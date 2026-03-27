@@ -249,6 +249,158 @@ class TestLLMIOProcessing:
             llmobs.annotate(llm_span, input_data="value")
         assert llmobs_events[1]["meta"]["input"]["messages"][0]["content"] == "value"
 
+    # -----------------------------------------------------------------------
+    # Tests for new LLMObsSpan fields (metadata, metrics, tool_definitions,
+    # model_name, model_provider, session_id, ml_app, name, span_kind)
+    # -----------------------------------------------------------------------
+
+    def _read_and_mutate_metadata(span: LLMObsSpan):
+        span.metadata["processed"] = True
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_read_and_mutate_metadata)])
+    def test_processor_reads_and_mutates_metadata(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can read and mutate metadata; mutations appear in the event."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, metadata={"original": "value"})
+        assert llmobs_events[0]["meta"]["metadata"]["original"] == "value"
+        assert llmobs_events[0]["meta"]["metadata"]["processed"] is True
+
+    def _read_and_mutate_metrics(span: LLMObsSpan):
+        span.metrics["total_tokens"] = 999
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_read_and_mutate_metrics)])
+    def test_processor_reads_and_mutates_metrics(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can read and mutate metrics; mutations appear in the event."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, metrics={"input_tokens": 10})
+        assert llmobs_events[0]["metrics"]["input_tokens"] == 10
+        assert llmobs_events[0]["metrics"]["total_tokens"] == 999
+
+    def _read_and_mutate_tool_definitions(span: LLMObsSpan):
+        span.tool_definitions = [{"name": "mutated_tool"}]
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_read_and_mutate_tool_definitions)])
+    def test_processor_reads_and_mutates_tool_definitions(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can read and mutate tool_definitions; mutations appear in the event."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, tool_definitions=[{"name": "original_tool"}])
+        assert llmobs_events[0]["meta"]["tool_definitions"] == [{"name": "mutated_tool"}]
+
+    def _mutate_model_name_and_provider(span: LLMObsSpan):
+        span.model_name = "gpt-4o-mutated"
+        span.model_provider = "openai-mutated"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_model_name_and_provider)])
+    def test_processor_reads_and_mutates_model_name_provider(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can mutate model_name and model_provider; mutations appear in the event meta."""
+        with llmobs.llm(model_name="gpt-4", model_provider="openai"):
+            pass
+        assert llmobs_events[0]["meta"]["model_name"] == "gpt-4o-mutated"
+        assert llmobs_events[0]["meta"]["model_provider"] == "openai-mutated"
+
+    def _mutate_session_id(span: LLMObsSpan):
+        span.session_id = "mutated-session"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_session_id)])
+    def test_processor_reads_and_mutates_session_id(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can mutate session_id; mutation appears in event['session_id'] and tags."""
+        with llmobs.llm(session_id="original-session"):
+            pass
+        assert llmobs_events[0]["session_id"] == "mutated-session"
+        assert "session_id:mutated-session" in llmobs_events[0]["tags"]
+
+    def _mutate_ml_app(span: LLMObsSpan):
+        span.ml_app = "mutated-ml-app"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_ml_app)])
+    def test_processor_reads_and_mutates_ml_app(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can mutate ml_app; mutation appears in event tags."""
+        with llmobs.llm():
+            pass
+        assert "ml_app:mutated-ml-app" in llmobs_events[0]["tags"]
+
+    def _mutate_name(span: LLMObsSpan):
+        span.name = "mutated-name"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_name)])
+    def test_processor_reads_and_mutates_name(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can mutate name; mutation appears in event['name']."""
+        with llmobs.llm("original-name"):
+            pass
+        assert llmobs_events[0]["name"] == "mutated-name"
+
+    def _read_span_kind(span: LLMObsSpan):
+        span._span_kind_seen = span.span_kind  # type: ignore[attr-defined]
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_read_span_kind)])
+    def test_processor_reads_span_kind(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Processor can read span_kind."""
+        captured = []
+
+        def _capture_span_kind(span: LLMObsSpan):
+            captured.append(span.span_kind)
+            return span
+
+        llmobs.register_processor(_capture_span_kind)
+        with llmobs.llm("my-span"):
+            pass
+        assert captured == ["llm"]
+
+    # -----------------------------------------------------------------------
+    # Tests for new annotate() parameters
+    # -----------------------------------------------------------------------
+
+    def test_annotate_model_name(self, llmobs, llmobs_events):
+        """annotate(model_name=...) updates the event meta.model_name."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, model_name="gpt-4o-annotated")
+        assert llmobs_events[0]["meta"]["model_name"] == "gpt-4o-annotated"
+
+    def test_annotate_model_provider(self, llmobs, llmobs_events):
+        """annotate(model_provider=...) updates the event meta.model_provider (lowercased)."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, model_provider="OpenAI-Annotated")
+        assert llmobs_events[0]["meta"]["model_provider"] == "openai-annotated"
+
+    def test_annotate_session_id(self, llmobs, llmobs_events):
+        """annotate(session_id=...) updates event['session_id']."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, session_id="annotated-session")
+        assert llmobs_events[0]["session_id"] == "annotated-session"
+        assert "session_id:annotated-session" in llmobs_events[0]["tags"]
+
+    def test_annotate_ml_app(self, llmobs, llmobs_events):
+        """annotate(ml_app=...) updates the ml_app in event tags."""
+        with llmobs.llm() as span:
+            llmobs.annotate(span, ml_app="annotated-ml-app")
+        assert "ml_app:annotated-ml-app" in llmobs_events[0]["tags"]
+
+    def test_annotate_name(self, llmobs, llmobs_events):
+        """annotate(name=...) renames the span in event['name']."""
+        with llmobs.llm("original-name") as span:
+            llmobs.annotate(span, name="annotated-name")
+        assert llmobs_events[0]["name"] == "annotated-name"
+
+    def test_annotate_name_takes_priority_over_private_name(self, llmobs, llmobs_events):
+        """annotate(name=...) takes priority over _name when both supplied."""
+        with llmobs.llm("original-name") as span:
+            llmobs.annotate(span, _name="private-name", name="public-name")
+        assert llmobs_events[0]["name"] == "public-name"
+
+    def test_annotate_private_name_fallback(self, llmobs, llmobs_events):
+        """annotate(_name=...) still works when name is not provided."""
+        with llmobs.llm("original-name") as span:
+            llmobs.annotate(span, _name="private-name")
+        assert llmobs_events[0]["name"] == "private-name"
+
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
         env = os.environ.copy()
