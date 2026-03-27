@@ -9,7 +9,6 @@ class ProductManagerTest(ProductManager):
         self._products = None
         self.__products__ = products
         self._failed = failed
-        self._started = set()
 
 
 class BaseProduct(Product):
@@ -122,6 +121,9 @@ def test_product_manager_restart():
 
         def __init__(self) -> None:
             self.started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
+
+        def enabled(self) -> bool:
+            return True
 
         def post_preload(self) -> None:
             self.post_preloaded = True
