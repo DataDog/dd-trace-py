@@ -50,6 +50,9 @@ opentracing = [
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
+gepa = [
+    "gepa>=0.0.26",
+]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
