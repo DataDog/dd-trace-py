@@ -20,13 +20,13 @@ os tests ubuntu:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp310-cp310"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
     PLATFORM: "Ubuntu"
