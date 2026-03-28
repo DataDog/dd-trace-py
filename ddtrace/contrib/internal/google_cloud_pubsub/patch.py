@@ -6,25 +6,17 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
 
 
-config._add(
-    "google_cloud_pubsub",
-    dict(
-        distributed_tracing_enabled=asbool(_get_config("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED", default=True)),
-        propagation_as_span_links=asbool(
-            _get_config("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS", default=False)
-        ),
-    ),
-)
+ensure_config_registered()
 
 
 def get_version() -> str:
@@ -33,15 +25,6 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"google.cloud.pubsub_v1": ">=2.10.0"}
-
-
-def _parse_resource_path(path):
-    if not isinstance(path, str):
-        return "", ""
-    parts = path.split("/")
-    project_id = parts[1] if len(parts) >= 2 else ""
-    resource_id = parts[3] if len(parts) >= 4 else path
-    return project_id, resource_id
 
 
 def _traced_subscribe_callback(callback, project_id, subscription_id, message):
@@ -87,7 +70,7 @@ def unpatch():
 
 def _traced_publish(func, instance, args, kwargs):
     topic = get_argument_value(args, kwargs, 0, "topic")
-    project_id, topic_id = _parse_resource_path(topic)
+    project_id, topic_id = parse_resource_path(topic)
 
     with core.context_with_data(
         "google_cloud_pubsub.send",
@@ -121,7 +104,7 @@ def _traced_publish(func, instance, args, kwargs):
 def _traced_subscribe(func, instance, args, kwargs):
     subscription = get_argument_value(args, kwargs, 0, "subscription")
     callback = get_argument_value(args, kwargs, 1, "callback")
-    project_id, subscription_id = _parse_resource_path(subscription)
+    project_id, subscription_id = parse_resource_path(subscription)
     traced_callback = partial(_traced_subscribe_callback, callback, project_id, subscription_id)
     args, kwargs = set_argument_value(args, kwargs, 1, "callback", traced_callback)
     return func(*args, **kwargs)
