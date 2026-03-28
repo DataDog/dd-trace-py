@@ -1,3 +1,5 @@
+import inspect
+
 from openai.version import VERSION as OPENAI_VERSION
 
 from ddtrace.contrib.internal.openai.utils import OpenAIAsyncStreamHandler
@@ -77,7 +79,15 @@ class _EndpointHook:
         if hasattr(resp, "parse"):
             # Users can request the raw response, in which case we need to process on the parsed response
             # and return the original raw APIResponse.
-            self._record_response(pin, integration, span, args, kwargs, resp.parse(), error)
+            parsed = resp.parse()
+            if inspect.isawaitable(parsed):
+                # AsyncAPIResponse.parse() is a coroutine in openai>=2.25.0;
+                # close it to avoid "coroutine was never awaited" warnings and
+                # fall back to recording tags from the raw response instead.
+                parsed.close()
+                self._record_response(pin, integration, span, args, kwargs, resp, error)
+            else:
+                self._record_response(pin, integration, span, args, kwargs, parsed, error)
             return resp
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
