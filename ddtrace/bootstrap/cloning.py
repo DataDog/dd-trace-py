@@ -103,6 +103,11 @@ def cleanup_loaded_modules() -> None:
             # CPython on boot.
             "threading",
             "_thread",
+            # reprlib binds _thread.get_ident at import time. If _thread gets
+            # re-imported but reprlib does not, pickle/cloudpickle can see two
+            # different builtin function objects and fail serializing classes
+            # that close over reprlib state.
+            "reprlib",
         ]
     )
     for u in UNLOAD_MODULES:
