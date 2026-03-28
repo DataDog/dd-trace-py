@@ -135,7 +135,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if not response:
             return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
-        candidates = _get_attr(response, "candidates", [])
+        candidates = _get_attr(response, "candidates", []) or []
         for candidate in candidates:
             content = _get_attr(candidate, "content", None)
             if not content:
