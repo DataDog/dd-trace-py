@@ -21,7 +21,11 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     Adding a feature here applies to every HTTP client integration.
     """
 
-    event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
+    event_names = (
+        HttpClientRequestEvent.event_name,
+        HttpClientEvents.HTTPX_REQUEST.value,
+        HttpClientEvents.REQUESTS_REQUEST.value,
+    )
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
