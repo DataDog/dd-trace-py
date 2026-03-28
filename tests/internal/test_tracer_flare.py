@@ -784,6 +784,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         )
 
 
+@pytest.mark.xfail(reason="Native logger is causing deadlocks when forking and has been disabled")
 def test_native_logs(tmp_path):
     """
     Validate that the flare collects native logs if native writer is enabled.
