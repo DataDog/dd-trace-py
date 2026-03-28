@@ -79,8 +79,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
-    std::vector<pthread_t> thread_handles;
-    std::vector<unsigned int> ids;
+    std::vector<unsigned int> ids { 0, 1, 2, 3, 4, 5};
+    std::vector<pthread_t> thread_handles(ids.size());
     std::vector<EmulateSamplerArg> args;
 
     for (unsigned int i = 0; i < ids.size(); i++) {
