@@ -32,6 +32,7 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
@@ -384,11 +385,30 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
-def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfig", dict]) -> None:
-    if span.service == int_config.get("_default_service"):
-        span.set_tag("_dd.svc_src", getattr(int_config, "integration_name", "true"))
+def set_service_and_source(
+    span: Span,
+    service: str,
+    int_config: Union["IntegrationConfig", dict],
+    default_service_key: str = "_default_service",
+) -> None:
+    mapped_service = config.service_mapping.get(service, service)
+    if service != mapped_service:
+        span.set_tag(_SERVICE_SOURCE, "opt.service_mapping")
+        service = mapped_service
     elif int_config.get("split_by_domain", False):
-        span.set_tag("_dd.svc_src", "opt.split_by_domain")
+        span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
+    # NB "not service" here makes svc_src make sense in cases of service inheritance
+    elif not service or service == int_config.get(default_service_key):
+        span.set_tag(
+            _SERVICE_SOURCE,
+            getattr(
+                int_config,
+                "integration_name",
+                int_config.get("integration_name", "m") if hasattr(int_config, "get") else "m",
+            ),
+        )
+    if service:
+        span.service = service
 
 
 def set_http_meta(

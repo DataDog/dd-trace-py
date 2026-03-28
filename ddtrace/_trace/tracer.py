@@ -32,6 +32,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -475,6 +476,9 @@ class Tracer(object):
                 service = parent.service
             else:
                 service = config.service
+            is_user_defined_service = False
+        else:
+            is_user_defined_service = True
 
         # Update the service name based on any mapping
         if service is not None:
@@ -529,6 +533,9 @@ class Tracer(object):
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
+
+        if is_user_defined_service:
+            span.set_tag(_SERVICE_SOURCE, "m")
 
         if config.env:
             span._set_attribute(ENV_KEY, config.env)
