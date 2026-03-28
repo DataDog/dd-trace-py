@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
@@ -49,6 +50,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         **kwargs: dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+        self._base_url = self._get_base_url(**kwargs)
         if model is not None:
             span._set_attribute(MODEL, model)
 
@@ -85,7 +87,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             {
                 SPAN_KIND: span_kind,
                 MODEL_NAME: span.get_tag("anthropic.request.model") or "",
-                MODEL_PROVIDER: "anthropic",
+                MODEL_PROVIDER: self._get_model_provider(),
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
@@ -254,6 +256,15 @@ class AnthropicIntegration(BaseLLMIntegration):
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
+
+    def _get_model_provider(self) -> str:
+        """Return the model provider based on the base_url.
+        Returns "anthropic" for default clients or when the base_url contains "anthropic".
+        Returns "unknown" when a custom base_url is set that doesn't contain "anthropic".
+        """
+        if not self._base_url or "anthropic" in self._base_url.lower():
+            return "anthropic"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")

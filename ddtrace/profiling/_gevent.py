@@ -155,9 +155,11 @@ def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
-        _parent_greenlet_count[parent_id] -= 1
-        if _parent_greenlet_count[parent_id] <= 0:
-            del _parent_greenlet_count[parent_id]
+        remaining = _parent_greenlet_count.get(parent_id, 0) - 1
+        if remaining <= 0:
+            _parent_greenlet_count.pop(parent_id, None)
+        else:
+            _parent_greenlet_count[parent_id] = remaining
 
 
 def untrack_greenlet(gl: _Greenlet) -> None:
