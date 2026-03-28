@@ -1,3 +1,6 @@
+import asyncio
+import importlib
+
 import mock
 import mysql
 
@@ -11,6 +14,14 @@ from tests.utils import assert_is_measured
 
 
 MYSQL_CONFIG["db"] = MYSQL_CONFIG["database"]
+
+
+def _has_mysql_aio():
+    try:
+        aio_module = importlib.import_module("mysql.connector.aio")
+    except ImportError:
+        return False
+    return hasattr(aio_module, "connect")
 
 
 class MySQLCore(object):
@@ -372,6 +383,83 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn.close()
 
         patch()
+
+    def test_async_simple_query(self):
+        if not _has_mysql_aio():
+            self.skipTest("mysql.connector.aio is not available")
+
+        async def _run_query():
+            aio_module = importlib.import_module("mysql.connector.aio")
+            conn = await aio_module.connect(**MYSQL_CONFIG)
+            try:
+                cursor = await conn.cursor()
+                try:
+                    await cursor.execute("SELECT 1")
+                    return await cursor.fetchall()
+                finally:
+                    await cursor.close()
+            finally:
+                await conn.close()
+
+        rows = asyncio.run(_run_query())
+        assert len(rows) == 1
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
+        span = spans[0]
+        assert_is_measured(span)
+        assert span.service == "mysql"
+        assert span.name == "mysql.query"
+        assert span.span_type == "sql"
+        assert span.error == 0
+        assert span.get_metric("network.destination.port") == 3306
+        assert_dict_issuperset(
+            span.get_tags(),
+            {
+                "out.host": "127.0.0.1",
+                "db.name": "test",
+                "db.system": "mysql",
+                "db.user": "test",
+                "component": "mysql",
+                "span.kind": "client",
+            },
+        )
+
+    def test_patch_unpatch_async(self):
+        if not _has_mysql_aio():
+            self.skipTest("mysql.connector.aio is not available")
+
+        async def _run_query():
+            aio_module = importlib.import_module("mysql.connector.aio")
+            conn = await aio_module.connect(**MYSQL_CONFIG)
+            try:
+                cursor = await conn.cursor()
+                try:
+                    await cursor.execute("SELECT 1")
+                    return await cursor.fetchall()
+                finally:
+                    await cursor.close()
+            finally:
+                await conn.close()
+
+        unpatch()
+        asyncio.run(_run_query())
+        spans = self.pop_spans()
+        assert not spans, spans
+
+        patch()
+        try:
+            rows = asyncio.run(_run_query())
+            assert len(rows) == 1
+            spans = self.pop_spans()
+            assert len(spans) == 1
+        finally:
+            unpatch()
+            asyncio.run(_run_query())
+            spans = self.pop_spans()
+            assert not spans, spans
+            patch()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_MYSQL_SERVICE="mysvc", DD_TRANCE_SPAN_ATTRIBUTE_SCHEMA="v0")

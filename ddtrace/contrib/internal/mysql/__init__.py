@@ -1,5 +1,6 @@
 """
 The mysql integration instruments the mysql library to trace MySQL queries.
+When available, it also instruments ``mysql.connector.aio`` to trace async queries.
 
 
 Enabling
