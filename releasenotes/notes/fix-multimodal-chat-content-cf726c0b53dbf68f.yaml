@@ -1,0 +1,3 @@
+fixes:
+  - |
+    LLM Observability: Fix handling of multimodal content parts in Chat Completions input messages. Messages with list-type content (e.g. text + image_url parts) are now correctly extracted instead of being serialized as a raw list string.
