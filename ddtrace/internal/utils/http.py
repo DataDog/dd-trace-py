@@ -10,6 +10,7 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
 from typing import Generator  # noqa:F401
+from typing import Mapping
 from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Union  # noqa:F401
@@ -379,7 +380,7 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping] = None) -> dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
