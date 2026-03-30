@@ -6,3 +6,23 @@ prune .riot/
 prune benchmarks/
 prune releasenotes/
 prune src/native/target*
+
+# Exclude C++ test/fuzz/cmake infrastructure not needed at runtime
+prune ddtrace/appsec/_iast/_taint_tracking/tests
+prune ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11
+prune ddtrace/internal/datadog/profiling/cmake
+prune ddtrace/internal/datadog/profiling/test
+prune ddtrace/internal/datadog/profiling/dd_wrapper/test
+prune ddtrace/internal/datadog/profiling/stack/test
+prune ddtrace/internal/datadog/profiling/stack/fuzz
+prune ddtrace/internal/datadog/profiling/ddup/test
+
+# Exclude build system and developer tooling files
+global-exclude *.cmake
+global-exclude CMakeLists.txt
+global-exclude *.cmake.in
+global-exclude *.sh
+global-exclude *.plantuml
+global-exclude .clang-format
+global-exclude .gitignore
+global-exclude *.supp
