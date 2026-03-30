@@ -941,8 +941,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     @staticmethod
     def _parse_otlp_headers() -> list:
-        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs."""
+        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs.
+
+        TODO: This parsing will move into libdatadog once header handling is supported natively.
+        The current split-on-comma approach does not handle percent-encoded commas (%2C) in header
+        values per the OTEL spec; that edge case will be handled correctly on the libdatadog side.
+        """
         raw = otel_config.exporter.TRACES_HEADERS
+        if not raw:
+            return []
         headers = []
         for item in raw.split(","):
             item = item.strip()

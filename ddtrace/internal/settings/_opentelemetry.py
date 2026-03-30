@@ -126,6 +126,9 @@ class ExporterConfig(DDConfig):
     METRICS_METRIC_READER_EXPORT_INTERVAL = DDConfig.d(int, _derive_metrics_metric_reader_export_interval)
     METRICS_METRIC_READER_EXPORT_TIMEOUT = DDConfig.d(int, _derive_metrics_metric_reader_export_timeout)
 
+    # TRACES_PROTOCOL is collected for telemetry but not yet used to switch transport:
+    # libdatadog currently only supports HTTP/JSON for OTLP traces. gRPC support will
+    # consume this field when added.
     TRACES_PROTOCOL = DDConfig.d(str, _derive_traces_protocol)
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
     TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)
