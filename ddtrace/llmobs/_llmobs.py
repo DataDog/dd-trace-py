@@ -125,6 +125,7 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
@@ -449,6 +450,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
+        self._export_llmobs = os.getenv("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -488,7 +490,7 @@ class LLMObs(Service):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
-            if os.getenv("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs":
+            if self._export_llmobs:
                 span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
 
     def _submit_llmobs_span(self, span: Span) -> None:
@@ -1863,7 +1865,7 @@ class LLMObs(Service):
         else:
             llmobs_trace_id = generate_128bit_trace_id()
             parent_id, ml_app, session_id = None, None, None
-        ml_app = ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+        ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         _annotate_llmobs_span_data(
             span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
         )
@@ -2542,13 +2544,7 @@ class LLMObs(Service):
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
-            ml_app = ml_app if ml_app else config._llmobs_ml_app
-            if not ml_app:
-                error = "missing_ml_app"
-                raise LLMObsSubmitEvaluationError(
-                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
+            ml_app = resolve_ml_app(ml_app)
 
             evaluation_tags = {
                 "ddtrace.version": __version__,
@@ -2626,13 +2622,13 @@ class LLMObs(Service):
             ml_app = get_llmobs_ml_app(active_span)
             llmobs_trace_id = get_llmobs_trace_id(active_span)
         elif active_context is not None:
-            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+            ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
             llmobs_trace_id = (
                 int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
             )
         else:
-            ml_app = config._llmobs_ml_app
+            ml_app = resolve_ml_app()
             llmobs_trace_id = generate_128bit_trace_id()
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
