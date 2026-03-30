@@ -45,12 +45,12 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
-        #for platform in BASE_PLATFORMS:
+        # for platform in BASE_PLATFORMS:
         #    expected.add((version, py_tag, platform, ""))
         for platform in SERVERLESS_PLATFORMS:
             expected.add((version, py_tag, platform, "_serverless"))
         # Add win_arm64 for Python 3.11+
-        #if py_tag in WIN_ARM64_PYTHON_TAGS:
+        # if py_tag in WIN_ARM64_PYTHON_TAGS:
         #    expected.add((version, py_tag, "win_arm64", ""))
     return expected
 
