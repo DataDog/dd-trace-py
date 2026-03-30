@@ -32,23 +32,6 @@ def get_model_name(instance: Any) -> str:
     return ""
 
 
-def _get_max_tokens(instance: Any) -> Any:
-    """Extract max_tokens from an LLM instance, if set.
-
-    Not all LlamaIndex LLMs define ``max_tokens``; returns None when absent.
-    """
-    try:
-        return getattr(instance, "max_tokens", None)
-    except Exception:
-        log.debug("Failed to read max_tokens from %s", type(instance).__name__, exc_info=True)
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Request-kwargs builders
-# ---------------------------------------------------------------------------
-
-
 def build_chat_request_kwargs(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> tuple[dict[str, Any], str]:
@@ -59,7 +42,7 @@ def build_chat_request_kwargs(
         request_kwargs["messages"] = messages
     model = get_model_name(instance)
     request_kwargs["model"] = model
-    max_tokens = _get_max_tokens(instance)
+    max_tokens = getattr(instance, "max_tokens", None)
     if max_tokens is not None:
         request_kwargs["max_tokens"] = max_tokens
     return request_kwargs, model
@@ -75,7 +58,7 @@ def build_complete_request_kwargs(
         request_kwargs["prompt"] = prompt
     model = get_model_name(instance)
     request_kwargs["model"] = model
-    max_tokens = _get_max_tokens(instance)
+    max_tokens = getattr(instance, "max_tokens", None)
     if max_tokens is not None:
         request_kwargs["max_tokens"] = max_tokens
     return request_kwargs, model

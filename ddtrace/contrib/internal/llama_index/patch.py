@@ -26,7 +26,12 @@ log = get_logger(__name__)
 
 
 def _llama_core():
-    """Lazy accessor for llama_index.core (cannot be imported at module level due to Pydantic V2)."""
+    """Lazy accessor for ``llama_index.core``.
+
+    Cannot be imported at module level because LlamaIndex classes inherit from
+    Pydantic V2 ``BaseModel``, which triggers ``__init_subclass__`` at import
+    time and interferes with early monkey-patching.
+    """
     return sys.modules.get("llama_index.core") or __import__("llama_index.core", fromlist=["core"])
 
 
@@ -42,7 +47,12 @@ config._add("llama_index", {})
 
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()
+
+# Stored as a module-level variable so wrapper closures (created at import time
+# in the method-to-wrapper mappings below) can access the integration instance
+# that is only available after patch() runs.
 _integration = None
+
 _DD_WRAPPED = "__dd_wrapped__"
 
 
@@ -75,8 +85,12 @@ def _create_event(
     model: Optional[str],
     operation: str,
 ) -> LlmRequestEvent:
-    # Resource: model name for LLM calls (low cardinality), class name for
-    # operations like query/retrieval/embedding/agent to avoid high cardinality.
+    """Create an ``LlmRequestEvent`` for a LlamaIndex operation.
+
+    For LLM calls (``operation=""``) the resource is the model name to keep
+    cardinality low.  For non-LLM operations (query, retrieval, embedding,
+    agent) the resource is the class name.
+    """
     resource = model if (model and not operation) else instance.__class__.__name__
     return LlmRequestEvent(
         component="llama_index",
@@ -92,112 +106,104 @@ def _create_event(
     )
 
 
-# ---------------------------------------------------------------------------
-# Trace runners — one pair for model calls (LLM + embeddings: needs model,
-# streaming) and one pair for non-model operations (needs operation).
-# ---------------------------------------------------------------------------
-
-
-def _traced_llm(func, instance, args, kwargs, request_kwargs, model, always_stream, operation=""):
-    """Trace a sync LLM/embedding call (chat, complete, predict, stream, embedding variants)."""
-    event = _create_event(instance, func, request_kwargs, model=model, operation=operation)
-    # dispatch_end_event=False defers span finishing: non-streaming calls dispatch
-    # immediately, streaming defers to the stream handler's finalize_stream().
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = func(*args, **kwargs)
-        except Exception as e:
-            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
-            raise
-        if always_stream or isinstance(resp, Generator):
-            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
-
-
-async def _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, always_stream, operation=""):
-    """Trace an async LLM/embedding call (achat, acomplete, apredict, astream, aembedding variants)."""
-    event = _create_event(instance, func, request_kwargs, model=model, operation=operation)
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = await func(*args, **kwargs)
-        except Exception as e:
-            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
-            raise
-        if always_stream or inspect.isasyncgen(resp):
-            return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
-
-
-def _traced_operation(func, instance, args, kwargs, request_kwargs, operation):
-    """Trace a sync non-model operation (query, retrieve, agent)."""
-    event = _create_event(instance, func, request_kwargs, model=None, operation=operation)
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = func(*args, **kwargs)
-        except Exception as e:
-            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
-            raise
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
-
-
-async def _traced_operation_async(func, instance, args, kwargs, request_kwargs, operation):
-    """Trace an async non-model operation (aquery, aretrieve, agent)."""
-    event = _create_event(instance, func, request_kwargs, model=None, operation=operation)
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            resp = await func(*args, **kwargs)
-        except Exception as e:
-            ctx.dispatch_ended_event(type(e), e, e.__traceback__)
-            raise
-        event.response = resp
-        ctx.dispatch_ended_event()
-        return resp
-
-
-# ---------------------------------------------------------------------------
-# Wrapper factories — generate sync/async wrappers for the trace runners.
-# ---------------------------------------------------------------------------
-
-
 def _llm_wrapper(build_kwargs_fn, always_stream, operation=""):
+    """Create a sync wrapper for an LLM or embedding method.
+
+    ``build_kwargs_fn`` extracts request metadata from the call arguments.
+    ``always_stream`` is True for methods like ``stream_chat`` whose return
+    value is always a generator even though ``isinstance(..., Generator)``
+    may not detect custom LlamaIndex stream wrappers.
+    ``operation`` is non-empty for embedding calls to distinguish them from
+    chat/complete LLM calls in LLMObs.
+    """
+
     def wrapper(func, instance, args, kwargs):
         request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
-        return _traced_llm(func, instance, args, kwargs, request_kwargs, model, always_stream, operation)
+        event = _create_event(instance, func, request_kwargs, model=model, operation=operation)
+        # dispatch_end_event=False: non-streaming calls dispatch manually after
+        # capturing the response; streaming calls defer to finalize_stream().
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                resp = func(*args, **kwargs)
+            except Exception as e:
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+                raise
+            if always_stream or isinstance(resp, Generator):
+                return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
+            event.response = resp
+            ctx.dispatch_ended_event()
+            return resp
 
     return wrapper
 
 
 def _llm_wrapper_async(build_kwargs_fn, always_stream, operation=""):
+    """Create an async wrapper for an LLM or embedding method.
+
+    See ``_llm_wrapper`` for parameter descriptions.
+    """
+
     async def wrapper(func, instance, args, kwargs):
         request_kwargs, model = build_kwargs_fn(instance, args, kwargs)
-        return await _traced_llm_async(func, instance, args, kwargs, request_kwargs, model, always_stream, operation)
+        event = _create_event(instance, func, request_kwargs, model=model, operation=operation)
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                resp = await func(*args, **kwargs)
+            except Exception as e:
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+                raise
+            if always_stream or inspect.isasyncgen(resp):
+                return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
+            event.response = resp
+            ctx.dispatch_ended_event()
+            return resp
 
     return wrapper
 
 
 def _operation_wrapper(build_kwargs_fn, operation):
+    """Create a sync wrapper for a non-LLM operation (query, retrieve, agent).
+
+    These never stream and have no model, so the wrapper is simpler.
+    """
+
     def wrapper(func, instance, args, kwargs):
-        return _traced_operation(func, instance, args, kwargs, build_kwargs_fn(args, kwargs), operation)
+        request_kwargs = build_kwargs_fn(args, kwargs)
+        event = _create_event(instance, func, request_kwargs, model=None, operation=operation)
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                resp = func(*args, **kwargs)
+            except Exception as e:
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+                raise
+            event.response = resp
+            ctx.dispatch_ended_event()
+            return resp
 
     return wrapper
 
 
 def _operation_wrapper_async(build_kwargs_fn, operation):
+    """Create an async wrapper for a non-LLM operation (aquery, aretrieve, agent).
+
+    See ``_operation_wrapper`` for parameter descriptions.
+    """
+
     async def wrapper(func, instance, args, kwargs):
-        return await _traced_operation_async(func, instance, args, kwargs, build_kwargs_fn(args, kwargs), operation)
+        request_kwargs = build_kwargs_fn(args, kwargs)
+        event = _create_event(instance, func, request_kwargs, model=None, operation=operation)
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                resp = await func(*args, **kwargs)
+            except Exception as e:
+                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+                raise
+            event.response = resp
+            ctx.dispatch_ended_event()
+            return resp
 
     return wrapper
 
-
-# ---------------------------------------------------------------------------
-# Method-to-wrapper mappings
-# ---------------------------------------------------------------------------
 
 _LLM_WRAPPERS = {
     "chat": _llm_wrapper(build_chat_request_kwargs, always_stream=False),
@@ -264,7 +270,13 @@ def _all_subclasses(base_cls):
 
 
 def _patched_init(original_init):
-    """Wrap BaseLLM.__init__ to patch new subclass methods on first instantiation."""
+    """Wrap ``BaseLLM.__init__`` to patch new subclass methods on first instantiation.
+
+    LLM provider packages (e.g. ``llama_index.llms.openai``) may be imported
+    after ``patch()`` runs, creating subclasses we haven't seen yet.  This hook
+    ensures those late-arriving subclasses get their methods wrapped on their
+    first instantiation.
+    """
 
     @functools.wraps(original_init)
     def wrapper(self, *args, **kwargs):
@@ -290,8 +302,8 @@ def patch():
     core_mod._datadog_integration = integration
     _integration = integration
 
-    # Subclass wrapping is required because LlamaIndex LLM methods are abstract on
-    # BaseLLM — concrete subclasses (OpenAI, etc.) override them entirely.
+    # LlamaIndex LLM methods (chat, complete, etc.) are abstract on BaseLLM —
+    # concrete subclasses override them entirely, so we must wrap each subclass.
     base = core_mod.base
     targets = [
         (base.llms.base.BaseLLM, _LLM_WRAPPERS),
@@ -310,7 +322,9 @@ def patch():
         for cls in [base_cls, *_all_subclasses(base_cls)]:
             _wrap_class(cls, wrappers)
 
-    # Hook BaseLLM.__init__ so LLM subclasses created after patch() get wrapped too
+    # Hook BaseLLM.__init__ so LLM subclasses imported after patch() get wrapped.
+    # This handles the case where provider packages (llama_index.llms.openai, etc.)
+    # are imported after ddtrace.auto has already called patch().
     BaseLLM = base.llms.base.BaseLLM
     _originals[(BaseLLM, "__init__")] = BaseLLM.__init__
     BaseLLM.__init__ = _patched_init(BaseLLM.__init__)
