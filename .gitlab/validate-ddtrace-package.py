@@ -48,7 +48,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform, ""))
         for platform in SERVERLESS_PLATFORMS:
-            expected.add((version, py_tag, platform, "_serverless"))
+            expected.add((version, py_tag, platform, "-serverless"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
             expected.add((version, py_tag, "win_arm64", ""))
@@ -112,7 +112,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
             # We know: name=ddtrace, abi=python tag (e.g., cp310)
             # So platform is everything after: ddtrace-{version}-{python}-{python}-
             wheel_base = wheel_file.name.replace(".whl", "")
-            marker = f"{name.replace('-', '_')}-{version}-{py_tag}-{py_tag}-"
+            marker = f"{name}-{version}-{py_tag}-{py_tag}-"
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
