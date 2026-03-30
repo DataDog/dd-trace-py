@@ -1,0 +1,67 @@
+id: fork-without-subprocess-marker
+snapshots:
+  ? |
+    @pytest.mark.skipif(True, reason="skipped")
+    def test_fork_other_decorator():
+        import os
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        os.waitpid(pid, 0)
+  : labels:
+    - source: |-
+        def test_fork_other_decorator():
+            import os
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0)
+            os.waitpid(pid, 0)
+      style: primary
+      start: 44
+      end: 170
+    - source: os.fork()
+      style: secondary
+      start: 101
+      end: 110
+  ? |
+    def test_fork_no_marker():
+        import os
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        os.waitpid(pid, 0)
+  : labels:
+    - source: |-
+        def test_fork_no_marker():
+            import os
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0)
+            os.waitpid(pid, 0)
+      style: primary
+      start: 0
+      end: 120
+    - source: os.fork()
+      style: secondary
+      start: 51
+      end: 60
+  ? |
+    def test_multiprocess_no_marker():
+        import multiprocessing
+        p = multiprocessing.Process(target=lambda: None)
+        p.start()
+        p.join()
+  : labels:
+    - source: |-
+        def test_multiprocess_no_marker():
+            import multiprocessing
+            p = multiprocessing.Process(target=lambda: None)
+            p.start()
+            p.join()
+      style: primary
+      start: 0
+      end: 141
+    - source: 'multiprocessing.Process(target=lambda: None)'
+      style: secondary
+      start: 70
+      end: 114

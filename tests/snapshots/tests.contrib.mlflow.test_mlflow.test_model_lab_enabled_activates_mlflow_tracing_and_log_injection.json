@@ -1,0 +1,49 @@
+[[
+  {
+    "name": "run",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.hostname": "docker-desktop",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69c15b7100000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmph9gre5ox,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "mlflow",
+      "language": "python",
+      "mlflow.run_id": "ec803d612c06469e901d4146505a6496",
+      "runtime-id": "8b666587252b4085b15fc32c4ea2f7b0",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 618.0
+    },
+    "duration": 816735959,
+    "start": 1774279537433511417
+  },
+     {
+       "name": "run.step",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.hostname": "docker-desktop",
+         "component": "mlflow",
+         "mlflow.run_id": "ec803d612c06469e901d4146505a6496",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "duration": 10725958,
+       "start": 1774279538239382501
+     }]]

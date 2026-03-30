@@ -297,7 +297,7 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
             // the Python property which calls PyCode_Addr2Line internally.
             PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(node), "tb_lineno");
             if (lineno_obj != nullptr) {
-                lineno = PyLong_AsLong(lineno_obj);
+                lineno = static_cast<int>(PyLong_AsLong(lineno_obj));
                 Py_DECREF(lineno_obj);
                 if (lineno < 0) {
                     lineno = 0;

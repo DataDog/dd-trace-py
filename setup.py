@@ -101,11 +101,13 @@ DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
-LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
-IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
-DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
+DDTRACE_DIR = HERE / "ddtrace"
+LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
+IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
+DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
+STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
+VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
@@ -328,6 +330,9 @@ class ExtensionHashes(build_ext):
                     sources = [Path(_) for _ in ext.sources]
 
                 sources_hash = hashlib.sha256()
+                # DEV: Make sure to include the rust features since changing them changes what gets built
+                for feature in rust_features:
+                    sources_hash.update(feature.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
@@ -604,24 +609,67 @@ class LibraryDownloader(BuildPyCommand):
 
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_artifacts():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(IAST_DIR / "*.so", True)
+    def remove_native_extensions():
+        """Remove native extensions and shared libraries installed by setup.py."""
+        for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
+            for path in DDTRACE_DIR.rglob(pattern):
+                # Avoid modifying vendored directories
+                if path.is_file() and not path.is_relative_to(VENDOR_DIR):
+                    try:
+                        path.unlink()
+                    except OSError as e:
+                        print(f"WARNING: could not remove {path}: {e}")
 
     @staticmethod
-    def remove_rust():
-        """Clean the Rust crate using cargo clean."""
-        if CARGO_TARGET_DIR.exists():
-            subprocess.run(
-                ["cargo", "clean"],
-                cwd=str(NATIVE_CRATE),
-                check=True,
-            )
+    def remove_artifacts():
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        CleanLibraries.remove_native_extensions()
+
+    @staticmethod
+    def remove_rust_targets():
+        """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
+        # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
+        for target_dir in NATIVE_CRATE.glob("target*"):
+            if target_dir.is_dir():
+                shutil.rmtree(target_dir, True)
+
+    @staticmethod
+    def remove_build_artifacts():
+        """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
+
+        The base distutils clean command does not remove these. They can cause
+        stale metadata and odd behavior on reinstall. Invoked only for
+        ``clean --all`` to give a full reset before a fresh build.
+        """
+        for path in (HERE / "ddtrace.egg-info", HERE / "dist", HERE / ".eggs"):
+            if path.exists():
+                shutil.rmtree(path, True)
+        for egg in HERE.glob("*.egg"):
+            if egg.is_file():
+                egg.unlink(missing_ok=True)
+            elif egg.is_dir():
+                shutil.rmtree(egg, True)
+        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        if cmake_deps.exists():
+            shutil.rmtree(cmake_deps, True)
+
+    @staticmethod
+    def remove_build_dir():
+        """Remove the entire build/ tree for a clean slate.
+
+        The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
+        per runtime. We remove build/ wholesale so all build output is cleared.
+        """
+        build_dir = HERE / "build"
+        if build_dir.exists():
+            shutil.rmtree(build_dir, True)
 
     def run(self):
-        CleanLibraries.remove_rust()
+        CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
-        CleanCommand.run(self)
+        CleanLibraries.remove_build_dir()
+        if self.all:
+            CleanLibraries.remove_build_artifacts()
 
 
 class CustomBuildExt(build_ext):
