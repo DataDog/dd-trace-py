@@ -1559,12 +1559,8 @@ class LLMObs(Service):
             summary_evaluators_list = list(summary_evaluators)
             for idx, summary_evaluator in enumerate(summary_evaluators_list):
                 if _is_pydantic_report_evaluator(summary_evaluator):
-                    duration = 0
-                    total_duration = 0
-                    current_span = cls._instance._current_span()
-                    if current_span is not None and current_span.duration_ns is not None:
-                        duration = current_span.duration_ns
-                        total_duration = current_span.duration_ns
+                    duration = 0  # place holder for duration
+                    total_duration = 0  # place holder for total duration
                     summary_evaluators_list[idx] = _pydantic_report_evaluator_wrapper(
                         summary_evaluator, duration, total_duration
                     )
@@ -1665,12 +1661,8 @@ class LLMObs(Service):
             summary_evaluators_list = list(summary_evaluators)
             for idx, summary_evaluator in enumerate(summary_evaluators_list):
                 if _is_pydantic_report_evaluator(summary_evaluator):
-                    duration = 0
-                    total_duration = 0
-                    current_span = cls._instance._current_span()
-                    if current_span is not None and current_span.duration_ns is not None:
-                        duration = current_span.duration_ns
-                        total_duration = current_span.duration_ns
+                    duration = 0  # place holder for duration
+                    total_duration = 0  # place holder for total duration
                     summary_evaluators_list[idx] = _pydantic_async_report_evaluator_wrapper(
                         summary_evaluator, duration, total_duration
                     )

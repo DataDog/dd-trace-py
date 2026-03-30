@@ -3442,14 +3442,20 @@ venv = Venv(
                         Venv(
                             pys=["3.9"],
                             command="pytest {cmdargs} tests/llmobs",
+                            pkgs={
+                                # Explicit pydantic v2 so pydantic-core wheels resolve with langchain; avoids
+                                # broken transitive-only installs (missing pydantic_core._pydantic_core).
+                                "pydantic": latest,
+                            },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
-                                "pydantic-evals": "<1.31",
+                                # ReportEvaluator lives in pydantic-evals 1.31+; that stack needs openai>=2.0.
+                                "openai": ">=2.0",
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
