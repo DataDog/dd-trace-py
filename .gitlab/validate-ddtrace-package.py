@@ -112,7 +112,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
             # We know: name=ddtrace, abi=python tag (e.g., cp310)
             # So platform is everything after: ddtrace-{version}-{python}-{python}-
             wheel_base = wheel_file.name.replace(".whl", "")
-            marker = f"{name}-{version}-{py_tag}-{py_tag}-"
+            marker = f"{name.replace('-', '_')}-{version}-{py_tag}-{py_tag}-"
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
