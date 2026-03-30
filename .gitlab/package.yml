@@ -384,6 +384,7 @@ download_dependency_wheels:
   stage: package
   needs:
     - "build linux"
+    - "build linux serverless"
     - "build macos"
     - "build sdist"
     - "collect windows wheels"
