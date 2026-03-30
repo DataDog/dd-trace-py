@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import json
 from typing import Any
 
@@ -8,6 +9,7 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import get_headers
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._utils import Block_config
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
@@ -17,7 +19,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 logger = get_logger(__name__)
 
 
-def tornado_block(_integration, handler, block):
+def tornado_block(_integration: str, handler: Any, block: Block_config) -> Any:
     setattr(handler, "__dd_appsec_blocked", True)
     handler.clear()
     handler.set_status(block.status_code)
@@ -74,10 +76,10 @@ def tornado_call_waf_first(integration: str, handler: Any) -> None:
     return None
 
 
-def _tornado_parse_body(handler):
+def _tornado_parse_body(handler: Any) -> Callable[[], Any]:
     response_body = b"".join(handler._write_buffer)
 
-    def lambda_function():
+    def lambda_function() -> Any:
         try:
             return json.loads(response_body)
         except BaseException:
@@ -86,7 +88,7 @@ def _tornado_parse_body(handler):
     return lambda_function
 
 
-def tornado_call_waf_response(integration: str, handler: object):
+def tornado_call_waf_response(integration: str, handler: Any) -> None:
     if not asm_config._asm_enabled:
         return
     if getattr(handler, "__dd_appsec_blocked", False):
@@ -108,7 +110,7 @@ def tornado_call_waf_response(integration: str, handler: object):
         tornado_block(integration, handler, block)
 
 
-def listen():
+def listen() -> None:
     core.on("tornado.start_request", tornado_call_waf_first, "tornado_future")
     core.on("tornado.block_request", tornado_block, "tornado_future")
     core.on("tornado.send_response", tornado_call_waf_response)
