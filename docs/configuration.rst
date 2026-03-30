@@ -1085,6 +1085,22 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACER_ATEXIT_HOOKS:
+     type: Boolean
+     default: True
+
+     description: |
+         Controls whether ddtrace registers its shutdown hooks (atexit and SIGTERM/SIGINT
+         signal handlers) for the tracer and LLMObs.
+
+         Set to ``False`` if your application manages its own shutdown sequence (for example,
+         waiting for in-flight LLM sessions to complete before tearing down). When disabled,
+         you are responsible for calling ``LLMObs.flush``, ``LLMObs.disable``, and
+         ``tracer.shutdown`` at the appropriate time.
+
+     version_added:
+       v4.7.0:
+
    DD_TRACE_BAGGAGE_TAG_KEYS:
       type: String
       default: "user.id,account.id,session.id"

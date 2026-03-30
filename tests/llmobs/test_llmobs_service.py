@@ -143,6 +143,19 @@ def test_service_enable_no_api_key(tracer):
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
+def test_llmobs_atexit_hook_not_registered_when_disabled(tracer):
+    from ddtrace.internal import atexit
+    from ddtrace.internal.settings._config import config
+
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        with mock.patch.object(config, "_tracer_atexit_hooks_enabled", False):
+            with mock.patch.object(atexit, "register") as mock_register:
+                llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
+                registered = [c.args[0] for c in mock_register.call_args_list]
+                assert llmobs_service.disable not in registered
+                llmobs_service.disable()
+
+
 def test_service_enable_already_enabled(tracer, mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)

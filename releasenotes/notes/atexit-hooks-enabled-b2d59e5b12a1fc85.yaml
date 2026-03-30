@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACER_ATEXIT_HOOKS`` (default: ``true``). Set to ``false`` to
+    skip registering ddtrace's atexit and exit-signal shutdown hooks for the tracer and
+    LLMObs, allowing you to manage your own shutdown sequence. When disabled, call
+    ``LLMObs.flush``, ``LLMObs.disable``, and ``tracer.shutdown`` manually. Note: this
+    does not affect other ddtrace products (profiler, CI Visibility, serverless).
