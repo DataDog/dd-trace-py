@@ -17,7 +17,6 @@ from ddtrace.llmobs._evaluators import BaseEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import ExperimentRowResult
@@ -577,7 +576,7 @@ class PromptOptimization:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: Callable[[JSONType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
         evaluators: Sequence[EvaluatorType],

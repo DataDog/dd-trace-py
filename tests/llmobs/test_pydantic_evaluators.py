@@ -484,7 +484,7 @@ class TestPydanticLLMJudge:
             rubric="The response must correctly state the capital of France.",
             model="openai:gpt-4o-mini",
             assertion=False,
-            score=True,
+            score={},
         )
         exp = llmobs.async_experiment(
             "test_llm_judge_openai",
