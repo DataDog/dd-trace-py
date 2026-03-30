@@ -13,6 +13,8 @@ from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.platform import get_platform_tags
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
@@ -38,7 +40,14 @@ log = logging.getLogger(__name__)
 
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
-        self.connector_setup = BackendConnectorSetup.detect_setup()
+        # NOTE: In manifest mode (Bazel hermetic sandbox), network access is
+        # unavailable. All API reads come from cached files, so we use a no-op connector
+        # that silently discards any network calls that might still be attempted.
+        offline = get_offline_mode()
+        if offline.manifest_enabled:
+            self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
+        else:
+            self.connector_setup = BackendConnectorSetup.detect_setup()
         self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.env_tags = get_env_tags()
