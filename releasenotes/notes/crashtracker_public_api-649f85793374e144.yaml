@@ -1,0 +1,6 @@
+features:
+  - |
+    Crashtracking: Add a public `Crashtracker.enable()` public API to start the crashtracker.
+                   Previously, crashtracking only gets enabled when an application is run with
+                   `ddtrace-run`. This change allows for explicit enablement of the crashtracker
+                   even when not running with `ddtrace-run`
