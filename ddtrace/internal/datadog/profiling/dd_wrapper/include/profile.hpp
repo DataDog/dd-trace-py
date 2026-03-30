@@ -51,6 +51,8 @@ class Profile
     ddog_prof_Profile& profile_borrow_internal();
     void profile_release();
 
+    void one_time_init_impl(SampleType type, unsigned int _max_nframes);
+
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);

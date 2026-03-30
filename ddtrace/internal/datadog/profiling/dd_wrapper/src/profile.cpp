@@ -166,36 +166,40 @@ Datadog::Profile::profile_release()
 void
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
-    std::call_once(init_once, [&]() {
-        static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    std::call_once(init_once, [this, type, _max_nframes]() { one_time_init_impl(type, _max_nframes); });
+}
 
-        // nframes
-        max_nframes = _max_nframes;
+void
+Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
-        // Set the type mask
-        const unsigned int mask_as_int = type & SampleType::All;
-        if (mask_as_int == 0) {
-            // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-            if (!already_warned) {
-                already_warned = true;
-                std::cerr << "No valid sample types were enabled" << std::endl;
-            }
-            return;
+    // nframes
+    max_nframes = _max_nframes;
+
+    // Set the type mask
+    const unsigned int mask_as_int = type & SampleType::All;
+    if (mask_as_int == 0) {
+        // This can't happen in contemporary dd-trace-py, but we need better handling around this case
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "No valid sample types were enabled" << std::endl;
         }
-        type_mask = static_cast<SampleType>(mask_as_int);
+        return;
+    }
+    type_mask = static_cast<SampleType>(mask_as_int);
 
-        // Setup the samplers
-        setup_samplers();
+    // Setup the samplers
+    setup_samplers();
 
-        // We need to initialize the profiles
-        const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
-        if (!make_profile(sample_types, &default_period, cur_profile)) {
-            if (!already_warned) {
-                already_warned = true;
-                std::cerr << "Error initializing cur_profile" << std::endl;
-            }
+    // We need to initialize the profiles
+    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    if (!make_profile(sample_types, &default_period, cur_profile)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Error initializing cur_profile" << std::endl;
         }
-    });
+    }
 }
 
 const Datadog::ValueIndex&
