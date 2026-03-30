@@ -730,8 +730,12 @@ class CustomBuildExt(build_ext):
         # `pip install -e .` invocations.  pip creates a new temp dir each run,
         # so if we let build_temp default to wherever build_lib is, object files
         # are discarded and the full C++ compilation repeats every time.
+        # Include COMPILE_MODE in the path so that Debug and RelWithDebInfo
+        # builds never share object files: distutils recompilation is timestamp-
+        # based and cannot detect flag or macro differences, so mixing modes
+        # would silently reuse stale objects built with the wrong configuration.
         plat = f"{sysconfig.get_platform()}-{sys.version_info.major}.{sys.version_info.minor}"
-        self.build_temp = str(HERE / "build" / f"temp.{plat}")
+        self.build_temp = str(HERE / "build" / f"temp.{plat}.{COMPILE_MODE}")
 
     def run(self):
         self.build_rust()
