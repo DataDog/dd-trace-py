@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import Optional
 
 from flask import Blueprint
@@ -404,6 +405,18 @@ def login_user_sdk():
         login(user_id, username)
         return "OK"
     return "login failure", 401
+
+
+@app.route("/exception-group-block", methods=["GET"])
+def exception_group_block():
+    """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+    if sys.version_info < (3, 11) or request.args.get("block") != "true":
+        return "ok", 200
+
+    from ddtrace.appsec._utils import Block_config
+    from ddtrace.internal._exceptions import BlockingException
+
+    raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
 
 @app.route("/buggy_endpoint/", methods=None)

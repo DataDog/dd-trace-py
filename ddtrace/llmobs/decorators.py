@@ -13,6 +13,7 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 
 
 log = get_logger(__name__)
@@ -107,10 +108,18 @@ def _model_decorator(operation_kind):
                         resp = await func(*args, **kwargs)
                         if (
                             resp is not None
+                            and operation_kind != "embedding"
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                             and span._get_ctx_item(OUTPUT_MESSAGES) is None
                         ):
-                            LLMObs.annotate(span=span, output_data=resp)
+                            try:
+                                LLMObs.annotate(span=span, output_data=resp)
+                            except LLMObsAnnotateSpanError:
+                                log.debug(
+                                    "Failed to auto-annotate output for @%s decorated function. "
+                                    "Use LLMObs.annotate() to manually annotate the output.",
+                                    operation_kind,
+                                )
                         return resp
 
             else:
@@ -159,10 +168,18 @@ def _model_decorator(operation_kind):
                         resp = func(*args, **kwargs)
                         if (
                             resp is not None
+                            and operation_kind != "embedding"
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                             and span._get_ctx_item(OUTPUT_MESSAGES) is None
                         ):
-                            LLMObs.annotate(span=span, output_data=resp)
+                            try:
+                                LLMObs.annotate(span=span, output_data=resp)
+                            except LLMObsAnnotateSpanError:
+                                log.debug(
+                                    "Failed to auto-annotate output for @%s decorated function. "
+                                    "Use LLMObs.annotate() to manually annotate the output.",
+                                    operation_kind,
+                                )
                         return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper

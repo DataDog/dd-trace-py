@@ -18,6 +18,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -27,6 +28,12 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
@@ -58,6 +65,7 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -230,7 +238,7 @@ def _on_web_framework_finish_request(
         status_code=status_code,
         query=query,
         request_headers=req_headers,
-        response_headers=res_headers,
+        response_headers=dict(res_headers) if res_headers is not None else None,
         route=route,
         **kwargs,
     )
@@ -1382,6 +1390,99 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         span.link_span(propagated_context)
 
 
+def _on_mlflow_new_run(
+    ctx: core.ExecutionContext,
+    run_id: str,
+    experiment_id: str,
+    run_name: str,
+    run_tags: dict[str, Any],
+    parent_run_id: str,
+    active_run_spans,
+):
+    span = ctx.span
+
+    span._set_attribute(_HOSTNAME_KEY, get_hostname())
+    span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
+    if experiment_id:
+        span._set_attribute(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
+    if run_name:
+        span._set_attribute(MLFLOW_RUN_NAME_TAG, run_name)
+    if parent_run_id:
+        span._set_attribute(MLFLOW_PARENT_RUN_ID_TAG, parent_run_id)
+
+    if run_tags and config.mlflow.trace_run_tags:
+        for key, value in run_tags.items():
+            span._set_attribute(key, value)
+
+    span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
+    active_run_spans[run_id] = span
+
+
+def _on_mlflow_end_run(
+    run_id: str,
+    step_id: int,
+    active_run_spans,
+    active_step_spans,
+    run_exc_info: Optional[Any] = None,
+    end_run_exc_info: Optional[Any] = None,
+):
+    # The user did not provide a step, we end the one we created artificially
+    if step_id == 0:
+        _on_mlflow_end_step(run_id, step_id, active_step_spans, run_exc_info=run_exc_info)
+    else:
+        step_span: Span = active_step_spans.pop(run_id, None)
+        if step_span:
+            step_span.resource = "tail"
+            step_span.finish()
+
+    span = active_run_spans.pop(run_id, None)
+    if span:
+        # we prioritize error happening during the run instead of when trying
+        # to end the job
+        if run_exc_info is not None and run_exc_info[0] is not None:
+            span.set_exc_info(*run_exc_info)
+        elif end_run_exc_info is not None and end_run_exc_info[0] is not None:
+            span.set_exc_info(*end_run_exc_info)
+        span.finish()
+
+
+def _on_mlflow_new_step(run_id: str, active_run_spans, active_step_spans):
+    run_span: Optional[Span] = active_run_spans.get(run_id, None)
+    new_step_span = tracer.start_span(
+        "run.step",
+        child_of=run_span,
+        service=config.mlflow.get("service"),
+        span_type=SpanTypes.WORKER,
+        activate=True,
+    )
+    new_step_span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    new_step_span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
+    active_step_spans[run_id] = new_step_span
+
+
+def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_info: Optional[Any] = None):
+    step_span: Span = active_step_spans.pop(run_id, None)
+    if step_span:
+        step_span._set_attribute(MLFLOW_STEP_TAG, str(step_id))
+        if run_exc_info is not None:
+            step_span.set_exc_info(*run_exc_info)
+        step_span.finish()
+
+
+def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_value: tuple[str, Any]):
+    step_span: Optional[Span] = active_step_spans.get(run_id, None)
+    if step_span:
+        if log_type == MLflowLogType.METRICS:
+            step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
+        else:
+            try:
+                step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
+            except Exception:  # nosec B110
+                # If the value cannot be stringified, skip setting the tag
+                pass
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1469,6 +1570,12 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
 
+    core.on("mlflow.new.run", _on_mlflow_new_run)
+    core.on("mlflow.end.run", _on_mlflow_end_run)
+    core.on("mlflow.new.step", _on_mlflow_new_step)
+    core.on("mlflow.end.step", _on_mlflow_end_step)
+    core.on("mlflow.log", _on_mlflow_log)
+
     for context_name in (
         # web frameworks
         "aiohttp.request",
@@ -1531,6 +1638,7 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "mlflow.run",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
