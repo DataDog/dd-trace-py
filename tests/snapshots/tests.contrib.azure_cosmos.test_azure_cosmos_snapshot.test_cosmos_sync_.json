@@ -10,26 +10,26 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 2984584,
-    "start": 1774383645250249466
+    "duration": 6543083,
+    "start": 1774878858765192261
   }],
 [
   {
@@ -43,33 +43,32 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
-      "cosmosdb.container": "",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 11946916,
-    "start": 1774383645253783800
+    "duration": 14356417,
+    "start": 1774878858772848261
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Create /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
@@ -77,33 +76,33 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 3035833,
-    "start": 1774383645266154133
+    "duration": 4247959,
+    "start": 1774878858787901094
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+    "resource": "Create /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
@@ -111,33 +110,33 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 1832834,
-    "start": 1774383645269540341
+    "duration": 6197958,
+    "start": 1774878858792803761
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Upsert /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
@@ -145,33 +144,33 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 2828292,
-    "start": 1774383645271672841
+    "duration": 4207292,
+    "start": 1774878858799751636
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "SqlQuery /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+    "resource": "Upsert /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
     "trace_id": 5,
     "span_id": 1,
     "parent_id": 0,
@@ -179,33 +178,33 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 1618333,
-    "start": 1774383645274789300
+    "duration": 4970083,
+    "start": 1774878858804595178
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Delete /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+    "resource": "SqlQuery /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
     "trace_id": 6,
     "span_id": 1,
     "parent_id": 0,
@@ -213,33 +212,33 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 1679500,
-    "start": 1774383645276630008
+    "duration": 4999875,
+    "start": 1774878858810320553
   }],
 [
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Delete /dbs/db.azure_cosmos_sync/",
+    "resource": "Delete /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
     "trace_id": 7,
     "span_id": 1,
     "parent_id": 0,
@@ -247,24 +246,58 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c2f21d00000000",
+      "_dd.p.tid": "69ca808a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_sync",
       "db.name": "db.azure_cosmos_sync",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.8.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "4b3413a7152346eca9cf91450f6dd88b",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 96388.0
+      "process_id": 557.0
     },
-    "duration": 4121792,
-    "start": 1774383645278586133
+    "duration": 4196708,
+    "start": 1774878858815948553
+  }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "tests.contrib.azure_cosmos",
+    "resource": "Delete /dbs/db.azure_cosmos_sync/",
+    "trace_id": 8,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ca808a00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "db.name": "db.azure_cosmos_sync",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos/4.6.0 Python/3.9.23 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "0ab8a62c4c50491b9161945f771c7f00",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 557.0
+    },
+    "duration": 7272667,
+    "start": 1774878858820722719
   }]]

@@ -159,13 +159,14 @@ def _build_span_tags(span, client, request_params, request, request_data):
         if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
             span._set_attribute(db.NAME, parts[1])
             if len(parts) >= 4:
-                if parts[2].lower() == "colls":
+                if parts[2].lower() == "colls" and parts[3].lower() != "":
                     span._set_attribute("cosmosdb.container", parts[3])
 
 
 def _tag_cosmos_exceptions(e, span):
-    if e.sub_status:
-        span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+    sub_status = getattr(e, "sub_status", None)
+    if sub_status:
+        span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
     if isinstance(e, azure_cosmos.exceptions.CosmosResourceExistsError):
         span._set_attribute(http.STATUS_CODE, 409)
     elif isinstance(e, azure_cosmos.exceptions.CosmosResourceNotFoundError):

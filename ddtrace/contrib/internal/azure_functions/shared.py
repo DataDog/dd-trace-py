@@ -264,7 +264,7 @@ def wrap_cosmos_trigger(func, function_name):
 
     def pre_dispatch(ctx, kwargs):
         return (
-            "azure.functions.cosmosdb_call_modifier",
+            "azure.functions.trigger_call_modifier",
             (ctx, config.azure_functions, function_name, trigger_type, SpanKind.INTERNAL),
         )
 
@@ -302,10 +302,10 @@ def patched_get_functions(wrapped, instance, args, kwargs):
             function._func = wrap_durable_trigger(
                 func, function_name, "Entity", "azure.durable_functions.patched_entity"
             )
+        elif trigger_type == "cosmosDBTrigger":
+            function._func = wrap_cosmos_trigger(func, function_name)
         elif trigger_type == "orchestrationTrigger":
             # Orchestration triggers are explicitly skipped as they are not traced
             continue
-        elif trigger_type == "cosmosDBTrigger":
-            function._func = wrap_cosmos_trigger(func, function_name)
 
     return functions

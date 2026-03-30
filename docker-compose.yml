@@ -148,7 +148,6 @@ services:
           - "127.0.0.1:5433:5433"
     azurecosmosemulator:
         image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
-        platform: linux/arm64
         ports:
             - "127.0.0.1:8081:8081"
             - "127.0.0.1:8080:8080"
