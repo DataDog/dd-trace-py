@@ -35,6 +35,17 @@ from ddtrace.appsec.ai_guard import new_ai_guard_client
 GUARDRAIL_NAME = "datadog_ai_guard"
 
 
+class DatadogAIGuardGuardrailException(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        cause: AIGuardAbortError,
+        **kwargs: Any,
+    ):
+        self.status_code = status_code
+        super().__init__(f"Datadog AI Guard: request blocked '{cause.reason}'", cause, kwargs)
+
+
 class DatadogAIGuardGuardrail(CustomGuardrail):
     def __init__(
         self,
@@ -195,8 +206,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
                     response["tags"],
                 )
         except AIGuardAbortError as e:
-            e.status_code = 403  # mark as forbidden
-            raise e
+            raise DatadogAIGuardGuardrailException(403, e)
         except AIGuardClientError:
             verbose_proxy_logger.error("Datadog AI Guard: Error calling AI Guard service", exc_info=True)
 
