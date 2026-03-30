@@ -9,7 +9,9 @@ prune src/native/target*
 
 # Exclude C++ test/fuzz infrastructure not needed to build or run
 prune ddtrace/appsec/_iast/_taint_tracking/tests
-prune ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11
+# NOTE: _vendor/pybind11 must stay in the sdist — it is a vendored build-time
+# dependency required by the IAST taint tracking CMakeLists.txt.
+# It is excluded from the wheel via find_packages() in setup.py.
 prune ddtrace/internal/datadog/profiling/test
 prune ddtrace/internal/datadog/profiling/dd_wrapper/test
 prune ddtrace/internal/datadog/profiling/stack/test
