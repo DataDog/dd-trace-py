@@ -31,6 +31,7 @@ from ddtrace.testing.internal.utils import asbool
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
 MAX_ATTEMPTS = 5
+MAX_RETRY_AFTER_SECONDS = 120.0
 
 log = logging.getLogger(__name__)
 
@@ -302,10 +303,12 @@ class BackendConnector(threading.local):
                             now = int(time.time())
                             if reset_value > now:
                                 # Unix timestamp: wait until that point in time
-                                result.retry_after_seconds = float(reset_value - now)
+                                delay = float(reset_value - now)
                             else:
                                 # Duration in seconds
-                                result.retry_after_seconds = float(reset_value)
+                                delay = float(reset_value)
+                            # Cap to avoid unreasonable waits (e.g. expired timestamp misread as duration)
+                            result.retry_after_seconds = min(delay, MAX_RETRY_AFTER_SECONDS)
                         except ValueError:
                             pass  # Fall back to exponential backoff in the retry loop
                 elif result.response.status >= 400:

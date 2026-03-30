@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
+from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
 from ddtrace.testing.internal.http import BackendConnector
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
@@ -516,6 +517,37 @@ class TestBackendConnector:
 
         assert result.error_type is None
         mock_sleep.assert_called_once_with(30.0)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.time", return_value=1700000000)
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_caps_retry_delay(
+        self, mock_perf: Mock, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        """Retry delay is capped at 120 seconds to avoid unreasonable waits."""
+        reset_timestamp = 1700000000 + 600  # 600 seconds in the future, exceeds 120s cap
+
+        mock_response_429 = Mock()
+        mock_response_429.headers = {"X-RateLimit-Reset": str(reset_timestamp)}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_sleep.assert_called_once_with(MAX_RETRY_AFTER_SECONDS)
 
     @patch("http.client.HTTPSConnection")
     @patch("random.uniform", return_value=0.5)
