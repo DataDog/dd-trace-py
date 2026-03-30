@@ -535,7 +535,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if service:
-            span.set_tag(_SERVICE_SOURCE, service_source)
+            span._set_attribute(_SERVICE_SOURCE, service_source)
 
         if config.env:
             span._set_attribute(ENV_KEY, config.env)
