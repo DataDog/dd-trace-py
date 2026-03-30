@@ -6,7 +6,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
-from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -14,6 +13,7 @@ from ..ext import SpanTypes
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
 from .internal.trace_utils import ext_service
+from .internal.trace_utils import is_tracing_enabled
 from .internal.trace_utils import iswrapped
 
 
@@ -55,19 +55,18 @@ class TracedAsyncCursor(TracedCursor):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return await method(*args, **kwargs)
         measured = name == self._self_datadog_name
 
         with tracer.trace(
-            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
             s._set_attribute(COMPONENT, self._self_config.integration_name)
@@ -167,11 +166,11 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
 
 
 class TracedAsyncConnection(TracedConnection):
-    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None):
+    def __init__(self, conn, cfg=config.dbapi2, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
-        super(TracedAsyncConnection, self).__init__(conn, pin, cfg, cursor_cls)
+        super(TracedAsyncConnection, self).__init__(conn, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     async def __aenter__(self):
         """Context management is not defined by the dbapi spec.
@@ -209,11 +208,9 @@ class TracedAsyncConnection(TracedConnection):
             # r is Cursor-like.
             if iswrapped(r):
                 return r
-            else:
-                pin = Pin.get_from(self)
-                if not pin:
-                    return r
-                return self._self_cursor_cls(r, pin, self._self_config)
+            wrapped_cursor = self._self_cursor_cls(r, self._self_config)
+            wrapped_cursor._self_db_tags = self._self_db_tags.copy()
+            return wrapped_cursor
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -230,17 +227,16 @@ class TracedAsyncConnection(TracedConnection):
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return await method(*args, **kwargs)
 
-        with tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+        with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
             s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
             s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
             return await method(*args, **kwargs)

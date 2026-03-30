@@ -18,12 +18,12 @@ from ddtrace.internal.constants import COMPONENT
 
 
 class Psycopg3TracedConnection(dbapi.TracedConnection):
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg3FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedCursor
 
-        super(Psycopg3TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
+        super(Psycopg3TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
@@ -43,12 +43,12 @@ class Psycopg3TracedConnection(dbapi.TracedConnection):
 class Psycopg2TracedConnection(dbapi.TracedConnection):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
 
-        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
+        super(Psycopg2TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
 
 def patch_conn(conn, traced_conn_cls, pin=None):
@@ -60,14 +60,10 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
-    _config = None
     if pin:
         extensions_to_patch = pin._config.get("_extensions_to_patch", None)
-        _config = pin._config
         if extensions_to_patch:
             _patch_extensions(extensions_to_patch)
-
-    c = traced_conn_cls(conn)
 
     tags = {
         db.SYSTEM: "postgresql",
@@ -96,7 +92,7 @@ def patch_conn(conn, traced_conn_cls, pin=None):
             }
         )
 
-    Pin(tags=tags, _config=_config).onto(c)
+    c = traced_conn_cls(conn, db_tags=tags)
     return c
 
 
