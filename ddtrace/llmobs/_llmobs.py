@@ -1660,9 +1660,7 @@ class LLMObs(Service):
             raise TypeError(
                 "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
             )
-        summary_evaluators_list: Optional[
-            list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
-        ] = None
+        summary_evaluators_list: Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None
         if summary_evaluators is not None:
             summary_evaluators_list = list(summary_evaluators)
             for idx, summary_evaluator in enumerate(summary_evaluators_list):
