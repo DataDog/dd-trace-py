@@ -121,7 +121,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: brettlangdon/remove.patch.py
+    branch: main
   needs:
     - job: "upload manylinux2014"
   rules:
