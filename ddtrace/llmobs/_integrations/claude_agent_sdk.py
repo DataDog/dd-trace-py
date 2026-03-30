@@ -77,7 +77,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         if not span.error and response is not None:
-            output_messages, metrics, init_system_message = self._extract_output_data(response)
+            output_messages, metrics, init_system_message, stop_reason = self._extract_output_data(response)
+            if stop_reason:
+                metadata["stop_reason"] = stop_reason
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
@@ -191,15 +193,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return result
 
-    def _format_context(self, parameters: dict[str, Any], kwargs: dict[str, Any]) -> None:
+    def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
 
+        if "_dd" not in metadata or not isinstance(metadata["_dd"], dict):
+            metadata["_dd"] = {}
         if after_context:
-            parameters["after_context"] = self._parse_context_categories(after_context)
-
+            metadata["_dd"]["after_context"] = self._parse_context_categories(after_context)
         if before_context:
-            parameters["before_context"] = self._parse_context_categories(before_context)
+            metadata["_dd"]["before_context"] = self._parse_context_categories(before_context)
 
     def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
         prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
@@ -269,14 +272,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any]]:
-        """Extract output data from response, including output messages, usage metrics, and init system message."""
+    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str]:
+        """Extract output data from response, including output messages, usage metrics, init system message,
+        and stop reason.
+        """
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
+        stop_reason: str = ""
 
         if not response or not isinstance(response, list):
-            return [Message(content="")], metrics, init_system_message
+            return [Message(content="")], metrics, init_system_message, stop_reason
 
         for msg in response:
             msg_type = type(msg).__name__
@@ -293,13 +299,20 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 content = _get_attr(msg, "content", "") or ""
                 output_messages.extend(self._parse_content_blocks(content, "user"))
             elif msg_type == "ResultMessage":
+                if not stop_reason:
+                    stop_reason = _get_attr(msg, "stop_reason", "") or ""
                 if not metrics:
                     metrics = self._extract_result_message(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
-                    output_messages.append(Message(content=str(result), role="system"))
+                    output_messages.append(Message(content=str(result), role="assistant"))
+                structured_output = _get_attr(msg, "structured_output", None)
+                if structured_output is not None:
+                    output_messages.append(
+                        Message(content=safe_json(structured_output) or str(structured_output), role="assistant")
+                    )
 
-        return output_messages or [Message(content="")], metrics, init_system_message
+        return output_messages or [Message(content="")], metrics, init_system_message, stop_reason
 
     def _extract_result_message(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}

@@ -23,6 +23,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -161,6 +162,13 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                         set_blocked(e.args[0])
                         response = blocked_response(e.args[0])
                         return response
+                    except BaseException as exc:
+                        # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                        if blocking_exc := find_exception(exc, BlockingException):
+                            set_blocked(blocking_exc.args[0])
+                            response = blocked_response(blocking_exc.args[0])
+                            return response
+                        raise
 
                     if block_config := get_blocked():
                         response = blocked_response(block_config)

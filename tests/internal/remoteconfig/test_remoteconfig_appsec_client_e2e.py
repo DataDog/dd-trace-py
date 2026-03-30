@@ -89,6 +89,8 @@ def _assert_response(mock_send_request, expected_response):
 
     assert response["client"]["client_tracer"]["tags"]
     del response["client"]["client_tracer"]["tags"]
+    assert response["client"]["client_tracer"]["process_tags"]
+    del response["client"]["client_tracer"]["process_tags"]
 
     assert response == expected_response
 
@@ -119,7 +121,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         rc_client = SyncRemoteConfigClient()
 
         # Register callback directly (new architecture)
-        rc_client.register_product("ASM_FEATURES", _mock_appsec_callback)
+        rc_client.register_callback("ASM_FEATURES", _mock_appsec_callback)
+        rc_client.enable_product("ASM_FEATURES")
         rc_client.add_capabilities(Capabilities)
         capabilities = rc_client._encode_capabilities(Capabilities.TEST)
 
@@ -751,7 +754,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname"
+        " does not exist in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -773,7 +777,7 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         has_errors=True,
         error_msg=(
             "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-            "not exists in client_config and signed targets"
+            "does not exist in client_config and signed targets"
         ),
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -817,7 +821,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
+        "does not exist in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -842,7 +847,7 @@ def test_remote_config_client_callback_error(mock_send_request):
 
     rc_client = SyncRemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    rc_client.register_product("ASM_FEATURES", callback_with_exception)
+    rc_client.register_callback("ASM_FEATURES", callback_with_exception)
 
     with override_global_config(dict(_remote_config_enabled=False)):
         # 0.

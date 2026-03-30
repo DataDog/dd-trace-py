@@ -10,6 +10,7 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
 from typing import Generator  # noqa:F401
+from typing import Mapping
 from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Union  # noqa:F401
@@ -379,7 +380,7 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
@@ -387,10 +388,12 @@ def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str,
 
     def parse_message(msg):
         if msg.is_multipart():
-            res = {
-                part.get_param("name", failobj=part.get_filename(), header="content-disposition"): parse_message(part)
-                for part in msg.get_payload()
-            }
+            res: dict[str, list] = {}
+            for part in msg.get_payload():
+                key = part.get_param("name", failobj=part.get_filename(), header="content-disposition")
+                value = parse_message(part)
+                res.setdefault(key, []).append(value)
+            res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
             content_type = msg.get("Content-Type")
             if content_type in ("application/json", "text/json"):

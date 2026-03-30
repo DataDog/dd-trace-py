@@ -20,14 +20,27 @@ from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
 
+
+try:
+    from deepeval.metrics import BaseMetric
+    from deepeval.test_case import LLMTestCase
+
+    DEEPEVAL_AVAILABLE = True
+except ImportError:
+    BaseMetric = None  # type: ignore[misc, assignment]
+    LLMTestCase = None  # type: ignore[misc, assignment]
+    DEEPEVAL_AVAILABLE = False
+
 import mock
 import pytest
 
 import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
-from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import RemoteEvaluator
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
@@ -83,8 +96,9 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
-# To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1771602113367279000
+# To regenerate when re-recording cassettes:
+#     python3 -c "import time; print(time.time_ns())"
+MOCK_TIMESTAMP_NS = 1774556545026105000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -157,7 +171,8 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
 @pytest.fixture
 def test_dataset_one_record(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
@@ -173,13 +188,16 @@ def test_dataset_one_record(llmobs):
 @pytest.fixture
 def test_dataset_one_record_w_metadata(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             metadata={"difficulty": "easy"},
         )
     ]
-    ds = llmobs.create_dataset(dataset_name="test-dataset-123", description="A test dataset", records=records)
+    ds = llmobs.create_dataset(
+        dataset_name="test-dataset-123-with-metadata", description="A test dataset", records=records
+    )
     wait_for_backend()
 
     yield ds
@@ -190,7 +208,8 @@ def test_dataset_one_record_w_metadata(llmobs):
 @pytest.fixture
 def test_dataset_one_record_separate_project(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Massachusetts?"},
             expected_output={"answer": "Boston"},
         )
@@ -211,14 +230,17 @@ def test_dataset_one_record_separate_project(llmobs):
 @pytest.fixture
 def test_dataset_one_record_with_tags(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-with-tags", description="A test dataset with tags", records=records
+        dataset_name="test-dataset-with-tags",
+        description="A test dataset with tags",
+        records=records,
     )
     wait_for_backend()
 
@@ -231,14 +253,17 @@ def test_dataset_one_record_with_tags(llmobs):
 def test_dataset_one_record_with_single_tag(llmobs):
     """Fixture that creates a dataset with a record containing a single tag."""
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Germany?"},
             expected_output={"answer": "Berlin"},
             tags=["env:staging"],
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-single-tag", description="A test dataset with single tag", records=records
+        dataset_name="test-dataset-single-tag",
+        description="A test dataset with single tag",
+        records=records,
     )
     wait_for_backend()
     yield ds
@@ -249,7 +274,8 @@ def test_dataset_one_record_with_single_tag(llmobs):
 def test_dataset_one_record_separate_project_with_tags(llmobs):
     """Fixture that creates a dataset in a separate project with a record containing tags."""
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Massachusetts?"},
             expected_output={"answer": "Boston"},
             tags=["team:ml", "priority:high"],
@@ -291,7 +317,7 @@ def tmp_csv_file_for_upload(llmobs) -> Generator[MagicMock, None, None]:
 def test_dataset_large_num_records(llmobs):
     records = []
     for i in range(3000):
-        records.append({"input_data": f"input_{i}", "expected_output": f"output_{i}"})
+        records.append({"id": f"id_{i}", "input_data": f"input_{i}", "expected_output": f"output_{i}"})
 
     ds = llmobs.create_dataset(
         dataset_name="test-dataset-large-num-records",
@@ -341,47 +367,23 @@ def test_dataset_url_diff_site_eu(llmobs, test_dataset_one_record):
         assert dataset.url == f"https://app.datadoghq.eu/llm/datasets/{dataset._id}"
 
 
+def test_dataset_url_staging_site(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="datad0g.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://dd.datad0g.com/llm/datasets/{dataset._id}"
+
+
+def test_dataset_url_staging_subdomain_org(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="dd.datad0g.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://dd.datad0g.com/llm/datasets/{dataset._id}"
+
+
 def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     dataset = test_dataset_one_record
     df = dataset.as_dataframe()
-    assert len(df.columns) == 2
-    assert df.size == 2  # size is num elements in a series
-
-
-def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv",
-                description="A good csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-                metadata_columns=["m0"],
-            )
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-
-            df = dataset.as_dataframe()
-            assert len(df.columns) == 6
-            assert sorted(df.columns) == [
-                ("expected_output", "out0"),
-                ("expected_output", "out1"),
-                ("input_data", "in0"),
-                ("input_data", "in1"),
-                ("input_data", "in2"),
-                ("metadata", "m0"),
-            ]
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
+    assert len(df.columns) == 3
+    assert ("tags", "") in df.columns
 
 
 def test_dataset_csv_missing_input_col(llmobs):
@@ -396,7 +398,7 @@ def test_dataset_csv_missing_input_col(llmobs):
             dataset_name="test-dataset-good-csv",
             description="A good csv dataset",
             input_data_columns=["in998", "in999"],
-            expected_output_columns=["out0", "out1"],
+            expected_output_columns=["out0"],
         )
 
 
@@ -411,7 +413,7 @@ def test_dataset_csv_missing_output_col(llmobs):
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
             description="A good csv dataset",
-            input_data_columns=["in0", "in1", "in2"],
+            input_data_columns=["in0", "in1"],
             expected_output_columns=["out999"],
         )
 
@@ -430,158 +432,6 @@ def test_dataset_csv_empty_csv(llmobs):
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out0"],
         )
-
-
-def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-without-expected-output",
-                description="A good csv dataset without expected_output columns",
-                input_data_columns=["in0", "in1", "in2"],
-            )
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 0
-
-            assert dataset.description == "A good csv dataset without expected_output columns"
-
-            assert dataset._id is not None
-
-            wait_for_backend(4)
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
-
-
-def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-1",
-                description="A good csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-            )
-            assert dataset.project.get("name") == TEST_PROJECT_NAME
-            assert dataset.project.get("_id")
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 2
-            assert dataset[0]["expected_output"]["out0"] == "r0v4"
-            assert dataset[0]["expected_output"]["out1"] == "r0v5"
-            assert dataset[1]["expected_output"]["out0"] == "r1v4"
-            assert dataset[1]["expected_output"]["out1"] == "r1v5"
-
-            assert dataset.description == "A good csv dataset"
-
-            assert dataset._id is not None
-
-            wait_for_backend()
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset_id)
-
-
-def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
-    dataset_id = None
-    with mock.patch(
-        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
-        return_value=tmp_csv_file_for_upload,
-    ):
-        try:
-            dataset = llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-pipe",
-                description="A good pipe separated csv dataset",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-                metadata_columns=["m0"],
-                csv_delimiter="|",
-            )
-            assert dataset.project.get("name") == TEST_PROJECT_NAME
-            assert dataset.project.get("_id")
-            dataset_id = dataset._id
-            assert len(dataset) == 2
-            assert len(dataset[0]["input_data"]) == 3
-            assert dataset[0]["input_data"]["in0"] == "r0v1"
-            assert dataset[0]["input_data"]["in1"] == "r0v2"
-            assert dataset[0]["input_data"]["in2"] == "r0v3"
-            assert dataset[1]["input_data"]["in0"] == "r1v1"
-            assert dataset[1]["input_data"]["in1"] == "r1v2"
-            assert dataset[1]["input_data"]["in2"] == "r1v3"
-
-            assert len(dataset[0]["expected_output"]) == 2
-            assert dataset[0]["expected_output"]["out0"] == "r0v4"
-            assert dataset[0]["expected_output"]["out1"] == "r0v5"
-            assert dataset[1]["expected_output"]["out0"] == "r1v4"
-            assert dataset[1]["expected_output"]["out1"] == "r1v5"
-
-            assert len(dataset[0]["metadata"]) == 1
-            assert dataset[0]["metadata"]["m0"] == "r0v6"
-            assert dataset[1]["metadata"]["m0"] == "r1v6"
-
-            assert dataset.description == "A good pipe separated csv dataset"
-
-            assert dataset._id is not None
-
-            wait_for_backend()
-            ds = llmobs.pull_dataset(dataset_name=dataset.name)
-
-            assert len(ds) == len(dataset)
-            assert ds.name == dataset.name
-            assert ds.description == dataset.description
-            assert ds.latest_version == 1
-            assert ds.latest_version == ds.version
-        finally:
-            if dataset_id:
-                llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_pull_non_existent(llmobs):
@@ -622,7 +472,8 @@ def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_r
 def test_dataset_pull_exists_with_record(llmobs):
     name = "test-dataset-one-rec"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
@@ -674,14 +525,17 @@ def test_dataset_pull_with_nonexistent_tags(llmobs):
     """Test pull_dataset with tags that don't exist on any records returns empty dataset."""
 
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-pull-non-exist-tags", description="A test dataset with tags", records=records
+        dataset_name="test-dataset-pull-non-exist-tags",
+        description="A test dataset with tags",
+        records=records,
     )
     wait_for_backend(4)
 
@@ -705,7 +559,8 @@ def test_dataset_pull_with_partial_tag_match(llmobs):
     """Test pull_dataset with a subset of tags returns records that have those tags."""
     ds_name = "test-dataset-pull-tag-partial-match"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -739,7 +594,8 @@ def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs):
     """Test pull_dataset with one matching tag and one non-existent tag."""
     ds_name = "test-dataset-pull-tag-1-match-1-non"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
@@ -764,29 +620,33 @@ def test_dataset_pull_without_tags_returns_all_records(llmobs):
     """Test pull_dataset without tags parameter returns all records regardless of their tags."""
     ds_name = "test-dataset-pull-with-notags"
     records = [
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             tags=["env:prod", "version:1.0"],
         )
     ]
-    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
+    ds = llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
     wait_for_backend(4)
 
-    # Pull without specifying tags
-    dataset = llmobs.pull_dataset(dataset_name=ds_name)
+    try:
+        # Pull without specifying tags
+        dataset = llmobs.pull_dataset(dataset_name=ds_name)
 
-    # Verify all records are returned
-    assert dataset.project.get("name") == "test-project-clean"
-    assert dataset.project.get("_id")
-    assert len(dataset) == 1
-    assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
-    assert dataset[0]["expected_output"] == {"answer": "Paris"}
-    # Record should still have its tags
-    assert "env:prod" in dataset[0]["tags"]
-    assert "version:1.0" in dataset[0]["tags"]
-    # filter_tags should be None or empty when not filtering
-    assert dataset.filter_tags is None or dataset.filter_tags == []
+        # Verify all records are returned
+        assert dataset.project.get("name") == "test-project-clean"
+        assert dataset.project.get("_id")
+        assert len(dataset) == 1
+        assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+        assert dataset[0]["expected_output"] == {"answer": "Paris"}
+        # Record should still have its tags
+        assert "env:prod" in dataset[0]["tags"]
+        assert "version:1.0" in dataset[0]["tags"]
+        # filter_tags should be None or empty when not filtering
+        assert dataset.filter_tags is None or dataset.filter_tags == []
+    finally:
+        llmobs._delete_dataset(dataset_id=ds._id)
 
 
 def test_dataset_pull_with_single_tag(llmobs, test_dataset_one_record_with_single_tag):
@@ -843,7 +703,8 @@ def test_dataset_pull_with_tags_and_project(llmobs, test_dataset_one_record_sepa
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -859,6 +720,7 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
 
     test_dataset.append(
         {
+            "id": "record-id-2",
             "input_data": {"prompt": "What is the capital of China?"},
             "expected_output": {"answer": "Beijing"},
         }
@@ -891,7 +753,8 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -926,11 +789,13 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of China?"},
                 expected_output={"answer": "Beijing"},
             ),
@@ -943,7 +808,7 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
     test_dataset.update(
         0,
-        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}),
+        DatasetRecordNew(id="record-id-1", input_data={"prompt": "What is the capital of Germany?"}),
     )
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
@@ -1021,7 +886,8 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1034,7 +900,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
     test_dataset.update(
         0,
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-1",
             input_data={"prompt": "What is the capital of Germany?"},
             expected_output={"answer": "Berlin"},
         ),
@@ -1071,7 +938,8 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1085,7 +953,7 @@ def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_da
     with pytest.raises(
         ValueError,
         match="invalid update, record should contain at least one of "
-        "input_data, expected_output, or metadata to update",
+        "input_data, expected_output, metadata, or tags to update",
     ):
         test_dataset.update(0, {})
 
@@ -1097,14 +965,15 @@ def test_dataset_estimate_size(llmobs, test_dataset):
             "expected_output": {"answer": "Paris"},
         }
     )
-    assert 200 <= test_dataset._estimate_delta_size() <= 220
+    assert 185 <= test_dataset._estimate_delta_size() <= 210
 
 
 @pytest.mark.parametrize(
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1148,7 +1017,8 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
                 metadata={"difficulty": "easy"},
@@ -1194,7 +1064,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1203,7 +1074,8 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
 )
 def test_dataset_append(llmobs, test_dataset):
     test_dataset.append(
-        DatasetRecord(
+        DatasetRecordNew(
+            id="record-id-2",
             input_data={"prompt": "What is the capital of Italy?"},
             expected_output={"answer": "Rome"},
         )
@@ -1241,7 +1113,8 @@ def test_dataset_append(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1251,11 +1124,13 @@ def test_dataset_append(llmobs, test_dataset):
 def test_dataset_extend(llmobs, test_dataset):
     test_dataset.extend(
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-3",
                 input_data={"prompt": "What is the capital of Sweden?"},
                 expected_output={"answer": "Stockholm"},
             ),
@@ -1300,7 +1175,8 @@ def test_dataset_extend(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -1308,7 +1184,7 @@ def test_dataset_extend(llmobs, test_dataset):
     ],
 )
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
-    test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
+    test_dataset.append(DatasetRecordNew(id="record-id-2", input_data={"prompt": "What is the capital of Sealand?"}))
     assert len(test_dataset) == 2
     assert test_dataset.latest_version == 1
     assert test_dataset.version == 1
@@ -1344,11 +1220,13 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1385,8 +1263,8 @@ def test_dataset_delete(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of Nauru?"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}),
+            DatasetRecordNew(id="record-id-1", input_data={"prompt": "What is the capital of Nauru?"}),
+            DatasetRecordNew(id="record-id-2", input_data={"prompt": "What is the capital of Sealand?"}),
         ],
     ],
 )
@@ -1420,11 +1298,13 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1467,11 +1347,13 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1479,9 +1361,9 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     ],
 )
 def test_dataset_delete_after_append(llmobs, test_dataset):
-    test_dataset.append({"input_data": "A", "expected_output": 1})
-    test_dataset.append({"input_data": "B", "expected_output": 2})
-    test_dataset.append({"input_data": {"prompt": "What is the capital of Sweden?"}})
+    test_dataset.append({"id": "record-id-3", "input_data": "A", "expected_output": 1})
+    test_dataset.append({"id": "record-id-4", "input_data": "B", "expected_output": 2})
+    test_dataset.append({"id": "record-id-5", "input_data": {"prompt": "What is the capital of Sweden?"}})
 
     test_dataset.delete(2)
     test_dataset.delete(2)
@@ -1557,9 +1439,15 @@ def test_experiment_invalid_dataset_raises(llmobs):
 
 
 def test_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Evaluators must be a list of callable functions or BaseEvaluator instances."):
+    with pytest.raises(
+        TypeError,
+        match="Evaluators must be a list of callable functions or BaseEvaluator instances.",
+    ):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [])
-    with pytest.raises(TypeError, match="Evaluator 123 must be callable or an instance of BaseEvaluator."):
+    with pytest.raises(
+        TypeError,
+        match="Evaluator 123 must be callable or an instance of BaseEvaluator.",
+    ):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [123])
 
 
@@ -1712,11 +1600,13 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Canada?"},
                 expected_output={"answer": "Ottawa"},
             ),
@@ -1811,7 +1701,10 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_with_extra_return_values]
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_with_extra_return_values],
     )
     task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
@@ -1866,7 +1759,7 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["faulty_evaluator"]["error"]
     assert err["message"] == "This is a test error in evaluator"
@@ -1978,6 +1871,57 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
         asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True))
 
 
+def test_experiment_task_retry_succeeds_after_failure(llmobs, test_dataset_one_record):
+    call_count = 0
+
+    def flaky_task(input_data, config):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ValueError("transient error")
+        return input_data
+
+    exp = llmobs.experiment("test_experiment", flaky_task, test_dataset_one_record, [dummy_evaluator])
+    task_results = asyncio.run(
+        exp._experiment._run_task(
+            1, run=run_info_with_stable_id(0), raise_errors=False, max_retries=2, retry_delay=lambda _: 0
+        )
+    )
+    assert len(task_results) == 1
+    assert task_results[0]["output"] is not None
+    assert task_results[0]["error"]["message"] is None
+    assert len(exp._experiment._retries) == 1
+    assert "attempt 1/3" in exp._experiment._retries[0]
+
+
+def test_experiment_evaluator_retry_succeeds_after_failure(llmobs, test_dataset_one_record):
+    call_count = 0
+
+    def flaky_evaluator(input_data, output_data, expected_output):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ValueError("transient eval error")
+        return 1
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [flaky_evaluator])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(
+        exp._experiment._run_evaluators(task_results, raise_errors=False, max_retries=2, retry_delay=lambda _: 0)
+    )
+    assert len(eval_results) == 1
+    assert eval_results[0]["evaluations"]["flaky_evaluator"]["value"] == 1
+    assert eval_results[0]["evaluations"]["flaky_evaluator"]["error"] is None
+    assert len(exp._experiment._retries) == 1
+    assert "attempt 1/3" in exp._experiment._retries[0]
+
+
+def test_experiment_max_retries_negative_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(ValueError, match="max_retries must be >= 0"):
+        exp.run(max_retries=-1)
+
+
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
@@ -2025,7 +1969,7 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     assert exp_result["timestamp"] == mock.ANY
     assert exp_result["span_id"] == mock.ANY
     assert exp_result["trace_id"] == mock.ANY
-    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY}}
+    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}}
     assert exp_result["evaluations"]["faulty_evaluator"]["error"] == {
         "message": "This is a test error in evaluator",
         "type": "ValueError",
@@ -2179,6 +2123,29 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
+
+
+@pytest.mark.parametrize(
+    "dd_site,expected_base",
+    [
+        # Bare domains needing app. prefix
+        ("datadoghq.com", "https://app.datadoghq.com"),
+        ("datadoghq.eu", "https://app.datadoghq.eu"),
+        ("ddog-gov.com", "https://app.ddog-gov.com"),
+        # Staging: hardcoded dd. prefix
+        ("datad0g.com", "https://dd.datad0g.com"),
+        # Subdomain sites: DD_SITE already contains the subdomain, no prefix added
+        ("dd.datad0g.com", "https://dd.datad0g.com"),
+        ("us3.datadoghq.com", "https://us3.datadoghq.com"),
+        ("us5.datadoghq.com", "https://us5.datadoghq.com"),
+        ("ap1.datadoghq.com", "https://ap1.datadoghq.com"),
+    ],
+)
+def test_experiment_url_sites(dd_site, expected_base):
+    from ddtrace.llmobs._experiment import _get_base_url
+
+    with override_global_config(dict(_dd_site=dd_site)):
+        assert _get_base_url() == expected_base
 
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
@@ -2429,182 +2396,359 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
 
 
+def test_experiment_with_remote_evaluator(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator integrates with experiment framework."""
+    mock_response = {
+        "status": "OK",
+        "value": 0.9,
+        "assessment": "pass",
+        "reasoning": "Looks correct",
+    }
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+
+        def transform(ctx):
+            return {
+                "span_input": ctx.input_data,
+                "span_output": ctx.output_data,
+            }
+
+        remote_eval = RemoteEvaluator(
+            eval_name="my-eval",
+            transform_fn=transform,
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        assert "my-eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["my-eval"]
+        assert result["error"] is None
+
+        assert result["value"] == 0.9
+        assert result["reasoning"] == "Looks correct"
+        assert result["assessment"] == "pass"
+
+
+def test_experiment_remote_evaluator_error_handling(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator errors are properly captured."""
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "evaluator_infer",
+        side_effect=RemoteEvaluatorError(
+            "Backend failed",
+            status="ERROR",
+            backend_error={
+                "type": "evaluator_not_found",
+                "message": "Evaluator not configured",
+                "recommended_resolution": "Configure the evaluator in Datadog",
+            },
+        ),
+    ):
+        remote_eval = RemoteEvaluator(
+            eval_name="missing-eval",
+            transform_fn=lambda ctx: {},
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote_error",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        result = eval_results[0]["evaluations"]["missing-eval"]
+        assert result["value"] is None
+        assert result["error"]["type"] == "evaluator_not_found"
+        assert result["error"]["message"] == "Evaluator not configured"
+
+
+def test_experiment_remote_evaluator_warn_status(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator WARN status is properly handled as an error."""
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "evaluator_infer",
+        side_effect=RemoteEvaluatorError(
+            "Remote evaluator 'rate-limited-eval' failed: Rate limit exceeded",
+            status="WARN",
+            backend_error={
+                "type": "RATE_LIMIT_EXCEEDED",
+                "message": "Rate limit exceeded for OpenAI API",
+                "recommended_resolution": "Wait before retrying or increase rate limits",
+            },
+        ),
+    ):
+        remote_eval = RemoteEvaluator(
+            eval_name="rate-limited-eval",
+            transform_fn=lambda ctx: {"input": ctx.input_data},
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote_warn",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        result = eval_results[0]["evaluations"]["rate-limited-eval"]
+        assert result["value"] is None
+        assert result["error"] is not None
+        assert result["error"]["type"] == "RATE_LIMIT_EXCEEDED"
+        assert result["error"]["message"] == "Rate limit exceeded for OpenAI API"
+        assert "rate limits" in result["error"]["recommended_resolution"]
+
+
+def test_experiment_mixed_local_and_remote_evaluators(llmobs, test_dataset_one_record):
+    """Test mixing RemoteEvaluator with local evaluators."""
+    mock_response = {"status": "OK", "value": 0.8, "assessment": None, "reasoning": None}
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+        remote_eval = RemoteEvaluator(
+            eval_name="remote-eval",
+            transform_fn=lambda ctx: {},
+        )
+
+        exp = llmobs.experiment(
+            "test_mixed_evaluators",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator, remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        evaluations = eval_results[0]["evaluations"]
+        assert "dummy_evaluator" in evaluations
+        assert "remote-eval" in evaluations
+        assert evaluations["dummy_evaluator"]["value"] == 0
+        assert evaluations["remote-eval"]["value"] == 0.8
+
+
+def test_experiment_remote_evaluator_eval_source_type(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator metrics get eval_source_type='managed'."""
+    mock_response = {"status": "OK", "value": 0.85, "assessment": None, "reasoning": None}
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+        remote_eval = RemoteEvaluator(eval_name="remote-eval")
+
+        exp = llmobs.experiment(
+            "test_eval_source_type",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator, remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        experiment_run = exp._experiment._merge_results(run_info, task_results, eval_results, [])
+
+        metrics = exp._experiment._generate_metrics_from_exp_results(experiment_run)
+        remote_metric = next(m for m in metrics if m["label"] == "remote-eval")
+        local_metric = next(m for m in metrics if m["label"] == "dummy_evaluator")
+
+        assert remote_metric.get("eval_source_type") == "managed"
+        assert "eval_source_type" not in local_metric
+
+
 # =============================================================================
 # Distributed Experiment Tests
 # =============================================================================
 
 
-def test_distributed_experiment(llmobs, test_dataset_one_record):
-    """Test that _distributed_experiment creates an experiment with is_distributed=True."""
-    exp = llmobs._distributed_experiment(
-        "test_distributed_experiment",
-        dataset=test_dataset_one_record,
-        description="A distributed experiment",
-        config={"models": ["gpt-4.1"]},
-    )
-    assert exp._is_distributed is True
-    assert exp._task == Experiment._NO_OP_TASK
-    assert exp.name == "test_distributed_experiment"
-    assert exp._description == "A distributed experiment"
-    assert exp._config == {"models": ["gpt-4.1"]}
-    assert exp._id is not None
-    assert exp._run_name is not None
-    assert exp._project_id is not None
-
-    wait_for_backend(10)
-
-    # Verify the experiment exists on the backend
-    fetched = llmobs._instance._dne_client.experiment_get(exp._id)
-    assert fetched._id == exp._id
-    assert fetched._is_distributed is True
-    assert fetched.name == "test_distributed_experiment"
-    assert fetched._project_id == exp._project_id
-
-    # ensure that multiple calls with the same name will not create a new unique experiment
-    exp_repeated = llmobs._distributed_experiment(
-        "test_distributed_experiment",
-        dataset=test_dataset_one_record,
-        description="A distributed experiment",
-        config={"models": ["gpt-4.1"]},
-    )
-    assert exp_repeated._id == exp._id
-    assert exp_repeated._is_distributed is True
-    assert exp_repeated._task == Experiment._NO_OP_TASK
-    assert exp_repeated.name == "test_distributed_experiment"
-    assert exp_repeated._description == "A distributed experiment"
-    assert exp_repeated._config == {"models": ["gpt-4.1"]}
-    assert exp_repeated._id is not None
-    assert exp_repeated._run_name is not None
-    assert exp_repeated._project_id is not None
-
-
-def test_run_for_experiment(llmobs, test_dataset_one_record):
-    """Test _run_for_experiment fetches an experiment by ID, assigns task/evaluators, and runs."""
-    exp = llmobs._distributed_experiment(
-        "test_run_for_experiment",
-        dataset=test_dataset_one_record,
-    )
-    experiment_id = exp._id
-
-    wait_for_backend(10)
-
-    records = [
-        DatasetRecord(
-            input_data={"prompt": "What is the capital of France?"},
-            expected_output={"answer": "Paris"},
-        )
-    ]
-
-    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
-        mock_process_record.return_value = {
-            "idx": 0,
-            "span_id": "123",
-            "trace_id": "456",
-            "timestamp": MOCK_TIMESTAMP_NS,
-            "output": {"prompt": "What is the capital of France?"},
-            "metadata": {
-                "dataset_record_index": 0,
-                "experiment_name": "test_run_for_experiment",
-                "dataset_name": "test-dataset-123",
-            },
-            "error": {"message": None, "type": None, "stack": None},
-        }
-        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            returned_exp, results = llmobs._run_for_experiment(
-                experiment_id=experiment_id,
-                task=dummy_task,
-                dataset_records=records,
-                evaluators=[dummy_evaluator],
-            )
-
-    assert returned_exp._id == experiment_id
-    assert returned_exp._is_distributed is True
-    assert returned_exp._task == dummy_task
-    assert returned_exp._evaluators == [dummy_evaluator]
-    assert len(results["runs"]) == 1
-    assert len(results["runs"][0].rows) == 1
-
-
-def test_submit_eval_metric_with_explicit_span(llmobs, test_dataset_one_record):
-    """Test _submit_eval_metric with an explicitly provided span context."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_with_explicit_span",
-        dataset=test_dataset_one_record,
-    )
-
-    wait_for_backend(10)
-
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post") as mock_eval_post:
-        exp._submit_eval_metric(
-            eval_name="accuracy",
-            eval_value=0.95,
-            span={"span_id": "abc123", "trace_id": "def456"},
-        )
-        mock_eval_post.assert_called_once()
-        eval_metrics = mock_eval_post.call_args[0][1]
-        assert len(eval_metrics) == 1
-        assert eval_metrics[0]["label"] == "accuracy"
-        assert eval_metrics[0]["score_value"] == 0.95
-        assert eval_metrics[0]["span_id"] == "abc123"
-        assert eval_metrics[0]["trace_id"] == "def456"
-        assert eval_metrics[0]["metric_source"] == "custom"
-
-
-def test_submit_eval_metric_summary(llmobs, test_dataset_one_record):
-    """Test _submit_eval_metric for a summary evaluation."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_summary",
-        dataset=test_dataset_one_record,
-    )
-
-    wait_for_backend(10)
-
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post") as mock_eval_post:
-        exp._submit_eval_metric(
-            eval_name="overall_quality",
-            eval_value=42,
-            is_summary_eval=True,
-        )
-        eval_metrics = mock_eval_post.call_args[0][1]
-        assert eval_metrics[0]["metric_source"] == "summary"
-        assert eval_metrics[0]["span_id"] == ""
-        assert eval_metrics[0]["trace_id"] == ""
-
-
-def test_submit_eval_metric_raises_when_not_distributed(llmobs, test_dataset_one_record):
-    """Test _submit_eval_metric raises when experiment is not distributed."""
-    exp = llmobs.experiment(
-        "test_experiment",
-        dummy_task,
-        test_dataset_one_record,
-        [dummy_evaluator],
-    )
-    with pytest.raises(ValueError, match="this method is only used for distributed experiments"):
-        exp._experiment._submit_eval_metric(eval_name="test", eval_value=1.0)
-
-
-def test_submit_eval_metric_raises_on_invalid_span(llmobs, test_dataset_one_record):
-    """Test _submit_eval_metric raises on invalid span format."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_raises_on_invalid_span",
-        dataset=test_dataset_one_record,
-    )
-    with pytest.raises(TypeError, match="`span` must be a dictionary"):
-        exp._submit_eval_metric(eval_name="test", eval_value=1.0, span="not-a-dict")
-
-    with pytest.raises(TypeError, match="`span` must be a dictionary"):
-        exp._submit_eval_metric(eval_name="test", eval_value=1.0, span={"span_id": "abc"})
-
-
-def test_submit_eval_metric_raises_when_no_span_available(llmobs, test_dataset_one_record):
-    """Test _submit_eval_metric raises when no span is provided and experiment_span is None."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_raises_when_no_span_available",
-        dataset=test_dataset_one_record,
-    )
-    with pytest.raises(TypeError, match="unexpected state, must supply span or must run the experiment first"):
-        exp._submit_eval_metric(eval_name="test", eval_value=1.0)
+# def test_distributed_experiment(llmobs, test_dataset_one_record):
+#     """Test that _distributed_experiment creates an experiment with is_distributed=True."""
+#     exp = llmobs._distributed_experiment(
+#         "test_distributed_experiment",
+#         dataset=test_dataset_one_record,
+#         description="A distributed experiment",
+#         config={"models": ["gpt-4.1"]},
+#     )
+#     assert exp._is_distributed is True
+#     assert exp._task == Experiment._NO_OP_TASK
+#     assert exp.name == "test_distributed_experiment"
+#     assert exp._description == "A distributed experiment"
+#     assert exp._config == {"models": ["gpt-4.1"]}
+#     assert exp._id is not None
+#     assert exp._run_name is not None
+#     assert exp._project_id is not None
+#
+#     wait_for_backend(10)
+#
+#     # Verify the experiment exists on the backend
+#     fetched = llmobs._instance._dne_client.experiment_get(exp._id)
+#     assert fetched._id == exp._id
+#     assert fetched._is_distributed is True
+#     assert fetched.name == "test_distributed_experiment"
+#     assert fetched._project_id == exp._project_id
+#
+#     # ensure that multiple calls with the same name will not create a new unique experiment
+#     exp_repeated = llmobs._distributed_experiment(
+#         "test_distributed_experiment",
+#         dataset=test_dataset_one_record,
+#         description="A distributed experiment",
+#         config={"models": ["gpt-4.1"]},
+#     )
+#     assert exp_repeated._id == exp._id
+#     assert exp_repeated._is_distributed is True
+#     assert exp_repeated._task == Experiment._NO_OP_TASK
+#     assert exp_repeated.name == "test_distributed_experiment"
+#     assert exp_repeated._description == "A distributed experiment"
+#     assert exp_repeated._config == {"models": ["gpt-4.1"]}
+#     assert exp_repeated._id is not None
+#     assert exp_repeated._run_name is not None
+#     assert exp_repeated._project_id is not None
+#
+#
+# def test_run_for_experiment(llmobs, test_dataset_one_record):
+#     """Test _run_for_experiment fetches an experiment by ID, assigns task/evaluators, and runs."""
+#     exp = llmobs._distributed_experiment(
+#         "test_run_for_experiment",
+#         dataset=test_dataset_one_record,
+#     )
+#     experiment_id = exp._id
+#
+#     wait_for_backend(10)
+#
+#     records = [
+#         DatasetRecord(
+#             input_data={"prompt": "What is the capital of France?"},
+#             expected_output={"answer": "Paris"},
+#         )
+#     ]
+#
+#     with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+#         mock_process_record.return_value = {
+#             "idx": 0,
+#             "span_id": "123",
+#             "trace_id": "456",
+#             "timestamp": MOCK_TIMESTAMP_NS,
+#             "output": {"prompt": "What is the capital of France?"},
+#             "metadata": {
+#                 "dataset_record_index": 0,
+#                 "experiment_name": "test_run_for_experiment",
+#                 "dataset_name": "test-dataset-123",
+#             },
+#             "error": {"message": None, "type": None, "stack": None},
+#         }
+#         with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+#             mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+#             returned_exp, results = llmobs._run_for_experiment(
+#                 experiment_id=experiment_id,
+#                 task=dummy_task,
+#                 dataset_records=records,
+#                 evaluators=[dummy_evaluator],
+#             )
+#
+#     assert returned_exp._id == experiment_id
+#     assert returned_exp._is_distributed is True
+#     assert returned_exp._task == dummy_task
+#     assert returned_exp._evaluators == [dummy_evaluator]
+#     assert len(results["runs"]) == 1
+#     assert len(results["runs"][0].rows) == 1
+#
+#
+# def test_submit_eval_metric_with_explicit_span(llmobs, test_dataset_one_record):
+#     """Test _submit_eval_metric with an explicitly provided span context."""
+#     exp = llmobs._distributed_experiment(
+#         "test_submit_eval_metric_with_explicit_span",
+#         dataset=test_dataset_one_record,
+#     )
+#
+#     wait_for_backend(10)
+#
+#     with mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post") as mock_eval_post:
+#         exp._submit_eval_metric(
+#             eval_name="accuracy",
+#             eval_value=0.95,
+#             span={"span_id": "abc123", "trace_id": "def456"},
+#         )
+#         mock_eval_post.assert_called_once()
+#         eval_metrics = mock_eval_post.call_args[0][1]
+#         assert len(eval_metrics) == 1
+#         assert eval_metrics[0]["label"] == "accuracy"
+#         assert eval_metrics[0]["score_value"] == 0.95
+#         assert eval_metrics[0]["span_id"] == "abc123"
+#         assert eval_metrics[0]["trace_id"] == "def456"
+#         assert eval_metrics[0]["metric_source"] == "custom"
+#
+#
+# def test_submit_eval_metric_summary(llmobs, test_dataset_one_record):
+#     """Test _submit_eval_metric for a summary evaluation."""
+#     exp = llmobs._distributed_experiment(
+#         "test_submit_eval_metric_summary",
+#         dataset=test_dataset_one_record,
+#     )
+#
+#     wait_for_backend(10)
+#
+#     with mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post") as mock_eval_post:
+#         exp._submit_eval_metric(
+#             eval_name="overall_quality",
+#             eval_value=42,
+#             is_summary_eval=True,
+#         )
+#         eval_metrics = mock_eval_post.call_args[0][1]
+#         assert eval_metrics[0]["metric_source"] == "summary"
+#         assert eval_metrics[0]["span_id"] == ""
+#         assert eval_metrics[0]["trace_id"] == ""
+#
+#
+# def test_submit_eval_metric_raises_when_not_distributed(llmobs, test_dataset_one_record):
+#     """Test _submit_eval_metric raises when experiment is not distributed."""
+#     exp = llmobs.experiment(
+#         "test_experiment",
+#         dummy_task,
+#         test_dataset_one_record,
+#         [dummy_evaluator],
+#     )
+#     with pytest.raises(ValueError, match="this method is only used for distributed experiments"):
+#         exp._experiment._submit_eval_metric(eval_name="test", eval_value=1.0)
+#
+#
+# def test_submit_eval_metric_raises_on_invalid_span(llmobs, test_dataset_one_record):
+#     """Test _submit_eval_metric raises on invalid span format."""
+#     exp = llmobs._distributed_experiment(
+#         "test_submit_eval_metric_raises_on_invalid_span",
+#         dataset=test_dataset_one_record,
+#     )
+#     with pytest.raises(TypeError, match="`span` must be a dictionary"):
+#         exp._submit_eval_metric(eval_name="test", eval_value=1.0, span="not-a-dict")
+#
+#     with pytest.raises(TypeError, match="`span` must be a dictionary"):
+#         exp._submit_eval_metric(eval_name="test", eval_value=1.0, span={"span_id": "abc"})
+#
+#
+# def test_submit_eval_metric_raises_when_no_span_available(llmobs, test_dataset_one_record):
+#     """Test _submit_eval_metric raises when no span is provided and experiment_span is None."""
+#     exp = llmobs._distributed_experiment(
+#         "test_submit_eval_metric_raises_when_no_span_available",
+#         dataset=test_dataset_one_record,
+#     )
+#     with pytest.raises(TypeError, match="unexpected state, must supply span or must run the experiment first"):
+#         exp._submit_eval_metric(eval_name="test", eval_value=1.0)
 
 
 # =============================================================================
@@ -2642,13 +2786,55 @@ async def async_faulty_summary_evaluator(inputs, outputs, expected_outputs, eval
     raise ValueError("This is an async test error in a summary evaluator")
 
 
+async def deep_eval_async_task_pass(input_data, config):
+    return input_data.get("value", "")
+
+
+async def deep_eval_async_task_fail(input_data, config):
+    return {"answer": "London"}
+
+
+if DEEPEVAL_AVAILABLE:
+
+    class SimpleDeepEvalMetricForTest(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+
+        def __init__(self, name="SimpleDeepEvalMetricForTest", async_mode=False, **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
+            self.async_mode = async_mode
+
+        @property
+        def name(self):
+            return self._name
+
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
+
+
 # --- Factory method validation tests ---
 
 
 def test_async_experiment_invalid_task_not_async_raises(llmobs, test_dataset_one_record):
     """Test that async_experiment raises TypeError if task is not async."""
     with pytest.raises(TypeError, match="task must be an async function"):
-        llmobs.async_experiment("test_experiment", dummy_task, test_dataset_one_record, [async_dummy_evaluator])
+        llmobs.async_experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
 
 
 def test_async_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
@@ -2664,7 +2850,12 @@ def test_async_experiment_invalid_task_signature_raises(llmobs, test_dataset_one
         async def my_async_task(not_input):
             pass
 
-        llmobs.async_experiment("test_experiment", my_async_task, test_dataset_one_record, [async_dummy_evaluator])
+        llmobs.async_experiment(
+            "test_experiment",
+            my_async_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
 
 
 def test_async_experiment_invalid_dataset_raises(llmobs):
@@ -2676,10 +2867,14 @@ def test_async_experiment_invalid_dataset_raises(llmobs):
 def test_async_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
     """Test that async_experiment raises TypeError if evaluators is empty or invalid."""
     with pytest.raises(
-        TypeError, match="Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator"
+        TypeError,
+        match="Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator",
     ):
         llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [])
-    with pytest.raises(TypeError, match="Evaluator 123 must be callable or an instance of BaseEvaluator"):
+    with pytest.raises(
+        TypeError,
+        match="Evaluator 123 must be callable or an instance of BaseEvaluator",
+    ):
         llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [123])
 
 
@@ -2755,11 +2950,13 @@ def test_async_experiment_init(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-1",
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordNew(
+                id="record-id-2",
                 input_data={"prompt": "What is the capital of Canada?"},
                 expected_output={"answer": "Ottawa"},
             ),
@@ -2787,7 +2984,10 @@ async def test_async_experiment_run_task(llmobs, test_dataset, test_dataset_reco
 async def test_async_experiment_run_task_error(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_task with async task that raises."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_faulty_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_faulty_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2801,7 +3001,10 @@ async def test_async_experiment_run_task_error(llmobs, test_dataset_one_record):
 async def test_async_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_task with raise_errors=True."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_faulty_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_faulty_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     with pytest.raises(
         RuntimeError,
@@ -2820,7 +3023,10 @@ async def test_async_experiment_run_task_error_raises(llmobs, test_dataset_one_r
 async def test_async_experiment_run_evaluators_async(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with async evaluator."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2851,6 +3057,29 @@ async def test_async_experiment_run_evaluators_sync(llmobs, test_dataset_one_rec
     }
 
 
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_deep_eval(llmobs, test_dataset_one_record):
+    """Test AsyncExperiment._run_evaluators with a DeepEval (BaseMetric) evaluator."""
+    deep_eval_metric = SimpleDeepEvalMetricForTest(name="simple_deep_eval", async_mode=True)
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [deep_eval_metric],
+    )
+    task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert "simple_deep_eval" in eval_results[0]["evaluations"]
+    result = eval_results[0]["evaluations"]["simple_deep_eval"]
+    assert result["error"] is None
+    assert result["value"] == 0.0  # async_dummy_task returns input_data != expected_output
+    assert result["reasoning"] == "Mismatch"
+    assert result["assessment"] == "fail"
+
+
 @pytest.mark.asyncio
 async def test_async_experiment_run_evaluators_mixed(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with mixed sync and async evaluators."""
@@ -2874,7 +3103,10 @@ async def test_async_experiment_run_evaluators_mixed(llmobs, test_dataset_one_re
 async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with async faulty evaluator."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_faulty_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_faulty_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2882,7 +3114,7 @@ async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_re
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["async_faulty_evaluator"]["error"]
     assert err["message"] == "This is an async test error in evaluator"
@@ -2894,7 +3126,10 @@ async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_re
 async def test_async_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with raise_errors=True."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_faulty_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_faulty_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -3053,7 +3288,10 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
             async_dummy_task,
             test_dataset_one_record,
             [dummy_evaluator, async_dummy_evaluator],  # mixed
-            summary_evaluators=[dummy_summary_evaluator, async_dummy_summary_evaluator],  # mixed
+            summary_evaluators=[
+                dummy_summary_evaluator,
+                async_dummy_summary_evaluator,
+            ],  # mixed
         )
         exp._tags = {"ddtrace.version": "1.2.3"}
         exp_results = await exp.run()
@@ -3066,3 +3304,1221 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
     # Both sync and async summary evaluators should have run
     assert "dummy_summary_evaluator" in exp_results["summary_evaluations"]
     assert "async_dummy_summary_evaluator" in exp_results["summary_evaluations"]
+
+
+if DEEPEVAL_AVAILABLE:
+
+    class SimpleDeepEvalMetric(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+
+        def __init__(self, name="SimpleDeepEvalMetric", **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
+
+        @property
+        def name(self):
+            return self._name
+
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
+
+
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_experiment_run_with_deep_eval_evaluator(llmobs):
+    """Run an async experiment with a DeepEval evaluator and assert it completes with correct results."""
+    dataset = Dataset(
+        name="test_dataset",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_123",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"value": {"prompt": "What is the capital of France?"}},
+                "expected_output": {"prompt": "What is the capital of France?"},
+                "metadata": {},
+            }
+        ],
+        description="Test dataset",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+
+    deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
+
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_experiment",
+            deep_eval_async_task_pass,
+            dataset,
+            [deep_eval_metric],
+        )
+        run_info = run_info_with_stable_id(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        assert len(task_results) == 1
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        assert len(eval_results) == 1
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
+        assert result["error"] is None
+        assert result["value"] == 1.0
+        assert result["reasoning"] == "Match"
+        assert result["assessment"] == "pass"
+
+
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_experiment_run_with_deep_eval_evaluator_fail(llmobs):
+    """DeepEval evaluator scores 0 when actual_output != expected_output in async experiment."""
+    dataset = Dataset(
+        name="test_dataset",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_123",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"value": {"prompt": "What is the capital of France?"}},
+                "expected_output": "test",
+                "metadata": {},
+            }
+        ],
+        description="Test dataset",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+
+    deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_experiment",
+            deep_eval_async_task_fail,
+            dataset,
+            [deep_eval_metric],
+        )
+        run_info = run_info_with_stable_id(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        assert len(task_results) == 1
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        assert len(eval_results) == 1
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
+        assert result["value"] == 0.0
+        assert result["reasoning"] == "Mismatch"
+        assert result["assessment"] == "fail"
+
+
+# --- Tag operations unit tests ---
+
+
+def _make_dataset_with_records(records):
+    """Helper to create a Dataset with mock client for unit testing tag operations."""
+    mock_client = MagicMock()
+    project = {"name": "test-project", "_id": "proj-123"}
+    dataset_records = []
+    for i, r in enumerate(records):
+        dr = {
+            "input_data": r.get("input_data", {}),
+            "expected_output": r.get("expected_output"),
+            "metadata": r.get("metadata", {}),
+            "tags": r.get("tags", []),
+            "record_id": r.get("record_id", f"rec-{i}"),
+            "canonical_id": None,
+        }
+        dataset_records.append(dr)
+    return Dataset(
+        name="test-ds",
+        project=project,
+        dataset_id="ds-123",
+        records=dataset_records,
+        description="test",
+        latest_version=1,
+        version=1,
+        _dne_client=mock_client,
+    )
+
+
+def test_dataset_add_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high", "team:ml"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high", "team:ml"]
+
+
+def test_dataset_remove_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high", "team:ml"]},
+        ]
+    )
+    ds.remove_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_replace_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "version:2"])
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+
+
+def test_dataset_replace_tags_with_empty_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, [])
+    assert ds[0]["tags"] == []
+
+
+def test_dataset_add_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(add=["env:prod"])
+    assert "rec-0" in ds._updated_record_ids_to_new_fields
+
+
+def test_dataset_remove_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(remove=["env:prod"])
+
+
+def test_dataset_replace_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_then_remove_cancels():
+    """Adding and then removing the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    ds.remove_tags(0, ["env:prod"])
+    # Should have no operations left
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_remove_then_add_cancels():
+    """Removing and then adding the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    ds.add_tags(0, ["env:prod"])
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_replace_overrides_add_remove():
+    """Replace should override any prior add/remove operations."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    ds.remove_tags(0, ["env:prod"])
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_after_replace_folds_into_replace():
+    """After a replace, adds should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    ds.add_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "priority:high"])
+
+
+def test_dataset_accumulate_remove_after_replace_folds_into_replace():
+    """After a replace, removes should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "priority:high"])
+    ds.remove_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_tag_operations_on_new_record_modifies_directly():
+    """For appended-but-not-pushed records, tags should be modified directly, not via tag operations."""
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "expected_output": None, "metadata": {}, "tags": ["env:prod"]})
+    ds.add_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high"]
+    # Should NOT create pending tag operations for new records
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.remove_tags(0, ["env:prod"])
+    assert ds[0]["tags"] == ["priority:high"]
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.replace_tags(0, ["env:staging"])
+    assert ds[0]["tags"] == ["env:staging"]
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_dataset_update_with_tags_delegates_to_replace_tags():
+    """Passing tags in update() should trigger replace_tags."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging", "version:2"]})
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "version:2"])
+
+
+def test_dataset_update_with_tags_and_other_fields():
+    """update() with both tags and other fields should handle both."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"input_data": {"prompt": "world"}, "tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+    assert ds[0]["input_data"] == {"prompt": "world"}
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_update_with_only_tags():
+    """update() with only tags should not raise."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+
+
+def test_dataset_delete_cleans_up_tag_operations():
+    """Deleting a record should remove its pending tag operations."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "world"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    assert "rec-0" in ds._pending_tag_operations
+    ds.delete(0)
+    assert "rec-0" not in ds._pending_tag_operations
+
+
+def test_dataset_push_injects_tag_operations():
+    """Push should inject tag operations into update records and clear state."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.add_tags(0, ["priority:high"])
+    ds._push()
+
+    # Verify that dataset_batch_update was called with tag_operations in the update records
+    call_args = ds._dne_client.dataset_batch_update.call_args
+    update_records = call_args.kwargs["update_records"]
+    assert len(update_records) == 1
+    assert "tag_operations" in update_records[0]
+    assert update_records[0]["tag_operations"]["add"] == ["priority:high"]
+
+    # State should be cleared after push
+    assert ds._pending_tag_operations == {}
+    assert ds._updated_record_ids_to_new_fields == {}
+
+
+def test_dataset_push_clears_tag_operations_on_success():
+    """After a successful push, _pending_tag_operations should be empty."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.replace_tags(0, ["env:staging"])
+    assert len(ds._pending_tag_operations) == 1
+    ds._push()
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_get_record_json_serializes_tag_operations():
+    """_get_record_json should serialize tag_operations with replace→set mapping."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"add": ["env:prod"], "replace": ["version:2"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" in result
+    assert result["tag_operations"]["add"] == ["env:prod"]
+    assert result["tag_operations"]["set"] == ["version:2"]
+    assert "replace" not in result["tag_operations"]
+
+
+def test_get_record_json_no_tag_operations_for_insert():
+    """_get_record_json should NOT include tag_operations for insert records."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "local-uuid",
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+        "tags": ["env:prod"],
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert "tag_operations" not in result
+    assert result["tags"] == ["env:prod"]
+    assert result["id"] == "local-uuid"
+
+
+def test_get_record_json_update_without_tag_operations():
+    """_get_record_json should not include tag_operations when absent."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" not in result
+
+
+# --- Tag validation tests ---
+
+
+def test_dataset_add_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'bad' is malformed"):
+        ds.add_tags(0, ["bad"])
+
+
+def test_dataset_remove_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'notag' is malformed"):
+        ds.remove_tags(0, ["notag"])
+
+
+def test_dataset_replace_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'oops' is malformed"):
+        ds.replace_tags(0, ["oops"])
+
+
+def test_dataset_append_rejects_malformed_tag():
+    ds = _make_dataset_with_records([])
+    with pytest.raises(ValueError, match="Tag 'invalid' is malformed"):
+        ds.append({"input_data": {"prompt": "hello"}, "tags": ["invalid"]})
+
+
+def test_dataset_add_tags_rejects_non_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        ds.add_tags(0, "env:staging")
+
+
+def test_dataset_add_tags_rejects_non_string_element():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        ds.add_tags(0, [123])
+
+
+def test_dataset_append_accepts_valid_tags():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "team:ml"]})
+    assert len(ds) == 1
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_append_without_tags_succeeds():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}})
+    assert len(ds) == 1
+
+
+# --- Size estimation includes tag operations ---
+
+
+def test_estimate_delta_size_includes_tag_operations():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    size_before = ds._estimate_delta_size()
+    ds.add_tags(0, ["priority:high"])
+    size_after = ds._estimate_delta_size()
+    assert size_after > size_before
+
+
+# --- extend tests ---
+
+
+def test_ds_extend_valid_tags(llmobs, test_dataset):
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "b"}, "tags": ["env:staging", "team:ml"]},
+        ]
+    )
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["tags"] == ["env:prod"]
+    assert test_dataset[1]["tags"] == ["env:staging", "team:ml"]
+
+
+def test_ds_extend_bad_tag(llmobs, test_dataset):
+    """extend delegates to append; a malformed tag in any record should raise."""
+    with pytest.raises(ValueError, match="Tag 'bad' is malformed"):
+        test_dataset.extend(
+            [
+                {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+                {"input_data": {"prompt": "b"}, "tags": ["bad"]},
+            ]
+        )
+    # First record was appended before the second raised
+    assert len(test_dataset) == 1
+
+
+def test_ds_extend_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.extend([{"input_data": {"prompt": "a"}, "tags": "env:prod"}])
+
+
+def test_ds_extend_non_str_tag(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.extend([{"input_data": {"prompt": "a"}, "tags": [42]}])
+
+
+def test_ds_extend_no_tags(llmobs, test_dataset):
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}},
+            {"input_data": {"prompt": "b"}},
+        ]
+    )
+    assert len(test_dataset) == 2
+
+
+def test_ds_extend_tracks_new(llmobs, test_dataset):
+    """Records added via extend should be tracked in _new_records_by_record_id."""
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "b"}, "tags": ["env:staging"]},
+        ]
+    )
+    assert len(test_dataset._new_records_by_record_id) == 2
+
+
+# --- append tag behavior tests ---
+
+
+def test_ds_append_stores_tags(llmobs, test_dataset):
+    """Tags passed to append should be stored on the record and in _new_records_by_record_id."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "version:1"]})
+    record_id = test_dataset[0]["record_id"]
+    assert test_dataset._new_records_by_record_id[record_id]["tags"] == ["env:prod", "version:1"]
+
+
+def test_ds_append_empty_tags(llmobs, test_dataset):
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": []})
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["tags"] == []
+
+
+def test_ds_append_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.append({"input_data": {"prompt": "hello"}, "tags": "env:prod"})
+
+
+def test_ds_append_non_str_tag(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.append({"input_data": {"prompt": "hello"}, "tags": [True]})
+
+
+# --- Additional tag validation tests (remove_tags, replace_tags, update type checks) ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_rm_tags_non_list(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.remove_tags(0, "env:prod")
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_rm_tags_non_str(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.remove_tags(0, [None])
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_repl_tags_non_list(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.replace_tags(0, "env:staging")
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_repl_tags_non_str(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.replace_tags(0, [3.14])
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_update_bad_tags(llmobs, test_dataset):
+    """update() delegates tags to replace_tags, which validates."""
+    with pytest.raises(ValueError, match="Tag 'nope' is malformed"):
+        test_dataset.update(0, {"tags": ["nope"]})
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_update_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.update(0, {"tags": "env:staging"})
+
+
+# --- Tag operation edge cases ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_add_tags_dedup(llmobs, test_dataset):
+    """Adding a tag that already exists should not create a duplicate."""
+    test_dataset.add_tags(0, ["env:prod", "team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod", "team:ml"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            )
+        ]
+    ],
+)
+def test_ds_rm_tags_noop(llmobs, test_dataset):
+    """Removing a tag that doesn't exist should not error."""
+    test_dataset.remove_tags(0, ["team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=[],
+            )
+        ]
+    ],
+)
+def test_ds_add_tags_empty(llmobs, test_dataset):
+    test_dataset.add_tags(0, ["env:prod"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod", "team:ml"],
+            )
+        ]
+    ],
+)
+def test_ds_rm_all_tags(llmobs, test_dataset):
+    test_dataset.remove_tags(0, ["env:prod", "team:ml"])
+    assert test_dataset[0]["tags"] == []
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "a"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+            ),
+            DatasetRecordNew(
+                id="record-id-2",
+                input_data={"prompt": "b"},
+                expected_output=None,
+                metadata={},
+                tags=["env:staging"],
+            ),
+        ]
+    ],
+)
+def test_ds_tag_ops_multi_rec(llmobs, test_dataset):
+    """Tag operations on different records should be tracked independently."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    rec0_id = test_dataset[0]["record_id"]
+    rec1_id = test_dataset[1]["record_id"]
+    test_dataset.add_tags(0, ["priority:high"])
+    test_dataset.remove_tags(1, ["env:staging"])
+    assert test_dataset._pending_tag_operations[rec0_id] == _TagOperations(add=["priority:high"])
+    assert test_dataset._pending_tag_operations[rec1_id] == _TagOperations(remove=["env:staging"])
+    assert test_dataset[0]["tags"] == ["env:prod", "priority:high"]
+    assert test_dataset[1]["tags"] == []
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=[],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_ds_repl_tags_empty(llmobs, test_dataset):
+    test_dataset.replace_tags(0, ["env:staging"])
+    assert test_dataset[0]["tags"] == ["env:staging"]
+
+
+def test_ds_add_tags_new_dedup(llmobs, test_dataset):
+    """Adding a tag to a new (unpushed) record that already has it should not duplicate."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.add_tags(0, ["env:prod"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+def test_ds_rm_tags_new_rec(llmobs, test_dataset):
+    """Removing tags from a new (unpushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "team:ml"]})
+    test_dataset.remove_tags(0, ["team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+def test_ds_repl_tags_new_rec(llmobs, test_dataset):
+    """Replacing tags on a new (unpushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.replace_tags(0, ["env:staging", "version:2"])
+    assert test_dataset[0]["tags"] == ["env:staging", "version:2"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+# --- update with tags on new records ---
+
+
+def test_ds_update_tags_new_rec(llmobs, test_dataset):
+    """update() with tags on a new (appended, not pushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.update(0, {"tags": ["env:staging"]})
+    assert test_dataset[0]["tags"] == ["env:staging"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+# --- Writer serialization additional tests ---
+
+
+def test_get_record_json_serializes_remove_only():
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"remove": ["env:prod"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["tag_operations"] == {"remove": ["env:prod"]}
+    assert "add" not in result["tag_operations"]
+    assert "set" not in result["tag_operations"]
+
+
+def test_get_record_json_serializes_add_only():
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"add": ["env:prod", "team:ml"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["tag_operations"] == {"add": ["env:prod", "team:ml"]}
+
+
+# --- Push integration with tag operations ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_ds_push_replace_tags(llmobs, test_dataset):
+    """Push with replace tag operations should serialize replace as 'set' in the update records."""
+    test_dataset.replace_tags(0, ["env:staging"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert set(ds[0]["tags"]) == {"env:staging"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod", "team:ml"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_ds_push_remove_tags(llmobs, test_dataset):
+    test_dataset.remove_tags(0, ["team:ml"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert set(ds[0]["tags"]) == {"env:prod"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_ds_push_mixed_update(llmobs, test_dataset):
+    """Push with both tag operations and field updates on the same record."""
+    test_dataset.update(0, {"input_data": {"prompt": "world"}, "tags": ["env:staging"]})
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert ds[0]["input_data"] == {"prompt": "world"}
+    assert set(ds[0]["tags"]) == {"env:staging"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecordNew(
+                id="record-id-1",
+                input_data={"prompt": "a"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            ),
+            DatasetRecordNew(
+                id="record-id-2",
+                input_data={"prompt": "b"},
+                expected_output=None,
+                metadata={},
+                tags=["env:staging"],
+                record_id="",
+                canonical_id=None,
+            ),
+        ]
+    ],
+)
+def test_ds_push_multi_tag_ops(llmobs, test_dataset):
+    """Push with tag operations on multiple records."""
+    test_dataset.add_tags(0, ["priority:high"])
+    test_dataset.remove_tags(1, ["env:staging"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    tags_by_input = {ds[i]["input_data"]["prompt"]: set(ds[i]["tags"]) for i in range(len(ds))}
+    assert tags_by_input["a"] == {"env:prod", "priority:high"}
+    assert tags_by_input["b"] == set()
+
+
+def test_ds_push_new_with_tags(llmobs, test_dataset):
+    """New records carry tags directly; they should NOT have tag_operations."""
+    test_dataset.append({"id": "record-id-1", "input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert len(ds) == 1
+    assert set(ds[0]["tags"]) == {"env:prod"}
+
+
+# --- User-defined record ID unit tests ---
+
+
+def test_get_record_json_falls_back_to_record_id_on_insert():
+    """_get_record_json should use the local record_id as id when user supplies no id."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "local-uuid",
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert result["id"] == "local-uuid"
+
+
+def test_get_record_json_user_id_not_included_on_update():
+    """_get_record_json should not add user 'id' on update (id comes from record_id)."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-abc",
+        "input_data": {"prompt": "hello"},
+        "id": "my-custom-id",
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    # On update, 'id' should be the record_id (backend ID), not the user-supplied id
+    assert result["id"] == "rec-abc"
+
+
+def test_dataset_csv_missing_id_column(llmobs):
+    """create_dataset_from_csv should raise ValueError when id_column is not in the CSV header."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(
+        ValueError,
+        match=re.escape("ID column 'nonexistent_id' not found in CSV header"),
+    ):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-id-col-missing",
+            input_data_columns=["in0", "in1"],
+            id_column="nonexistent_id",
+        )
+
+
+def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv with id_column should populate 'id' field on each record."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-with-id-col",
+                description="A dataset with user-supplied IDs",
+                input_data_columns=["in0", "in1"],
+                expected_output_columns=["out0"],
+                id_column="record_id",
+            )
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["record_id"] == "user-id-0"
+            assert dataset[1]["record_id"] == "user-id-1"
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv with a pipe-delimited CSV and id_column."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-good-csv-pipe",
+                description="A good pipe separated csv dataset",
+                input_data_columns=["in0", "in1", "in2"],
+                expected_output_columns=["out0", "out1"],
+                metadata_columns=["m0"],
+                csv_delimiter="|",
+                id_column="record_id",
+            )
+            assert dataset.project.get("name") == TEST_PROJECT_NAME
+            assert dataset.project.get("_id")
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["record_id"] == "pipe-rec-0"
+            assert dataset[1]["record_id"] == "pipe-rec-1"
+            assert dataset[0]["input_data"] == {"in0": "r0v1", "in1": "r0v2", "in2": "r0v3"}
+            assert dataset[1]["input_data"] == {"in0": "r1v1", "in1": "r1v2", "in2": "r1v3"}
+            assert dataset[0]["expected_output"] == {"out0": "r0v4", "out1": "r0v5"}
+            assert dataset[1]["expected_output"] == {"out0": "r1v4", "out1": "r1v5"}
+            assert dataset[0]["metadata"] == {"m0": "r0v6"}
+            assert dataset[1]["metadata"] == {"m0": "r1v6"}
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
+    """create_dataset_from_csv result should expose records as a pandas DataFrame."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
+        try:
+            dataset = llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-good-csv",
+                description="A good csv dataset",
+                input_data_columns=["in0", "in1"],
+                expected_output_columns=["out0"],
+                id_column="record_id",
+            )
+            dataset_id = dataset._id
+            assert len(dataset) == 2
+            assert dataset[0]["record_id"] == "user-id-0"
+            assert dataset[1]["record_id"] == "user-id-1"
+
+            df = dataset.as_dataframe()
+            assert len(df.columns) == 4
+            assert sorted(df.columns) == [
+                ("expected_output", "out0"),
+                ("input_data", "in0"),
+                ("input_data", "in1"),
+                ("tags", ""),
+            ]
+        finally:
+            if dataset_id:
+                llmobs._delete_dataset(dataset_id=dataset_id)

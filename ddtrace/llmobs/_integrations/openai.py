@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
@@ -64,14 +65,14 @@ class OpenAIIntegration(BaseLLMIntegration):
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span._set_tag_str(COMPONENT, self.integration_config.integration_name)
+        span._set_attribute(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span._set_tag_str("openai.request.provider", client)
+        span._set_attribute("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -103,9 +104,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = "openai"
+        model_provider = UNKNOWN_MODEL_PROVIDER
         if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
+        elif self._is_provider(span, "openai"):
+            model_provider = "openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
         if operation == "completion":

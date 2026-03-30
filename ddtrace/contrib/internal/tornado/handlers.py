@@ -7,6 +7,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
@@ -63,7 +64,7 @@ async def execute(func, handler, args, kwargs):
 
             http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
             if http_route is not None and isinstance(http_route, str):
-                req_span._set_tag_str("http.route", http_route)
+                req_span._set_attribute("http.route", http_route)
             setattr(request, REQUEST_SPAN_KEY, req_span)
             trace_utils.set_http_meta(
                 req_span,
@@ -91,6 +92,16 @@ async def execute(func, handler, args, kwargs):
                 ).tornado_future
                 if dispatch_res and dispatch_res.value is not None:
                     return await dispatch_res.value
+            except BaseException as exc:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if blocking_exc := find_exception(exc, BlockingException):
+                    dispatch_res = core.dispatch_with_results(
+                        "tornado.block_request", ("tornado", handler, blocking_exc.args[0])
+                    ).tornado_future
+                    if dispatch_res and dispatch_res.value is not None:
+                        return await dispatch_res.value
+                else:
+                    raise
 
 
 def _find_route(initial_rule_set, request):

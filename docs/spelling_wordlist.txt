@@ -57,6 +57,7 @@ cattrs
 cetera
 CGroup
 cgroups
+cmake
 cherrypy
 ciapp
 claude
@@ -87,11 +88,13 @@ dbapi
 ddtrace
 deallocating
 debuggability
+deps
 decompiling
 deprecations
 dereferences
 DES
 deserializing
+dev
 django
 docstring
 docstrings
@@ -194,12 +197,16 @@ loopback
 macOS
 mako
 mariadb
+memalloc
 memcached
 metadata
+MiB
 microservices
 middleware
 middlewares
 misencoded
+mlflow
+MLflow
 moderations
 mongoengine
 msgpack
@@ -251,6 +258,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pyenv
 PyFrameObject
@@ -266,6 +274,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+reentrant
 redis
 rediscluster
 renderer
@@ -303,6 +312,7 @@ starlette
 statsd
 stderr
 stdout
+setuptools
 stringable
 struct
 structlog

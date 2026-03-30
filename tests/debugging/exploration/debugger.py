@@ -26,6 +26,12 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
 
+if not config.capture:
+    import ddtrace.debugging._signal.utils as utils
+
+    utils.capture_stack = lambda f: [{"lineNumber": 0}]
+
+
 class NoopRemoteConfig(RemoteConfigPoller):
     def register(self, *args, **kwargs):
         pass
@@ -106,6 +112,9 @@ class NoopDebuggerRC(object):
 
 class NoopProbeStatusLogger:
     def __init__(self, *args, **kwargs):
+        pass
+
+    def flush(self, *args, **kwargs):
         pass
 
     def received(self, *args, **kwargs):

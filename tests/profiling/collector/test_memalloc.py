@@ -638,9 +638,19 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-        # Check that we have no live samples with 'one' in traceback (they were freed)
+        # Check that we have no significant live samples with 'one' in traceback (they were freed).
+        # Small residual allocations (< min_alloc_size) may remain due to CPython internal
+        # caching (type caches, inline bytecode caches, descriptor objects, etc.) that are
+        # allocated while one() is on the call stack and not freed by del + gc.collect().
+        # With aggressive sampling (heap_sample_size=32), these are occasionally sampled.
+        # We only assert on allocations large enough to be the actual one() result object
+        # (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
+        min_alloc_size = 256
         one_samples_in_final = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
+            sample
+            for sample in live_samples
+            if has_function_in_profile_sample(final_profile, sample, one)
+            and sample.value[heap_space_idx] >= min_alloc_size
         ]
 
         assert len(one_samples_in_final) == 0, (
@@ -1079,7 +1089,7 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     The bug occurred when:
     1. A sample had dropped frames (deep stack > max_nframes)
     2. export_sample() was called, adding the indicator frame
-    3. export_sample() was called again before clear_buffers()
+    3. export_sample() was called again before clear()
     4. Another indicator frame was incorrectly added
 
     This test creates allocations from a very deep stack to trigger frame dropping,

@@ -91,14 +91,20 @@ def post_preload():
         # Dropping inspect causes: "unexpected object <Signature> in __signature__ attribute"
 
 
+def enabled():
+    """
+    Return whether the IAST product is enabled.
+    """
+    return asm_config._iast_enabled
+
+
 def start():
     """
     Start the IAST product.
     """
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+    from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
-        AppSecIastSpanProcessor.enable()
+    AppSecIastSpanProcessor.enable()
 
 
 def restart(join=False):
@@ -111,12 +117,5 @@ def restart(join=False):
 def stop(join=False):
     """
     Stop the IAST product.
-    """
-    pass
-
-
-def at_exit(join=False):
-    """
-    Clean up IAST product at application exit.
     """
     pass

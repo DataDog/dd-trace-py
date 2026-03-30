@@ -9,11 +9,14 @@ def post_preload() -> None:
     pass
 
 
-def start() -> None:
-    if config.enabled:
-        from ddtrace.debugging._live import enable
+def enabled() -> bool:
+    return config.enabled
 
-        enable()
+
+def start() -> None:
+    from ddtrace.debugging._live import enable
+
+    enable()
 
 
 def restart(join: bool = False) -> None:
@@ -21,11 +24,6 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    if config.enabled:
-        from ddtrace.debugging._live import disable
+    from ddtrace.debugging._live import disable
 
-        disable()
-
-
-def at_exit(join: bool = False) -> None:
-    stop(join=join)
+    disable()

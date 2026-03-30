@@ -191,7 +191,7 @@ def test_poller_env_version(env, version, expected, rc_poller, mock_config):
         )
 
         adapter = SyncProbeRCAdapter(None, callback)
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
         adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         rc_poller.poll()
 
@@ -209,7 +209,7 @@ def test_poller_remove_probe(rc_poller):
     try:
         adapter = SyncProbeRCAdapter(None, cb)
 
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
         adapter.append_and_publish(
             {
                 "id": "probe1",
@@ -255,7 +255,7 @@ def test_poller_remove_multiple_probe(rc_poller):
     di_config.diagnostics_interval = float("inf")
     try:
         adapter = SyncProbeRCAdapter(None, cb)
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
         adapter.append(
             {
                 "id": "probe1",
@@ -360,7 +360,7 @@ def test_poller_events(rc_poller, mock_config):
     di_config.diagnostics_interval = float("inf")
     try:
         adapter = SyncProbeRCAdapter(None, callback)
-        rc_poller.register("TEST2", adapter)
+        rc_poller.register_callback("TEST2", adapter)
         adapter.append_and_publish({"test": 2}, "", metadata)
         rc_poller.poll()
         mock_config.remove_probes("probe1", "probe2")
@@ -415,7 +415,7 @@ def test_multiple_configs(rc_poller):
     try:
         adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
         adapter.append_and_publish(
             {
                 "id": "probe1",
@@ -625,7 +625,7 @@ def test_modified_probe_events(rc_poller, mock_config):
     try:
         adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
 
         adapter._subscriber._send_status_update()
 
@@ -676,7 +676,7 @@ def test_expression_compilation_error(rc_poller, mock_config_exc):
         status_logger = mock.Mock()
         adapter = SyncProbeRCAdapter(None, cb, status_logger=status_logger)
         # Wait to allow the next call to the adapter to generate a status event
-        rc_poller.register("TEST", adapter)
+        rc_poller.register_callback("TEST", adapter)
 
         adapter.append_and_publish({"id": "error", "version": 0}, "", metadata)
         rc_poller.poll()

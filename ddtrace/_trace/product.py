@@ -36,14 +36,17 @@ def post_preload():
         _patch_all(**modules_to_bool)
 
 
+def enabled():
+    return _config.enabled
+
+
 def start():
-    if _config.enabled:
-        from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings._config import config
 
-        if config._trace_methods:
-            from ddtrace.internal.tracemethods import _install_trace_methods
+    if config._trace_methods:
+        from ddtrace.internal.tracemethods import _install_trace_methods
 
-            _install_trace_methods(config._trace_methods)
+        _install_trace_methods(config._trace_methods)
 
 
 def restart(join=False):
@@ -60,11 +63,12 @@ def stop(join=False):
         tracer.shutdown()
 
 
-def at_exit(join=False):
+def skip_exit():
     # at_exit hooks are currently registered when the tracer is created. This is
     # required to support non-global tracers (ex: CiVisibility and the Dummy Tracers used in tests).
-    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer._init__(....) to the product protocol,
-    pass
+    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer.__init__(....) to the product protocol,
+    # at which point this can be removed.
+    return True
 
 
 class APMCapabilities(enum.IntFlag):

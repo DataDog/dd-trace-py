@@ -38,23 +38,25 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
+SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
 def build_expected_set(version: str) -> set[tuple[str, str, str]]:
-    """Build set of expected (version, python_tag, platform) tuples."""
-    expected: set[tuple[str, str, str]] = set()
+    """Build set of expected (version, python_tag, platform, flavor) tuples."""
+    expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
-            expected.add((version, py_tag, platform))
+            expected.add((version, py_tag, platform, ""))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
-            expected.add((version, py_tag, "win_arm64"))
+            expected.add((version, py_tag, "win_arm64", ""))
     return expected
 
 
-def reconstruct_wheel_filename(version: str, python_tag: str, platform: str) -> str:
+def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
-    return f"ddtrace-{version}-{python_tag}-{python_tag}-{platform}.whl"
+    package_name = f"ddtrace{flavor.replace('-', '_')}"
+    return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
 def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, str | None]:
@@ -87,18 +89,19 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
         return False, f"Failed to parse sdist filename: {e}", sdist_path.name
 
 
-def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str]], list[str], int]:
+def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]], list[str], int]:
     """Parse actual wheel files.
 
     Returns:
         tuple: (actual_set: set, errors: list[str], valid_count: int)
     """
-    actual: set[tuple[str, str, str]] = set()
+    actual: set[tuple[str, str, str, str]] = set()
     errors: list[str] = []
 
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
+            flavor = name.replace("ddtrace", "").replace("_", "-")
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
@@ -107,13 +110,13 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str]], lis
             # We know: name=ddtrace, abi=python tag (e.g., cp310)
             # So platform is everything after: ddtrace-{version}-{python}-{python}-
             wheel_base = wheel_file.name.replace(".whl", "")
-            marker = f"ddtrace-{version}-{py_tag}-{py_tag}-"
+            marker = f"{name}-{version}-{py_tag}-{py_tag}-"
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
                 raise ValueError(f"Cannot parse platform from {wheel_file.name}")
 
-            actual.add((str(version), py_tag, platform))
+            actual.add((str(version), py_tag, platform, flavor))
         except Exception as e:
             errors.append(f"{wheel_file.name}: {e}")
 
@@ -125,9 +128,9 @@ def identify_version_mismatches(
 ) -> dict[str, tuple[str, str]]:
     """Identify wheels with wrong versions."""
     mismatches: dict[str, tuple[str, str]] = {}
-    for version, py_tag, platform in actual_set:
+    for version, py_tag, platform, flavor in actual_set:
         if version != package_version:
-            key = reconstruct_wheel_filename(version, py_tag, platform)
+            key = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             mismatches[key] = (package_version, version)
     return mismatches
 
@@ -177,6 +180,8 @@ def main() -> None:
     # Phase 3: Parse Actual Wheels
     print("[Phase 3] Parsing Actual Wheels")
     actual_set, parse_errors, valid_count = parse_actual_wheels(wheels_dir)
+    for a in actual_set:
+        print(a)
 
     if parse_errors:
         print(f"✗ Failed to parse {len(parse_errors)} wheel(s):")
@@ -194,6 +199,7 @@ def main() -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
+    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
     # Phase 5: Set Comparison
@@ -203,8 +209,8 @@ def main() -> None:
     missing_wheels = expected_set - actual_set
     if missing_wheels:
         print(f"✗ Missing {len(missing_wheels)} wheel(s):")
-        for version, py_tag, platform in sorted(missing_wheels):
-            filename = reconstruct_wheel_filename(version, py_tag, platform)
+        for version, py_tag, platform, flavor in sorted(missing_wheels):
+            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             print(f"  - {filename}")
         errors.append(f"Missing wheels: {len(missing_wheels)}")
 
@@ -221,13 +227,15 @@ def main() -> None:
     unexpected_wheels = actual_set - expected_set
     # Filter out version mismatches (they're already reported)
     unexpected_non_version = [
-        (v, p, pl) for v, p, pl in unexpected_wheels if reconstruct_wheel_filename(v, p, pl) not in version_mismatches
+        (v, p, pl, fl)
+        for v, p, pl, fl in unexpected_wheels
+        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches
     ]
 
     if unexpected_non_version:
         print(f"⚠ Unexpected {len(unexpected_non_version)} wheel(s) (warnings only):")
-        for version, py_tag, platform in sorted(unexpected_non_version):
-            filename = reconstruct_wheel_filename(version, py_tag, platform)
+        for version, py_tag, platform, flavor in sorted(unexpected_non_version):
+            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             print(f"  - {filename}")
         warnings.append(f"Unexpected wheels: {len(unexpected_non_version)}")
 
