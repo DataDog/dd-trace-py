@@ -14,6 +14,7 @@
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.llama_index",
       "language": "python",
       "llama_index.request.model": "text-embedding-ada-002",
+      "llama_index.request.provider": "openai",
       "runtime-id": "f48ca8a9720b4022ad3754d76831743a"
     },
     "metrics": {

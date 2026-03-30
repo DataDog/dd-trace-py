@@ -27,6 +27,7 @@ log = get_logger(__name__)
 
 
 MODEL = "llama_index.request.model"
+PROVIDER = "llama_index.request.provider"
 
 
 class LlamaIndexIntegration(BaseLLMIntegration):
@@ -36,10 +37,13 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         self,
         span: Span,
         model: Optional[str] = None,
+        provider: Optional[str] = None,
         **kwargs: dict[str, Any],
     ) -> None:
         if model is not None:
             span._set_attribute(MODEL, model)
+        if provider is not None:
+            span._set_attribute(PROVIDER, provider)
 
     def _llmobs_set_tags(
         self,
@@ -154,7 +158,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         ctx_items: dict[str, Any] = {
             SPAN_KIND: "embedding",
             MODEL_NAME: span.get_tag(MODEL) or "",
-            MODEL_PROVIDER: "llama_index",
+            MODEL_PROVIDER: span.get_tag(PROVIDER) or "llama_index",
             INPUT_DOCUMENTS: input_documents,
         }
 
@@ -258,7 +262,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             {
                 SPAN_KIND: "llm",
                 MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: "llama_index",
+                MODEL_PROVIDER: span.get_tag(PROVIDER) or "llama_index",
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,

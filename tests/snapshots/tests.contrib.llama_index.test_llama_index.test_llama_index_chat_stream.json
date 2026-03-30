@@ -14,6 +14,7 @@
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.llama_index",
       "language": "python",
       "llama_index.request.model": "gpt-4o-mini",
+      "llama_index.request.provider": "openai",
       "runtime-id": "729c4ab91f934a3ebb19b749b5334ac6"
     },
     "metrics": {

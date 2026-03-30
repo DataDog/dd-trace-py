@@ -1,10 +1,11 @@
 import functools
 import inspect
-import sys
 from typing import Any
 from typing import Callable
 from typing import Generator
 from typing import Optional
+
+import llama_index.core as llama_core
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
@@ -16,6 +17,7 @@ from ddtrace.contrib.internal.llama_index._utils import build_complete_request_k
 from ddtrace.contrib.internal.llama_index._utils import build_query_embedding_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_query_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_text_embedding_batch_request_kwargs
+from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -25,18 +27,8 @@ from ddtrace.llmobs._integrations import LlamaIndexIntegration
 log = get_logger(__name__)
 
 
-def _llama_core():
-    """Lazy accessor for ``llama_index.core``.
-
-    Cannot be imported at module level because LlamaIndex classes inherit from
-    Pydantic V2 ``BaseModel``, which triggers ``__init_subclass__`` at import
-    time and interferes with early monkey-patching.
-    """
-    return sys.modules.get("llama_index.core") or __import__("llama_index.core", fromlist=["core"])
-
-
 def get_version() -> str:
-    return getattr(_llama_core(), "__version__", "")
+    return getattr(llama_core, "__version__", "")
 
 
 def _supported_versions() -> dict[str, str]:
@@ -47,18 +39,16 @@ config._add("llama_index", {})
 
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()
-
-# Stored as a module-level variable so wrapper closures (created at import time
-# in the method-to-wrapper mappings below) can access the integration instance
-# that is only available after patch() runs.
-_integration = None
-
 _DD_WRAPPED = "__dd_wrapped__"
 
 
-# We use functools.wraps-based monkey-patching instead of wrapt because LlamaIndex
-# classes inherit from Pydantic V2 BaseModel, which conflicts with wrapt's
-# BoundFunctionWrapper descriptors (TypeError during model instantiation).
+def _get_integration() -> LlamaIndexIntegration:
+    """Retrieve the integration instance stored on the ``llama_index.core`` module by ``patch()``."""
+    return llama_core._datadog_integration
+
+
+# LlamaIndex LLM methods (chat, complete, etc.) are overridden on concrete subclasses,
+# so wrapping BaseLLM alone has no effect — we must setattr on each subclass individually.
 
 
 def _make_wrapper(wrapper_fn, original_fn):
@@ -91,14 +81,16 @@ def _create_event(
     cardinality low.  For non-LLM operations (query, retrieval, embedding,
     agent) the resource is the class name.
     """
+    integration = _get_integration()
     resource = model if (model and not operation) else instance.__class__.__name__
+    provider = get_model_provider(instance)
     return LlmRequestEvent(
         component="llama_index",
-        service=int_service(None, _integration.integration_config),
+        service=int_service(None, integration.integration_config),
         resource=resource,
-        provider="llama_index",
+        provider=provider,
         model=model,
-        llmobs_integration=_integration,
+        llmobs_integration=integration,
         submit_to_llmobs=True,
         request_kwargs=request_kwargs,
         instance=instance,
@@ -129,7 +121,7 @@ def _llm_wrapper(build_kwargs_fn, always_stream, operation=""):
                 ctx.dispatch_ended_event(type(e), e, e.__traceback__)
                 raise
             if always_stream or isinstance(resp, Generator):
-                return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
+                return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
             event.response = resp
             ctx.dispatch_ended_event()
             return resp
@@ -153,7 +145,7 @@ def _llm_wrapper_async(build_kwargs_fn, always_stream, operation=""):
                 ctx.dispatch_ended_event(type(e), e, e.__traceback__)
                 raise
             if always_stream or inspect.isasyncgen(resp):
-                return handle_streamed_response(_integration, resp, args, request_kwargs, ctx)
+                return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
             event.response = resp
             ctx.dispatch_ended_event()
             return resp
@@ -291,20 +283,16 @@ def _patched_init(original_init):
 
 
 def patch():
-    global _integration
-
-    core_mod = _llama_core()
-    if getattr(core_mod, "_datadog_patch", False):
+    if getattr(llama_core, "_datadog_patch", False):
         return
-    core_mod._datadog_patch = True
+    llama_core._datadog_patch = True
 
     integration = LlamaIndexIntegration(integration_config=config.llama_index)
-    core_mod._datadog_integration = integration
-    _integration = integration
+    llama_core._datadog_integration = integration
 
     # LlamaIndex LLM methods (chat, complete, etc.) are abstract on BaseLLM —
     # concrete subclasses override them entirely, so we must wrap each subclass.
-    base = core_mod.base
+    base = llama_core.base
     targets = [
         (base.llms.base.BaseLLM, _LLM_WRAPPERS),
         (base.base_query_engine.BaseQueryEngine, _QUERY_ENGINE_WRAPPERS),
@@ -331,12 +319,9 @@ def patch():
 
 
 def unpatch():
-    global _integration
-
-    core_mod = _llama_core()
-    if not getattr(core_mod, "_datadog_patch", False):
+    if not getattr(llama_core, "_datadog_patch", False):
         return
-    core_mod._datadog_patch = False
+    llama_core._datadog_patch = False
 
     for (cls, method_name), original in _originals.items():
         try:
@@ -346,6 +331,5 @@ def unpatch():
     _originals.clear()
     _wrapped_classes.clear()
 
-    if hasattr(core_mod, "_datadog_integration"):
-        delattr(core_mod, "_datadog_integration")
-    _integration = None
+    if hasattr(llama_core, "_datadog_integration"):
+        delattr(llama_core, "_datadog_integration")

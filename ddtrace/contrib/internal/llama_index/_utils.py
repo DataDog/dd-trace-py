@@ -9,6 +9,22 @@ from ddtrace.internal.utils import get_argument_value
 log = get_logger(__name__)
 
 
+def get_model_provider(instance: Any) -> str:
+    """Extract the LLM provider name from a LlamaIndex instance.
+
+    Walks the class MRO to find the first ancestor defined in a LlamaIndex
+    provider package (``llama_index.llms.<provider>`` or
+    ``llama_index.embeddings.<provider>``).  This handles user subclasses
+    that inherit from a provider class but are defined in application code.
+    """
+    for cls in type(instance).__mro__:
+        module = getattr(cls, "__module__", "") or ""
+        parts = module.split(".")
+        if len(parts) >= 3 and parts[0] == "llama_index" and parts[1] in ("llms", "embeddings"):
+            return parts[2]
+    return "llama_index"
+
+
 def get_model_name(instance: Any) -> str:
     """Extract model name from a LlamaIndex LLM or embedding instance.
 
