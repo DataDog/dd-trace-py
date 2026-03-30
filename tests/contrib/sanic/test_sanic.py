@@ -79,6 +79,10 @@ def app(tracer, patch_sanic):
     # with the same name if register is True.
     DEFAULT_CONFIG["REGISTER"] = False
     DEFAULT_CONFIG["RESPONSE_TIMEOUT"] = 1.0
+    # Sanic 21.x+ no longer respects DEFAULT_CONFIG["REGISTER"] to skip
+    # registration, so use test_mode which bypasses the duplicate name check.
+    if hasattr(Sanic, "test_mode"):
+        Sanic.test_mode = True
     app = Sanic("sanic")
 
     @tracer.wrap()
