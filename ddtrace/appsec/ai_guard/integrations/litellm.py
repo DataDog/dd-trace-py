@@ -21,6 +21,8 @@ from litellm.types.utils import ModelResponse
 if TYPE_CHECKING:
     from litellm.caching.caching import DualCache
 
+from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.appsec.ai_guard import AIGuardClientError
 from ddtrace.appsec.ai_guard import ContentPart
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import ImageURL
@@ -180,17 +182,23 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         messages: list[Message],
         dynamic_params: dict[str, Any],
     ) -> None:
-        verbose_proxy_logger.debug("Datadog AI Guard: Making request to endpoint")
-        enable_blocking = self._resolve_enable_blocking(dynamic_params)
-        response = await asyncio.to_thread(self._client.evaluate, messages, Options(block=enable_blocking))
-        if response["action"] in ("DENY", "ABORT"):
-            verbose_proxy_logger.debug(
-                "Datadog AI Guard: monitor mode - violation detected but allowing request. "
-                "action=%s, reason=%s, tags=%s",
-                response["action"],
-                response["reason"],
-                response["tags"],
-            )
+        try:
+            verbose_proxy_logger.debug("Datadog AI Guard: Making request to endpoint")
+            enable_blocking = self._resolve_enable_blocking(dynamic_params)
+            response = await asyncio.to_thread(self._client.evaluate, messages, Options(block=enable_blocking))
+            if response["action"] in ("DENY", "ABORT"):
+                verbose_proxy_logger.debug(
+                    "Datadog AI Guard: monitor mode - violation detected but allowing request. "
+                    "action=%s, reason=%s, tags=%s",
+                    response["action"],
+                    response["reason"],
+                    response["tags"],
+                )
+        except AIGuardAbortError as e:
+            e.status_code = 403  # mark as forbidden
+            raise e
+        except AIGuardClientError:
+            verbose_proxy_logger.error("Datadog AI Guard: Error calling AI Guard service", exc_info=True)
 
     async def _on_request(self, data: dict, call_type: CallTypesLiteral) -> Optional[Union[Exception, str, dict]]:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
