@@ -6,6 +6,8 @@ import re
 import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -40,10 +42,10 @@ log = logging.getLogger(__name__)
 
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
-        # NOTE: In manifest mode (Bazel hermetic sandbox), network access is
-        # unavailable. All API reads come from cached files, so we use a no-op connector
-        # that silently discards any network calls that might still be attempted.
         offline = get_offline_mode()
+        # NOTE: In manifest mode the sandbox has no network. Use a no-op connector so
+        # that writers and telemetry don't attempt to connect; the data provider reads
+        # from files instead of HTTP (see CachedFileDataProvider below).
         if offline.manifest_enabled:
             self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
         else:
@@ -78,15 +80,25 @@ class SessionManager:
         if self.env is None:
             self.env = self.connector_setup.default_env()
 
-        self.api_client = APIClient(
-            service=self.service,
-            env=self.env,
-            env_tags=self.env_tags,
-            itr_skipping_level=self.itr_skipping_level,
-            configurations=self.platform_tags,
-            connector_setup=self.connector_setup,
-            telemetry_api=self.telemetry_api,
-        )
+        self.api_client: TestOptDataProvider
+        if offline.manifest_enabled:
+            if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
+                raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            self.api_client = CachedFileDataProvider(
+                test_optimization_dir=offline.test_optimization_dir,
+                itr_skipping_level=self.itr_skipping_level,
+                telemetry_api=self.telemetry_api,
+            )
+        else:
+            self.api_client = APIClient(
+                service=self.service,
+                env=self.env,
+                env_tags=self.env_tags,
+                itr_skipping_level=self.itr_skipping_level,
+                configurations=self.platform_tags,
+                connector_setup=self.connector_setup,
+                telemetry_api=self.telemetry_api,
+            )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
         self.show_settings()

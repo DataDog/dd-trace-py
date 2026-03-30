@@ -14,7 +14,6 @@ from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
-from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
@@ -49,27 +48,6 @@ def _get_known_tests_max_pages() -> int:
     return value
 
 
-def _read_cache_json(cache_path: t.Optional[str]) -> t.Optional[t.Any]:
-    """
-    Read and parse a JSON cache file from the .testoptimization directory.
-
-    Returns the parsed JSON object on success, or None if the file does not
-    exist or cannot be parsed. Per the spec, a missing file is treated as an
-    empty response — no HTTP fallback is attempted.
-    """
-    if cache_path is None:
-        return None
-    try:
-        with open(cache_path) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        log.debug("Cache file not found: %s — treating as empty response", cache_path)
-        return None
-    except (OSError, json.JSONDecodeError) as e:
-        log.warning("Error reading cache file %s: %s — treating as empty response", cache_path, e)
-        return None
-
-
 class APIClient:
     def __init__(
         self,
@@ -95,24 +73,6 @@ class APIClient:
         self.coverage_connector.close()
 
     def get_settings(self) -> Settings:
-        # NOTE: In manifest mode (Bazel sandbox), read the pre-fetched settings
-        # response from cache/http/settings.json instead of making an HTTP request.
-        # A missing file means all features are disabled — no HTTP fallback.
-        offline = get_offline_mode()
-        if offline.manifest_enabled:
-            cached = _read_cache_json(offline.cache_file_path("cache/http/settings.json"))
-            if cached is None:
-                log.debug("No cached settings file — all features disabled in manifest mode")
-                return Settings()
-            try:
-                attributes = cached["data"]["attributes"]
-                settings = Settings.from_attributes(attributes)
-            except Exception as e:
-                log.warning("Error parsing cached settings file: %s — all features disabled", e)
-                return Settings()
-            self.telemetry_api.record_settings(settings)
-            return settings
-
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.settings",
             duration="git_requests.settings_ms",
@@ -165,28 +125,6 @@ class APIClient:
         return settings
 
     def get_known_tests(self) -> set[TestRef]:
-        # NOTE: In manifest mode, read from cache/http/known_tests.json (single doc,
-        # no pagination). Missing file → empty set (EFD will treat all tests as new).
-        offline = get_offline_mode()
-        if offline.manifest_enabled:
-            cached = _read_cache_json(offline.cache_file_path("cache/http/known_tests.json"))
-            if cached is None:
-                return set()
-            try:
-                tests_data = cached["data"]["attributes"]["tests"]
-                cached_known_test_ids: set[TestRef] = set()
-                for module, suites in tests_data.items():
-                    module_ref = ModuleRef(module)
-                    for suite, tests in suites.items():
-                        suite_ref = SuiteRef(module_ref, suite)
-                        for test in tests:
-                            cached_known_test_ids.add(TestRef(suite_ref, test))
-                self.telemetry_api.record_known_tests_count(len(cached_known_test_ids))
-                return cached_known_test_ids
-            except Exception as e:
-                log.warning("Error parsing cached known tests file: %s", e)
-                return set()
-
         telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -273,34 +211,6 @@ class APIClient:
         return known_test_ids
 
     def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
-        # NOTE: In manifest mode, read from cache/http/test_management.json.
-        # Missing file → empty dict (no quarantine/disable/ATF applied).
-        offline = get_offline_mode()
-        if offline.manifest_enabled:
-            cached = _read_cache_json(offline.cache_file_path("cache/http/test_management.json"))
-            if cached is None:
-                return {}
-            try:
-                cached_test_properties: dict[TestRef, TestProperties] = {}
-                modules = cached["data"]["attributes"]["modules"]
-                for module_name, module_data in modules.items():
-                    module_ref = ModuleRef(module_name)
-                    for suite_name, suite_data in module_data["suites"].items():
-                        suite_ref = SuiteRef(module_ref, suite_name)
-                        for test_name, test_data in suite_data["tests"].items():
-                            test_ref = TestRef(suite_ref, test_name)
-                            properties = test_data.get("properties", {})
-                            cached_test_properties[test_ref] = TestProperties(
-                                quarantined=properties.get("quarantined", False),
-                                disabled=properties.get("disabled", False),
-                                attempt_to_fix=properties.get("attempt_to_fix", False),
-                            )
-                self.telemetry_api.record_test_management_tests_count(len(cached_test_properties))
-                return cached_test_properties
-            except Exception as e:
-                log.warning("Error parsing cached test management file: %s", e)
-                return {}
-
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -459,36 +369,6 @@ class APIClient:
         return len(content)
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
-        # NOTE: In manifest mode, read from cache/http/skippable_tests.json.
-        # This file has Sandbox Availability: NO in the current spec (only available for
-        # DDTestRunner, not the Bazel sandbox). Missing file → empty set (no ITR skipping).
-        offline = get_offline_mode()
-        if offline.manifest_enabled:
-            cached = _read_cache_json(offline.cache_file_path("cache/http/skippable_tests.json"))
-            if cached is None:
-                return set(), None
-            try:
-                cached_skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
-                for item in cached["data"]:
-                    if item["type"] in ("test", "suite"):
-                        module_ref = ModuleRef(
-                            item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME)
-                        )
-                        suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
-                        if item["type"] == "suite" and self.itr_skipping_level == ITRSkippingLevel.SUITE:
-                            cached_skippable_items.add(suite_ref)
-                        elif item["type"] == "test" and self.itr_skipping_level == ITRSkippingLevel.TEST:
-                            test_ref = TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME))
-                            cached_skippable_items.add(test_ref)
-                correlation_id = cached["meta"]["correlation_id"]
-                self.telemetry_api.record_skippable_count(
-                    count=len(cached_skippable_items), level=self.itr_skipping_level
-                )
-                return cached_skippable_items, correlation_id
-            except Exception as e:
-                log.warning("Error parsing cached skippable tests file: %s", e)
-                return set(), None
-
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
