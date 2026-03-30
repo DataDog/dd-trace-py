@@ -4,6 +4,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace import config
+from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -163,7 +164,7 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
         if resource_arn:
             span._set_attribute("dd_resource_key", resource_arn)
 
-    span._set_attribute("_dd.inferred_span", 1)
+    span._set_attribute(_INFERRED_SPAN_KEY, 1)
     return span
 
 
