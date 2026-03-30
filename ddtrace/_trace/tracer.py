@@ -474,11 +474,11 @@ class Tracer(object):
         if service is None:
             if parent:
                 service = parent.service
+                service_source = parent.get_tag(_SERVICE_SOURCE)
             else:
-                service = config.service
-            is_user_defined_service = False
+                service = service_source = config.service
         else:
-            is_user_defined_service = True
+            service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:
@@ -535,7 +535,7 @@ class Tracer(object):
             span.set_tags(self._tags)
 
         if is_user_defined_service:
-            span.set_tag(_SERVICE_SOURCE, "m")
+            span.set_tag(_SERVICE_SOURCE, service_source)
 
         if config.env:
             span._set_attribute(ENV_KEY, config.env)
