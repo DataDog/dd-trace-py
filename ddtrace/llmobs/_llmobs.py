@@ -125,12 +125,12 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_llmobs_ml_app
-from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
