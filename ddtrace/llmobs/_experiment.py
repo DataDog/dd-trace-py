@@ -622,7 +622,10 @@ def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
     from typing import get_origin
     from typing import get_type_hints
 
-    hint = get_type_hints(evaluator.evaluate)["return"]
+    try:
+        hint = get_type_hints(evaluator.evaluate)["return"]
+    except KeyError:
+        return False
     while get_origin(hint) is Annotated:
         hint = get_args(hint)[0]
     origin = get_origin(hint)
@@ -921,7 +924,7 @@ if PydanticEvaluator is not None:
                 cases.append(PydanticReportCase(
                     name=f"case_{idx}",
                     inputs=input_data,
-                    metadata=eval_context.metadata,
+                    metadata=eval_context.metadata[idx],
                     expected_output=eval_context.expected_outputs[idx],
                     output=eval_context.outputs[idx],
                     assertions=assertions,
@@ -1008,7 +1011,7 @@ if PydanticEvaluator is not None:
                 cases.append(PydanticReportCase(
                     name=f"case_{idx}",
                     inputs=input_data,
-                    metadata=eval_context.metadata,
+                    metadata=eval_context.metadata[idx],
                     expected_output=eval_context.expected_outputs[idx],
                     output=eval_context.outputs[idx],
                     assertions=assertions,
