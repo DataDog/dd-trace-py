@@ -22,6 +22,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
+from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -317,7 +318,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     )
 
     _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
-    span._set_attribute("_dd.inferred_span", 1)
+    span._set_attribute(_INFERRED_SPAN_KEY, 1)
 
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
         span.link_span(propagated_context)
