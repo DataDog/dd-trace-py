@@ -827,6 +827,102 @@ def test_crashtracker_no_zombies():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
+def test_crashtracker_public_api_enable():
+    import ctypes
+    import os
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            from ddtrace.crashtracking import CrashTracking
+
+            assert not CrashTracking.is_enabled()
+            assert CrashTracking.enable()
+            assert CrashTracking.is_enabled()
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        _ping = utils.get_crash_ping(client)
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(
+    env={"DD_CRASHTRACKING_ENABLED": "false", "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"}
+)
+def test_crashtracker_public_api_enable_overrides_env():
+    """Calling CrashTracking.enable() should work even when DD_CRASHTRACKING_ENABLED=false."""
+    import ctypes
+    import os
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            from ddtrace.crashtracking import CrashTracking
+
+            assert not CrashTracking.is_enabled()
+            assert CrashTracking.enable()
+            assert CrashTracking.is_enabled()
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        _ping = utils.get_crash_ping(client)
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
+def test_crashtracker_public_api_enable_with_tags():
+    import ctypes
+    import os
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    import tests.internal.crashtracker.utils as utils
+
+    tag_prefix = "korean_cities"
+    tags = {
+        tag_prefix + "_tag1": "daegu",
+        tag_prefix + "_tag2": "seoul",
+    }
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            from ddtrace.crashtracking import CrashTracking
+
+            assert CrashTracking.enable(tags=tags)
+            assert CrashTracking.is_enabled()
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        _ping = utils.get_crash_ping(client)
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+        for k, v in tags.items():
+            assert k.encode() in report["body"]
+            assert v.encode() in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_receiver_env_inheritance():
     """

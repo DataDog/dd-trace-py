@@ -168,10 +168,10 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
-def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
+def start(additional_tags: Optional[dict[str, str]] = None, _enabled_override: bool = False) -> bool:
     if not is_available:
         return False
-    if not crashtracker_config.enabled:
+    if not _enabled_override and not crashtracker_config.enabled:
         return False
 
     try:
@@ -179,11 +179,6 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         if config is None or receiver_config is None or metadata is None:
             log.error("Failed to start crashtracker: failed to construct crashtracker configuration")
             return False
-
-        # TODO: Add this back in post Code Freeze (need to update config registry)
-        # crashtracker_init(
-        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
-        # )
 
         crashtracker_init(config, receiver_config, metadata)
 
