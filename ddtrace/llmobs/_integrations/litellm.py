@@ -8,21 +8,17 @@ from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.trace import Span
 
 
@@ -71,6 +67,13 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
+        # Set kind before helpers so that input/output messages are routed correctly
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name or "", model_provider=model_provider, metrics=metrics
+        )
+
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
             openai_set_meta_tags_from_completion(span, kwargs, response, integration_name="litellm")
@@ -80,17 +83,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
-        # update input and output value for non-LLM spans
-        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
-        update_proxy_workflow_input_output_value(span, span_kind)
-
-        metrics = self._extract_llmobs_metrics(response, span_kind)
-        span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
-        )
-
     def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
-        metadata = span._get_ctx_item(METADATA) or {}
+        metadata = get_llmobs_metadata(span) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
         if "metadata" in metadata:
@@ -109,29 +103,23 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
-            span._set_ctx_items({METADATA: metadata})
-            return
-        if base_url or "router" not in operation:
-            span._set_ctx_items({METADATA: metadata})
-            return
+        elif not base_url and "router" in operation:
+            llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
+            if llm_router:
+                metadata["router_settings"] = {
+                    "router_general_settings": getattr(llm_router, "router_general_settings", None),
+                    "routing_strategy": getattr(llm_router, "routing_strategy", None),
+                    "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
+                    "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
+                    "retry_policy": getattr(llm_router, "retry_policy", None),
+                    "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
+                }
+                if hasattr(llm_router, "get_model_list"):
+                    metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(
+                        llm_router.get_model_list()
+                    )
 
-        llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
-        if not llm_router:
-            span._set_ctx_items({METADATA: metadata})
-            return
-
-        metadata["router_settings"] = {
-            "router_general_settings": getattr(llm_router, "router_general_settings", None),
-            "routing_strategy": getattr(llm_router, "routing_strategy", None),
-            "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
-            "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
-            "retry_policy": getattr(llm_router, "retry_policy", None),
-            "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
-        }
-        if hasattr(llm_router, "get_model_list"):
-            metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(llm_router.get_model_list())
-
-        span._set_ctx_items({METADATA: metadata})
+        _annotate_llmobs_span_data(span, metadata=metadata)
 
     def _construct_litellm_model_list(self, model_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_model_list = []

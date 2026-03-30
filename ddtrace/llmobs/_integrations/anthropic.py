@@ -9,20 +9,12 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -66,9 +58,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
+        tool_definitions = None
         if kwargs.get("tools"):
-            tools = self._extract_tools(kwargs.get("tools"))
-            span._set_ctx_item(TOOL_DEFINITIONS, tools)
+            tool_definitions = self._extract_tools(kwargs.get("tools"))
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
@@ -81,18 +73,17 @@ class AnthropicIntegration(BaseLLMIntegration):
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: span_kind,
-                MODEL_NAME: span.get_tag("anthropic.request.model") or "",
-                MODEL_PROVIDER: "anthropic",
-                INPUT_MESSAGES: input_messages,
-                METADATA: parameters,
-                OUTPUT_MESSAGES: output_messages,
-                METRICS: metrics,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=span.get_tag("anthropic.request.model") or "",
+            model_provider="anthropic",
+            input_messages=input_messages,
+            metadata=parameters,
+            output_messages=output_messages,
+            metrics=metrics,
+            tool_definitions=tool_definitions,
         )
-        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
         self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None
