@@ -634,7 +634,7 @@ def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
     """
     if PydanticReportEvaluator is None:
         return False
-    return isinstance(evaluator, PydanticReportEvaluator):
+    return isinstance(evaluator, PydanticReportEvaluator)
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -950,7 +950,9 @@ if PydanticEvaluator is not None:
             )
             result = evaluator.evaluate(report_eval_context)
             if not isinstance(result, PydanticScalarResult):
-                raise ValueError("Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed")
+                raise ValueError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
             return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
@@ -1045,7 +1047,9 @@ if PydanticEvaluator is not None:
             )
             result = await evaluator.evaluate_async(report_eval_context)
             if not isinstance(result, PydanticScalarResult):
-                raise ValueError("Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed")
+                raise ValueError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
             return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
