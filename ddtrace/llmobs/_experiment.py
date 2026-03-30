@@ -628,16 +628,13 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
 
 
 def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
-    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator) with a scalar
-    result.
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator).
     :param evaluator: The evaluator to check
     :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
     """
     if PydanticReportEvaluator is None:
         return False
-    if isinstance(evaluator, PydanticReportEvaluator):
-        return True
-    return False
+    return isinstance(evaluator, PydanticReportEvaluator):
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
