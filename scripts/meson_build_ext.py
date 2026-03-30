@@ -519,6 +519,15 @@ def _cmake_configure_hash(cmake_args: list, build_dir: Path) -> str:
     for item in relevant:
         digest.update(item.encode("utf-8"))
         digest.update(b"\0")
+    # AIDEV-NOTE: Include env vars that affect cmake configure but are not
+    # reflected in cmake -D flags.  DD_COMPILE_ABSEIL controls whether Abseil
+    # is fetched and compiled; without it here, switching DD_FAST_BUILD on/off
+    # would not invalidate the cmake cache and the old Abseil configuration
+    # would persist across rebuilds.
+    for key in ("DD_COMPILE_ABSEIL",):
+        val = os.environ.get(key, "")
+        digest.update(f"{key}={val}".encode("utf-8"))
+        digest.update(b"\0")
     return digest.hexdigest()
 
 
