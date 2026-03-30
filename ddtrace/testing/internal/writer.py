@@ -1,6 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
+import itertools
+import json
 import logging
+import os
 import threading
 import typing as t
 import uuid
@@ -8,6 +11,7 @@ import uuid
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -18,6 +22,10 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
+
+
+# Thread-safe counter for unique payload file names across writer instances.
+_payload_file_counter = itertools.count()
 
 
 log = logging.getLogger(__name__)
@@ -150,6 +158,19 @@ class TestOptWriter(BaseWriter):
         return msgpack_packb(payload)
 
     def _send_events(self, events: list[Event]) -> None:
+        # NOTE: In payload-files mode (Bazel), write events as JSON files to
+        # TEST_UNDECLARED_OUTPUTS_DIR/payloads/tests/ instead of sending over HTTP.
+        # CI/Git/OS/runtime tags are already absent (stripped by env_tags.py in PR 3).
+        offline = get_offline_mode()
+        if offline.payload_files_enabled:
+            output_dir = offline.payload_output_dir("tests")
+            if output_dir is not None:
+                _write_payload_file(
+                    output_dir=output_dir,
+                    payload={"version": 1, "metadata": self.metadata, "events": events},
+                )
+            return
+
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -203,6 +224,18 @@ class TestCoverageWriter(BaseWriter):
         return msgpack_packb({"version": 2, "coverages": events})
 
     def _send_events(self, events: list[Event]) -> None:
+        # NOTE: In payload-files mode (Bazel), write coverage as JSON files to
+        # TEST_UNDECLARED_OUTPUTS_DIR/payloads/coverage/ instead of sending over HTTP.
+        offline = get_offline_mode()
+        if offline.payload_files_enabled:
+            output_dir = offline.payload_output_dir("coverage")
+            if output_dir is not None:
+                _write_payload_file(
+                    output_dir=output_dir,
+                    payload={"version": 2, "coverages": events},
+                )
+            return
+
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -235,6 +268,27 @@ class TestCoverageWriter(BaseWriter):
                 events_count=len(events),
                 error=result.error_type,
             )
+
+
+def _write_payload_file(output_dir: str, payload: t.Any) -> None:
+    """
+    Write a payload dict as a JSON file under ``output_dir``.
+
+    Files are named ``payload_<counter>.json`` with a global counter to keep
+    names unique across multiple flushes. The write is atomic: we write to a
+    temp file and rename, so readers never see a partial file.
+    """
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        index = next(_payload_file_counter)
+        dest = os.path.join(output_dir, f"payload_{index}.json")
+        tmp = dest + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(payload, f)
+        os.replace(tmp, dest)
+        log.debug("Wrote payload file: %s", dest)
+    except Exception as e:
+        log.warning("Error writing payload file to %s: %s", output_dir, e)
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
