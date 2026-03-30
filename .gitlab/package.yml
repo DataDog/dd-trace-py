@@ -384,7 +384,6 @@ download_dependency_wheels:
   stage: package
   script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
-    - .gitlab/validate-ddtrace-package.py pywheels
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -398,9 +397,15 @@ download_dependency_wheels:
     - "build sdist"
     - "collect windows wheels"
     - "package version"
+  script:
+    - !reference [.package_base, script]
+    - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
   extends: .package_base
   needs:
     - "build linux serverless"
     - "package version"
+  script:
+    - !reference [.package_base, script]
+    - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless
