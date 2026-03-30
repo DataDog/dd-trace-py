@@ -471,10 +471,11 @@ class Tracer(object):
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
+        service_source: str = ''
         if service is None:
             if parent:
                 service = parent.service
-                service_source = parent.get_tag(_SERVICE_SOURCE)
+                service_source = parent.get_tag(_SERVICE_SOURCE) or ''
             else:
                 service = service_source = config.service
         else:
@@ -534,7 +535,7 @@ class Tracer(object):
         if self._tags:
             span.set_tags(self._tags)
 
-        if service:
+        if service and service_source:
             span._set_attribute(_SERVICE_SOURCE, service_source)
 
         if config.env:
