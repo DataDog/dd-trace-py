@@ -350,6 +350,11 @@ class ExtensionHashes(build_ext):
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
+                    # Header files are stored in ext.depends by convention; include
+                    # them so that a header-only change changes the hash and forces
+                    # a cache miss.
+                    if ext.depends:
+                        sources.extend(Path(_) for _ in ext.depends)
 
                 sources_hash = hashlib.sha256()
                 # DEV: Make sure to include the rust features since changing them changes what gets built
@@ -988,6 +993,10 @@ class CustomBuildExt(build_ext):
                 sources.extend(self._pyx_source_deps(str(pyx)))
             else:
                 sources.append(src)
+        # Header files (C/C++): distutils convention stores them in ext.depends.
+        # They are not compiled separately but changes to them must still
+        # invalidate the cached .so.
+        sources.extend(ext.depends or [])
 
         if self._skip_if_up_to_date(ext.name, inplace_so, sources):
             return
@@ -1569,6 +1578,7 @@ if not IS_PYSTON:
             )
         )
         _iast_sources: list[str] = []
+        _iast_depends: list[str] = []
         for _pattern in [
             "*.cpp",
             "api/*.cpp",
@@ -1580,10 +1590,22 @@ if not IS_PYSTON:
             "utils/*.cpp",
         ]:
             _iast_sources.extend(str(p.relative_to(HERE)) for p in IAST_DIR.glob(_pattern))
+        for _pattern in [
+            "*.h",
+            "api/*.h",
+            "context/*.h",
+            "aspects/*.h",
+            "initializer/*.h",
+            "tainted_ops/*.h",
+            "taint_tracking/*.h",
+            "utils/*.h",
+        ]:
+            _iast_depends.extend(str(p.relative_to(HERE)) for p in IAST_DIR.glob(_pattern))
         ext_modules.append(
             AbslExtension(
                 "ddtrace.appsec._iast._taint_tracking._native",
                 sources=_iast_sources,
+                depends=_iast_depends,
                 include_dirs=[
                     str(IAST_DIR.relative_to(HERE)),
                     str((IAST_DIR / "_vendor" / "pybind11" / "include").relative_to(HERE)),
@@ -1629,6 +1651,10 @@ if not IS_PYSTON:
                     str((MEMALLOC_DIR / "_memalloc_tb.cpp").relative_to(HERE)),
                     str((MEMALLOC_DIR / "_memalloc_heap.cpp").relative_to(HERE)),
                     str((MEMALLOC_DIR / "_memalloc_reentrant.cpp").relative_to(HERE)),
+                ],
+                depends=[
+                    str(p.relative_to(HERE))
+                    for p in sorted(MEMALLOC_DIR.glob("*.h")) + sorted(DD_WRAPPER_INCLUDE.rglob("*.h"))
                 ],
                 include_dirs=[
                     str(MEMALLOC_DIR.relative_to(HERE)),
