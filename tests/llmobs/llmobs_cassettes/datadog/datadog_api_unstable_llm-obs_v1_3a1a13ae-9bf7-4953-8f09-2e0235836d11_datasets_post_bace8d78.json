@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/3a1a13ae-9bf7-4953-8f09-2e0235836d11/datasets",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "109",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"attributes\": {\"name\": \"test-dataset-857\", \"description\": \"A boston dataset\"}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "365",
+      "date": "Thu, 26 Mar 2026 20:01:49 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":{\"id\":\"11975234-16e6-4c5a-b48a-3162efa0c076\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"created_at\":\"2026-03-26T20:01:49.268652467Z\",\"current_version\":0,\"description\":\"A boston dataset\",\"name\":\"test-dataset-857\",\"project_id\":\"3a1a13ae-9bf7-4953-8f09-2e0235836d11\",\"updated_at\":\"2026-03-26T20:01:49.268652467Z\"}}}"
+  }
+}
