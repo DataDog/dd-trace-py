@@ -41,7 +41,6 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_tool(span, args, kwargs, response)
         elif operation == "code_execute":
             self._llmobs_set_tags_code_execute(span, args, kwargs, response)
-            operation = "tool"
 
         _annotate_llmobs_span_data(
             span,

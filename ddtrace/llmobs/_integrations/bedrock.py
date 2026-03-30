@@ -9,8 +9,8 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTEGRATION_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SESSION_ID_TAG_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
@@ -143,7 +143,7 @@ class BedrockIntegration(BaseLLMIntegration):
             span,
             kind="agent",
             input_value=str(input_value),
-            tags={SESSION_ID_TAG_KEY: session_id, INTEGRATION_TAG_KEY: "bedrock_agents"},
+            tags={LLMOBS_STRUCT.SESSION_ID: session_id, INTEGRATION_TAG_KEY: "bedrock_agents"},
             metadata={"agent_id": agent_id, "agent_alias_id": agent_alias_id},
         )
         if not response:

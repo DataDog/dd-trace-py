@@ -145,7 +145,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         tool_id = kwargs.get("tool_id", "unknown_tool_id")
         tool_name = kwargs.get("name", "unknown_tool")
         tool_arguments = kwargs.get("arguments")
-        tool_output = response
 
         span_name = "MCP Client Tool Call: {}".format(tool_name)
         span.name = span_name
@@ -155,7 +154,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             kind="tool",
             name=span_name,
             input_value=safe_json(tool_arguments) if tool_arguments is not None else "",
-            output_value=safe_json(tool_output) if tool_output is not None else "",
+            output_value=safe_json(response) if response is not None else "",
             metadata={"tool_id": tool_id},
         )
 

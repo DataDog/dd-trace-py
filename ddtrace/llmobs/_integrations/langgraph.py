@@ -96,13 +96,15 @@ class LangGraphIntegration(BaseLLMIntegration):
             return format_langchain_io(messages)
 
         agent_manifest = None
+        span_kind = "task"
         if operation == "graph":
+            span_kind = "agent"
             agent = self._graph_spans_to_graph_instances[span]
             agent_manifest = self._get_agent_manifest(agent, args, config)
 
         _annotate_llmobs_span_data(
             span,
-            kind="agent" if operation == "graph" else "task",
+            kind=span_kind,
             input_value=format_langchain_io(inputs),
             output_value=maybe_format_langchain_io(response)
             or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
