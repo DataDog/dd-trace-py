@@ -602,7 +602,16 @@ class LibraryDownloader(BuildPyCommand):
         if self.editable_mode:
             IS_EDITABLE = True
 
-        CleanLibraries.remove_artifacts()
+        if not self.editable_mode:
+            # AIDEV-NOTE: For non-editable installs, clean stale artifacts to guarantee
+            # a fresh build (e.g. after a Python-version change or dependency upgrade).
+            # For editable installs we skip this: remove_artifacts() deletes every .so
+            # in the source tree, which makes library.exists() return False in the
+            # incremental checks inside build_rust() and build_libdd_wrapper(), forcing
+            # a full rebuild of Rust + C++ on every `pip install -e .` even when
+            # nothing has changed.  LibDDWafDownload.run() already skips the download
+            # when the target directory is non-empty, so skipping the rmtree here is safe.
+            CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
 
@@ -676,6 +685,23 @@ class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
     def run(self):
+        global IS_EDITABLE
+        if not IS_EDITABLE:
+            # AIDEV-NOTE: build_py (LibraryDownloader) sets IS_EDITABLE=True in its run(),
+            # but build_ext.run() is called before build_py.run() in setuptools' editable
+            # install flow. Without this early detection, build_rust() and
+            # build_libdd_wrapper() resolve the output library to pip's throwaway temp dir
+            # (self.build_lib), library.exists() returns False, and they unconditionally
+            # rebuild on every `pip install -e .` invocation even when nothing changed.
+            try:
+                bp = self.distribution.get_command_obj("build_py")
+                if bp is not None:
+                    bp.ensure_finalized()
+                    if getattr(bp, "editable_mode", False):
+                        IS_EDITABLE = True
+            except Exception:
+                pass
+
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
@@ -798,8 +824,22 @@ class CustomBuildExt(build_ext):
             should_build = source_files_changed or getattr(self, "built_native", False)
 
         if should_build:
-            # Build libdd_wrapper using CMake
-            cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+            # Build libdd_wrapper using CMake.
+            # AIDEV-NOTE: For editable installs we use a persistent build dir keyed by
+            # Python version (not pip's throwaway self.build_lib) so CMake can reuse
+            # its incremental build state across `pip install -e .` invocations.  With
+            # a fresh temp dir on every call, CMake had no prior state and always
+            # recompiled + relinked (the ThinLTO link alone costs ~10 s even with
+            # sccache object-file hits).
+            # For non-editable installs (CI) we keep the original self.build_lib-based
+            # path so CI jobs don't accidentally share or corrupt CMake state across
+            # builds on the same runner.
+            if IS_EDITABLE:
+                cmake_build_dir = (
+                    HERE / ".cmake_cache" / f"libdd_wrapper_build.py{sys.version_info.major}{sys.version_info.minor}"
+                ).resolve()
+            else:
+                cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
             cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
             cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
@@ -849,6 +889,24 @@ class CustomBuildExt(build_ext):
                     return
                 raise
         else:
+            # AIDEV-NOTE: Incremental build support for plain setuptools extensions
+            # (Cython-generated C and small hand-written C/C++ files).  setuptools
+            # always writes extension output to self.build_lib, which is pip's
+            # throwaway temp dir.  On every `pip install -e .` the temp dir is
+            # fresh, so setuptools thinks nothing is built and recompiles + relinks
+            # all extensions.  For editable installs we instead check whether the
+            # source-tree copy is already newer than all source files; if so we
+            # copy that file to where setuptools expects it and skip the build.
+            if IS_EDITABLE and self.INCREMENTAL:
+                src_path = HERE / self.get_ext_filename(ext.name)
+                sources = [str(Path(s).resolve()) for s in ext.sources if Path(s).exists()]
+                if src_path.exists() and sources and not newer_group(sources, str(src_path.resolve()), "newer"):
+                    print(f"skipping '{ext.name}' extension (up-to-date)")
+                    full_path = Path(self.get_ext_fullpath(ext.name))
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    if src_path.resolve() != full_path.resolve():
+                        shutil.copy2(src_path, full_path)
+                    return
             super().build_extension(ext)
 
         if COMPILE_MODE.lower() in ("release", "minsizerel"):
@@ -1127,7 +1185,7 @@ class CMakeExtension(Extension):
                 src.is_file()
                 and src.name != full_path.name
                 and src.suffix
-                and src.suffix not in {".py", ".pyc", ".pyi"}
+                and src.suffix not in {".py", ".pyc", ".pyi", ".pyx", ".pxd"}
             )
 
         return [
