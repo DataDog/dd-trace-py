@@ -578,10 +578,9 @@ MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.f
 # invalidated whenever the image changes (e.g. Python patch version bumps).
 import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
+
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
-TESTRUNNER_IMAGE_HASH = hashlib.sha256(
-    _testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()
-).hexdigest()[:16]
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
