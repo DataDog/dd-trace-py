@@ -137,6 +137,7 @@ suites:
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
   appsec_integrations_flask:
+    pattern: appsec_integrations_flask$
     venvs_per_job: 1
     paths:
       - '@bootstrap'
