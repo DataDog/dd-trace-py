@@ -2,3 +2,8 @@
 # data races from ddog_ArrayQueue and Datadog::Sample operations
 race:ddog_ArrayQueue
 race:Datadog::Sample::
+# crossbeam-channel array flavor uses atomic ops that TSAN treats as a race
+race:crossbeam_channel::flavors::array
+# ddup_upload allocates reqwest/bytes/http objects under a C++ mutex; the Tokio
+# thread accesses them after crossbeam-channel transfer (not seen as sync by TSAN)
+race:ddup_upload

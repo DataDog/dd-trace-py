@@ -61,6 +61,7 @@ extern "C"
       std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
 
     bool ddup_upload();
+    void ddup_shutdown();
 
     // Proxy functions to the underlying sample
     Datadog::Sample* ddup_start_sample();
