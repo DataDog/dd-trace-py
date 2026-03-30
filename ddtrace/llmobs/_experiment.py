@@ -548,30 +548,58 @@ if PydanticEvaluator is not None:
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
-SummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+if PydanticReportEvaluator is not None:
+    SummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
         ],
-        JSONType,
-    ],
-    BaseSummaryEvaluator,
-]
-AsyncSummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+        BaseSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
         ],
-        Awaitable[JSONType],
-    ],
-    BaseAsyncSummaryEvaluator,
-]
+        BaseAsyncSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+else:
+    SummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
+        ],
+        BaseSummaryEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
+        ],
+        BaseAsyncSummaryEvaluator,
+    ]
 
 
 def _is_class_evaluator(evaluator: Any) -> bool:
