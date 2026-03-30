@@ -16,11 +16,11 @@ Environment:
     PACKAGE_VERSION: Version from pyproject.toml (set by "package version" job)
 """
 
+import argparse
 import os
 from pathlib import Path
 import sys
 
-import argparse
 from packaging.utils import parse_sdist_filename
 from packaging.utils import parse_wheel_filename
 
@@ -169,7 +169,7 @@ def main(args: argparse.Namespace) -> None:
     print()
 
     # Phase 2: SDist Validation
-    if mode != "serverless":
+    if args.mode != "serverless":
         print("[Phase 2] SDist Validation")
         sdist_ok, sdist_msg, sdist_name = validate_sdist(wheels_dir, package_version)
         if not sdist_ok:
