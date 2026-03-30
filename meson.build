@@ -405,6 +405,13 @@ if is_unix and is_64bit
       '--rust-headers-dir', rust_headers_dir,
       '--component-name', 'stack',
       '--dd-wrapper-dir', profiling_build_dir,
+      # AIDEV-NOTE: Pass native-ext-dir so cmake receives NATIVE_EXTENSION_LOCATION.
+      # The test binary (test_thread_span_links) links transitively against
+      # libdd_wrapper → _native. In the build tree, _native.so is at build_root
+      # (not under profiling/), so libdd_wrapper's $ORIGIN-based RPATH doesn't
+      # find it. test/CMakeLists.txt uses NATIVE_EXTENSION_LOCATION to add
+      # -rpath-link so the linker resolves the transitive dep at link time.
+      '--native-ext-dir', build_root,
     ],
     depends: [libdd_wrapper_stamp],
     build_by_default: true,

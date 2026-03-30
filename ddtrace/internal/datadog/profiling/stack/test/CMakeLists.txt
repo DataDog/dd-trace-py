@@ -63,6 +63,16 @@ function(dd_wrapper_add_test name)
         set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
+    # On Linux, libdd_wrapper.so has a DT_NEEDED on _native.so. When the test
+    # binary links transitively through libdd_wrapper, the linker needs to find
+    # _native.so. Its $ORIGIN-based RPATH resolves correctly at runtime (installed
+    # layout), but not at build time when _native.so may be in a different
+    # directory. Pass -rpath-link so the linker finds _native.so during the link
+    # step without embedding a runtime path into the test binary.
+    if(DEFINED NATIVE_EXTENSION_LOCATION AND NOT APPLE)
+        target_link_options(${name} PRIVATE "-Wl,-rpath-link,${NATIVE_EXTENSION_LOCATION}")
+    endif()
+
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
                                                           # sanitizer-built executables during build
 
