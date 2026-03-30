@@ -7,21 +7,19 @@ prune benchmarks/
 prune releasenotes/
 prune src/native/target*
 
-# Exclude C++ test/fuzz/cmake infrastructure not needed at runtime
+# Exclude C++ test/fuzz infrastructure not needed to build or run
 prune ddtrace/appsec/_iast/_taint_tracking/tests
 prune ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11
-prune ddtrace/internal/datadog/profiling/cmake
 prune ddtrace/internal/datadog/profiling/test
 prune ddtrace/internal/datadog/profiling/dd_wrapper/test
 prune ddtrace/internal/datadog/profiling/stack/test
 prune ddtrace/internal/datadog/profiling/stack/fuzz
 prune ddtrace/internal/datadog/profiling/ddup/test
 
-# Exclude build system and developer tooling files
-global-exclude *.cmake
-global-exclude CMakeLists.txt
-global-exclude *.cmake.in
-global-exclude *.sh
+# Exclude developer tooling files not needed to build or run
+# NOTE: cmake/sh files are intentionally kept — they are required to build
+# the native extensions when installing from the sdist.
+# Wheel-level stripping of those files is handled in setup.py.
 global-exclude *.plantuml
 global-exclude .clang-format
 global-exclude .gitignore
