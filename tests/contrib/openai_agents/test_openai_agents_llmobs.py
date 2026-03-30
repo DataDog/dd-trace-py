@@ -140,7 +140,7 @@ def _assert_expected_agent_run(
         spans[0],
         span_kind="agent",
         metadata=_expected_agent_metadata(llmobs_events[0]["name"]),
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     if not previous_tool_events:
         previous_tool_events = []
@@ -160,7 +160,7 @@ def _assert_expected_agent_run(
                 metadata=COMMON_RESPONSE_LLM_METADATA,
                 model_name="gpt-4o-2024-08-06",
                 model_provider="openai",
-                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
                 span_links=i or previous_tool_events,
                 name=expected_span_names[i + 1],
             )
@@ -184,7 +184,7 @@ def _assert_expected_agent_run(
             assert event == _expected_llmobs_non_llm_span_event(
                 spans[i + 1],
                 span_kind="tool",
-                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
                 span_links=True,
                 **io_args,
                 **error_args,
@@ -214,7 +214,7 @@ async def test_llmobs_single_agent(agents, test_spans, request_vcr, llmobs_event
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
@@ -261,7 +261,7 @@ async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llm
         input_value="What is the capital of France?",
         output_value=final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
@@ -301,7 +301,7 @@ def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, llmobs_events
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
@@ -348,13 +348,13 @@ async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llm
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={"foo": "bar"},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
         spans[1],
         span_kind="task",
         metadata={"foo": "bar"},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
@@ -395,7 +395,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         input_value="What is the sum of 1 and 2?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
@@ -467,7 +467,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_v
         input_value="What is the weather like in New York right now?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Weather Agent", "Weather Agent (LLM)"],
@@ -513,7 +513,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, l
         input_value="What is a brief summary of what happened yesterday in the soccer world??",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     previous_tool_events = _assert_expected_agent_run(
         ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
@@ -630,7 +630,7 @@ async def test_llmobs_single_agent_with_tool_errors(
         input_value="What is the sum of 1 and 2?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     _assert_expected_agent_run(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
@@ -716,7 +716,7 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         spans[0],
         span_kind="workflow",
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
     )
     previous_tool_events = _assert_expected_agent_run(
         [

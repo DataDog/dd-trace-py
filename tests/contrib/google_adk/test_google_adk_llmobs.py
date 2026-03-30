@@ -97,7 +97,7 @@ def expected_llmobs_tool_span_events_agent_run(
         input_value='{"query": "test"}',
         output_value='{"results": ["Found reference for: test"]}',
         metadata={"description": "A tiny search tool stub."},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="search_docs",
     )
 
@@ -107,7 +107,7 @@ def expected_llmobs_tool_span_events_agent_run(
         input_value='{"a": 5, "b": 3}',
         output_value='{"product": 15}',
         metadata={"description": "Simple arithmetic tool."},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="multiply",
     )
 
@@ -118,7 +118,7 @@ def expected_llmobs_tool_span_events_agent_run(
         error_stack=mock.ANY,
         error=error_type,
         input_value="Say hello",
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="test_agent",
         metadata={
             "_dd": {
@@ -156,7 +156,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
         input_value='{"query": "recurring revenue"}',
         output_value='{"results": ["Found reference for: recurring revenue"]}',
         metadata={"description": "A tiny search tool stub."},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="search_docs",
     )
 
@@ -167,7 +167,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
         error_stack=mock.ANY,
         error=error_type,
         input_value="Can you search for information about recurring revenue?",
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="test_agent",
         metadata={
             "_dd": {
@@ -205,6 +205,6 @@ def expected_llmobs_code_execution_event(llmobs_event, span):
         input_value='print("hello world")',
         output_value="hello world\n",
         metadata={},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
         name="Google ADK Code Execute",
     )
