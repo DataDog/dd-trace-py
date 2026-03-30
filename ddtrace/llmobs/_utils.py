@@ -28,6 +28,7 @@ from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import ML_APP_DEFAULT
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
@@ -64,7 +65,7 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
-    ml_app = config._llmobs_ml_app
+    ml_app = resolve_ml_app()
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     label = prompt.get("label")
@@ -332,9 +333,14 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._meta_struct.get(LLMOBS_STRUCT.KEY, {}))
 
 
+def resolve_ml_app(ml_app: Optional[str] = None) -> str:
+    """Resolve ML app name, falling back to global config, service name, then default."""
+    return ml_app or config._llmobs_ml_app or config.service or ML_APP_DEFAULT
+
+
 def get_llmobs_ml_app(span: Span) -> Optional[str]:
-    """Return the ML app name for a span, falling back to global config."""
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
+    """Return the ML app name stored on a span's meta_struct."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
 
 
 def get_llmobs_session_id(span: Span) -> Optional[str]:

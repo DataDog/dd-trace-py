@@ -105,7 +105,7 @@ def record_span_created(span: Span):
     has_session_id = get_llmobs_session_id(span) is not None
     integration = llmobs_tags.get("integration")
     autoinstrumented = integration is not None
-    decorator = llmobs_tags.get("decorator")
+    decorator = llmobs_tags.get("decorator") is not None
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
@@ -120,7 +120,7 @@ def record_span_created(span: Span):
         ("error", str(span.error)),
     ]
     if not autoinstrumented:
-        tags.append(("decorator", decorator or "N/A"))
+        tags.append(("decorator", str(int(decorator))))
     if model_provider:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
