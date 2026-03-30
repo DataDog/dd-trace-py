@@ -15,6 +15,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <cstring>
 #include <mutex>
 #include <pthread.h>
 #include <thread>
@@ -61,6 +62,8 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     pthread_attr_destroy(&attr);
 
     if (ret != 0) {
+        std::cerr << "Failed to create sampling thread (stack_size=" << stack_size << "): " << strerror(ret)
+                  << std::endl;
         delete thread_args; // usually deleted in the thread, but need to clean it up here
         return 0;
     }
@@ -136,13 +139,13 @@ Sampler::adapt_sampling_interval()
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
         new_interval = g_min_sampling_period_us;
-    } else if (new_interval > g_max_sampling_period_us) {
-        new_interval = g_max_sampling_period_us;
+    } else if (new_interval > max_sampling_period_us) {
+        new_interval = max_sampling_period_us;
     }
 
     sample_interval_us.store(new_interval);
@@ -410,10 +413,14 @@ Sampler::start()
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
 #ifdef __linux__
-    // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    auto thread_id = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    // If RLIMIT_STACK is unlimited, glibc's pthread_attr_setstacksize accepts
+    // RLIM_INFINITY (no upper-bound check) but pthread_create then fails to
+    // mmap() a stack of that size (ENOMEM).  Fall back to 8 MB -- the Linux
+    // default -- so the sampling thread is always created successfully.
+    const size_t stack_size = (stack_sz.rlim_cur == RLIM_INFINITY) ? 8ULL * 1024 * 1024 : stack_sz.rlim_cur;
+    auto thread_id = create_thread_with_stack(stack_size, this, ++thread_seq_num);
     if (thread_id == 0) {
         return false;
     }

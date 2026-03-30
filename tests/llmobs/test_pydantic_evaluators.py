@@ -4,14 +4,18 @@ import asyncio
 from dataclasses import dataclass
 import os
 
-from pydantic_evals.evaluators import Evaluator
-from pydantic_evals.evaluators import EvaluatorContext
-from pydantic_evals.evaluators.evaluator import EvaluationReason
 import pytest
 
-from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import _ExperimentRunInfo
-from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+
+pydantic_evals = pytest.importorskip("pydantic_evals")
+
+from pydantic_evals.evaluators import Evaluator  # noqa: E402
+from pydantic_evals.evaluators import EvaluatorContext  # noqa: E402
+from pydantic_evals.evaluators.evaluator import EvaluationReason  # noqa: E402
+
+from ddtrace.llmobs._experiment import Dataset  # noqa: E402
+from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
+from ddtrace.llmobs._experiment import _is_pydantic_evaluator  # noqa: E402
 
 
 def _make_simple_pydantic_evaluator():
@@ -469,7 +473,7 @@ class TestPydanticLLMJudge:
             rubric="The response must correctly state the capital of France.",
             model="openai:gpt-4o-mini",
             assertion=False,
-            score=True,
+            score={},
         )
         exp = llmobs.async_experiment(
             "test_llm_judge_openai",

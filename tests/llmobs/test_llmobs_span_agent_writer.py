@@ -12,6 +12,7 @@ from tests.llmobs._utils import _large_event
 from tests.llmobs._utils import _oversized_llm_event
 from tests.llmobs._utils import _oversized_retrieval_event
 from tests.llmobs._utils import _oversized_workflow_event
+from tests.utils import override_global_config
 
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
@@ -68,9 +69,21 @@ def test_truncating_oversized_events(mock_send_payload, mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200729),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200469),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200450),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200729,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200469,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200450,
+                5000000,
+            ),
         ]
     )
 
@@ -104,3 +117,27 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
     llmobs_span_writer.enqueue(_chat_completion_event())
     time.sleep(0.1)
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+
+
+@mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
+def test_configurable_payload_size_limit(mock_send_payload, mock_writer_logs):
+    """DD_LLMOBS_PAYLOAD_SIZE_BYTES overrides the flush threshold."""
+    with override_global_config(dict(_llmobs_payload_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
+        llmobs_span_writer.enqueue(_completion_event())
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.debug.assert_any_call(
+        "manually flushing buffer because queueing next event will exceed EVP payload limit"
+    )
+
+
+def test_configurable_event_size_limit(mock_writer_logs):
+    """DD_LLMOBS_EVENT_SIZE_BYTES overrides the truncation threshold."""
+    with override_global_config(dict(_llmobs_event_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.warning.assert_called_once_with(
+        "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+        mock.ANY,
+        100,
+    )

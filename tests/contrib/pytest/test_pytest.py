@@ -108,18 +108,30 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None):
-        """Execute test script with test tracer."""
+    def inline_run(
+        self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None, expect_enabled=True
+    ):
+        """Execute test script with test tracer.
+
+        When expect_enabled=False (e.g. testing a killswitch), the plugin skips the assertion that CI Visibility
+        initialized and the disable/re-enable dance — CI Visibility is left in whatever state the ddtrace plugin set it.
+        """
 
         class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-                        CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
+                    if expect_enabled:
+                        with _patch_dummy_writer():
+                            assert CIVisibility.enabled
+                            CIVisibility.disable()
+                            CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                            CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
+                    elif CIVisibility.enabled:
+                        with _patch_dummy_writer():
+                            CIVisibility.disable()
+                            CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                            CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
             @staticmethod
             def pytest_unconfigure(config):
