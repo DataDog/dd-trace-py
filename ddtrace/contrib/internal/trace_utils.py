@@ -29,7 +29,6 @@ from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -465,9 +464,8 @@ def set_http_meta(
                     SpanKind.CLIENT,
                     SpanKind.SERVER,
                 )
-                # Backward compat: fall back to span_type to determine the config
-                http_config = config._http_client if span.span_type == SpanTypes.HTTP else config._http_server
-            if http_config.is_error_code(int_status_code):
+                http_config = None
+            if http_config is not None and http_config.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
