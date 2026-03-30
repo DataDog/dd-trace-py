@@ -478,8 +478,9 @@ def test_ddtrace_auto_reprlib_stale_get_ident_picklable():
 
     stale_reprlib = reprlib
 
-    import ddtrace.auto  # noqa: F401
     import _thread
+
+    import ddtrace.auto  # noqa: F401
 
     assert stale_reprlib.get_ident is _thread.get_ident
     assert pickle.dumps(stale_reprlib.get_ident)

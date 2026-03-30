@@ -11,10 +11,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
-from ..utils import _extract_tracing_context_from_env
-from ..utils import _get_ray_service_name
-from ..utils import _inject_dd_trace_ctx_kwarg
-from ..utils import extract_signature
+from .utils import _extract_tracing_context_from_env
+from .utils import _get_ray_service_name
+from .utils import _inject_dd_trace_ctx_kwarg
+from .utils import extract_signature
 
 
 log = get_logger(__name__)

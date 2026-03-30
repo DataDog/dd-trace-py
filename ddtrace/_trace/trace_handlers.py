@@ -26,6 +26,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.grpc.constants import GRPC_STATUS_CODE_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -34,6 +35,10 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
+from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
+from ddtrace.contrib.internal.ray.core.utils import set_tag_or_truncate
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
@@ -1342,6 +1347,47 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
+    invocation_metadata = dict(grpc_context.invocation_metadata())
+    HTTPPropagator.inject(span.context, invocation_metadata)
+    grpc_context._invocation_metadata = list(invocation_metadata.items())
+
+
+def _on_ray_serve_request_metadata_inject(ctx: core.ExecutionContext, request_metadata: Any) -> None:
+    span = ctx.span
+    if span is None or request_metadata is None:
+        return
+
+    grpc_context = getattr(request_metadata, "grpc_context", None)
+    if getattr(request_metadata, "is_grpc_request", False) and grpc_context is not None:
+        _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+    else:
+        headers: dict[str, str] = {}
+        HTTPPropagator.inject(span.context, headers)
+        setattr(request_metadata, "_dd_trace_context_headers", headers)
+
+
+def _on_ray_serve_grpc_context_inject(ctx: core.ExecutionContext, grpc_context: Any) -> None:
+    span = ctx.span
+    if span is None or grpc_context is None:
+        return
+
+    _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+
+
+def _on_ray_serve_deployment_resource_set(
+    ctx: core.ExecutionContext, deployment_name: str, endpoint_name: str | None
+) -> None:
+    if endpoint_name is None:
+        return
+
+    span = ctx.span
+    if span is None:
+        return
+
+    span.resource = f"ServeDeployment:{deployment_name}.{endpoint_name}"
+
+
 def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
     span = ctx.span
@@ -1483,6 +1529,120 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 pass
 
 
+def _on_ray_assign_request(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+
+    span_type = SpanTypes.HTTP if request_meta is None or request_meta.is_http_request else SpanTypes.GRPC
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if request_meta is not None:
+        span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+    is_streaming = ctx.get_item("is_streaming")
+    if is_streaming is not None:
+        span._set_attribute("ray.serve.is_streaming", is_streaming)
+
+    handle_source = ctx.get_item("handle_source")
+    if handle_source:
+        span._set_attribute("ray.serve.handle_source", handle_source)
+
+
+def _on_ray_deployment_remote(ctx: core.ExecutionContext) -> None:
+    deployment_name = ctx.get_item("deployment_name")
+    app_name = ctx.get_item("app_name")
+    resource = f"ServeDeployment:{deployment_name}.remote" if deployment_name is not None else "deployment.remote"
+
+    span = _start_span(ctx, resource=resource)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if app_name:
+        span._set_attribute(RAY_APP_NAME, app_name)
+
+    if config.ray.trace_args_kwargs:
+        set_tag_or_truncate(span, RAY_DEPLOYMENT_ARGS, ctx.get_item("deployment_args"))
+        set_tag_or_truncate(span, RAY_DEPLOYMENT_KWARGS, ctx.get_item("deployment_kwargs"))
+
+
+def _on_ray_handle_request_with_rejection_start(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+    span_type = SpanTypes.HTTP if request_meta is None or request_meta.is_http_request else SpanTypes.GRPC
+
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+
+
+def _on_ray_handle_request_with_rejection_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        span = ctx.span
+        if span is None:
+            return
+
+        request_meta = ctx.get_item("request_meta")
+        if request_meta is not None:
+            span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+        replica_id = ctx.get_item("replica_id")
+        if replica_id is not None:
+            span._set_attribute("ray.serve.replica_id", replica_id)
+
+        request_rejected = ctx.get_item("ray_serve_request_rejected")
+        if request_rejected:
+            span.error = 1
+            span._set_attribute(ERROR_MSG, "Ray Serve request rejected by replica capacity check")
+    finally:
+        _finish_span(ctx, exc_info)
+
+
+def _on_proxy_request_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        response_status = ctx.get_item("response_status")
+        if response_status is None:
+            return
+
+        span = ctx.span
+        proxy_request = ctx.get_item("proxy_request") or ctx.get_item("request_item")
+        request_type = getattr(proxy_request, "request_type", None)
+        request_method = getattr(proxy_request, "method", None)
+        request_route = getattr(proxy_request, "route_path", None)
+        status_code = getattr(response_status, "code", None)
+
+        if request_type is not None:
+            span._set_attribute("ray.serve.request.type", request_type)
+
+        if request_type == "http":
+            trace_utils.set_http_meta(
+                span,
+                config.ray,
+                method=request_method,
+                route=request_route,
+                status_code=status_code,
+            )
+        else:
+            grpc_status = str(status_code)
+            span._set_attribute(GRPC_STATUS_CODE_KEY, grpc_status)
+            if getattr(response_status, "is_error", False):
+                span.error = 1
+                span._set_attribute(ERROR_TYPE, grpc_status)
+                error_message = getattr(response_status, "message", "")
+                if error_message:
+                    span._set_attribute(ERROR_MSG, error_message)
+    finally:
+        _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1576,6 +1736,18 @@ def listen():
     core.on("mlflow.end.step", _on_mlflow_end_step)
     core.on("mlflow.log", _on_mlflow_log)
 
+    # ray serve listener
+    core.on("ray.serve.request.metadata.inject", _on_ray_serve_request_metadata_inject)
+    core.on("ray.serve.grpc.context.inject", _on_ray_serve_grpc_context_inject)
+    core.on("ray.serve.deployment.resource.set", _on_ray_serve_deployment_resource_set)
+
+    core.on("context.started.ray.assign.request", _on_ray_assign_request)
+    core.on("context.started.ray.deployment.remote", _on_ray_deployment_remote)
+    core.on("context.started.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_start)
+
+    core.on("context.ended.ray.proxy.request", _on_proxy_request_end)
+    core.on("context.ended.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_end)
+
     for context_name in (
         # web frameworks
         "aiohttp.request",
@@ -1639,6 +1811,8 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "mlflow.run",
+        "ray.proxy.request",
+        "ray.serve.deployment",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1676,6 +1850,9 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "google_cloud_pubsub.receive",
+        "ray.assign.request",
+        "ray.deployment.remote",
+        "ray.serve.deployment",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

@@ -11,6 +11,13 @@ from ddtrace.contrib.internal.ray.core.api import traced_get
 from ddtrace.contrib.internal.ray.core.api import traced_put
 from ddtrace.contrib.internal.ray.core.api import traced_wait
 from ddtrace.contrib.internal.ray.core.remote_function import traced_submit_task
+from ddtrace.contrib.internal.ray.core.utils import get_dd_job_name_from_entrypoint
+from ddtrace.contrib.internal.ray.core.utils import redact_paths
+from ddtrace.contrib.internal.ray.serve import traced_assign_request
+from ddtrace.contrib.internal.ray.serve import traced_deployment_handle_remote
+from ddtrace.contrib.internal.ray.serve import traced_handle_request_with_rejection
+from ddtrace.contrib.internal.ray.serve import traced_proxy_request
+from ddtrace.contrib.internal.ray.serve import traced_serve_deployment
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -21,8 +28,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 from .constants import DEFAULT_JOB_NAME
-from .utils import get_dd_job_name_from_entrypoint
-from .utils import redact_paths
 
 
 log = get_logger(__name__)
@@ -161,6 +166,14 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    @ModuleWatchdog.after_module_imported("ray.serve")
+    def _(m):
+        _w(m, "deployment", traced_serve_deployment)
+        _w(m.handle.DeploymentHandle, "remote", traced_deployment_handle_remote)
+        _w(m._private.proxy.GenericProxy, "proxy_request", traced_proxy_request)
+        _w(m._private.router.AsyncioRouter, "assign_request", traced_assign_request)
+        _w(m._private.replica.ReplicaBase, "handle_request_with_rejection", traced_handle_request_with_rejection)
+
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
     _w(ray, "put", traced_put)
@@ -181,5 +194,11 @@ def unpatch():
     _u(ray, "get")
     _u(ray, "wait")
     _u(ray, "put")
+
+    _u(ray.serve, "deployment")
+    _u(ray.serve.handle.DeploymentHandle, "remote")
+    _u(ray.serve._private.proxy.GenericProxy, "proxy_request")
+    _u(ray.serve._private.router.AsyncioRouter, "assign_request")
+    _u(ray.serve._private.replica.ReplicaBase, "handle_request_with_rejection")
 
     ray._datadog_patch = False

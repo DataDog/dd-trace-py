@@ -23,20 +23,20 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.propagation.http import _TraceContext
 
-from .constants import DD_RAY_TRACE_CTX
-from .constants import DEFAULT_JOB_NAME
-from .constants import RAY_ACTOR_ID
-from .constants import RAY_HOSTNAME
-from .constants import RAY_JOB_ID
-from .constants import RAY_JOB_NAME
-from .constants import RAY_METADATA_PREFIX
-from .constants import RAY_NODE_ID
-from .constants import RAY_SUBMISSION_ID
-from .constants import RAY_SUBMISSION_ID_TAG
-from .constants import RAY_TASK_ID
-from .constants import RAY_WORKER_ID
-from .constants import REDACTED_PATH
-from .constants import REDACTED_VALUE
+from ..constants import DD_RAY_TRACE_CTX
+from ..constants import DEFAULT_JOB_NAME
+from ..constants import RAY_ACTOR_ID
+from ..constants import RAY_HOSTNAME
+from ..constants import RAY_JOB_ID
+from ..constants import RAY_JOB_NAME
+from ..constants import RAY_METADATA_PREFIX
+from ..constants import RAY_NODE_ID
+from ..constants import RAY_SUBMISSION_ID
+from ..constants import RAY_SUBMISSION_ID_TAG
+from ..constants import RAY_TASK_ID
+from ..constants import RAY_WORKER_ID
+from ..constants import REDACTED_PATH
+from ..constants import REDACTED_VALUE
 
 
 # The job name regex serves to convert a submission ID in the format job:train_my_model,run:1758573287

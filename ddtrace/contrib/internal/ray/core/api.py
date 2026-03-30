@@ -3,8 +3,8 @@ import sys
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.contrib._events.ray import RayCoreAPIEvent
-from ddtrace.contrib.internal.ray.utils import _extract_tracing_context_from_env
-from ddtrace.contrib.internal.ray.utils import _get_ray_service_name
+from ddtrace.contrib.internal.ray.core.utils import _extract_tracing_context_from_env
+from ddtrace.contrib.internal.ray.core.utils import _get_ray_service_name
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 

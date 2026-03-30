@@ -5,12 +5,13 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
-from typing import Union
 from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.asgi.utils import bytes_to_str
+from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -71,10 +72,6 @@ def get_version() -> str:
     return ""
 
 
-def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
-    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
-
-
 def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, str]:
     """
     Extract HTTP and ASGI version information from scope.
@@ -94,20 +91,6 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
         tags[ASGI_SPEC_VERSION] = scope_asgi["spec_version"]
 
     return tags
-
-
-def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
-    """
-    Extract and decode headers from ASGI scope.
-
-    ASGI headers are stored as byte strings; this method decodes them
-    to UTF-8 strings for easier processing.
-    """
-    headers = scope.get("headers")
-    if headers:
-        # headers: (Iterable[[byte string, byte string]])
-        return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
-    return {}
 
 
 def _default_handle_exception_span(exc, span):
@@ -202,7 +185,7 @@ class TraceMiddleware:
         else:
             return await self.app(scope, receive, send)
         try:
-            headers = _extract_headers(scope)
+            headers = extract_headers(scope)
         except Exception:
             log.warning("failed to decode headers for distributed tracing", exc_info=True)
             headers = {}
@@ -240,7 +223,7 @@ class TraceMiddleware:
                 self.span_modifier(span, scope)
 
             host_header = None
-            for key, value in _extract_headers(scope).items():
+            for key, value in extract_headers(scope).items():
                 if key.encode() == b"host":
                     try:
                         host_header = value
@@ -408,7 +391,7 @@ class TraceMiddleware:
                         self._handle_websocket_close_message(scope, message, span)
                         return await send(message)
 
-                    response_headers = _extract_headers(message)
+                    response_headers = extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
