@@ -14,7 +14,7 @@ benchmark-serverless:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
-  variables:
+  variables: 
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
