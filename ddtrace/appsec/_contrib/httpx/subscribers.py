@@ -25,7 +25,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
     event_names = (HttpClientEvents.HTTPX_REQUEST.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]):
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
         if not _get_rasp_capability("ssrf"):
             return
         asm_context = _get_asm_context()
@@ -40,7 +40,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         cls,
         ctx: core.ExecutionContext[HttpClientRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ):
+    ) -> None:
         exc_type, _, _ = exc_info
         if exc_type is not None:
             return
@@ -72,7 +72,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
     event_names = (HttpClientEvents.HTTPX_SEND_REQUEST.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[HttpClientSendEvent]):
+    def on_started(cls, ctx: core.ExecutionContext[HttpClientSendEvent]) -> None:
         if not _get_rasp_capability("ssrf"):
             return
 
@@ -106,7 +106,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
         cls,
         ctx: core.ExecutionContext[HttpClientSendEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ):
+    ) -> None:
         exc_type, _, _ = exc_info
         if exc_type is not None:
             return
