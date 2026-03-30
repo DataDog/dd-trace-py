@@ -568,11 +568,15 @@ class TestRunner:
             # Note: riot will run all instances for each hash (different commands, env vars, etc.)
             suite_success = True
 
-            # Phase 1: Build/verify venvs sequentially under a file lock.
-            # This prevents concurrent builds from fighting over shared resources
-            # (sccache, cargo installs, pip). The first build compiles Rust/C/Cython;
-            # subsequent builds are fast cache hits. If venvs are already built,
-            # riot detects this and the build phase completes near-instantly.
+            # Phase 1: Install test-package prefix dirs sequentially under a file lock.
+            # This prevents concurrent installs from fighting over shared resources.
+            # We pass -s (--skip-base-install) so riot does NOT re-invoke
+            # `pip install -e .` for the base venv — that was already done by
+            # `riot generate` (or a previous run-tests call). Without -s, riot
+            # unconditionally re-runs install_dev_pkg() on every invocation even
+            # when the base venv already has ddtrace installed, wasting several
+            # seconds per worker. The per-hash prefix directory (test dependencies)
+            # is still created here on first use; subsequent calls are near-instant.
             lock_path = self.root / ".riot" / ".build.lock"
             lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -583,6 +587,7 @@ class TestRunner:
                     "-v",
                     "run",
                     "--pass-env",
+                    "-s",
                     venv.hash,
                     "--",
                     "--collect-only",

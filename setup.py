@@ -681,6 +681,33 @@ class CleanLibraries(CleanCommand):
             CleanLibraries.remove_build_artifacts()
 
 
+def _purge_stale_cmake_caches(base_dir: Path) -> None:
+    """Delete CMake build/subbuild directories whose CMakeCache.txt was configured
+    at a different absolute path (e.g. host vs Docker path mismatch).
+
+    AIDEV-NOTE: .download_cache/_cmake_deps/ and .cmake_cache/ are shared between
+    the host and Docker (same mounted source tree, different absolute paths).
+    CMakeCache.txt stores the absolute path at configure time; if that differs
+    from the current path CMake hard-fails.  This function scans one level of
+    subdirectories, detects the mismatch via CMAKE_CACHEFILE_DIR, and removes
+    the stale directory so CMake can re-configure cleanly.
+    """
+    import re as _re
+
+    if not base_dir.is_dir():
+        return
+    for cache_file in base_dir.glob("*/CMakeCache.txt"):
+        subdir = cache_file.parent
+        try:
+            cache_text = cache_file.read_text()
+        except OSError:
+            continue
+        m = _re.search(r"^CMAKE_CACHEFILE_DIR:INTERNAL=(.+)$", cache_text, _re.MULTILINE)
+        if m and Path(m.group(1)).resolve() != subdir.resolve():
+            print(f"Stale CMake cache (configured at {m.group(1)!r}), clearing {subdir}")
+            shutil.rmtree(subdir, ignore_errors=True)
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
@@ -840,8 +867,8 @@ class CustomBuildExt(build_ext):
                 ).resolve()
             else:
                 cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+            _purge_stale_cmake_caches(cmake_build_dir.parent)
             cmake_build_dir.mkdir(parents=True, exist_ok=True)
-
             cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
 
             build_args = [f"--config {COMPILE_MODE}"]
@@ -1006,6 +1033,10 @@ class CustomBuildExt(build_ext):
         # a sibling directory to avoid polluting the final package
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
+
+        # Purge any FetchContent subbuilds whose CMakeCache.txt was configured at
+        # a different path (e.g. host macOS path vs Docker Linux path).
+        _purge_stale_cmake_caches(LibraryDownload.CACHE_DIR / "_cmake_deps")
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
