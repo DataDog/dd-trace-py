@@ -1053,11 +1053,11 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
-    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
-    def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
