@@ -164,6 +164,8 @@ class ProductManager:
                 continue
 
             try:
+                if not product.enabled():
+                    continue
                 product.restart(join=join)
                 log.debug("Restarted product '%s'", name)
             except Exception:
