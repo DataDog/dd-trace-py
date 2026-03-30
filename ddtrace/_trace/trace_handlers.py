@@ -238,7 +238,7 @@ def _on_web_framework_finish_request(
         status_code=status_code,
         query=query,
         request_headers=req_headers,
-        response_headers=res_headers,
+        response_headers=dict(res_headers) if res_headers is not None else None,
         route=route,
         **kwargs,
     )
