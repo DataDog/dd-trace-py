@@ -233,7 +233,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 operation_name,
                 span_type=conf.get("span_type"),
             ) as span:
-                set_service_and_source(span, trace_utils.ext_service(pin, config), config.vertica)
+                set_service_and_source(span, trace_utils.ext_service(pin, config), config)
                 span._set_attribute(COMPONENT, config.integration_name)
                 span._set_attribute(dbx.SYSTEM, "vertica")
 
