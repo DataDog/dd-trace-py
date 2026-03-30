@@ -126,7 +126,7 @@ from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
-from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator_with_scalar_result
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
@@ -1548,7 +1548,7 @@ class LLMObs(Service):
         if summary_evaluators and not all(
             callable(summary_evaluator)
             or isinstance(summary_evaluator, BaseSummaryEvaluator)
-            or _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator)
+            or _is_pydantic_report_evaluator(summary_evaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
@@ -1558,7 +1558,7 @@ class LLMObs(Service):
         if summary_evaluators is not None:
             summary_evaluators_list = list(summary_evaluators)
             for idx, summary_evaluator in enumerate(summary_evaluators_list):
-                if _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator):
+                if _is_pydantic_report_evaluator(summary_evaluator):
                     duration = 0
                     total_duration = 0
                     current_span = cls._instance._current_span()
@@ -1654,7 +1654,7 @@ class LLMObs(Service):
         if summary_evaluators and not all(
             callable(summary_evaluator)
             or isinstance(summary_evaluator, (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator))
-            or _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator)
+            or _is_pydantic_report_evaluator(summary_evaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
@@ -1664,7 +1664,7 @@ class LLMObs(Service):
         if summary_evaluators is not None:
             summary_evaluators_list = list(summary_evaluators)
             for idx, summary_evaluator in enumerate(summary_evaluators_list):
-                if _is_pydantic_report_evaluator_with_scalar_result(summary_evaluator):
+                if _is_pydantic_report_evaluator(summary_evaluator):
                     duration = 0
                     total_duration = 0
                     current_span = cls._instance._current_span()

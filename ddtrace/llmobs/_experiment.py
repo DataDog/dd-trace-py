@@ -10,7 +10,6 @@ import sys
 import time
 import traceback
 from typing import TYPE_CHECKING
-from typing import Annotated
 from typing import Any
 from typing import Awaitable
 from typing import Callable
@@ -21,9 +20,6 @@ from typing import Sequence
 from typing import TypedDict
 from typing import Union
 from typing import cast
-from typing import get_args
-from typing import get_origin
-from typing import get_type_hints
 from typing import overload
 
 
@@ -633,7 +629,7 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
     return isinstance(evaluator, PydanticEvaluator)
 
 
-def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
+def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator) with a scalar
     result.
     :param evaluator: The evaluator to check
@@ -641,26 +637,9 @@ def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
     """
     if PydanticReportEvaluator is None:
         return False
-    if not isinstance(evaluator, PydanticReportEvaluator):
-        return False
-    import types
-    from typing import Union
-
-    try:
-        hint = get_type_hints(evaluator.evaluate)["return"]
-    except KeyError:
-        return False
-    while get_origin(hint) is Annotated:
-        hint = get_args(hint)[0]
-    origin = get_origin(hint)
-    if origin is Union or (getattr(types, "UnionType", None) is not None and origin is types.UnionType):
-        members = get_args(hint)
-    else:
-        members = (hint,)
-    if len(members) != 1:
-        return False
-    only = members[0]
-    return only is PydanticScalarResult or (isinstance(only, type) and issubclass(only, PydanticScalarResult))
+    if isinstance(evaluator, PydanticReportEvaluator):
+        return True
+    return False
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -974,6 +953,8 @@ if PydanticEvaluator is not None:
                 experiment_metadata=eval_context.metadata,
             )
             result = evaluator.evaluate(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise ValueError("Pydantic report evaluator returned a non-scalar result")
             return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
@@ -1067,6 +1048,8 @@ if PydanticEvaluator is not None:
                 experiment_metadata=eval_context.metadata,
             )
             result = await evaluator.evaluate_async(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise ValueError("Pydantic report evaluator returned a non-scalar result")
             return result.value
 
         wrapped_evaluator.__name__ = evaluator.get_serialization_name()
