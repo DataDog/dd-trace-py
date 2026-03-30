@@ -26,7 +26,7 @@ import subprocess
 import typing as t
 
 
-MAX_BENCHMARKS_PER_GROUP = 6
+MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
@@ -533,50 +533,6 @@ def gen_build_base_venvs() -> None:
                 nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
             )
         )
-
-
-def gen_debugger_exploration() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because it depends
-    on the cached testrunner job, which is also generated dynamically.
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/debugging/exploration.yml",
-            "ddtrace/debugging/*",
-            "ddtrace/internal/bytecode_injection/__init__.py",
-            "ddtrace/internal/wrapping/context.py",
-            "tests/debugging/exploration/*",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("debugging/exploration"))
-
-
-def gen_detect_global_locks() -> None:
-    """Generate the global lock detection job."""
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            "ddtrace/*",
-            "setup.py",
-            "setup.cfg",
-            "pyproject.toml",
-            "src/native/*",
-            "scripts/global-lock-detection.py",
-            ".gitlab/templates/detect-global-locks.yml",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("detect-global-locks"))
 
 
 # -----------------------------------------------------------------------------
