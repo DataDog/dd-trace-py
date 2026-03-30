@@ -378,17 +378,10 @@ download_dependency_wheels:
       - "pywheels/*.whl"
 
 # Aggregate and validate all built wheels
-"ddtrace package":
+.package_base:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
-  needs:
-    - "build linux"
-    - "build linux serverless"
-    - "build macos"
-    - "build sdist"
-    - "collect windows wheels"
-    - "package version"
   script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
     - .gitlab/validate-ddtrace-package.py pywheels
@@ -396,3 +389,18 @@ download_dependency_wheels:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
+
+"ddtrace package":
+  extends: .package_base
+  needs:
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "collect windows wheels"
+    - "package version"
+
+"ddtrace package serverless":
+  extends: .package_base
+  needs:
+    - "build linux serverless"
+    - "package version"
