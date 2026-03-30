@@ -1,0 +1,353 @@
+[[
+  {
+    "name": "requests.request",
+    "service": "requests",
+    "resource": "GET /error",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "project",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69d8b92e00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:project",
+      "component": "requests",
+      "http.method": "GET",
+      "http.status_code": "500",
+      "http.url": "http://127.0.0.1:8000/error",
+      "http.useragent": "python-requests/2.33.1",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "fd70752392c4457ea22537c994462b90",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 25804.0
+    },
+    "duration": 17414083,
+    "start": 1775810862681177549
+  },
+     {
+       "name": "proxy_request",
+       "service": "ray._private.workers",
+       "resource": "GET /",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 1,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "69d8b92e00000000",
+         "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+         "http.method": "GET",
+         "http.route": "/error",
+         "http.status_code": "500",
+         "language": "python",
+         "ray.serve.request.type": "http",
+         "runtime-id": "6e292c5f6dab4b0c8db8609c206c02f4",
+         "tracestate": "dd=p:373dbde5882b521d;s:1;t.dm:-0;t.tid:69d8b92e00000000"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "process_id": 26386.0
+       },
+       "duration": 22193167,
+       "start": 1775810862682201090
+     },
+        {
+          "name": "deployment.remote",
+          "service": "ray._private.workers",
+          "resource": "ServeDeployment:Ingress.remote",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "69d8b92e00000000",
+            "component": "ray",
+            "ray.serve.app_name": "default"
+          },
+          "duration": 160750,
+          "start": 1775810862682350465
+        },
+           {
+             "name": "Router.assign_request",
+             "service": "ray._private.workers",
+             "resource": "Router.assign_request",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "http",
+             "error": 0,
+             "meta": {
+               "_dd.p.tid": "69d8b92e00000000",
+               "component": "ray",
+               "ray.serve.handle_source": "PROXY",
+               "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+               "runtime-id": "6e292c5f6dab4b0c8db8609c206c02f4"
+             },
+             "metrics": {
+               "_dd.top_level": 1.0,
+               "process_id": 26386.0,
+               "ray.serve.is_streaming": 1.0
+             },
+             "duration": 2234000,
+             "start": 1775810862682729132
+           },
+              {
+                "name": "handle_request_with_rejection",
+                "service": "ray._private.workers",
+                "resource": "handle_request_with_rejection",
+                "trace_id": 0,
+                "span_id": 5,
+                "parent_id": 4,
+                "type": "http",
+                "error": 1,
+                "meta": {
+                  "_dd.p.dm": "-0",
+                  "_dd.p.tid": "69d8b92e00000000",
+                  "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+                  "component": "ray",
+                  "error.message": "\u001b[36mray::ServeReplica:default:ClassDeployment.handle_request_with_rejection()\u001b[39m (pid=26388, ip=192.168.65.3, actor_id=c390239fdc3db674cc4cef8b01000000, repr=<ray.serve._private.replica.ServeReplica:default:ClassDeployment object at 0xfffcafcbecf0>)\n    async for result in self._replica_impl.handle_request_with_rejection(\n    ...<8 lines>...\n            yield result\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1373, in handle_request_with_rejection\n    yield await self._user_callable_wrapper.call_user_method(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        request_metadata, request_args, request_kwargs\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3339, in call_user_method\n    result, _ = await self._call_func_or_gen(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2833, in _call_func_or_gen\n    result = callable(*args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1358, in handle_request_with_rejection\n    async for msgs in self._user_callable_wrapper.call_http_entrypoint(\n    ...<5 lines>...\n        yield pickle.dumps(msgs)\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3105, in call_http_entrypoint\n    async for messages in result_queue.fetch_messages_from_queue(call_future):\n    ...<13 lines>...\n        yield messages\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/http_util.py\", line 315, in fetch_messages_from_queue\n    raise e from None\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3159, in _call_http_entrypoint\n    result, sync_gen_consumed = await self._call_func_or_gen(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<5 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2835, in _call_func_or_gen\n    result = await result\n             ^^^^^^^^^^^^\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 230, in _traced_async\n    result = await method(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 65, in __call__\n    return (await class_response) + (await func_response)\n            ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/handle.py\", line 489, in __await__\n    result = yield from replica_result.get_async().__await__()\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica_result.py\", line 134, in async_wrapper\n    return await f(self, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica_result.py\", line 187, in get_async\n    return await (await self.to_object_ref_async())\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::ServeReplica:default:ClassDeployment.handle_request_with_rejection()\u001b[39m (pid=26388, ip=192.168.65.3, actor_id=c390239fdc3db674cc4cef8b01000000, repr=<ray.serve._private.replica.ServeReplica:default:ClassDeployment object at 0xfffcafcbecf0>)\n    async for result in self._replica_impl.handle_request_with_rejection(\n    ...<8 lines>...\n            yield result\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1373, in handle_request_with_rejection\n    yield await self._user_callable_wrapper.call_user_method(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        request_metadata, request_args, request_kwargs\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3339, in call_user_method\n    result, _ = await self._call_func_or_gen(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2833, in _call_func_or_gen\n    result = callable(*args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path\n",
+                  "error.type": "ray.exceptions.RayTaskError(ValueError)",
+                  "language": "python",
+                  "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#9vfse9fq",
+                  "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                  "runtime-id": "48c19424da4f4ed495fcde4a7d10fa3f",
+                  "tracestate": "dd=p:2aeafb5c2cade047;s:1;t.dm:-0;t.tid:69d8b92e00000000"
+                },
+                "metrics": {
+                  "_dd.top_level": 1.0,
+                  "_dd.tracer_kr": 1.0,
+                  "_sampling_priority_v1": 1.0,
+                  "process_id": 26389.0
+                },
+                "duration": 17403541,
+                "start": 1775810862684085299
+              },
+                 {
+                   "name": "deployment.method_execution",
+                   "service": "ray._private.workers",
+                   "resource": "ServeDeployment:Ingress.invoke",
+                   "trace_id": 0,
+                   "span_id": 6,
+                   "parent_id": 5,
+                   "type": "",
+                   "error": 1,
+                   "meta": {
+                     "_dd.p.tid": "69d8b92e00000000",
+                     "component": "ray",
+                     "error.message": "\u001b[36mray::ServeReplica:default:ClassDeployment.handle_request_with_rejection()\u001b[39m (pid=26388, ip=192.168.65.3, actor_id=c390239fdc3db674cc4cef8b01000000, repr=<ray.serve._private.replica.ServeReplica:default:ClassDeployment object at 0xfffcafcbecf0>)\n    async for result in self._replica_impl.handle_request_with_rejection(\n    ...<8 lines>...\n            yield result\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1373, in handle_request_with_rejection\n    yield await self._user_callable_wrapper.call_user_method(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        request_metadata, request_args, request_kwargs\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3339, in call_user_method\n    result, _ = await self._call_func_or_gen(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2833, in _call_func_or_gen\n    result = callable(*args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path",
+                     "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 230, in _traced_async\n    result = await method(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 65, in __call__\n    return (await class_response) + (await func_response)\n            ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/handle.py\", line 489, in __await__\n    result = yield from replica_result.get_async().__await__()\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica_result.py\", line 134, in async_wrapper\n    return await f(self, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica_result.py\", line 187, in get_async\n    return await (await self.to_object_ref_async())\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nray.exceptions.RayTaskError(ValueError): \u001b[36mray::ServeReplica:default:ClassDeployment.handle_request_with_rejection()\u001b[39m (pid=26388, ip=192.168.65.3, actor_id=c390239fdc3db674cc4cef8b01000000, repr=<ray.serve._private.replica.ServeReplica:default:ClassDeployment object at 0xfffcafcbecf0>)\n    async for result in self._replica_impl.handle_request_with_rejection(\n    ...<8 lines>...\n            yield result\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1373, in handle_request_with_rejection\n    yield await self._user_callable_wrapper.call_user_method(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        request_metadata, request_args, request_kwargs\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3339, in call_user_method\n    result, _ = await self._call_func_or_gen(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2833, in _call_func_or_gen\n    result = callable(*args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path\n",
+                     "error.type": "ray.exceptions.RayTaskError(ValueError)",
+                     "ray.serve.app_name": "default",
+                     "ray.serve.call_method": "invoke",
+                     "ray.serve.deployment": "Ingress",
+                     "ray.serve.replica_id": "SERVE_REPLICA::default#Ingress#9vfse9fq",
+                     "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                     "ray.serve.route": "/"
+                   },
+                   "duration": 12022292,
+                   "start": 1775810862684701132
+                 },
+                    {
+                      "name": "deployment.remote",
+                      "service": "ray._private.workers",
+                      "resource": "ServeDeployment:ClassDeployment.remote",
+                      "trace_id": 0,
+                      "span_id": 7,
+                      "parent_id": 6,
+                      "type": "",
+                      "error": 0,
+                      "meta": {
+                        "_dd.p.tid": "69d8b92e00000000",
+                        "component": "ray",
+                        "ray.serve.app_name": "default"
+                      },
+                      "duration": 150583,
+                      "start": 1775810862684782049
+                    },
+                       {
+                         "name": "Router.assign_request",
+                         "service": "ray._private.workers",
+                         "resource": "Router.assign_request",
+                         "trace_id": 0,
+                         "span_id": 9,
+                         "parent_id": 7,
+                         "type": "grpc",
+                         "error": 0,
+                         "meta": {
+                           "_dd.p.tid": "69d8b92e00000000",
+                           "component": "ray",
+                           "ray.serve.handle_source": "REPLICA",
+                           "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                           "runtime-id": "48c19424da4f4ed495fcde4a7d10fa3f"
+                         },
+                         "metrics": {
+                           "_dd.top_level": 1.0,
+                           "process_id": 26389.0,
+                           "ray.serve.is_streaming": 0.0
+                         },
+                         "duration": 2548875,
+                         "start": 1775810862685369007
+                       },
+                          {
+                            "name": "handle_request_with_rejection",
+                            "service": "ray._private.workers",
+                            "resource": "handle_request_with_rejection",
+                            "trace_id": 0,
+                            "span_id": 11,
+                            "parent_id": 9,
+                            "type": "grpc",
+                            "error": 1,
+                            "meta": {
+                              "_dd.p.dm": "-0",
+                              "_dd.p.tid": "69d8b92e00000000",
+                              "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+                              "component": "ray",
+                              "error.message": "ClassDeployment forced error for /error path",
+                              "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 155, in traced_handle_request_with_rejection\n    async for value in async_generator:\n    ...<4 lines>...\n        yield value\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1378, in handle_request_with_rejection\n    raise self._maybe_wrap_grpc_exception(e, request_metadata) from e\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 1373, in handle_request_with_rejection\n    yield await self._user_callable_wrapper.call_user_method(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        request_metadata, request_args, request_kwargs\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 3339, in call_user_method\n    result, _ = await self._call_func_or_gen(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<4 lines>...\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_fastapi_ray[serve]/lib/python3.13/site-packages/ray/serve/_private/replica.py\", line 2833, in _call_func_or_gen\n    result = callable(*args, **kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path\n",
+                              "error.type": "builtins.ValueError",
+                              "language": "python",
+                              "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#m37zp9ne",
+                              "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                              "runtime-id": "ea65f7660903487283abe5dece2c536c",
+                              "tracestate": "dd=p:d3c51e8e0515408d;s:1;t.dm:-0;t.tid:69d8b92e00000000"
+                            },
+                            "metrics": {
+                              "_dd.top_level": 1.0,
+                              "_dd.tracer_kr": 1.0,
+                              "_sampling_priority_v1": 1.0,
+                              "process_id": 26388.0
+                            },
+                            "duration": 4822833,
+                            "start": 1775810862687090674
+                          },
+                             {
+                               "name": "deployment.method_execution",
+                               "service": "ray._private.workers",
+                               "resource": "ServeDeployment:ClassDeployment.invoke",
+                               "trace_id": 0,
+                               "span_id": 13,
+                               "parent_id": 11,
+                               "type": "",
+                               "error": 1,
+                               "meta": {
+                                 "_dd.p.tid": "69d8b92e00000000",
+                                 "component": "ray",
+                                 "error.message": "ClassDeployment forced error for /error path",
+                                 "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/serve/__init__.py\", line 249, in _traced_sync\n    return method(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/serve/test_ray_serve.py\", line 46, in __call__\n    raise ValueError(\"ClassDeployment forced error for /error path\")\nValueError: ClassDeployment forced error for /error path\n",
+                                 "error.type": "builtins.ValueError",
+                                 "ray.serve.app_name": "default",
+                                 "ray.serve.call_method": "invoke",
+                                 "ray.serve.deployment": "ClassDeployment",
+                                 "ray.serve.replica_id": "SERVE_REPLICA::default#ClassDeployment#m37zp9ne",
+                                 "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                                 "ray.serve.route": "/"
+                               },
+                               "duration": 1703709,
+                               "start": 1775810862687660590
+                             },
+                    {
+                      "name": "deployment.remote",
+                      "service": "ray._private.workers",
+                      "resource": "ServeDeployment:FunctionDeployment.remote",
+                      "trace_id": 0,
+                      "span_id": 8,
+                      "parent_id": 6,
+                      "type": "",
+                      "error": 0,
+                      "meta": {
+                        "_dd.p.tid": "69d8b92e00000000",
+                        "component": "ray",
+                        "ray.serve.app_name": "default"
+                      },
+                      "duration": 68375,
+                      "start": 1775810862684956674
+                    },
+                       {
+                         "name": "Router.assign_request",
+                         "service": "ray._private.workers",
+                         "resource": "Router.assign_request",
+                         "trace_id": 0,
+                         "span_id": 10,
+                         "parent_id": 8,
+                         "type": "grpc",
+                         "error": 0,
+                         "meta": {
+                           "_dd.p.tid": "69d8b92e00000000",
+                           "component": "ray",
+                           "ray.serve.handle_source": "REPLICA",
+                           "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                           "runtime-id": "48c19424da4f4ed495fcde4a7d10fa3f"
+                         },
+                         "metrics": {
+                           "_dd.top_level": 1.0,
+                           "process_id": 26389.0,
+                           "ray.serve.is_streaming": 0.0
+                         },
+                         "duration": 2928000,
+                         "start": 1775810862685577257
+                       },
+                          {
+                            "name": "handle_request_with_rejection",
+                            "service": "ray._private.workers",
+                            "resource": "handle_request_with_rejection",
+                            "trace_id": 0,
+                            "span_id": 12,
+                            "parent_id": 10,
+                            "type": "grpc",
+                            "error": 0,
+                            "meta": {
+                              "_dd.p.dm": "-0",
+                              "_dd.p.tid": "69d8b92e00000000",
+                              "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+                              "component": "ray",
+                              "language": "python",
+                              "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#u5b2v8zd",
+                              "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                              "runtime-id": "b510edbef3b14bc08859bfbe6fbb76ea",
+                              "tracestate": "dd=p:4544ab3dd801e846;s:1;t.dm:-0;t.tid:69d8b92e00000000"
+                            },
+                            "metrics": {
+                              "_dd.top_level": 1.0,
+                              "_dd.tracer_kr": 1.0,
+                              "_sampling_priority_v1": 1.0,
+                              "process_id": 26387.0
+                            },
+                            "duration": 1081208,
+                            "start": 1775810862687309549
+                          },
+                             {
+                               "name": "deployment.method_execution",
+                               "service": "ray._private.workers",
+                               "resource": "ServeDeployment:FunctionDeployment.invoke",
+                               "trace_id": 0,
+                               "span_id": 14,
+                               "parent_id": 12,
+                               "type": "",
+                               "error": 0,
+                               "meta": {
+                                 "_dd.p.tid": "69d8b92e00000000",
+                                 "component": "ray",
+                                 "ray.serve.app_name": "default",
+                                 "ray.serve.call_method": "invoke",
+                                 "ray.serve.deployment": "FunctionDeployment",
+                                 "ray.serve.replica_id": "SERVE_REPLICA::default#FunctionDeployment#u5b2v8zd",
+                                 "ray.serve.request_id": "7058fab0-44e7-45c2-a1da-fc1ccd3faf3a",
+                                 "ray.serve.route": "/"
+                               },
+                               "duration": 42833,
+                               "start": 1775810862687838799
+                             }]]

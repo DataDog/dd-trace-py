@@ -1100,6 +1100,18 @@ suites:
       - tests/contrib/ray/*
       - tests/snapshots/tests.contrib.ray.*
     snapshot: true
+  ray_serve:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ray'
+      - tests/contrib/ray/serve/test_ray_serve.py
+      - tests/snapshots/tests.contrib.ray.*
+    pattern: ^ray_serve$
+    snapshot: true
   redis:
     parallelism: 5
     paths:

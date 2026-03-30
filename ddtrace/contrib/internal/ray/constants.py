@@ -49,3 +49,9 @@ DD_WAS_LONG_RUNNING = "_dd.was_long_running"
 # Special values
 REDACTED_VALUE = "<redacted>"
 REDACTED_PATH = "<redacted/path/to>"
+
+# ray serve
+
+RAY_APP_NAME = "ray.serve.app_name"
+RAY_DEPLOYMENT_ARGS = "ray.serve.deployment.args"
+RAY_DEPLOYMENT_KWARGS = "ray.serve.deployment.kwargs"
