@@ -570,7 +570,7 @@ if PydanticReportEvaluator is not None:
         PydanticReportEvaluator,
     ]
 else:
-    SummaryEvaluatorType = Union[
+    SummaryEvaluatorType = Union[  # type: ignore[misc]
         Callable[
             [
                 Sequence[JSONType],
@@ -582,7 +582,7 @@ else:
         ],
         BaseSummaryEvaluator,
     ]
-    AsyncSummaryEvaluatorType = Union[
+    AsyncSummaryEvaluatorType = Union[  # type: ignore[misc]
         Callable[
             [
                 Sequence[JSONType],
