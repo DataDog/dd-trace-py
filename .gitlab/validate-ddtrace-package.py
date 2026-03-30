@@ -47,6 +47,8 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform, ""))
+        for platform in SERVERLESS_PLATFORMS:
+            expected.add((version, py_tag, platform, "_serverless"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
             expected.add((version, py_tag, "win_arm64", ""))
@@ -55,7 +57,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
 
 def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
-    package_name = f"ddtrace{flavor.replace('-', '_')}"
+    package_name = f"ddtrace{flavor}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
@@ -101,7 +103,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
-            flavor = name.replace("ddtrace", "").replace("_", "-")
+            flavor = name.replace("ddtrace", "")
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
