@@ -292,10 +292,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
-                ),
-                Venv(
-                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
@@ -2953,8 +2949,9 @@ venv = Venv(
             pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(
+                    # mysqlclient ~=2.0 only tested on 3.9
                     pys="3.9",
-                    pkgs={"mysqlclient": ["~=2.0", "~=2.1", latest]},
+                    pkgs={"mysqlclient": ["~=2.0"]},
                 ),
                 Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
