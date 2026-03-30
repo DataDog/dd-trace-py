@@ -1894,10 +1894,6 @@ venv = Venv(
                 Venv(
                     pys="3.9",
                     pkgs={
-                        "pytest": [
-                            ">=6.0,<7.0",
-                            latest,
-                        ],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
@@ -2023,11 +2019,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
-                "pytest-bdd": [
-                    ">=4.0,<5.0",
-                    # FIXME: add support for v6.1
-                    ">=6.0,<6.1",
-                ],
             },
             env={
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
@@ -2322,10 +2313,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-randomly": latest,
-                "aiohttp": [
-                    "~=3.7",
-                    latest,
-                ],
                 "yarl": "~=1.0",
             },
             venvs=[
@@ -2345,6 +2332,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                         "pytest-aiohttp": ["==1.0.5"],
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
                 Venv(
@@ -2352,6 +2340,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": [">=1.0.0"],
                         "pytest-aiohttp": latest,
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
             ],
