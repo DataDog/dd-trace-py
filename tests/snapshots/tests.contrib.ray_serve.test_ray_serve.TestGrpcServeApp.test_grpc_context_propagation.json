@@ -1,0 +1,178 @@
+[[
+  {
+    "name": "test.grpc_parent",
+    "service": "tests.contrib.ray_serve",
+    "resource": "test.grpc_parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a01ffd600000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray_serve",
+      "language": "python",
+      "runtime-id": "5fb4484aaf7e4785961dc29f21a00831"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 27563500,
+    "start": 1778515926682363471
+  },
+     {
+       "name": "grpc",
+       "service": "grpc-client",
+       "resource": "/ray.serve.UserDefinedService/__call__",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "grpc",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.ray_serve",
+         "_dd.svc_src": "grpc",
+         "component": "grpc",
+         "grpc.host": "127.0.0.1",
+         "grpc.method.kind": "unary",
+         "grpc.method.name": "__call__",
+         "grpc.method.package": "ray.serve",
+         "grpc.method.path": "/ray.serve.UserDefinedService/__call__",
+         "grpc.method.service": "UserDefinedService",
+         "grpc.status.code": "StatusCode.OK",
+         "network.destination.ip": "127.0.0.1",
+         "network.destination.port": "9000",
+         "rpc.service": "ray.serve.UserDefinedService",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 11091708,
+       "start": 1778515926698753888
+     },
+        {
+          "name": "proxy_request",
+          "service": "ray._private.workers",
+          "resource": "/ray.serve.UserDefinedService/__call__",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "grpc",
+          "error": 0,
+          "meta": {
+            "_dd.p.dm": "-0",
+            "_dd.p.tid": "6a01ffd600000000",
+            "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+            "component": "ray",
+            "grpc.status.code": "StatusCode.OK",
+            "language": "python",
+            "ray.serve.request.type": "grpc",
+            "runtime-id": "bd33c747f53e40799418bf4c333378a6",
+            "tracestate": "dd=p:f28ed12a11d56d25;s:1;t.dm:-0;t.tid:6a01ffd600000000"
+          },
+          "metrics": {
+            "_dd.top_level": 1.0,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1.0,
+            "process_id": 1780.0
+          },
+          "duration": 7431500,
+          "start": 1778515926701446555
+        },
+           {
+             "name": "deployment.remote",
+             "service": "ray._private.workers",
+             "resource": "ServeDeployment:TraceIDDeployment.remote",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "ray",
+             "error": 0,
+             "meta": {
+               "_dd.p.tid": "6a01ffd600000000",
+               "component": "ray",
+               "ray.serve.app_name": "default"
+             },
+             "duration": 183875,
+             "start": 1778515926701928638
+           },
+              {
+                "name": "Router.assign_request",
+                "service": "ray._private.workers",
+                "resource": "Router.assign_request",
+                "trace_id": 0,
+                "span_id": 5,
+                "parent_id": 4,
+                "type": "grpc",
+                "error": 0,
+                "meta": {
+                  "_dd.p.tid": "6a01ffd600000000",
+                  "component": "ray",
+                  "ray.serve.request_id": "dfadecdb-f563-4121-92e3-7d375dd27731",
+                  "runtime-id": "bd33c747f53e40799418bf4c333378a6"
+                },
+                "metrics": {
+                  "_dd.top_level": 1.0,
+                  "process_id": 1780.0,
+                  "ray.serve.is_streaming": 0.0
+                },
+                "duration": 3516792,
+                "start": 1778515926702388888
+              },
+                 {
+                   "name": "handle_request_with_rejection",
+                   "service": "ray._private.workers",
+                   "resource": "handle_request_with_rejection",
+                   "trace_id": 0,
+                   "span_id": 6,
+                   "parent_id": 5,
+                   "type": "grpc",
+                   "error": 0,
+                   "meta": {
+                     "_dd.p.dm": "-0",
+                     "_dd.p.tid": "6a01ffd600000000",
+                     "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
+                     "component": "ray",
+                     "language": "python",
+                     "ray.serve.replica_id": "SERVE_REPLICA::default#TraceIDDeployment#tdzdlmpn",
+                     "ray.serve.request_id": "dfadecdb-f563-4121-92e3-7d375dd27731",
+                     "runtime-id": "cf4163f77ff94568a250796739e987f1",
+                     "tracestate": "dd=p:906b400f2945f2b0;s:1;t.dm:-0;t.tid:6a01ffd600000000"
+                   },
+                   "metrics": {
+                     "_dd.top_level": 1.0,
+                     "_dd.tracer_kr": 1.0,
+                     "_sampling_priority_v1": 1.0,
+                     "process_id": 1840.0
+                   },
+                   "duration": 3867792,
+                   "start": 1778515926704298638
+                 },
+                    {
+                      "name": "deployment.method_execution",
+                      "service": "ray._private.workers",
+                      "resource": "ServeDeployment:TraceIDDeployment.invoke",
+                      "trace_id": 0,
+                      "span_id": 7,
+                      "parent_id": 6,
+                      "type": "ray",
+                      "error": 0,
+                      "meta": {
+                        "_dd.p.tid": "6a01ffd600000000",
+                        "component": "ray",
+                        "ray.serve.app_name": "default",
+                        "ray.serve.call_method": "invoke",
+                        "ray.serve.deployment": "TraceIDDeployment",
+                        "ray.serve.replica_id": "SERVE_REPLICA::default#TraceIDDeployment#tdzdlmpn",
+                        "ray.serve.request_id": "dfadecdb-f563-4121-92e3-7d375dd27731",
+                        "ray.serve.route": "default"
+                      },
+                      "duration": 85500,
+                      "start": 1778515926707372805
+                    }]]

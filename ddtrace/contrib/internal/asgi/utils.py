@@ -36,6 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import asyncio
 import inspect
+from typing import Any
+from typing import Mapping
+from typing import Union
 
 
 def is_double_callable(application):
@@ -81,3 +84,15 @@ def guarantee_single_callable(application):
     if is_double_callable(application):
         application = double_to_single_callable(application)
     return application
+
+
+def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
+    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
+
+
+def extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
+    headers = scope.get("headers")
+    if headers:
+        # headers: (Iterable[[byte string, byte string]])
+        return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
+    return {}
