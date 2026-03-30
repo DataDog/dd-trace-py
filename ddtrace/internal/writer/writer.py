@@ -962,8 +962,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_env(config.env)
         if config.version:
             builder.set_app_version(config.version)
-        if process_tags.process_tags:
-            builder.set_process_tags(process_tags.process_tags)
+        if p_tags := process_tags.process_tags:
+            builder.set_process_tags(p_tags)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:
