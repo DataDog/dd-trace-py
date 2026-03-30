@@ -117,7 +117,7 @@ class JobSpec:
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
         lines.append("  cache:")
-        lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
+        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
         lines.append("    paths:")
         lines.append("      - .cache")
 
@@ -516,18 +516,12 @@ prechecks:
 
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
-    import ruamel.yaml
-
-    yaml = ruamel.yaml.YAML()
-    testrunner_cfg = yaml.load((GITLAB / "testrunner.yml").read_text())
-    testrunner_image = testrunner_cfg["variables"]["TESTRUNNER_IMAGE"]
-    testrunner_image_hash = hashlib.sha256(testrunner_image.encode()).hexdigest()[:16]
     with TESTS_GEN.open("a") as f:
         f.write(
             template(
                 "cached-testrunner",
                 current_month=datetime.datetime.now().month,
-                testrunner_image_hash=testrunner_image_hash,
+                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )
 
@@ -579,6 +573,15 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+
+# Compute a short hash of the testrunner image so cache keys are automatically
+# invalidated whenever the image changes (e.g. Python patch version bumps).
+import ruamel.yaml as _ruamel_yaml  # noqa: E402
+
+_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(
+    _testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()
+).hexdigest()[:16]
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
