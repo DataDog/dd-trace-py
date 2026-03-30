@@ -19,6 +19,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <tuple>
 
 using namespace Datadog;
 
@@ -345,6 +346,18 @@ Sampler::set_interval(double new_interval_s)
 Sampler::Sampler()
   : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
+}
+
+Sampler::~Sampler()
+{
+    stop();
+    if (thread_running.load()) {
+        // The sampling thread is still alive after the timeout in Sampler::stop.
+        // Leak the EchionSampler so the thread does not access destroyed
+        // data structures (StringTable, FrameCache, etc.) — this prevents
+        // possible segmentation faults at exit.
+        std::ignore = echion.release();
+    }
 }
 
 Sampler&
