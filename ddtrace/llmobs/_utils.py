@@ -520,8 +520,9 @@ def _annotate_llmobs_span_data(
         if input_documents is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
         if prompt is not None:
-            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = cast(Prompt, prompt)
-            span._set_ctx_item(INPUT_PROMPT, prompt)
+            existing_prompt = meta[LLMOBS_STRUCT.INPUT].setdefault(LLMOBS_STRUCT.PROMPT, {})
+            existing_prompt.update(cast(Prompt, prompt))
+            span._set_ctx_item(INPUT_PROMPT, existing_prompt)
         if output_messages is not None:
             if is_llm:
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
