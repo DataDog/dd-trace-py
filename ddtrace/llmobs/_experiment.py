@@ -41,11 +41,9 @@ except ImportError:
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
     from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
-    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 except ImportError:
     PydanticEvaluator = None
     PydanticReportEvaluator = None
-    PydanticScalarResult = None
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -764,6 +762,7 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
     from pydantic_evals.reporting import ReportCase as PydanticReportCase
+    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
