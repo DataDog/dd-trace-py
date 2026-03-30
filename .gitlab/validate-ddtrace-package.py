@@ -169,6 +169,7 @@ def main(args: argparse.Namespace) -> None:
     print()
 
     # Phase 2: SDist Validation
+    sdist_ok = False
     if args.mode != "serverless":
         print("[Phase 2] SDist Validation")
         sdist_ok, sdist_msg, sdist_name = validate_sdist(wheels_dir, package_version)
