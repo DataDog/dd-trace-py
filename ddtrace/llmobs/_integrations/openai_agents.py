@@ -135,12 +135,14 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         trace_info = self._llmobs_get_trace_info(oai_span)
         if not trace_info:
             return
-        if oai_span.span_type == "agent" and str(get_llmobs_parent_id(llmobs_span)) == trace_info.span_id:
+        parent_id = get_llmobs_parent_id(llmobs_span)
+        if oai_span.span_type == "agent" and parent_id is not None and str(parent_id) == trace_info.span_id:
             trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
         if (
             oai_span.span_type == "response"
+            and parent_id is not None
             and not trace_info.input_oai_span
-            and str(get_llmobs_parent_id(llmobs_span)) == trace_info.current_top_level_agent_span_id
+            and str(parent_id) == trace_info.current_top_level_agent_span_id
         ):
             trace_info.input_oai_span = oai_span
 
