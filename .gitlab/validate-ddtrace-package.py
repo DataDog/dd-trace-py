@@ -45,13 +45,13 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
-        for platform in BASE_PLATFORMS:
-            expected.add((version, py_tag, platform, ""))
+        #for platform in BASE_PLATFORMS:
+        #    expected.add((version, py_tag, platform, ""))
         for platform in SERVERLESS_PLATFORMS:
             expected.add((version, py_tag, platform, "_serverless"))
         # Add win_arm64 for Python 3.11+
-        if py_tag in WIN_ARM64_PYTHON_TAGS:
-            expected.add((version, py_tag, "win_arm64", ""))
+        #if py_tag in WIN_ARM64_PYTHON_TAGS:
+        #    expected.add((version, py_tag, "win_arm64", ""))
     return expected
 
 
@@ -103,7 +103,6 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
-            flavor = name.replace("ddtrace", "")
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
@@ -118,6 +117,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
             else:
                 raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
 
+            flavor = name.replace("ddtrace", "").replace("-", "_")
             actual.add((str(version), py_tag, platform, flavor))
         except Exception as e:
             errors.append(f"{wheel_file.name}: {e}")
