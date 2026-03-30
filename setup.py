@@ -1422,8 +1422,7 @@ setup(
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"]
-            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
