@@ -103,7 +103,6 @@ suites:
       - '@llmobs'
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
-    runner: riot
     snapshot: true
   langchain:
     parallelism: 6
@@ -227,4 +226,4 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
     snapshot: true
-    skip: true  # Temporarily disabled
+    skip: true # Temporarily disabled
