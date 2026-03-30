@@ -201,7 +201,7 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
 def expected_llmobs_code_execution_event(llmobs_event, span):
     assert llmobs_event == _expected_llmobs_non_llm_span_event(
         span=span,
-        span_kind="tool",
+        span_kind="code_execute",
         input_value='print("hello world")',
         output_value="hello world\n",
         metadata={},

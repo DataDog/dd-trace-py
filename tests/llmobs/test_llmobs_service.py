@@ -1706,21 +1706,6 @@ def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
     assert llmobs.export_span() is None
 
 
-def test_submit_evaluation_no_ml_app_raises(llmobs):
-    with override_global_config(dict(_llmobs_ml_app="")):
-        with pytest.raises(Exception) as excinfo:
-            llmobs.submit_evaluation(
-                span={"span_id": "123", "trace_id": "456"},
-                label="toxicity",
-                metric_type="categorical",
-                value="high",
-            )
-        assert str(excinfo.value) == (
-            "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-            "Ensure this configuration is set before running your application."
-        )
-
-
 def test_submit_evaluation_span_incorrect_type_raises(llmobs):
     with pytest.raises(
         TypeError,

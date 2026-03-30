@@ -8,7 +8,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INTEGRATION_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations import BaseLLMIntegration
@@ -127,7 +126,7 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata=metadata,
             metrics=usage_metrics if span_kind != "workflow" else {},
             output_messages=output_messages,
-            tags={INTEGRATION_TAG_KEY: "bedrock"},
+            tags={LLMOBS_STRUCT.INTEGRATION: "bedrock"},
             tool_definitions=tool_definitions if tool_definitions else None,
         )
 
@@ -143,7 +142,7 @@ class BedrockIntegration(BaseLLMIntegration):
             span,
             kind="agent",
             input_value=str(input_value),
-            tags={LLMOBS_STRUCT.SESSION_ID: session_id, INTEGRATION_TAG_KEY: "bedrock_agents"},
+            tags={LLMOBS_STRUCT.SESSION_ID: session_id, LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"},
             metadata={"agent_id": agent_id, "agent_alias_id": agent_alias_id},
         )
         if not response:
