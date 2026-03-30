@@ -34,6 +34,7 @@ try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
     from Cython.Build import cythonize
+    from Cython.Build.Dependencies import create_dependency_tree as _cython_dep_tree
     import Cython.Distutils
 except ImportError:
     raise ImportError(
@@ -933,6 +934,22 @@ class CustomBuildExt(build_ext):
             shutil.copy2(anchor_so, ext_path)
         return True
 
+    @staticmethod
+    def _pyx_source_deps(pyx_path: str) -> "list[str]":
+        """Return absolute paths of source-tree .pxd files that pyx_path depends on.
+
+        Cython's dependency tree returns source-tree files as relative paths and
+        stdlib headers (in site-packages) as absolute paths.  We keep only the
+        relative ones — those live in the source tree and have stable mtimes —
+        and resolve them to absolute paths for newer_group().
+        """
+        dep_tree = _cython_dep_tree()
+        return [
+            str((HERE / d).resolve())
+            for d in dep_tree.all_dependencies(pyx_path)
+            if d.endswith(".pxd") and not Path(d).is_absolute() and (HERE / d).exists()
+        ]
+
     def _build_extension_incremental(self, ext: Extension) -> None:
         """Build a regular setuptools Extension with incremental skipping.
 
@@ -955,13 +972,22 @@ class CustomBuildExt(build_ext):
 
         # For Cython extensions ext.sources contains the generated .c file
         # (cythonize() replaces .pyx with .c in-place).  Use the .pyx file
-        # as the freshness indicator when it exists; its mtime reflects when
-        # the actual source last changed, while .c gets regenerated on every
-        # pip run due to pip-build-env .pxd dependency timestamps.
+        # as the primary freshness indicator when it exists; its mtime reflects
+        # when the actual source last changed, while .c gets regenerated on
+        # every pip run due to pip-build-env .pxd dependency timestamps.
+        # Also include the source-tree .pxd dependencies so that a .pxd change
+        # without a corresponding .pyx change still triggers a rebuild.
+        # Cython stdlib .pxd files (in site-packages, returned as absolute
+        # paths by the dependency tree) are excluded — they get fresh timestamps
+        # on every pip invocation and would defeat the incremental-skip logic.
         sources = []
         for src in ext.sources or []:
             pyx = Path(src).with_suffix(".pyx")
-            sources.append(str(pyx) if pyx.exists() else src)
+            if pyx.exists():
+                sources.append(str(pyx))
+                sources.extend(self._pyx_source_deps(str(pyx)))
+            else:
+                sources.append(src)
 
         if self._skip_if_up_to_date(ext.name, inplace_so, sources):
             return
