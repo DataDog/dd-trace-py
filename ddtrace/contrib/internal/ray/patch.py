@@ -211,6 +211,12 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    @ModuleWatchdog.after_module_imported("ray.serve")
+    def _(m):
+        from ddtrace.contrib.internal.ray_serve.patch import patch as patch_ray_serve
+
+        patch_ray_serve(m)
+
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
     _w(ray, "put", traced_put)
@@ -231,5 +237,10 @@ def unpatch():
     _u(ray, "get")
     _u(ray, "wait")
     _u(ray, "put")
+
+    if hasattr(ray, "serve"):
+        from ddtrace.contrib.internal.ray_serve.patch import unpatch as unpatch_ray_serve
+
+        unpatch_ray_serve(ray.serve)
 
     ray._datadog_patch = False

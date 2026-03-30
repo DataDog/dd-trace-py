@@ -851,7 +851,17 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.49.2
+      max: 2.54.1
+
+- integration_name: ray_serve
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - ray
+  tested_versions_by_dependency:
+    ray:
+      min: 2.46.0
+      max: 2.54.1
 
 - integration_name: redis
   is_external_package: true

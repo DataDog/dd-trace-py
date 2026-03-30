@@ -35,6 +35,7 @@ def cleanup_loaded_modules() -> None:
         return
 
     stale_reprlib_module = sys.modules.get("reprlib")
+    stale_thread_module = sys.modules.get("_thread")
 
     def drop(module_name: str) -> None:
         module = sys.modules.get(module_name)
@@ -115,17 +116,20 @@ def cleanup_loaded_modules() -> None:
             if m == u or m.startswith(u + "."):
                 drop(m)
 
-    if stale_reprlib_module is not None or "reprlib" in sys.modules:
+    if stale_reprlib_module is not None or stale_thread_module is not None or "reprlib" in sys.modules:
         # Modules imported before cleanup can keep direct references to the old
-        # reprlib object. If _thread is re-imported, stale reprlib references
-        # can retain the old get_ident builtin and become unpicklable.
+        # reprlib or _thread objects. If _thread is re-imported, stale reprlib
+        # references can retain the old get_ident builtin and become
+        # unpicklable.
         import _thread
 
         stale_get_ident = _thread.get_ident
+        if stale_thread_module is not None:
+            stale_thread_module.get_ident = stale_get_ident  # type: ignore[attr-defined]
         if stale_reprlib_module is not None:
-            stale_reprlib_module.get_ident = stale_get_ident
+            stale_reprlib_module.get_ident = stale_get_ident  # type: ignore[attr-defined]
         if "reprlib" in sys.modules:
-            sys.modules["reprlib"].get_ident = stale_get_ident
+            sys.modules["reprlib"].get_ident = stale_get_ident  # type: ignore[attr-defined]
 
     # Because we are not unloading it, the logging module requires a reference
     # to the newly imported threading module to allow it to retrieve the correct

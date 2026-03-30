@@ -49,3 +49,17 @@ DD_WAS_LONG_RUNNING = "_dd.was_long_running"
 # Special values
 REDACTED_VALUE = "<redacted>"
 REDACTED_PATH = "<redacted/path/to>"
+
+# ray serve
+
+RAY_APP_NAME = "ray.serve.app_name"
+RAY_DEPLOYMENT_ARGS = "ray.serve.deployment.args"
+RAY_DEPLOYMENT_KWARGS = "ray.serve.deployment.kwargs"
+
+# Defined here to prevent ray core integration to be dependent of ray serve one
+RAY_SERVE_REPLICA_METHOD_DENYLIST = {
+    "record_routing_stats",
+    "check_health",
+    "is_allocated",
+    "initialize_and_get_metadata",
+}

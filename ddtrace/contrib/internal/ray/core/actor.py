@@ -15,6 +15,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
+from ..constants import RAY_SERVE_REPLICA_METHOD_DENYLIST
 from ..constants import RAY_STATUS_FAILED
 from ..constants import RAY_SUBMISSION_ID
 from .utils import ENTRY_POINT_REGEX
@@ -31,6 +32,8 @@ RAY_ACTOR_MODULE_DENYLIST = {
     "ray.data._internal",
     "ray.experimental",
     "ray.data._internal",
+    "ray.serve._private.controller",
+    "ray.serve._private.proxy",
 }
 
 
@@ -224,8 +227,14 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
     # Determine if the class is a JobSupervisor
     is_job_supervisor = f"{module_name}.{class_name}" == "ray.dashboard.modules.job.job_supervisor.JobSupervisor"
-    # We do not want to instrument ping and polling to remove noise
-    methods_to_ignore = {"ping", "_polling"} if is_job_supervisor else set()
+    is_serve_replica = module_name.startswith("ray.serve._private") and class_name.startswith("ServeReplica:")
+
+    # Build set of methods to ignore based on actor type to reduce noise
+    methods_to_ignore = set()
+    if is_job_supervisor:
+        methods_to_ignore = {"ping", "_polling"}
+    elif is_serve_replica:
+        methods_to_ignore = RAY_SERVE_REPLICA_METHOD_DENYLIST
 
     methods = inspect.getmembers(cls, is_function_or_method)
     for name, method in methods:
