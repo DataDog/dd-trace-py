@@ -10,6 +10,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
@@ -94,9 +95,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = "openai"
+        model_provider = UNKNOWN_MODEL_PROVIDER
         if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
+        elif self._is_provider(span, "openai"):
+            model_provider = "openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)

@@ -37,12 +37,12 @@ from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordRaw
+from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
-from ddtrace.llmobs._experiment import UpdatableDatasetRecord
+from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
@@ -479,7 +479,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         )
 
     @staticmethod
-    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
+    def _get_record_json(record: Union[DatasetRecordUpdateWithId, DatasetRecord], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
         # set it to None, and we serialize an empty string (for expected_output) and empty dict (for metadata)
         # to indicate this erasure to BE
@@ -497,23 +497,25 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "metadata": metadata,
         }
 
+        rj["id"] = record["record_id"]
+
         if is_update:
-            update_record = cast(UpdatableDatasetRecord, record)
-            rj["id"] = update_record["record_id"]
-            tag_ops = update_record.get("tag_operations")
+            update_record = cast(DatasetRecordUpdateWithId, record)
+            tag_ops: _TagOperations = update_record.get("tag_operations", {})
             if tag_ops:
                 serialized: dict[str, JSONType] = {}
                 if "add" in tag_ops:
-                    serialized["add"] = cast(JSONType, tag_ops["add"])
+                    serialized["add"] = tag_ops["add"]
                 if "remove" in tag_ops:
-                    serialized["remove"] = cast(JSONType, tag_ops["remove"])
+                    serialized["remove"] = tag_ops["remove"]
                 if "replace" in tag_ops:
-                    serialized["set"] = cast(JSONType, tag_ops["replace"])  # map replace → set for backend
-                rj["tag_operations"] = cast(JSONType, serialized)
+                    serialized["set"] = tag_ops["replace"]  # map replace → set for backend
+                rj["tag_operations"] = serialized
         else:
-            tags = record.get("tags")
+            insert_record = cast(DatasetRecord, record)
+            tags = insert_record.get("tags")
             if tags:
-                rj["tags"] = cast(JSONType, tags)
+                rj["tags"] = tags
 
         return rj
 
@@ -521,8 +523,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self,
         dataset_id: str,
         project_id: str,
-        insert_records: list[DatasetRecordRaw],
-        update_records: list[UpdatableDatasetRecord],
+        insert_records: list[DatasetRecord],
+        update_records: list[DatasetRecordUpdateWithId],
         delete_record_ids: list[str],
         deduplicate: bool = True,
         create_new_version: bool = True,
@@ -537,7 +539,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 "attributes": {
                     "insert_records": irs,
                     "update_records": urs,
-                    "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                    "delete_records": delete_record_ids,
                     "deduplicate": deduplicate,
                     "create_new_version": create_new_version,
                 },
@@ -652,15 +654,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 raise ValueError(f"{file_ext} files not supported")
 
             with open(tmp.name, "w", newline="") as csv_file:
-                field_names = ["input", "expected_output", "metadata"]
                 writer = csv.writer(csv_file)
-                writer.writerow(field_names)
+                writer.writerow(["input", "expected_output", "metadata", "id"])
                 for r in records:
                     writer.writerow(
                         [
                             json.dumps(r.get("input_data", "")),
                             json.dumps(r.get("expected_output", "")),
                             json.dumps(r.get("metadata", "")),
+                            r["record_id"],
                         ]
                     )
 
@@ -814,7 +816,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "project_id": project_id,
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
-                        "metadata": {"tags": cast(JSONType, tags or [])},
+                        "metadata": {"tags": tags or []},
                         "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
@@ -868,7 +870,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "attributes": {
                         "scope": "experiments",
                         "metrics": cast(list[JSONType], events),
-                        "tags": cast(list[JSONType], tags),
+                        "tags": tags,
                     },
                 }
             },

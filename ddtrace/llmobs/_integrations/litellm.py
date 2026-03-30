@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
@@ -65,7 +66,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
-        model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
+        model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
 
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         metrics = self._extract_llmobs_metrics(response, span_kind)

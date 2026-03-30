@@ -17,6 +17,7 @@ Note: This runs entire test suites, not individual test files.
 """
 
 import argparse
+import fcntl
 import fnmatch
 import hashlib
 import json
@@ -419,19 +420,17 @@ class TestRunner:
 
     def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
         """Let user select which riot suites to run."""
-        riot_suites = {name: config for name, config in matching_suites.items() if config.get("runner") == "riot"}
-
-        if not riot_suites:
+        if not matching_suites:
             print("❌ No riot suites found in matching suites")
             return {}
 
-        print(f"\n📋 Found {len(riot_suites)} matching riot suite(s):")
-        suite_list = list(riot_suites.keys())
+        print(f"\n📋 Found {len(matching_suites)} matching riot suite(s):")
+        suite_list = list(matching_suites.keys())
 
         selected = self._interactive_select(suite_list, "suites")
         if selected:
             print(f"   Selected suites: {', '.join(selected)}")
-            return {name: riot_suites[name] for name in selected}
+            return {name: matching_suites[name] for name in selected}
         return {}
 
     def select_venvs_for_suites(self, selected_suites: dict[str, dict]) -> list[RiotVenv]:
@@ -568,17 +567,83 @@ class TestRunner:
             # Execute each unique venv hash in this suite
             # Note: riot will run all instances for each hash (different commands, env vars, etc.)
             suite_success = True
+
+            # Phase 1: Build/verify venvs sequentially under a file lock.
+            # This prevents concurrent builds from fighting over shared resources
+            # (sccache, cargo installs, pip). The first build compiles Rust/C/Cython;
+            # subsequent builds are fast cache hits. If venvs are already built,
+            # riot detects this and the build phase completes near-instantly.
+            lock_path = self.root / ".riot" / ".build.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+            for venv in venvs:
+                build_cmd = [
+                    str(self.root / "scripts" / "ddtest"),
+                    "riot",
+                    "-v",
+                    "run",
+                    "--pass-env",
+                    venv.hash,
+                    "--",
+                    "--collect-only",
+                    "-q",
+                ]
+
+                if dry_run:
+                    print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
+                else:
+                    print(f"\n🔨 Building venv ({venv.display_name}): {venv.hash}")
+                    lock_file = open(lock_path, "w")
+                    try:
+                        fcntl.flock(lock_file, fcntl.LOCK_EX)
+                        print("   🔒 Acquired build lock")
+                        result = subprocess.run(build_cmd, env=env, cwd=self.root)
+                        if result.returncode != 0:
+                            print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
+                            suite_success = False
+                            break
+                        print("   ✅ Venv built successfully")
+                    finally:
+                        fcntl.flock(lock_file, fcntl.LOCK_UN)
+                        lock_file.close()
+                        print("   🔓 Released build lock")
+
+            if not suite_success:
+                # Stop services and bail out
+                if suite_services:
+                    self.stop_services(suite_services)
+                print(f"\n❌ Suite '{suite_name}' failed during build phase. Stopping execution.")
+                return False
+
+            # Phase 2: Run tests with --skip-base-install (venvs are already built).
             for venv in venvs:
                 # Count how many instances share this hash in this suite
                 instances_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
                 num_instances = len(instances_with_same_hash)
 
                 # Execute using ddtest with the specific venv hash
-                cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
+                cmd = [
+                    str(self.root / "scripts" / "ddtest"),
+                    "riot",
+                    "-v",
+                    "run",
+                    "--pass-env",
+                    "-s",
+                    venv.hash,
+                ]
 
-                # Add riot args if provided
+                # Add riot args if provided, filtering out riot's -s/--skip-base-install
+                # (since we already add it) but only before the pytest separator "--".
+                # After "--", args belong to pytest where -s means something different
+                # (disable output capture).
                 if riot_args:
-                    cmd.extend(riot_args)
+                    past_pytest_separator = False
+                    for arg in riot_args:
+                        if arg == "--":
+                            past_pytest_separator = True
+                            cmd.append(arg)
+                        elif past_pytest_separator or arg not in ("-s", "--skip-base-install"):
+                            cmd.append(arg)
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
@@ -630,9 +695,6 @@ class TestRunner:
         suites_data = []
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -666,9 +728,6 @@ class TestRunner:
         venv_hashes_set = set(venv_hashes)
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -803,9 +862,6 @@ Examples:
         for venv in selected_venvs:
             # Try to find which suite this venv belongs to by pattern matching
             for suite_name, suite_config in all_suites.items():
-                if suite_config.get("runner") != "riot":
-                    continue
-
                 pattern = suite_config.get("pattern", suite_name)
 
                 try:

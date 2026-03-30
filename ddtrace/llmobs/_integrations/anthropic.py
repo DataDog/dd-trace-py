@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -41,6 +42,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         **kwargs: dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+        self._base_url = self._get_base_url(**kwargs)
         if model is not None:
             span._set_attribute(MODEL, model)
 
@@ -77,7 +79,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             span,
             kind=span_kind,
             model_name=span.get_tag("anthropic.request.model") or "",
-            model_provider="anthropic",
+            model_provider=self._get_model_provider(),
             input_messages=input_messages,
             metadata=parameters,
             output_messages=output_messages,
@@ -245,6 +247,15 @@ class AnthropicIntegration(BaseLLMIntegration):
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
+
+    def _get_model_provider(self) -> str:
+        """Return the model provider based on the base_url.
+        Returns "anthropic" for default clients or when the base_url contains "anthropic".
+        Returns "unknown" when a custom base_url is set that doesn't contain "anthropic".
+        """
+        if not self._base_url or "anthropic" in self._base_url.lower():
+            return "anthropic"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")

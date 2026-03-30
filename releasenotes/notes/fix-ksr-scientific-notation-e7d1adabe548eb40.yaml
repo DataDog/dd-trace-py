@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fix ``_dd.p.ksr`` span tag formatting for very small sampling rates.
+    Previously, rates below 0.001 could be output in scientific notation (e.g.
+    ``1e-06``). Now always uses decimal notation with up to 6 decimal digits.
