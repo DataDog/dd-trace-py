@@ -10,6 +10,7 @@ import sys
 import time
 import traceback
 from typing import TYPE_CHECKING
+from typing import Annotated
 from typing import Any
 from typing import Awaitable
 from typing import Callable
@@ -20,11 +21,10 @@ from typing import Sequence
 from typing import TypedDict
 from typing import Union
 from typing import cast
-from typing import overload
-from typing import Annotated
 from typing import get_args
 from typing import get_origin
 from typing import get_type_hints
+from typing import overload
 
 
 try:
@@ -604,8 +604,10 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, PydanticEvaluator)
 
+
 def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
-    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator) with a scalar result. 
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator) with a scalar
+    result.
     :param evaluator: The evaluator to check
     :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
     """
@@ -614,11 +616,7 @@ def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
     if not isinstance(evaluator, PydanticReportEvaluator):
         return False
     import types
-    from typing import Annotated
     from typing import Union
-    from typing import get_args
-    from typing import get_origin
-    from typing import get_type_hints
 
     try:
         hint = get_type_hints(evaluator.evaluate)["return"]
@@ -634,9 +632,8 @@ def _is_pydantic_report_evaluator_with_scalar_result(evaluator: Any) -> bool:
     if len(members) != 1:
         return False
     only = members[0]
-    return only is PydanticScalarResult or (
-        isinstance(only, type) and issubclass(only, PydanticScalarResult)
-    )
+    return only is PydanticScalarResult or (isinstance(only, type) and issubclass(only, PydanticScalarResult))
+
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -755,12 +752,12 @@ if PydanticEvaluator is not None:
 
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
-    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
     from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
     from pydantic_evals.reporting import ReportCase as PydanticReportCase
-    
+
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
         eval_result = EvaluatorResult(
@@ -896,7 +893,9 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
-    def _pydantic_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 0) -> Any:
+    def _pydantic_report_evaluator_wrapper(
+        evaluator: Any, duration: Optional[float] = None, total_duration: int = 0
+    ) -> Any:
         """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
         :param evaluator: The pydantic report evaluator to run
         :return: A callable function that can be used as an evaluator
@@ -915,24 +914,28 @@ if PydanticEvaluator is not None:
                 for eval_name in eval_names:
                     if isinstance(eval_results[eval_name][idx], bool):
                         assertions[eval_name] = eval_results[eval_name][idx]
-                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(eval_results[eval_name][idx], int):
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
                         scores[eval_name] = eval_results[eval_name][idx]
                     else:
                         labels[eval_name] = eval_results[eval_name][idx]
-                cases.append(PydanticReportCase(
-                    name=f"case_{idx}",
-                    inputs=input_data,
-                    metadata=eval_context.metadata[idx],
-                    expected_output=eval_context.expected_outputs[idx],
-                    output=eval_context.outputs[idx],
-                    assertions=assertions,
-                    scores=scores,
-                    labels=labels,
-                    task_duration=duration,
-                    total_duration=total_duration,
-                    attributes={},
-                    metrics={},
-                ))
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=duration,
+                        total_duration=total_duration,
+                        attributes={},
+                        metrics={},
+                    )
+                )
             report_eval_context = PydanticReportEvaluatorContext(
                 name="",
                 report=PydanticEvaluationReport(
@@ -983,7 +986,9 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
-    def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, total_duration: int = 0) -> Any:
+    def _pydantic_async_report_evaluator_wrapper(
+        evaluator: Any, duration: Optional[float] = None, total_duration: int = 0
+    ) -> Any:
         """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
         :param evaluator: The pydantic report evaluator to run
         :return: A callable function that can be used as an evaluator
@@ -1002,24 +1007,28 @@ if PydanticEvaluator is not None:
                 for eval_name in eval_names:
                     if isinstance(eval_results[eval_name][idx], bool):
                         assertions[eval_name] = eval_results[eval_name][idx]
-                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(eval_results[eval_name][idx], int):
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
                         scores[eval_name] = eval_results[eval_name][idx]
                     else:
                         labels[eval_name] = eval_results[eval_name][idx]
-                cases.append(PydanticReportCase(
-                    name=f"case_{idx}",
-                    inputs=input_data,
-                    metadata=eval_context.metadata[idx],
-                    expected_output=eval_context.expected_outputs[idx],
-                    output=eval_context.outputs[idx],
-                    assertions=assertions,
-                    scores=scores,
-                    labels=labels,
-                    task_duration=duration,
-                    total_duration=total_duration,
-                    attributes={},
-                    metrics={},
-                ))
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=duration,
+                        total_duration=total_duration,
+                        attributes={},
+                        metrics={},
+                    )
+                )
             report_eval_context = PydanticReportEvaluatorContext(
                 name="",
                 report=PydanticEvaluationReport(
@@ -1051,6 +1060,7 @@ else:
     def _pydantic_async_report_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
+
 
 class Project(TypedDict):
     name: str
@@ -2518,7 +2528,9 @@ class Experiment:
                             )
                             eval_result = await summary_evaluator(context)
                         else:
-                            eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                            eval_result = await summary_evaluator(
+                                inputs, outputs, expected_outputs, eval_results_by_name
+                            )
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
