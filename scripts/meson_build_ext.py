@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -266,12 +267,21 @@ def cmd_rust(args):
         env["RUSTUP_TOOLCHAIN"] = "stable"
     if "CARGO_BUILD_JOBS" not in env:
         env["CARGO_BUILD_JOBS"] = str(_nested_build_parallelism("CARGO_BUILD_JOBS", "CMAKE_BUILD_PARALLEL_LEVEL"))
+
+    # DD_FAST_BUILD: reduce LTO and codegen parallelism for faster cargo builds.
+    # Mirrors setup.py which sets these env var defaults when DD_FAST_BUILD is set.
+    if os.getenv("DD_FAST_BUILD", "").lower() in ("1", "yes", "on", "true"):
+        env.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
+        env.setdefault("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "16")
+        env.setdefault("CARGO_PROFILE_RELEASE_OPT_LEVEL", "2")
+
     rust_host = _configure_rust_env(env)
     cargo_target = None
     if host == "windows" or CURRENT_OS == "Windows":
         _, cargo_target, _ = _windows_target_info(args.ext_suffix, python)
 
     # Build with cargo
+    extra_cargo_args = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
     cargo_cmd = [
         cargo_bin,
         "build",
@@ -283,6 +293,8 @@ def cmd_rust(args):
         cargo_cmd += ["--target", cargo_target]
     if features:
         cargo_cmd += ["--features", features]
+    if extra_cargo_args:
+        cargo_cmd += extra_cargo_args
 
     run(cargo_cmd, env=env)
 
@@ -530,6 +542,11 @@ def cmd_cmake(args):
     install_dir = _resolve_path_arg(args.install_dir)
     component_name = args.component_name
     build_type = args.build_type or "RelWithDebInfo"
+    # DD_COMPILE_MODE overrides the meson-derived build type (mirrors setup.py behaviour).
+    # Accepts Debug, Release, RelWithDebInfo, MinSizeRel.
+    compile_mode = os.getenv("DD_COMPILE_MODE", "").strip()
+    if compile_mode:
+        build_type = compile_mode
 
     output.parent.mkdir(parents=True, exist_ok=True)
     install_dir.mkdir(parents=True, exist_ok=True)
@@ -593,6 +610,23 @@ def cmd_cmake(args):
             f"-DCMAKE_CXX_COMPILER={cxx_old}",
             f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
         ]
+
+    # DD_FAST_BUILD: skip Abseil and use -O0 for faster dev iteration.
+    # Mirrors setup.py which sets DD_COMPILE_ABSEIL=0 in the environment and
+    # adds -O0 cmake flags when DD_FAST_BUILD is set.
+    fast_build = os.getenv("DD_FAST_BUILD", "").lower() in ("1", "yes", "on", "true")
+    if fast_build:
+        os.environ["DD_COMPILE_ABSEIL"] = "0"
+        cmake_args += [
+            f"-DCMAKE_C_FLAGS_{build_type.upper()}=-O0",
+            f"-DCMAKE_CXX_FLAGS_{build_type.upper()}=-O0",
+        ]
+
+    # Component-specific cmake flags from environment (mirrors setup.py).
+    if component_name == "memalloc" and os.getenv("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
+        cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
+    if component_name == "stack" and os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true"):
+        cmake_args.append("-DBUILD_TESTING=ON")
 
     # AIDEV-NOTE: Configure-hash caching: skip the expensive cmake -S/-B/-D
     # configure step when the build dir already has a valid CMakeCache.txt and
