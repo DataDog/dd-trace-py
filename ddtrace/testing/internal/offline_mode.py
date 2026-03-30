@@ -1,0 +1,168 @@
+"""
+Bazel offline mode support for the pytest test optimization plugin.
+
+Two independent modes are controlled by environment variables:
+
+- Manifest mode (DD_TEST_OPTIMIZATION_MANIFEST_FILE):
+  Read settings, known tests, test management, and skippable tests from local
+  cached files inside the .testoptimization directory instead of making HTTP
+  requests to the Datadog backend. Critical for Bazel's hermetic sandbox.
+
+- Payload-files mode (DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES):
+  Write test event and coverage payloads as JSON files to
+  TEST_UNDECLARED_OUTPUTS_DIR instead of sending them over HTTP.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import typing as t
+
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSION
+from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
+from ddtrace.testing.internal.utils import asbool
+
+
+log = logging.getLogger(__name__)
+
+
+def resolve_rlocation(path: str) -> str:
+    """
+    Resolve a Bazel runfile rlocation path to an absolute filesystem path.
+
+    Bazel exposes test data files via a runfiles tree. The partial path provided
+    in an rlocation must be resolved to an absolute path using the runfiles
+    manifest or directory. This mirrors the Go implementation in CHANGES.md.
+
+    Resolution order:
+    1. If the path already exists on disk, return it as-is.
+    2. Try joining with RUNFILES_DIR.
+    3. Scan RUNFILES_MANIFEST_FILE for a matching entry.
+    4. Try joining with TEST_SRCDIR.
+    5. Fall back to returning the original path unchanged.
+    """
+    if os.path.exists(path):
+        return path
+
+    if runfiles_dir := os.environ.get("RUNFILES_DIR"):
+        candidate = os.path.join(runfiles_dir, path)
+        if os.path.exists(candidate):
+            return candidate
+
+    if manifest_file := os.environ.get("RUNFILES_MANIFEST_FILE"):
+        try:
+            with open(manifest_file) as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    sep = line.find(" ")
+                    if sep > 0 and line[:sep] == path:
+                        return line[sep + 1 :]
+        except OSError:
+            pass
+
+    if test_srcdir := os.environ.get("TEST_SRCDIR"):
+        candidate = os.path.join(test_srcdir, path)
+        if os.path.exists(candidate):
+            return candidate
+
+    return path
+
+
+def _validate_manifest(manifest_path: str) -> bool:
+    """
+    Read manifest.txt and verify it declares a supported version.
+
+    Returns True if compatible, False otherwise. On incompatible or missing
+    manifest, manifest mode is disabled (no HTTP fallback — Bazel hermeticity
+    requires a hard failure, not silent degradation).
+    """
+    try:
+        with open(manifest_path) as f:
+            version_str = f.read().strip()
+        version = int(version_str)
+    except (OSError, ValueError) as e:
+        log.warning("Could not read manifest file %s: %s — disabling manifest mode", manifest_path, e)
+        return False
+
+    if version != SUPPORTED_MANIFEST_VERSION:
+        log.warning(
+            "Unsupported .testoptimization manifest version %d (expected %d) — disabling manifest mode",
+            version,
+            SUPPORTED_MANIFEST_VERSION,
+        )
+        return False
+
+    return True
+
+
+class OfflineMode:
+    """
+    Resolved state of whether Bazel offline modes are active.
+
+    Use ``get_offline_mode()`` to obtain the module-level singleton.
+    """
+
+    def __init__(self) -> None:
+        self.manifest_enabled: bool = False
+        self.payload_files_enabled: bool = False
+        self.test_optimization_dir: t.Optional[str] = None
+        self.output_dir: t.Optional[str] = None
+
+        # --- manifest mode (input side) ---
+        manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
+        if manifest_env:
+            resolved = resolve_rlocation(manifest_env)
+            if _validate_manifest(resolved):
+                self.manifest_enabled = True
+                self.test_optimization_dir = os.path.dirname(resolved)
+                log.debug("Manifest mode enabled: .testoptimization dir = %s", self.test_optimization_dir)
+
+        # --- payload-files mode (output side) ---
+        if asbool(os.environ.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
+            output_dir = os.environ.get(TEST_UNDECLARED_OUTPUTS_DIR)
+            if output_dir:
+                self.payload_files_enabled = True
+                self.output_dir = output_dir
+                log.debug("Payload-files mode enabled: output dir = %s", self.output_dir)
+            else:
+                log.warning(
+                    "%s is true but %s is not set — payload-files mode disabled",
+                    DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
+                    TEST_UNDECLARED_OUTPUTS_DIR,
+                )
+
+    def cache_file_path(self, relative: str) -> t.Optional[str]:
+        """
+        Return the absolute path to a cache file inside .testoptimization.
+
+        Returns None when manifest mode is inactive. The ``relative`` path
+        should use forward slashes, e.g. ``"cache/http/settings.json"``.
+        """
+        if not self.manifest_enabled or not self.test_optimization_dir:
+            return None
+        return os.path.join(self.test_optimization_dir, *relative.split("/"))
+
+    def payload_output_dir(self, category: str) -> t.Optional[str]:
+        """
+        Return the directory for payload output files under TEST_UNDECLARED_OUTPUTS_DIR.
+
+        ``category`` is either ``"tests"`` or ``"coverage"``.
+        Returns None when payload-files mode is inactive.
+        """
+        if not self.payload_files_enabled or not self.output_dir:
+            return None
+        return os.path.join(self.output_dir, "payloads", category)
+
+
+_offline_mode: t.Optional[OfflineMode] = None
+
+
+def get_offline_mode() -> OfflineMode:
+    """Return the cached OfflineMode singleton, initializing it on first call."""
+    global _offline_mode
+    if _offline_mode is None:
+        _offline_mode = OfflineMode()
+    return _offline_mode
