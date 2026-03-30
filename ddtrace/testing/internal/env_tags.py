@@ -1,3 +1,4 @@
+import logging
 import os
 import typing as t
 
@@ -7,6 +8,9 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.utils import _filter_sensitive_info
+
+
+log = logging.getLogger(__name__)
 
 
 _TagDict = dict[str, t.Optional[str]]
@@ -26,6 +30,17 @@ def merge_tags(target: _TagDict, *tag_dicts: _TagDict) -> None:
 
 
 def get_env_tags() -> dict[str, str]:
+    # NOTE: In payload-files mode (Bazel sandbox output), CI/Git/OS/runtime tags
+    # must NOT be included in payloads. The external tool (DDTestRunner / Bazel rule)
+    # enriches payloads with context.json tags after collection. Including them here
+    # would be incorrect (stale/wrong values) and would invalidate Bazel's cache.
+    from ddtrace.testing.internal.offline_mode import get_offline_mode
+
+    offline = get_offline_mode()
+    if offline.payload_files_enabled:
+        log.debug("Payload-files mode active: returning empty env tags to avoid invalidating Bazel cache")
+        return {}
+
     tags: _TagDict = {}
 
     merge_tags(

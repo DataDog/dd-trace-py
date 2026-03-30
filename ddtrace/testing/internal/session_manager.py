@@ -312,6 +312,14 @@ class SessionManager:
         return self.session.test_command
 
     def upload_git_data(self) -> None:
+        # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
+        # and the external tool has already uploaded git pack data before the sandbox
+        # was created. Skip unconditionally to avoid subprocess failures.
+        offline = get_offline_mode()
+        if offline.manifest_enabled or offline.payload_files_enabled:
+            log.debug("Skipping git data upload in offline/payload-files mode")
+            return
+
         # Missing `git` in minimal containers should not abort pytest startup.
         try:
             git = Git()
