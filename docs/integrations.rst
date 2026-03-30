@@ -643,6 +643,12 @@ vLLM
 ^^^^
 .. automodule:: ddtrace.contrib.internal.vllm
 
+.. _wandb:
+
+wandb
+^^^^^
+.. automodule:: ddtrace.contrib.wandb
+
 
 .. _vllm:
 

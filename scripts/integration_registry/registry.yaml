@@ -991,6 +991,12 @@ integrations:
       min: 0.13.0
       max: 0.13.0
 
+- integration_name: wandb
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - wandb
+
 - integration_name: webbrowser
   is_external_package: false
   is_tested: true

@@ -115,6 +115,7 @@ PATCH_MODULES = {
     "valkey": True,
     "openai_agents": True,
     "ray": False,
+    "wandb": False,
     "protobuf": config._data_streams_enabled,
     "claude_agent_sdk": True,
 }

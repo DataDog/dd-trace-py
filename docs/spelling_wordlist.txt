@@ -365,6 +365,7 @@ vertexai
 vertica
 vLLM
 w3c
+wandb
 Webbrowser
 websocket
 websockets
