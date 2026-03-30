@@ -316,13 +316,13 @@ class BaseWrappingContext(ABC):
         # restore the previous dict without a separate stack. This relies on
         # ContextVar.set/reset for per-invocation isolation, which is safe
         # across async context copies.
-        t.cast(dict, self._storage.get())["__token__"] = token
+        t.cast(dict, self._storage.get())["__dd_wrapping_context_token__"] = token
 
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
         storage = t.cast(dict, self._storage.get())
-        self._storage.reset(storage.pop("__token__"))
+        self._storage.reset(storage.pop("__dd_wrapping_context_token__"))
         return storage
 
     def __return__(self, value: T) -> T:
