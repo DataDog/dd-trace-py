@@ -116,7 +116,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
-                raise ValueError(f"Cannot parse platform from {wheel_file.name}")
+                raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
 
             actual.add((str(version), py_tag, platform, flavor))
         except Exception as e:
