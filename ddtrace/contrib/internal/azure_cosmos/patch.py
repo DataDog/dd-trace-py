@@ -27,7 +27,7 @@ config._add(
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"azure.cosmos": ">=4.6.0"}
+    return {"azure.cosmos": ">=4.9.0"}
 
 
 def get_version():

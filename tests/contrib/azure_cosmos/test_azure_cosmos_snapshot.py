@@ -24,7 +24,7 @@ def patch_azure_cosmos():
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_cosmos_sync_(tracer, test_spans):
+def test_cosmos_sync(tracer, test_spans):
     run_test()
 
     test_spans.assert_has_spans()

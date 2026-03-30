@@ -110,7 +110,7 @@
     {
         "dependency": "azure-cosmos",
         "integration": "azure_cosmos",
-        "minimum_tracer_supported": "4.6.0",
+        "minimum_tracer_supported": "4.9.0",
         "max_tracer_supported": "4.15.0",
         "pinned": "true",
         "auto-instrumented": true
