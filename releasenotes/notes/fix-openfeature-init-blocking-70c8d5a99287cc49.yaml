@@ -1,10 +1,14 @@
 ---
 fixes:
   - |
-    openfeature: This fix resolves an issue where ``DataDogProvider.initialize()`` returned immediately
-    without waiting for Remote Configuration data, causing the OpenFeature SDK to emit ``PROVIDER_READY``
-    before flag configuration was available. Flag evaluations in this window silently returned default
-    values. The provider now blocks in ``initialize()`` until the first configuration arrives or a
-    configurable timeout expires (default 30s), matching the behavior of the Java, Go, and Node.js
-    providers. The timeout is configurable via the ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS``
-    environment variable or the ``init_timeout`` constructor parameter.
+    openfeature: This fix resolves an issue where ``DataDogProvider.initialize()`` returned before
+    configuration was received, causing the OpenFeature SDK to mark the provider as ready to serve
+    evaluations too early and flag evaluations to silently return default values. The provider now
+    waits for configuration before returning.
+features:
+  - |
+    openfeature: This introduces a configurable initialization timeout for ``DataDogProvider``.
+    The timeout controls how long ``initialize()`` waits for configuration before returning,
+    and defaults to 30 seconds. Set it via the
+    ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS`` environment variable or the
+    ``init_timeout`` constructor parameter.
