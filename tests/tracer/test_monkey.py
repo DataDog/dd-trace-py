@@ -1,5 +1,5 @@
-import unittest.mock
 from pathlib import Path
+import unittest.mock
 
 from ddtrace import _monkey
 from tests.subprocesstest import SubprocessTestCase
