@@ -20,6 +20,7 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import datetime
+import hashlib
 import os
 import re
 import subprocess
@@ -515,8 +516,20 @@ prechecks:
 
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
+    import ruamel.yaml
+
+    yaml = ruamel.yaml.YAML()
+    testrunner_cfg = yaml.load((GITLAB / "testrunner.yml").read_text())
+    testrunner_image = testrunner_cfg["variables"]["TESTRUNNER_IMAGE"]
+    testrunner_image_hash = hashlib.sha256(testrunner_image.encode()).hexdigest()[:16]
     with TESTS_GEN.open("a") as f:
-        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
+        f.write(
+            template(
+                "cached-testrunner",
+                current_month=datetime.datetime.now().month,
+                testrunner_image_hash=testrunner_image_hash,
+            )
+        )
 
 
 def gen_build_base_venvs() -> None:
