@@ -456,9 +456,9 @@ def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_i
     extended_events = test_agent_session.get_events("app-extended-heartbeat")
     assert len(extended_events) >= 1
 
-    assert extended_events[0]["payload"]["configurations"] is not None
+    assert extended_events[0]["payload"]["configuration"] is not None
     configurations = test_agent_session.get_configurations()
-    assert configurations == extended_events[0]["payload"]["configurations"]
+    assert configurations == extended_events[0]["payload"]["configuration"]
 
     if collect_dependencies:
         assert "dependencies" in extended_events[0]["payload"]
