@@ -1,6 +1,6 @@
 #pragma once
 
-/* Shared line table parsing for dd-trace-py profiling.
+/* Shared line table parsing for profiling.
  *
  * Provides allocation-free, GIL-free line number resolution from
  * CPython's co_linetable (3.10+ PEP 626/657) and co_lnotab (3.9).
