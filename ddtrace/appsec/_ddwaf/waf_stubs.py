@@ -40,11 +40,12 @@ class ddwaf_context_capsule(Generic[T]):
         self.ctx: Optional[type[T]] = ctx
         self.free_fn = free_fn
         self.rc_products: str = ""
-        # AIDEV-NOTE: This lock serializes concurrent ddwaf_run calls on the same context.
-        # ctypes foreign function calls release the Python GIL, allowing thread pool workers
-        # (run_in_executor) to call the WAF simultaneously with the event loop thread when both
-        # inherit the same ddwaf_context via contextvars propagation. libddwaf's ddwaf_context
-        # is not thread-safe for concurrent runs, so we must serialize them here.
+        # AIDEV-NOTE: This lock serializes concurrent ddwaf_context_eval / ddwaf_subcontext_eval
+        # calls on the same context. ctypes foreign function calls release the Python GIL,
+        # allowing thread pool workers (run_in_executor) to call the WAF simultaneously with
+        # the event loop thread when both inherit the same ddwaf_context via contextvars
+        # propagation. libddwaf's ddwaf_context is not thread-safe for concurrent evals,
+        # so we must serialize them here.
         self._lock: threading_Lock = threading_Lock()
 
     def __del__(self) -> None:
@@ -57,6 +58,25 @@ class ddwaf_context_capsule(Generic[T]):
 
     def __bool__(self) -> bool:
         return bool(self.ctx)
+
+
+class ddwaf_subcontext_capsule(Generic[T]):
+    """RAII wrapper for a ddwaf_subcontext (v2 replacement for ephemerals)."""
+
+    def __init__(self, subctx: type[T], free_fn: Callable[[type[T]], None]) -> None:
+        self.subctx: Optional[type[T]] = subctx
+        self.free_fn = free_fn
+
+    def __del__(self) -> None:
+        if self.subctx:
+            try:
+                self.free_fn(self.subctx)
+            except TypeError:
+                LOGGER.debug("Failed to free subcontext", exc_info=True)
+            self.subctx = None
+
+    def __bool__(self) -> bool:
+        return bool(self.subctx)
 
 
 class ddwaf_builder_capsule(Generic[T]):

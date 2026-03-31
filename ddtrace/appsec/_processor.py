@@ -229,12 +229,14 @@ class AppSecSpanProcessor(SpanProcessor):
 
         ctx = self._ddwaf._at_request_start()
         if ctx is not None:
-            waf_callable = functools.partial(self._waf_action, entry_span, ctx)
+            waf_context_callable = functools.partial(self._waf_context_action, entry_span, ctx)
+            waf_subcontext_callable = functools.partial(self._waf_subcontext_action, entry_span, ctx)
             rc_products = ctx.rc_products
         else:
-            waf_callable = None
+            waf_context_callable = None
+            waf_subcontext_callable = None
             rc_products = ""
-        _asm_request_context.start_context(waf_callable, span, rc_products)
+        _asm_request_context.start_context(waf_context_callable, waf_subcontext_callable, span, rc_products)
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -254,76 +256,98 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-001-00] Executing ASM WAF for checking IP block")
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(
+    def _waf_context_action(
+        self,
+        entry_span: Span,
+        ctx: ddwaf_context_capsule,
+        custom_data: Optional[dict[str, Any]] = None,
+        force_sent: bool = False,
+        force_keys: bool = False,
+    ) -> Optional[DDWaf_result]:
+        """Evaluate persistent data on the WAF context (ddwaf_context_eval)."""
+        if not isinstance(self._ddwaf, DDWaf):
+            return None
+
+        if _asm_request_context.get_blocked() and not force_keys:
+            return None
+
+        data = {}
+        iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
+        data_already_sent = _asm_request_context.get_data_sent()
+        if data_already_sent is None:
+            data_already_sent = set()
+
+        for key, waf_name in iter_data:
+            if key in data_already_sent and not force_sent:
+                continue
+            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
+                continue
+            if not self._is_needed(waf_name) and not force_keys:
+                continue
+            value = None
+            if custom_data is not None and custom_data.get(key) is not None:
+                value = custom_data.get(key)
+            elif key in SPAN_DATA_NAMES:
+                value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
+            if value is not None and not hasattr(value, "__call__"):
+                data[waf_name] = _serialize_address_values(waf_name, value)
+                data_already_sent.add(key)
+                log.debug("[context_action] WAF got value %s", WAF_DATA_NAMES.get(key, key))
+
+        if not data:
+            return None
+
+        try:
+            waf_results = self._ddwaf.eval(ctx, data, timeout_ms=asm_config._waf_timeout)
+        except Exception:
+            log.debug("appsec::processor::waf::context_eval", exc_info=True)
+            waf_results = Binding_error
+        return self._process_waf_result(entry_span, waf_results, rule_type=None, crop_trace=None)
+
+    def _waf_subcontext_action(
         self,
         entry_span: Span,
         ctx: ddwaf_context_capsule,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
-        force_sent: bool = False,
     ) -> Optional[DDWaf_result]:
-        """
-        Call the `WAF` with the given parameters. If `custom_data_names` is specified as
-        a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
-        constant class will be checked. Else, it will check all the possible values
-        from `WAF_DATA_NAMES`.
-
-        If `custom_data_values` is specified, it must be a dictionary where the key is the
-        `WAF_DATA_NAMES` key and the value the custom value. If not used, the values will
-        be retrieved from the `core`. This can be used when you don't want to store
-        the value in the `core` before checking the `WAF`.
-        """
+        """Evaluate ephemeral data via a WAF subcontext (ddwaf_subcontext_eval)."""
         if not isinstance(self._ddwaf, DDWaf):
             return None
 
         if _asm_request_context.get_blocked():
-            # We still must run the waf if we need to extract schemas for API SECURITY
+            # API security schema extraction must still run even if the request is blocked
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
 
         data = {}
-        ephemeral_data = {}
-        iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
-        data_already_sent = _asm_request_context.get_data_sent()
-        if data_already_sent is None:
-            data_already_sent = set()
+        if custom_data is not None:
+            for key in custom_data:
+                waf_name = WAF_DATA_NAMES[key]
+                data[waf_name] = _serialize_address_values(waf_name, custom_data.get(key))
 
-        # persistent addresses must be sent if api security is used
-        force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
-
-        for key, waf_name in iter_data:
-            if key in data_already_sent and not force_sent:
-                continue
-            # ensure ephemeral addresses are sent, event when value is None
-            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
-                if key in custom_data:
-                    ephemeral_data[waf_name] = _serialize_address_values(waf_name, custom_data.get(key))
-
-            elif self._is_needed(waf_name) or force_keys:
-                value = None
-                if custom_data is not None and custom_data.get(key) is not None:
-                    value = custom_data.get(key)
-                elif key in SPAN_DATA_NAMES:
-                    value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
-                # if value is a callable, it's a lazy value for api security that should not be sent now
-                if value is not None and not hasattr(value, "__call__"):
-                    data[waf_name] = _serialize_address_values(waf_name, value)
-                    if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
-                        data_already_sent.add(key)
-                    log.debug("[action] WAF got value %s", WAF_DATA_NAMES.get(key, key))
-
-        # small optimization to avoid running the waf if there is no data to check
-        if not data and not ephemeral_data:
+        if not data:
             return None
 
         try:
-            waf_results = self._ddwaf.run(
-                ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
-            )
+            waf_results = self._ddwaf.eval_ephemeral(ctx, data, timeout_ms=asm_config._waf_timeout)
         except Exception:
-            log.debug("appsec::processor::waf::run", exc_info=True)
+            log.debug("appsec::processor::waf::subcontext_eval", exc_info=True)
             waf_results = Binding_error
+        return self._process_waf_result(entry_span, waf_results, rule_type=rule_type, crop_trace=crop_trace)
+
+    def _process_waf_result(
+        self,
+        entry_span: Span,
+        waf_results: DDWaf_result,
+        rule_type: Optional[str],
+        crop_trace: Optional[str],
+    ) -> DDWaf_result:
+        """Shared result processing for both context and subcontext evaluations."""
+        if not isinstance(self._ddwaf, DDWaf):
+            return waf_results
+
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)  # type: ignore
         if waf_results.return_code < 0:
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
@@ -386,12 +410,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
             remote_ip = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
             if remote_ip:
-                # Note that if the ip collection is disabled by the env var
-                # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
                 entry_span._set_attribute("actor.ip", remote_ip)
 
-            # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
-            # specs are updated.
             if entry_span.get_tag(_ORIGIN_KEY) is None:
                 entry_span._set_attribute(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 

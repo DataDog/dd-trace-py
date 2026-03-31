@@ -223,15 +223,15 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         assert "waf_version:{}".format(asm_config._ddwaf_version) in list_metrics_logs[0]["tags"]
 
 
-unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_run
+unpatched_context_eval = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_context_eval
 
 
-def _wrapped_run(*args, **kwargs):
-    unpatched_run(*args, **kwargs)
+def _wrapped_context_eval(*args, **kwargs):
+    unpatched_context_eval(*args, **kwargs)
     return -3
 
 
-@mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_run", new=_wrapped_run)
+@mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_context_eval", new=_wrapped_context_eval)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
 

@@ -37,13 +37,25 @@ if TYPE_CHECKING:
 logger = ddlogger.get_logger(__name__)
 
 
-class WafCallable(Protocol):
+class WafContextCallable(Protocol):
+    """Callable for evaluating persistent data on the WAF context (ddwaf_context_eval)."""
+
+    def __call__(
+        self,
+        custom_data: Optional[dict[str, Any]] = None,
+        force_sent: bool = False,
+        force_keys: bool = False,
+    ) -> Optional["DDWaf_result"]: ...
+
+
+class WafSubcontextCallable(Protocol):
+    """Callable for evaluating ephemeral data via a WAF subcontext (ddwaf_subcontext_eval)."""
+
     def __call__(
         self,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
-        force_sent: bool = False,
     ) -> Optional["DDWaf_result"]: ...
 
 
@@ -90,7 +102,8 @@ class ASM_Environment:
 
     def __init__(
         self,
-        waf_callable: Optional[WafCallable],
+        waf_context_callable: Optional[WafContextCallable],
+        waf_subcontext_callable: Optional[WafSubcontextCallable],
         span: Optional[Span] = None,
         rc_products: str = "",
     ):
@@ -111,7 +124,8 @@ class ASM_Environment:
         self.framework = self.framework.lower().replace(" ", "_")
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: dict[str, Any] = {}
-        self.waf_callable: Optional[WafCallable] = waf_callable
+        self.waf_context_callable: Optional[WafContextCallable] = waf_context_callable
+        self.waf_subcontext_callable: Optional[WafSubcontextCallable] = waf_subcontext_callable
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
@@ -334,7 +348,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
 
     # Manually clear reference cycles to simplify the work for the GC
     env.block_callable = None
-    env.waf_callable = None
+    env.waf_context_callable = None
+    env.waf_subcontext_callable = None
     core.discard_local_item(_ASM_CONTEXT)
 
 
@@ -409,15 +424,32 @@ def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
 
 def call_waf_callback(
     custom_data: Optional[dict[str, Any]] = None,
-    crop_trace: Optional[str] = None,
-    rule_type: Optional[str] = None,
     force_sent: bool = False,
+    force_keys: bool = False,
 ) -> Optional["DDWaf_result"]:
+    """Evaluate persistent data on the WAF context."""
     if not asm_config._asm_enabled:
         return None
     env = get_active_asm_context()
-    if env is not None and env.waf_callable is not None:
-        return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
+    if env is not None and env.waf_context_callable is not None:
+        return env.waf_context_callable(custom_data, force_sent, force_keys)
+
+    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    return None
+
+
+def call_waf_subcontext_callback(
+    custom_data: Optional[dict[str, Any]] = None,
+    crop_trace: Optional[str] = None,
+    rule_type: Optional[str] = None,
+) -> Optional["DDWaf_result"]:
+    """Evaluate ephemeral data via a WAF subcontext."""
+    if not asm_config._asm_enabled:
+        return None
+    env = get_active_asm_context()
+    if env is not None and env.waf_subcontext_callable is not None:
+        return env.waf_subcontext_callable(custom_data, crop_trace, rule_type)
 
     logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
     report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
@@ -429,9 +461,9 @@ def call_waf_callback_no_instrumentation() -> None:
     if asm_config._asm_enabled:
         env = _get_asm_context()
         if env and not env.telemetry.triggered:
-            waf_callable = env.waf_callable
-            if waf_callable:
-                waf_callable()
+            waf_context_callable = env.waf_context_callable
+            if waf_context_callable:
+                waf_context_callable()
 
 
 def set_ip(ip: Optional[str]) -> None:
@@ -574,13 +606,19 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
+def start_context(
+    waf_context_callable: Optional[WafContextCallable],
+    waf_subcontext_callable: Optional[WafSubcontextCallable],
+    span: Span,
+    rc_products: str,
+) -> None:
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
-                waf_callable=waf_callable,
+                waf_context_callable=waf_context_callable,
+                waf_subcontext_callable=waf_subcontext_callable,
                 span=span,
                 rc_products=rc_products,
             ),

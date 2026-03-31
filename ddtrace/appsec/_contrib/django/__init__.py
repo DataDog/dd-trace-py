@@ -10,6 +10,7 @@ from ddtrace.appsec._asm_request_context import _get_headers_if_appsec
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._asm_request_context import set_block_request_callable
@@ -177,14 +178,14 @@ def _on_django_process(
             )
         if in_asm_context():
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
-            custom_data = {
+            persistent_data: dict = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
                 "REQUEST_USERNAME": user_login,
-                "LOGIN_SUCCESS": real_mode,
             }
             if session_key:
-                custom_data["REQUEST_SESSION_ID"] = session_key
-            res = call_waf_callback(custom_data=custom_data, force_sent=True)
+                persistent_data["REQUEST_SESSION_ID"] = session_key
+            call_waf_callback(custom_data=persistent_data, force_sent=True)
+            res = call_waf_subcontext_callback(custom_data={"LOGIN_SUCCESS": real_mode})
     elif in_asm_context() and session_key:
         res = call_waf_callback(custom_data={"REQUEST_SESSION_ID": session_key})
     if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):

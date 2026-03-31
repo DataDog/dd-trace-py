@@ -551,7 +551,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
     assert any("<Redacted>" in value for value in values)
 
 
-def test_ddwaf_run():
+def test_ddwaf_eval():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json_str = rule_set.read()
         _ddwaf = DDWaf(rules_json_str, b"", b"")
@@ -562,7 +562,7 @@ def test_ddwaf_run():
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.eval(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)
         assert res.data
         assert res.data[0]["rule"]["id"] == "crs-942-100"
         assert res.runtime > 0
@@ -571,7 +571,7 @@ def test_ddwaf_run():
         assert res.timeout is False
 
 
-def test_ddwaf_run_timeout():
+def test_ddwaf_eval_timeout():
     with open(rules.RULES_GOOD_PATH, "br") as rule_set:
         rules_json = rule_set.read()
         _ddwaf = DDWaf(rules_json, b"", b"")
@@ -580,7 +580,7 @@ def test_ddwaf_run_timeout():
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json
+        res = _ddwaf.eval(ctx, data, timeout_ms=0.001)
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
@@ -627,13 +627,16 @@ def test_ddwaf_info_with_3_errors():
         assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
-def test_ddwaf_run_contained_typeerror(tracer, caplog):
+def test_ddwaf_eval_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")),
+        mock.patch(
+            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            side_effect=TypeError("expected c_long instead of int"),
+        ),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -664,13 +667,16 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     assert "TypeError: expected c_long instead of int" in caplog.text
 
 
-def test_ddwaf_run_contained_oserror(tracer, caplog):
+def test_ddwaf_eval_contained_oserror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")),
+        mock.patch(
+            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            side_effect=OSError("ddwaf eval failed"),
+        ),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -698,7 +704,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
             )
 
     assert get_triggers(span) is None
-    assert "OSError: ddwaf run failed" in caplog.text
+    assert "OSError: ddwaf eval failed" in caplog.text
 
 
 def test_asm_context_registration(tracer):
@@ -823,54 +829,58 @@ def test_required_addresses():
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
-def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.eval_ephemeral")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.eval")
+def test_ephemeral_addresses(mock_eval, mock_eval_ephemeral, persistent, ephemeral):
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
-    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_result = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_eval.return_value = mock_result
+    mock_eval_ephemeral.return_value = mock_result
 
     with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
         processor = AppSecSpanProcessor._instance
         assert processor
-        # first call must send all data to the waf
-        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
-        assert mock_run.call_args
-        assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
-        # second call must only send ephemeral data to the waf, not persistent data again
-        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
-        assert mock_run.call_args
-        assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {
+        # context action sends persistent data via eval()
+        processor._waf_context_action(span, None, {persistent: {"key_1": "value_1"}})
+        assert mock_eval.call_args
+        assert mock_eval.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
+        # subcontext action sends ephemeral data via eval_ephemeral()
+        processor._waf_subcontext_action(span, None, {ephemeral: {"key_2": "value_2"}})
+        assert mock_eval_ephemeral.call_args
+        assert mock_eval_ephemeral.call_args[0][1] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
+        # second context call must not re-send persistent data
+        mock_eval.reset_mock()
+        processor._waf_context_action(span, None, {persistent: {"key_1": "value_1"}})
+        assert not mock_eval.called  # persistent data already sent
+        # subcontext always sends ephemeral data
+        mock_eval_ephemeral.reset_mock()
+        processor._waf_subcontext_action(span, None, {ephemeral: {"key_2": "value_3"}})
+        assert mock_eval_ephemeral.call_args
+        assert mock_eval_ephemeral.call_args[0][1] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
-def test_waf_action_null_ephemeral_addresses(mock_run):
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.eval_ephemeral")
+def test_subcontext_action_null_ephemeral_addresses(mock_eval_ephemeral):
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
-    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_result = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+    mock_eval_ephemeral.return_value = mock_result
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         processor = AppSecSpanProcessor._instance
         assert processor
         # None value for ephemeral addresses should not be discarded
-        processor._waf_action(span, None, {"LOGIN_FAILURE": None})
-        assert mock_run.call_args
-        assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
+        processor._waf_subcontext_action(span, None, {"LOGIN_FAILURE": None})
+        assert mock_eval_ephemeral.call_args
+        assert mock_eval_ephemeral.call_args[0][1] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
 
 
 @pytest.mark.parametrize("skip_event", [True, False])

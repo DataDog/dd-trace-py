@@ -4,6 +4,7 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
@@ -183,17 +184,14 @@ def track_user_login_success_event(
             span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
     set_user(None, user_id or "", name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
-        custom_data = {
+        persistent_data: dict[str, Any] = {
             "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
             "REQUEST_USERNAME": initial_login,
-            "LOGIN_SUCCESS": real_mode,
         }
         if session_id:
-            custom_data["REQUEST_SESSION_ID"] = session_id
-        res = call_waf_callback(
-            custom_data=custom_data,
-            force_sent=True,
-        )
+            persistent_data["REQUEST_SESSION_ID"] = session_id
+        call_waf_callback(custom_data=persistent_data, force_sent=True)
+        res = call_waf_subcontext_callback(custom_data={"LOGIN_SUCCESS": real_mode})
         if _is_blocking(res):
             raise BlockingException(get_blocked())
 
@@ -241,10 +239,9 @@ def track_user_login_failure_event(
         if name:
             span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.username", name)
     if in_asm_context():
-        custom_data: dict[str, Any] = {"LOGIN_FAILURE": None}
         if login:
-            custom_data["REQUEST_USERNAME"] = login
-        res = call_waf_callback(custom_data=custom_data)
+            call_waf_callback(custom_data={"REQUEST_USERNAME": login})
+        res = call_waf_subcontext_callback(custom_data={"LOGIN_FAILURE": None})
         if _is_blocking(res):
             raise BlockingException(get_blocked())
 

@@ -5,7 +5,7 @@ from typing import Iterable
 from typing import Union
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
-from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -121,7 +121,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     if _get_rasp_capability("lfi"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
             # open is used during module initialization
@@ -138,7 +138,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             filename = ""
         if filename:
             if in_asm_context():
-                res = call_waf_callback(
+                res = call_waf_subcontext_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
                     crop_trace="wrapped_open_CFDDB7ABBA9081B6",
                     rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
@@ -164,7 +164,7 @@ def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs)
     """
     if _get_rasp_capability("lfi"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
             # Path methods can be used during module initialization
@@ -176,7 +176,7 @@ def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs)
             filename = ""
         if filename:
             if in_asm_context():
-                res = call_waf_callback(
+                res = call_waf_subcontext_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
                     crop_trace="wrapped_path_open_rasp_lfi",
                     rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
@@ -225,7 +225,7 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
                 addresses["DOWN_REQ_BODY"] = json.loads(body)
             except Exception:
                 pass  # nosec
-        res = call_waf_callback(
+        res = call_waf_subcontext_callback(
             addresses,
             crop_trace="wrapped_open_ED4CF71136E15EBF",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
@@ -249,7 +249,7 @@ def wrapped_response(original_response_callable, instance, args, kwargs):
                     "DOWN_RES_STATUS": str(status),
                     "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
                 }
-                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+                call_waf_subcontext_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
     except Exception:
         pass  # nosec
     return response
@@ -274,7 +274,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     if _get_rasp_capability("ssrf"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
             # open is used during module initialization
@@ -300,7 +300,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         }
                         if use_body:
                             addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+                        call_waf_subcontext_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception as e:
                     # api10 response handler for error responses
@@ -314,7 +314,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                         except Exception:
                             response_headers = None
                         if status_code is not None or response_headers is not None:
-                            call_waf_callback(
+                            call_waf_subcontext_callback(
                                 {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
                                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
                             )
@@ -347,7 +347,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
                 addresses["DOWN_REQ_BODY"] = json.loads(body)
             except Exception:
                 pass  # nosec
-        res = call_waf_callback(
+        res = call_waf_subcontext_callback(
             addresses,
             crop_trace="wrapped_request_D8CB81E472AF98A2",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
@@ -364,7 +364,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
                 "DOWN_RES_STATUS": str(response.status),
                 "DOWN_RES_HEADERS": response.headers,
             }
-            call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+            call_waf_subcontext_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
     except Exception:
         pass  # nosec
     return response
@@ -388,7 +388,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import _get_asm_context
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
             # open is used during module initialization
@@ -414,7 +414,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                                 addresses["DOWN_RES_BODY"] = response.json()
                             except Exception:
                                 pass  # nosec
-                        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+                        call_waf_subcontext_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
                     return response
                 except Exception:
                     raise
@@ -429,14 +429,14 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
     """
     if _get_rasp_capability("shi"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, True)
             return
 
         if in_asm_context():
-            res = call_waf_callback(
+            res = call_waf_subcontext_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.SHI: command},
                 crop_trace="wrapped_system_5542593D237084A7",
                 rule_type=EXPLOIT_PREVENTION.TYPE.SHI,
@@ -455,14 +455,14 @@ def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
     """
     if _get_rasp_capability("cmdi"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, True)
             return
 
         if in_asm_context():
-            res = call_waf_callback(
+            res = call_waf_subcontext_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list if isinstance(arg_list, list) else [arg_list]},
                 crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
@@ -495,7 +495,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
 
     if _get_rasp_capability("sqli"):
         try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
             # execute is used during module initialization
@@ -509,7 +509,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
             )
             if in_asm_context():
-                res = call_waf_callback(
+                res = call_waf_subcontext_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
                     crop_trace="execute_4C9BAC8E228EB347",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,

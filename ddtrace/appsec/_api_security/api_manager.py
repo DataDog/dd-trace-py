@@ -185,7 +185,7 @@ class APIManager(Service):
             log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
             return
 
-        waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
+        persistent_payload: dict[str, Any] = {}
         for address, _, transform in collected:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
@@ -195,12 +195,17 @@ class APIManager(Service):
                 continue
             if transform is not None:
                 value = transform(value)
-            waf_payload[address] = value
+            persistent_payload[address] = value
 
-        waf_callable = env.waf_callable
-        if waf_callable is None:
+        waf_context_callable = env.waf_context_callable
+        waf_subcontext_callable = env.waf_subcontext_callable
+        if waf_context_callable is None or waf_subcontext_callable is None:
             return
-        result = waf_callable(waf_payload)
+        # Send persistent addresses on the context (force_keys bypasses _is_needed check),
+        # then PROCESSOR_SETTINGS on a subcontext which inherits the persistent data.
+        if persistent_payload:
+            waf_context_callable(persistent_payload, force_sent=True, force_keys=True)
+        result = waf_subcontext_callable({"PROCESSOR_SETTINGS": {"extract-schema": True}})
         if result is None:
             return
         nb_schemas = 0

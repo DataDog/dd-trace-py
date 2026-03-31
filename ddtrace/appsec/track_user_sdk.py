@@ -113,14 +113,14 @@ def track_user(
     if not _auto:
         span._set_attribute(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
-            custom_data = {
+            persistent_data: dict[str, t.Any] = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
                 "REQUEST_USERNAME": login,
-                "LOGIN_SUCCESS": "sdk",
             }
             if session_id:
-                custom_data["REQUEST_SESSION_ID"] = session_id
-            res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
+                persistent_data["REQUEST_SESSION_ID"] = session_id
+            _asm_request_context.call_waf_callback(custom_data=persistent_data, force_sent=True)
+            res = _asm_request_context.call_waf_subcontext_callback(custom_data={"LOGIN_SUCCESS": "sdk"})
             if res and any(
                 action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions
             ):
@@ -165,13 +165,13 @@ def track_user_id(
     if not _auto:
         span._set_attribute(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
-            custom_data = {
+            persistent_data: dict[str, t.Any] = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
-                "LOGIN_SUCCESS": "sdk",
             }
             if session_id:
-                custom_data["REQUEST_SESSION_ID"] = session_id
-            res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
+                persistent_data["REQUEST_SESSION_ID"] = session_id
+            _asm_request_context.call_waf_callback(custom_data=persistent_data, force_sent=True)
+            res = _asm_request_context.call_waf_subcontext_callback(custom_data={"LOGIN_SUCCESS": "sdk"})
             if res and any(
                 action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions
             ):

@@ -5,15 +5,17 @@ from typing import Optional
 from typing import Sequence
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
+from ddtrace.appsec._ddwaf.ddwaf_types import DEFAULT_ALLOCATOR
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_eval
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_destroy
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_subcontext_eval
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_subcontext_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
@@ -35,6 +37,7 @@ DDWAF_OK = 0
 DDWAF_MATCH = 1
 
 ASM_DD_DEFAULT = "ASM_DD/default"
+OBFUSCATOR_CONFIG_PATH = "obfuscator/config"
 
 
 class DDWaf:
@@ -46,14 +49,29 @@ class DDWaf:
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
     ) -> None:
-        config = ddwaf_config(
-            key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
-        )
+        # v2: no ddwaf_config — builder takes no arguments
+        self._builder = py_ddwaf_builder_init()
+
+        # v2: obfuscator configured via builder config path
+        obfuscator_config: dict[str, Any] = {"obfuscator": {}}
+        if obfuscation_parameter_key_regexp:
+            obfuscator_config["obfuscator"]["key_regex"] = obfuscation_parameter_key_regexp.decode(
+                "UTF-8", errors="ignore"
+            )
+        if obfuscation_parameter_value_regexp:
+            obfuscator_config["obfuscator"]["value_regex"] = obfuscation_parameter_value_regexp.decode(
+                "UTF-8", errors="ignore"
+            )
+        obfuscator_obj = ddwaf_object(obfuscator_config)
+        obfuscator_diagnostics = ddwaf_object()
+        py_add_or_update_config(self._builder, OBFUSCATOR_CONFIG_PATH, obfuscator_obj, obfuscator_diagnostics)
+        ddwaf_object_destroy(obfuscator_obj, DEFAULT_ALLOCATOR)
+        ddwaf_object_destroy(obfuscator_diagnostics, DEFAULT_ALLOCATOR)
+
         diagnostics = ddwaf_object()
         ruleset_map_object = ddwaf_object.from_json_bytes(ruleset_json_str)
         if not ruleset_map_object:
             raise ValueError("Invalid ruleset provided to DDWaf constructor")
-        self._builder = py_ddwaf_builder_init(config)
         py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
         self._handle = py_ddwaf_builder_build_instance(self._builder)
         self._cached_version = ""
@@ -61,8 +79,6 @@ class DDWaf:
         self._set_info(diagnostics, "init")
         info = self.info
         if not self._handle or info.failed:
-            # We keep the handle alive in case of errors, as some valid rules can be loaded
-            # at the same time some invalid ones are rejected
             LOGGER.debug(
                 "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
                 ruleset_map_object.struct,
@@ -102,7 +118,7 @@ class DDWaf:
             json.dumps(errors_result, separators=(",", ":")) if errors_result else "",
             version,
         )
-        ddwaf_object_free(diagnostics)
+        # NOTE: diagnostics is NOT freed here — callers manage cleanup
 
     @property
     def info(self) -> DDWaf_info:
@@ -124,7 +140,6 @@ class DDWaf:
             self._rc_products[product].add(path)
             if product == "ASM_DD":
                 if ASM_DD_DEFAULT in self._asm_dd_cache:
-                    # we need to remove the default ruleset before adding the new one
                     ok &= py_remove_config(self._builder, ASM_DD_DEFAULT)
                     self._asm_dd_cache.discard(ASM_DD_DEFAULT)
                 self._asm_dd_cache.add(path)
@@ -132,14 +147,13 @@ class DDWaf:
             ruleset_object = ddwaf_object.create_without_limits(rules)
             ok &= py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
             self._set_info(diagnostics, "update")
-            ddwaf_object_free(ruleset_object)
-            ddwaf_object_free(diagnostics)
+            ddwaf_object_destroy(ruleset_object, DEFAULT_ALLOCATOR)
+            ddwaf_object_destroy(diagnostics, DEFAULT_ALLOCATOR)
         if not self._asm_dd_cache:
-            # we need to add the default ruleset back
             diagnostics = ddwaf_object()
             ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
             self._set_info(diagnostics, "update")
-            ddwaf_object_free(diagnostics)
+            ddwaf_object_destroy(diagnostics, DEFAULT_ALLOCATOR)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
         self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
@@ -158,30 +172,67 @@ class DDWaf:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
 
-    def run(
+    def eval(
         self,
         ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
-        ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
+        """Evaluate persistent data on the context (ddwaf_context_eval)."""
         start = time.monotonic()
         if not ctx:
-            LOGGER.debug("DDWaf.run: dry run. no context created.")
-            return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
+            LOGGER.debug("DDWaf.eval: dry run. no context created.")
+            return DDWaf_result(0, [], {}, 0, (time.monotonic() - start) * 1e6, False, self.empty_observator, {})
 
         result_obj = ddwaf_object()
         observator = _observator()
         wrapper = ddwaf_object(data, observator=observator)
-        wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
         with ctx._lock:
-            error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, result_obj, int(timeout_ms * 1000))
+            error = ddwaf_context_eval(ctx.ctx, wrapper, DEFAULT_ALLOCATOR, result_obj, int(timeout_ms * 1000))
+        return self._process_result(error, result_obj, observator, start)
+
+    def eval_ephemeral(
+        self,
+        ctx: ddwaf_context_capsule,
+        data: DDWafRulesType,
+        timeout_ms: float = DEFAULT.WAF_TIMEOUT,
+    ) -> DDWaf_result:
+        """Evaluate ephemeral data via a subcontext.
+
+        Creates a subcontext from the parent context, evaluates ephemeral data on it,
+        and destroys it. The data does not persist beyond this call.
+        """
+        start = time.monotonic()
+        if not ctx:
+            LOGGER.debug("DDWaf.eval_ephemeral: dry run. no context created.")
+            return DDWaf_result(0, [], {}, 0, (time.monotonic() - start) * 1e6, False, self.empty_observator, {})
+
+        result_obj = ddwaf_object()
+        observator = _observator()
+        wrapper = ddwaf_object(data, observator=observator)
+        subctx = py_ddwaf_subcontext_init(ctx)
+        try:
+            with ctx._lock:
+                error = ddwaf_subcontext_eval(
+                    subctx.subctx, wrapper, DEFAULT_ALLOCATOR, result_obj, int(timeout_ms * 1000)
+                )
+        finally:
+            del subctx  # triggers ddwaf_subcontext_destroy via capsule __del__
+        return self._process_result(error, result_obj, observator, start)
+
+    def _process_result(
+        self,
+        error: int,
+        result_obj: ddwaf_object,
+        observator: _observator,
+        start: float,
+    ) -> DDWaf_result:
+        """Convert a raw ddwaf_context_eval / ddwaf_subcontext_eval result into DDWaf_result."""
         if error < 0:
-            LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
+            LOGGER.debug("DDWAF eval error: %d\nerror %s", error, self.info.errors)
         result = result_obj.struct
         if error == DDWAF_ERR_INTERNAL or not isinstance(result, dict):
-            # result is not valid
-            ddwaf_object_free(result_obj)
+            ddwaf_object_destroy(result_obj, DEFAULT_ALLOCATOR)
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
         main_res = DDWaf_result(
             error,
@@ -194,7 +245,7 @@ class DDWaf:
             result["attributes"],
             result["keep"],
         )
-        ddwaf_object_free(result_obj)
+        ddwaf_object_destroy(result_obj, DEFAULT_ALLOCATOR)
         return main_res
 
     @property
@@ -203,4 +254,4 @@ class DDWaf:
 
     def __del__(self) -> None:
         if hasattr(self, "_default_ruleset"):
-            ddwaf_object_free(self._default_ruleset)
+            ddwaf_object_destroy(self._default_ruleset, DEFAULT_ALLOCATOR)

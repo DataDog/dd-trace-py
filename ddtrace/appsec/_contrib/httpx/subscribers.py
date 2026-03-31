@@ -5,7 +5,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
-from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import call_waf_subcontext_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._common_module_patches import _get_rasp_capability
@@ -62,7 +62,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
                 with contextlib.suppress(Exception):
                     addresses["DOWN_RES_BODY"] = event.response.json()
 
-        call_waf_callback(
+        call_waf_subcontext_callback(
             addresses,
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
         )
@@ -91,7 +91,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
         if analyze_body and body is not None:
             with contextlib.suppress(Exception):
                 addresses["DOWN_REQ_BODY"] = json.loads(body())
-        call_waf_callback(
+        call_waf_subcontext_callback(
             addresses,
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
@@ -126,7 +126,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
             "DOWN_RES_HEADERS": ctx.event.response_headers,
         }
 
-        call_waf_callback(
+        call_waf_subcontext_callback(
             addresses,
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
         )
