@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    remote config: This fix resolves an issue where product startup could fail in Python
+    environments without the ``_ctypes`` extension module (for example, Alpine Linux or
+    minimal container images without ``libffi``). Remote config initialization now falls
+    back to the dummy shared array when shared memory array creation raises an
+    ``ImportError``/``ModuleNotFoundError``.
