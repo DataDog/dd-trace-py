@@ -257,6 +257,12 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
+        """
+        Set the process tags to be included in the stats payload.
+        :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
+        """
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.

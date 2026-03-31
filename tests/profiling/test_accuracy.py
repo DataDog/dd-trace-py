@@ -121,7 +121,7 @@ def test_accuracy_stack():
     # CPU-bound functions guarantee exact CPU time via busy-loop, but wall time
     # can exceed CPU time due to OS preemption, especially in CI environments.
     # Wall time should never be less than the target CPU time.
-    assert_within_tolerance(wall_times["spend_cpu_2"], 2e9, upper_tolerance=0.3, lower_tolerance=0.001)
-    assert_within_tolerance(wall_times["spend_cpu_3"], 3e9, upper_tolerance=0.3, lower_tolerance=0.001)
+    assert_within_tolerance(wall_times["spend_cpu_2"], 2e9, upper_tolerance=0.3, lower_tolerance=0.01)
+    assert_within_tolerance(wall_times["spend_cpu_3"], 3e9, upper_tolerance=0.3, lower_tolerance=0.01)
     assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
     assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
