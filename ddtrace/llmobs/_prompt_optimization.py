@@ -247,21 +247,16 @@ class OptimizationIteration:
     def _load_system_prompt(self) -> str:
         """Load and prepare the optimization system prompt.
 
-        Loads the template from _prompt_optimization.md and replaces placeholders.
+        Loads the template from _prompt_optimization_prompt.py and replaces placeholders.
         Adds evaluation model information and random tip at the end.
 
         :return: System prompt string with output format injected.
         """
-        import os
         import random
 
-        # Get the directory of this file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(current_dir, "_prompt_optimization.md")
+        from ddtrace.llmobs._prompt_optimization_prompt import OPTIMIZATION_SYSTEM_PROMPT_TEMPLATE
 
-        # Load template
-        with open(template_path, "r", encoding="utf-8") as f:
-            template = f.read()
+        template = OPTIMIZATION_SYSTEM_PROMPT_TEMPLATE
 
         output_format = self._config.get("evaluation_output_format")
         structure_placeholder = ""
