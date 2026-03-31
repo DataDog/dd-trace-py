@@ -18,10 +18,6 @@
  * code object's ob_type pointer.  This is safe when the GIL is held
  * (memalloc) but may not be safe for cross-thread reads without additional
  * precautions.
- *
- * Prerequisites: the translation unit must define Py_BUILD_CORE and
- * include <Python.h> before this header (satisfied transitively by
- * version_compat.h).
  */
 
 #include "version_compat.h"

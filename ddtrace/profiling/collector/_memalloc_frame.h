@@ -13,7 +13,7 @@
  * headers below are declared consistently.
  *
  * The core frame-access logic and line table parsing are provided by the
- * shared profiling headers (ddtrace/internal/datadog/profiling/shared/).
+ * profiling helpers (ddtrace/internal/datadog/profiling/profiling_helpers/).
  * This file provides the memalloc_get_lineno helper that combines lasti
  * computation with table-pointer fetching and line number parsing.
  */
@@ -34,10 +34,9 @@
 
 // AIDEV-TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
 
-/* Shared profiling headers — frame accessors, line table parsing, and
- * version compatibility are the single source of truth shared with echion. */
-#include "shared/frame_accessors.h"
-#include "shared/linetable_parser.h"
+/* Frame access helpers and line table parsing. */
+#include "profiling_helpers/frame_accessors.h"
+#include "profiling_helpers/linetable_parser.h"
 
 /* Return the current line number for the frame by parsing the line table
  * directly, without calling PyCode_Addr2Line().

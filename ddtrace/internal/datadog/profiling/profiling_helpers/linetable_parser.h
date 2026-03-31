@@ -9,10 +9,6 @@
  * making them safe for both:
  *   - memalloc's allocator hook (allocation-free requirement)
  *   - echion's sampling thread (no-GIL requirement)
- *
- * Prerequisites: the translation unit must define Py_BUILD_CORE and
- * include <Python.h> before this header (satisfied transitively by
- * version_compat.h).
  */
 
 #include "version_compat.h"

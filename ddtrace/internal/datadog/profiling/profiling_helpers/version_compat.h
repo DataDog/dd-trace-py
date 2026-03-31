@@ -17,6 +17,10 @@
 #error "version_compat.h requires Python.h to be included first (with Py_BUILD_CORE defined)"
 #endif
 
+#if !defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_BUILTIN) && !defined(Py_BUILD_CORE_MODULE)
+#error "version_compat.h requires Py_BUILD_CORE to be defined before Python.h"
+#endif
+
 #include <frameobject.h>
 
 /* Include CPython internal frame headers for zero-refcount frame walking.

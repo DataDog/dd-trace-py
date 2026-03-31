@@ -3,8 +3,8 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
-#include <shared/frame_accessors.h>
-#include <shared/linetable_parser.h>
+#include <profiling_helpers/frame_accessors.h>
+#include <profiling_helpers/linetable_parser.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
