@@ -124,8 +124,6 @@ serverless lambda tests:
     branch: emmett.butler/serverless-wheels
   needs:
     - job: "upload manylinux2014"
-  rules:
-    - allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
