@@ -1713,7 +1713,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 return True
             for frame in trace["frames"][:6]:
                 fname = frame["function"]
-                if any(fname.endswith(tf) for tf in top_functions) or (
+                fname_lower = fname.lower()
+                # Use endswith for exact match, and case-insensitive containment
+                # for qualified names (e.g. "RaspHandler._handle" contains "rasp")
+                if any(fname.endswith(tf) or tf.lower() in fname_lower for tf in top_functions) or (
                     asm_config._iast_enabled and fname.endswith("ast_function")
                 ):
                     return True
