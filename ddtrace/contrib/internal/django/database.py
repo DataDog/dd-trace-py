@@ -106,7 +106,9 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
 
 
 def get_new_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
-    """Add Django tags to traced DBAPI connections as soon as they're created."""
+    """Db tags now pass through _self_db_tags and not through pin so we have ton instrument
+    the creation of the connection.
+    """
     instance = args[0]
     db_conn = func(*args, **kwargs)
     conn_tags = getattr(db_conn, "_self_db_tags", None)

@@ -289,6 +289,9 @@ class TracedConnection(wrapt.ObjectProxy):
             return r
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
+        if not is_tracing_enabled():
+            return method(*args, **kwargs)
+
         with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
             s._set_attribute(COMPONENT, self._self_config.integration_name)
 
