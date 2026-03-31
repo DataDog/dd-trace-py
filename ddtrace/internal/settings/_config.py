@@ -199,6 +199,7 @@ INTEGRATION_CONFIGS = frozenset(
         "yaaredis",
         "openai_agents",
         "mcp",
+        "mlflow",
         "ray",
         "aiokafka",
         "google_cloud_pubsub",

@@ -209,6 +209,7 @@ tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observ
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
 tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
 tests/snapshots/tests.contrib.vllm.*                          @DataDog/ml-observability
+tests/snapshots/tests.contrib.mlflow.*                        @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
@@ -290,6 +291,6 @@ tests/**/*iast*                 @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
 
 # Fuzzing
-.gitlab/fuzz.yml                  @DataDog/chaos-platform @DataDog/profiling-python
-.gitlab/scripts/fuzz_infra.py     @DataDog/chaos-platform @DataDog/profiling-python
-docker/Dockerfile.fuzz            @DataDog/chaos-platform @DataDog/profiling-python
+.gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
+.gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
+docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
