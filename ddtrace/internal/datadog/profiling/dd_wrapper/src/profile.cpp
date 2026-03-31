@@ -166,16 +166,13 @@ Datadog::Profile::profile_release()
 void
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    // In contemporary dd-trace-py, it is expected that the initialization path is in
-    // a single thread, and done only once.
-    // However, it doesn't cost us much to keep this initialization tight.
-    if (!first_time.load()) {
-        return;
-    }
+    std::call_once(init_once, [this, type, _max_nframes]() { one_time_init_impl(type, _max_nframes); });
+}
 
-    // Threads need to serialize at this point
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+void
+Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
     // nframes
     max_nframes = _max_nframes;
@@ -184,7 +181,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     const unsigned int mask_as_int = type & SampleType::All;
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-        // TODO fix this
         if (!already_warned) {
             already_warned = true;
             std::cerr << "No valid sample types were enabled" << std::endl;
@@ -203,11 +199,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
             already_warned = true;
             std::cerr << "Error initializing cur_profile" << std::endl;
         }
-        return;
     }
-
-    // We're done. Don't do this again.
-    first_time.store(false);
 }
 
 const Datadog::ValueIndex&
