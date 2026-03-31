@@ -245,7 +245,7 @@ def test_span_context_event_with_custom_fields(test_spans):
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
     assert span.name == "op.arg"
-    assert span._get_numeric_attribute("http.status_code") == 200
+    assert span._get_str_attribute("http.status_code") == "200"
 
 
 def test_span_context_event_inheritance(test_spans):

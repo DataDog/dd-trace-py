@@ -176,7 +176,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         response_meta = result["ResponseMetadata"]
         response_headers = response_meta["HTTPHeaders"]
 
-        span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
+        span._set_attribute(http.STATUS_CODE, response_meta["HTTPStatusCode"])
         if 500 <= response_meta["HTTPStatusCode"] < 600:
             span.error = 1
 
