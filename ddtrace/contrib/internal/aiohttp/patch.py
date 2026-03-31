@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Optional
 
 import aiohttp
 import wrapt
@@ -10,6 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module as with_traced_module_sync
@@ -25,6 +26,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -51,12 +53,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return aiohttp.__version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiohttp": ">=3.7"}
 
 
@@ -66,16 +67,14 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin.onto(self)
 
     async def connect(self, req, *args, **kwargs):
-        pin = Pin.get_from(self)
-        with pin.tracer.trace("%s.connect" % self.__class__.__name__) as span:
+        with tracer.trace("%s.connect" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
             span.set_tag(COMPONENT, config.aiohttp.integration_name)
             result = await self.__wrapped__.connect(req, *args, **kwargs)
             return result
 
     async def _create_connection(self, req, *args, **kwargs):
-        pin = Pin.get_from(self)
-        with pin.tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
+        with tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
             span.set_tag(COMPONENT, config.aiohttp.integration_name)
             result = await self.__wrapped__._create_connection(req, *args, **kwargs)
@@ -84,12 +83,15 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
-    method = get_argument_value(args, kwargs, 0, "method")  # type: str
-    url = URL(get_argument_value(args, kwargs, 1, "url"))  # type: URL
+    method: str = get_argument_value(args, kwargs, 0, "method")
+    raw_url: URL = URL(str(get_argument_value(args, kwargs, 1, "url")))
+    # Resolve against base_url if present, mirroring aiohttp's internal behaviour.
+    base_url: Optional[URL] = getattr(instance, "_base_url", None)
+    url: URL = base_url.join(raw_url) if base_url is not None else raw_url
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
         service=ext_service(pin, config.aiohttp_client),
@@ -97,14 +99,16 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         if config.aiohttp_client.split_by_domain:
             span.service = url.host
 
+        maybe_set_service_source_tag(span, config.aiohttp)
+
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        span._set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+        span._set_attribute(COMPONENT, config.aiohttp_client.integration_name)
 
         # set span.kind tag equal to type of request
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.
@@ -119,7 +123,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             query=query,
             request_headers=headers,
         )
-        resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse
+        resp: aiohttp.ClientResponse = await func(*args, **kwargs)
         set_http_meta(
             span, config.aiohttp_client, response_headers=resp.headers, status_code=resp.status, status_msg=resp.reason
         )

@@ -31,7 +31,18 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL)
 else()
     message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip")
+    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
+    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
+    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
+    set(FETCHCONTENT_UPDATES_DISCONNECTED
+        ON
+        CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        absl
+        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
+        GIT_TAG 20250127.1
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE)
     FetchContent_MakeAvailable(absl)
 endif()
 
@@ -129,13 +140,18 @@ if(DEFINED NATIVE_EXTENSION_LOCATION)
     endif()
 endif()
 
+# Enable allocator-hook reentry assertions in test builds. setup.py turns this on when
+# DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY is set in the build environment.
+if(MEMALLOC_ASSERT_ON_REENTRY)
+    message(STATUS "MEMALLOC_ASSERT_ON_REENTRY enabled: will abort on reentrant allocator hook calls")
+    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_ASSERT_ON_REENTRY)
+endif()
+
 # Add NDEBUG flag for release builds
 if(CMAKE_BUILD_TYPE STREQUAL "Release"
    OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"
    OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE NDEBUG)
-else()
-    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE UNDEBUG)
 endif()
 
 # Install the extension

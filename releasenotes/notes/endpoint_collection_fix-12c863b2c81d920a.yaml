@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Fix endpoint collection to ensure all endpoints are grouped into a single payload, resolving a rare race condition.

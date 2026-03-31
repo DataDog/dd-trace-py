@@ -1,23 +1,8 @@
-"""
-To trace sqlalchemy queries, add instrumentation to the engine class or
-instance you are using::
-
-    from ddtrace.trace import tracer
-    from ddtrace.contrib.sqlalchemy import trace_engine
-    from sqlalchemy import create_engine
-
-    engine = create_engine('sqlite:///:memory:')
-    trace_engine(engine, tracer, 'my-database')
-
-    engine.connect().execute('select count(*) from users')
-"""
-
 # 3p
 import sqlalchemy
 from sqlalchemy.event import listen
 
 # project
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -30,6 +15,9 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace import tracer
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -40,8 +28,15 @@ def trace_engine(engine, tracer=None, service=None):
     :param ddtrace.trace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
-    tracer = tracer or ddtrace.tracer  # by default use global
-    EngineTracer(tracer, service, engine)
+
+    if tracer is not None:
+        deprecate(
+            "The tracer parameter is deprecated",
+            message="The global tracer will be used instead.",
+            category=DDTraceDeprecationWarning,
+            removal_version="5.0.0",
+        )
+    EngineTracer(service, engine)
 
 
 def _wrap_create_engine(func, module, args, kwargs):
@@ -54,13 +49,12 @@ def _wrap_create_engine(func, module, args, kwargs):
     # name is used by default; users can update this setting
     # using the PIN object
     engine = func(*args, **kwargs)
-    EngineTracer(ddtrace.tracer, None, engine)
+    EngineTracer(None, engine)
     return engine
 
 
 class EngineTracer(object):
-    def __init__(self, tracer, service, engine):
-        self.tracer = tracer
+    def __init__(self, service, engine):
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = schematize_service_name(service or self.vendor)
@@ -68,7 +62,6 @@ class EngineTracer(object):
 
         # attach the PIN
         pin = Pin(service=self.service)
-        pin._tracer = self.tracer
         pin.onto(engine)
 
         listen(engine, "before_cursor_execute", self._before_cur_exec)
@@ -88,19 +81,18 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.trace(
+        span = tracer.trace(
             self.name,
             service=pin.service,
             span_type=SpanTypes.SQL,
             resource=statement,
         )
-        span._set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
+        span._set_attribute(COMPONENT, config.sqlalchemy.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
@@ -111,7 +103,7 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return
 
@@ -127,7 +119,7 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return
 
@@ -140,12 +132,12 @@ class EngineTracer(object):
 def _set_tags_from_url(span, url):
     """set connection tags from the url. return true if successful."""
     if url.host:
-        span._set_tag_str(netx.TARGET_HOST, url.host)
-        span._set_tag_str(netx.SERVER_ADDRESS, url.host)
+        span._set_attribute(netx.TARGET_HOST, url.host)
+        span._set_attribute(netx.SERVER_ADDRESS, url.host)
     if url.port:
         span.set_tag(netx.TARGET_PORT, url.port)
     if url.database:
-        span._set_tag_str(sqlx.DB, url.database)
+        span._set_attribute(sqlx.DB, url.database)
 
     return bool(span.get_tag(netx.TARGET_HOST))
 
@@ -157,7 +149,13 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, "dsn", None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span._set_tag_str(sqlx.DB, d.get("dbname"))
-                span._set_tag_str(netx.TARGET_HOST, d.get("host"))
-                span._set_tag_str(netx.SERVER_ADDRESS, d.get("host"))
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                dbname = d.get("dbname")
+                if dbname is not None:
+                    span._set_attribute(sqlx.DB, dbname)
+                host = d.get("host")
+                if host is not None:
+                    span._set_attribute(netx.TARGET_HOST, host)
+                    span._set_attribute(netx.SERVER_ADDRESS, host)
+                port = d.get("port")
+                if port is not None:
+                    span._set_attribute(netx.TARGET_PORT, int(port))

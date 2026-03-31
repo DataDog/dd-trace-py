@@ -1,4 +1,5 @@
-import typing  # noqa:F401
+import importlib.metadata as importlib_metadata
+import typing
 
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
@@ -9,7 +10,9 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils import formats
 
 
-_GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
+# IMPORTANT: Do not change typing.Tuple to tuple until minimum Python version is 3.11+
+# Module-level tuple[...] in Python 3.10 affects import timing. See packages.py for details.
+_GITMETADATA_TAGS: typing.Optional[typing.Tuple[str, str, str]] = None  # noqa: UP006
 
 log = get_logger(__name__)
 
@@ -36,8 +39,7 @@ class GitMetadataConfig(DDConfig):
 config = GitMetadataConfig()
 
 
-def _get_tags_from_env():
-    # type: () -> typing.Tuple[str, str, str]
+def _get_tags_from_env() -> tuple[str, str, str]:
     """
     Get git metadata from environment variables.
     Returns tuple (repository_url, commit_sha, main_package)
@@ -60,17 +62,16 @@ def _get_tags_from_env():
     return filtered_git_url, commit_sha, main_package
 
 
-def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
+def _get_tags_from_package(main_package: str) -> tuple[str, str]:
     """
-    Extracts git metadata from python package's medatada field Project-URL:
+    Extracts git metadata from python package's metadata field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     Returns tuple (repository_url, commit_sha)
     """
     if not main_package:
         return "", ""
-    try:
-        import importlib.metadata as importlib_metadata
 
+    try:
         source_code_link = ""
         for val in importlib_metadata.metadata(main_package).get_all("Project-URL") or []:
             capt_val = val.split(", ")
@@ -90,8 +91,7 @@ def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
         return "", ""
 
 
-def get_git_tags():
-    # type: () -> typing.Tuple[str, str, str]
+def get_git_tags() -> tuple[str, str, str]:
     """
     Returns git metadata tags tuple (repository_url, commit_sha, main_package)
     """
@@ -118,8 +118,7 @@ def get_git_tags():
         return "", "", ""
 
 
-def clean_tags(tags):
-    # type: (typing.Dict[str, str]) -> typing.Dict[str, str]
+def clean_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Cleanup tags from git metadata
     """
@@ -130,7 +129,7 @@ def clean_tags(tags):
     return tags
 
 
-def add_tags(tags):
+def add_tags(tags: dict[str, str]) -> None:
     clean_tags(tags)
 
     repository_url, commit_sha, main_package = get_git_tags()

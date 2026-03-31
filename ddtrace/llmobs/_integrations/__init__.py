@@ -1,6 +1,7 @@
 from .anthropic import AnthropicIntegration
 from .base import BaseLLMIntegration
 from .bedrock import BedrockIntegration
+from .claude_agent_sdk import ClaudeAgentSdkIntegration
 from .google_adk import GoogleAdkIntegration
 from .google_genai import GoogleGenAIIntegration
 from .langchain import LangChainIntegration
@@ -14,6 +15,7 @@ __all__ = [
     "AnthropicIntegration",
     "BaseLLMIntegration",
     "BedrockIntegration",
+    "ClaudeAgentSdkIntegration",
     "GoogleAdkIntegration",
     "GoogleGenAIIntegration",
     "LangChainIntegration",

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    exception replay: fix for errors while capturing exception replay snapshots.

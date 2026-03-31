@@ -3,7 +3,6 @@ import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import httpretty
@@ -164,7 +163,7 @@ import opentelemetry
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
+        {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
@@ -214,7 +213,11 @@ import opentelemetry
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER", "origin": "default", "value": "full"},
+        {
+            "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
+            "origin": "default",
+            "value": "safe" if sys.platform == "linux" else "full",
+        },
         {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
@@ -243,7 +246,7 @@ import opentelemetry
         {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": True},
         {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
@@ -281,12 +284,15 @@ import opentelemetry
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
         {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
+        {"name": "DD_LLMOBS_PAYLOAD_SIZE_BYTES", "origin": "default", "value": 5242880},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
         {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_MODEL_LAB_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -294,6 +300,9 @@ import opentelemetry
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
@@ -308,6 +317,8 @@ import opentelemetry
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_STACK_NATIVE_FRAMES", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_STACK_UVLOOP", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -353,6 +364,7 @@ import opentelemetry
         {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
         {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
+        {"name": "DD_TRACE_LOG_LEVEL", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
         {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
@@ -470,6 +482,11 @@ import opentelemetry
             "name": "OTEL_METRIC_EXPORT_TIMEOUT",
             "origin": "default",
             "value": 7500,
+        },
+        {
+            "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
+            "origin": "default",
+            "value": False,
         },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
@@ -737,8 +754,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 )
 
 
-def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that we queue/send app-heartbeat when periodc() is called"""
     # Ensure telemetry writer is initialized to send periodic events
     telemetry_writer._is_periodic = True
@@ -758,8 +774,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     assert len(heartbeat_events) == 1
 
 
-def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
@@ -767,8 +782,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     assert len(events) > 0
 
 
-def test_app_product_change_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
 
     # Assert that the default product status is disabled
@@ -806,8 +820,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     }
 
 
-def validate_request_body(received_body, payload, payload_type, seq_id=None):
-    # type: (Dict, Dict, str, Optional[int]) -> Dict
+def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
     """used to test the body of requests received by the testagent"""
     assert len(received_body) == 9
     assert received_body["tracer_time"] == time.time()
@@ -1190,3 +1203,19 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     assert sorted_configs[5]["value"] == "baboon"
     assert sorted_configs[5]["origin"] == "fleet_stable_config"
     assert sorted_configs[5]["seq_id"] == 6
+
+
+@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"})
+def test_telemetry_debug_enabled_by_telemetry_env_var():
+    """Telemetry debug mode is enabled only by DD_INTERNAL_TELEMETRY_DEBUG_ENABLED, not DD_TRACE_DEBUG."""
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._debug is True
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_DEBUG": "true"}, err=None)
+def test_telemetry_debug_not_enabled_by_tracer_debug():
+    """Setting DD_TRACE_DEBUG must not enable telemetry debug mode."""
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    assert telemetry_writer._debug is False

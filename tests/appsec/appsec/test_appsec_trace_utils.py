@@ -36,9 +36,8 @@ class EventsSDKTestCase(TracerTestCase):
     _BLOCKED_USER = "123456"
 
     @pytest.fixture(autouse=True)
-    def inject_fixtures(self, tracer, caplog):  # noqa: F811
+    def inject_fixtures(self, caplog):  # noqa: F811
         self._caplog = caplog
-        self.tracer = tracer
 
     def test_track_user_login_event_success_without_metadata(self):
         with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as span:
@@ -334,7 +333,7 @@ class EventsSDKTestCase(TracerTestCase):
         with self._caplog.at_level(logging.DEBUG):
             try:
                 should_block_user(tracer, "111")
-                block_request_if_user_blocked(tracer, "111")
+                block_request_if_user_blocked("111")
                 track_custom_event(tracer, "testevent", {})
                 track_user_login_success_event(tracer, "111", {})
                 track_user_login_failure_event(tracer, "111", {})

@@ -4,9 +4,7 @@ from itertools import chain
 import sys
 import threading
 import time
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ray.dashboard.modules.job.common import JobInfo
@@ -18,8 +16,8 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
@@ -49,7 +47,7 @@ def long_running_ray_span(
     with tracer.start_span(
         name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)
 
@@ -64,11 +62,11 @@ def long_running_ray_span(
 
 class RaySpanManager:
     def __init__(self) -> None:
-        self._timers: Dict[str, threading.Timer] = {}
+        self._timers: dict[str, threading.Timer] = {}
         # {submission_id: {(trace_id, span_id): Span}}
-        self._job_spans: Dict[str, Dict[Tuple[int, int], Span]] = {}
+        self._job_spans: dict[str, dict[tuple[int, int], Span]] = {}
         # {submission_id: (Span)}
-        self._root_spans: Dict[str, Span] = {}
+        self._root_spans: dict[str, Span] = {}
         self._lock = Lock()
         self._is_shutting_down: bool = False
 
@@ -105,12 +103,12 @@ class RaySpanManager:
     def _emit_partial_span(self, span: Span) -> None:
         partial_version = time.time_ns()
         if span.get_metric(DD_PARTIAL_VERSION) is None:
-            span.set_metric(DD_PARTIAL_VERSION, partial_version)
-            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+            span._set_attribute(DD_PARTIAL_VERSION, partial_version)
+            span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
-        partial_span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
-        partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
+        partial_span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        partial_span._set_attribute(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
         # Sending spans which are waiting for long running spans to finish
@@ -169,7 +167,7 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span._set_tag_str("component", RAY_COMPONENT)
+        new_span._set_attribute("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
         new_span._meta = job_span._meta.copy()
         new_span._metrics = job_span._metrics.copy()
@@ -194,11 +192,11 @@ class RaySpanManager:
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
             del span._metrics[DD_PARTIAL_VERSION]
 
-            span.set_metric(DD_WAS_LONG_RUNNING, 1)
-            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
+            span._set_attribute(DD_WAS_LONG_RUNNING, 1)
+            span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:
-            span._set_tag_str(RAY_JOB_STATUS, job_info.status)
+            span._set_attribute(RAY_JOB_STATUS, job_info.status)
             span.set_tag(RAY_JOB_MESSAGE, job_info.message)
 
             if str(job_info.status) == RAY_STATUS_FAILED:

@@ -31,7 +31,6 @@ suites:
       - '@testing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
-    runner: riot
     snapshot: true
   dd_coverage:
     parallelism: 3
@@ -41,10 +40,26 @@ suites:
       - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
-    runner: riot
     snapshot: true
   pytest:
-    venvs_per_job: 1
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+    pattern: 'pytest$'
+  pytest_benchmark:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -57,11 +72,44 @@ suites:
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
-      - tests/contrib/pytest_bdd/*
-      - tests/contrib/pytest_flaky/*
+      - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
+  pytest_bdd:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/contrib/pytest_bdd/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+  pytest_flaky:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/contrib/pytest_flaky/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+    pattern: 'pytest:flaky'
   testing:
     venvs_per_job: 1
     paths:
@@ -75,7 +123,7 @@ suites:
       - '@codeowners'
       - '@testing'
       - tests/testing/*
-    runner: riot
+      - tests/contrib/internal/coverage/*
     snapshot: true
   selenium:
     parallelism: 2
@@ -91,7 +139,6 @@ suites:
       - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
-    runner: riot
     snapshot: true
   unittest:
     parallelism: 2
@@ -103,5 +150,4 @@ suites:
       - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
-    runner: riot
     snapshot: true

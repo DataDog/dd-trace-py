@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -12,7 +14,14 @@ extern "C"
 
 namespace Datadog {
 
-ddog_prof_StringId2
+// Intern a string into libdatadog, returning a string ID
+// (or nullopt if interning failed).
+// Passing the same string twice will deduplicate the string and return
+// the same string ID.
+// Note: although this function is a wrapper around libdatadog utilities,
+// it maintains a local cache of string -> string ID mappings to avoid
+// redundant FFI boundary-crossing calls.
+std::optional<ddog_prof_StringId2>
 intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
@@ -39,6 +48,7 @@ intern_string(std::string_view s);
 // to have spaces in the names.
 #define EXPORTER_LABELS(X)                                                                                             \
     X(exception_type, "exception type")                                                                                \
+    X(exception_message, "exception message")                                                                          \
     X(thread_id, "thread id")                                                                                          \
     X(thread_native_id, "thread native id")                                                                            \
     X(thread_name, "thread name")                                                                                      \
@@ -54,12 +64,12 @@ intern_string(std::string_view s);
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
 
-enum class ExportTagKey
+enum class ExportTagKey : std::uint8_t
 {
     EXPORTER_TAGS(X_ENUM) Length_
 };
 
-enum class ExportLabelKey
+enum class ExportLabelKey : std::uint8_t
 {
     EXPORTER_LABELS(X_ENUM) Length_
 };
@@ -144,35 +154,12 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
 namespace internal {
 
-ddog_prof_ProfilesDictionaryHandle
-get_profiles_dictionary();
-
-// Decreases the refcount on the Profiles Dictionary handle.
-// This should be called before the process exits.
-// Note that this may not free it immediately if something else
-// (e.g. the Profile object) still holds a reference to it.
-void
-release_profiles_dictionary();
-
-// Initialize cached interned strings (required after creating/recreating the ProfilesDictionary)
-void
-init_interned_strings();
-
-// Reset tag and label key caches (required after fork)
-void
-reset_key_caches();
-
 // Fork-safe cached interning for tag and label keys
-// Must come after enum definitions to know the sizes
-
-// Reset tag key and label key caches
-void
-reset_key_caches();
-
-ddog_prof_StringId2
+// Caches are stored in the ProfilerState singleton and reset on fork
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key);
 
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportLabelKey key);
 
 } // namespace internal

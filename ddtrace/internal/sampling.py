@@ -1,7 +1,6 @@
 import json
+import math
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypedDict
 
@@ -48,6 +47,17 @@ SAMPLING_MECHANISM_CONSTANTS = {
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
+
+def _format_ksr(rate: float) -> str:
+    """Format a sampling rate for _dd.p.ksr: up to 6 decimal digits, trailing zeros stripped.
+
+    Uses explicit rounding via math.floor(x + 0.5) to avoid Python's banker's rounding
+    which would round 0.0000005 down to 0 instead of up to 0.000001.
+    """
+    rounded = math.floor(rate * 1e6 + 0.5) / 1e6
+    return f"{rounded:.6f}".rstrip("0").rstrip(".")
+
+
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
     {
@@ -61,8 +71,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta: Dict[str, str],
-) -> Dict[str, str]:
+    meta: dict[str, str],
+) -> dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -103,16 +113,14 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span):
-        # type: (Span) -> bool
+    def sample(self, span: Span) -> bool:
         if self._sample(span):
             if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
-    def _sample(self, span):
-        # type: (Span) -> bool
+    def _sample(self, span: Span) -> bool:
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
@@ -120,8 +128,7 @@ class SpanSamplingRule:
 
         return ((span.span_id * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def match(self, span):
-        # type: (Span) -> bool
+    def match(self, span: Span) -> bool:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -146,16 +153,15 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def apply_span_sampling_tags(self, span):
-        # type: (Span) -> None
-        span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
-        span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
+    def apply_span_sampling_tags(self, span: Span) -> None:
+        span._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+        span._set_attribute(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
         if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
-            span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
+            span._set_attribute(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules() -> List[SpanSamplingRule]:
+def get_span_sampling_rules() -> list[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -166,7 +172,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
 
         if not service and not name:
             log.warning("Sampling rules must supply at least 'service' or 'name', got %s", json.dumps(rule))
-            return []
+            continue
 
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
@@ -186,7 +192,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
     return sampling_rules
 
 
-def _get_span_sampling_json() -> List[Dict[str, Any]]:
+def _get_span_sampling_json() -> list[dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -201,7 +207,7 @@ def _get_span_sampling_json() -> List[Dict[str, Any]]:
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json() -> Optional[List[Dict[str, Any]]]:
+def _get_file_json() -> Optional[list[dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -209,14 +215,14 @@ def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     return None
 
 
-def _get_env_json() -> Optional[List[Dict[str, Any]]]:
+def _get_env_json() -> Optional[list[dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
+def _load_span_sampling_json(raw_json_rules: str) -> list[dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
@@ -248,11 +254,11 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
-        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_attribute(_SAMPLING_RULE_DECISION, sample_rate)
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
-        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
-        span._set_tag_str(KNUTH_SAMPLE_RATE_KEY, f"{sample_rate:.6g}")
+        span._set_attribute(_SAMPLING_AGENT_DECISION, sample_rate)
+        span._set_attribute(KNUTH_SAMPLE_RATE_KEY, _format_ksr(sample_rate))
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
@@ -262,12 +268,12 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
 
 def _inherit_sampling_tags(target: Span, source: Span):
     """Set sampling tags from source span on target span."""
-    target.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
-    target._set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
-    target._set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
+    target._set_attribute(SAMPLING_DECISION_MAKER_INHERITED, 1)
+    target._set_attribute(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
+    target._set_attribute(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: Span, rules: list[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 

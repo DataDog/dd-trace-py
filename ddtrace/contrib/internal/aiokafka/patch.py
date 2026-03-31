@@ -1,6 +1,5 @@
 import os
 from time import time_ns
-from typing import Dict
 
 import aiokafka
 from wrapt import wrap_function_wrapper as _w
@@ -43,7 +42,7 @@ def get_version() -> str:
     return getattr(aiokafka, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiokafka": ">=0.9.0"}
 
 
@@ -88,6 +87,7 @@ async def traced_send(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_aiokafka_tags(topic, bootstrap_servers),
+        integration_config=config.aiokafka,
     ) as ctx:
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
@@ -141,6 +141,7 @@ async def traced_getone(func, instance, args, kwargs):
             service=trace_utils.ext_service(None, config.aiokafka),
             distributed_context=parent_ctx,
             tags=common_consume_aiokafka_tags(getattr(message, "topic", None), bootstrap_servers, group_id),
+            integration_config=config.aiokafka,
         ) as ctx:
             core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
     return message
@@ -157,6 +158,7 @@ async def traced_getmany(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_consume_aiokafka_tags(None, bootstrap_servers, group_id),
+        integration_config=config.aiokafka,
     ) as ctx:
         messages = await func(*args, **kwargs)
 

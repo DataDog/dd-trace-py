@@ -14,7 +14,12 @@
 #include <echion/stacks.h>
 #include <echion/strings.h>
 
+#include <utility>
+#include <vector>
+
 #define FRAME_NOT_SET Py_False // Sentinel for frame cell
+
+class EchionSampler;
 
 class GreenletInfo
 {
@@ -34,23 +39,18 @@ class GreenletInfo
     {
     }
 
-    int unwind(PyObject*, PyThreadState*, FrameStack&);
+    void unwind(EchionSampler& echion, PyObject*, PyThreadState*, FrameStack&);
 };
 
-// ----------------------------------------------------------------------------
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map =
-  *(new std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>());
-
-// maps greenlets to their parent
-inline std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map =
-  *(new std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>());
-
-// maps threads to any currently active greenlets
-inline std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map =
-  *(new std::unordered_map<uintptr_t, GreenletInfo::ID>());
-
-inline std::mutex greenlet_info_map_lock;
+// Lightweight snapshot of a greenlet's state for unwinding outside the lock.
+// Frame pointers may become stale after the lock is released (e.g. if the
+// greenlet finishes and the PyFrameObject is freed).  GreenletInfo::unwind()
+// reads through them using copy_type(), which safely handles invalid addresses.
+struct GreenletSnapshot
+{
+    GreenletInfo::ID greenlet_id;
+    StringTable::Key name;
+    PyObject* frame; // potentially-stale address, read via copy_type in unwind
+    // Parent chain: (parent_name, parent_frame) pairs in order from immediate parent up
+    std::vector<std::pair<StringTable::Key, PyObject*>> parent_chain;
+};

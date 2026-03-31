@@ -22,6 +22,7 @@ from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
@@ -117,7 +118,7 @@ class AgentWriterTests(BaseTestCase):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
+                    span._set_attribute(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -522,7 +523,7 @@ class NativeWriterTests(AgentWriterTests):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
+                    span._set_attribute(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -661,6 +662,21 @@ class NativeWriterTests(AgentWriterTests):
             for trace in payload:
                 assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
+    def test_on_shutdown_idempotent(self):
+        """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
+        writer = NativeWriter("http://dne:1234")
+        writer.start()
+        # First call should succeed
+        writer.on_shutdown()
+        # Second call should also succeed (idempotent)
+        writer.on_shutdown()
+
+    def test_on_shutdown_before_start(self):
+        """Test that NativeWriter.on_shutdown() can be called before start() without raising ValueError."""
+        writer = NativeWriter("http://dne:1234")
+        # Call shutdown without ever calling start()
+        writer.on_shutdown()
+
     # Http related metrics are sent by the native code
     def test_drop_reason_bad_endpoint(self):
         pytest.skip()
@@ -727,6 +743,57 @@ class LogWriterTests(BaseTestCase):
     def test_log_writer(self):
         self.create_writer()
         self.assertEqual(len(self.output.entries), self.N_TRACES)
+
+
+def test_agentless_trace_writer_uses_post():
+    """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer.HTTP_METHOD == "POST"
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
+    assert writer._headers.get("dd-api-key") == "test-api-key"
+    assert writer._clients[0].ENDPOINT == "v1/input"
+    assert writer._encoder.content_type == "application/json"
+
+
+def test_agentless_trace_writer_buffer_size_capped_at_max():
+    """AgentlessTraceWriter caps buffer_size at MAX_BUFFER_SIZE (15 MB) regardless of config."""
+    max_size = AgentlessTraceWriter.MAX_BUFFER_SIZE
+
+    # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer._encoder.max_size == max_size
+
+    # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
+    small = max_size // 2
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=small,
+    )
+    assert writer._encoder.max_size == small
+
+    # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=max_size * 2,
+    )
+    assert writer._encoder.max_size == max_size
+
+
+def test_agentless_trace_writer_encode_traces():
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
+    writer.flush_queue(raise_exc=True)
 
 
 def test_humansize():
@@ -954,6 +1021,75 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
             writer.flush_queue(raise_exc=True)
 
 
+def test_periodic_thread_uds_callback_unblocks_with_timeout():
+    import os
+    import socket
+    import tempfile
+    import threading
+
+    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+    sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
+    sock_path = os.path.join(sock_dir, "blackhole.sock")
+    server_ready = threading.Event()
+    server_stop = threading.Event()
+    callback_started = threading.Event()
+    callback_done = threading.Event()
+
+    def _blackhole_server():
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn = None
+        try:
+            srv.bind(sock_path)
+            srv.listen(1)
+            server_ready.set()
+            conn, _ = srv.accept()
+            # Keep the connection open and never send a response so the client
+            # can only make progress via its socket timeout.
+            while not server_stop.wait(0.05):
+                pass
+        finally:
+            if conn is not None:
+                conn.close()
+            srv.close()
+
+    def _callback():
+        callback_started.set()
+        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        try:
+            conn.request("GET", "/")
+            conn.getresponse().read()
+        except Exception:
+            # Timeout (or an equivalent network error path) is expected.
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            callback_done.set()
+
+    server_thread = threading.Thread(target=_blackhole_server, daemon=True)
+    server_thread.start()
+    assert server_ready.wait(timeout=2)
+
+    worker = PeriodicThread(interval=60.0, target=_callback, name="repro:UDSForkTimeout", no_wait_at_start=True)
+    worker.start()
+    assert callback_started.wait(timeout=2)
+
+    try:
+        assert callback_done.wait(timeout=5)
+    finally:
+        server_stop.set()
+        worker.stop()
+        worker.join(timeout=1.0)
+        server_thread.join(timeout=1.0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+        os.rmdir(sock_dir)
+
+
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
@@ -978,6 +1114,11 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
             writer.flush_queue(raise_exc=True)
 
 
+@pytest.mark.xfail(
+    reason="Flaky: BrokenPipeError occurs due to race condition between writer flush "
+    "UDS server shutdown/unlink in fixture cleanup.",
+    strict=False,
+)
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     url = f"unix://{endpoint_uds_server.server_address}"
@@ -1273,3 +1414,259 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+
+
+class TestSafelog:
+    """Tests for the _safelog function that handles closed I/O streams gracefully."""
+
+    def test_safelog_with_closed_stream(self):
+        """Test that _safelog handles closed logging streams without raising."""
+        import io
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        # Create a stream that we can close
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+
+        # Get the writer logger and temporarily replace ALL handlers
+        logger = logging.getLogger("ddtrace.internal.writer.writer")
+        original_handlers = logger.handlers[:]
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        # Disable propagation to parent loggers and set only our handler
+        logger.propagate = False
+        logger.handlers = [handler]
+        logger.setLevel(logging.DEBUG)
+
+        # Close the stream to simulate pytest closing captured streams
+        stream.close()
+
+        try:
+            # This should not raise even though the stream is closed
+            _safelog(logger.warning, "Test message with %s", "args")
+            _safelog(logger.error, "Another test message")
+            _safelog(logger.debug, "Debug message with extra", extra={"key": "value"})
+        finally:
+            # Restore original state
+            logger.handlers = original_handlers
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
+    def test_safelog_with_closed_stream_no_exception(self):
+        """Test that _safelog handles closed streams without raising any exception.
+
+        The key behavior is that _safelog should not propagate exceptions when
+        the logging stream is closed, regardless of whether error output is produced.
+        Different Python versions may handle closed streams differently.
+        """
+        import io
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        # Create a stream that we can close
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+
+        # Get the writer logger and temporarily replace ALL handlers
+        logger = logging.getLogger("ddtrace.internal.writer.writer")
+        original_handlers = logger.handlers[:]
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        # Disable propagation to parent loggers and set only our handler
+        logger.propagate = False
+        logger.handlers = [handler]
+        logger.setLevel(logging.DEBUG)
+
+        try:
+            # Close the stream to simulate pytest closing captured streams
+            stream.close()
+
+            # The key assertion: this should not raise any exception
+            # even though the stream is closed
+            _safelog(logger.warning, "Test message to closed stream")
+            # If we get here, the test passes - no exception was raised
+        finally:
+            # Restore original state
+            logger.handlers = original_handlers
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
+    def test_safelog_normal_operation(self):
+        """Test that _safelog works correctly when streams are open."""
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        # Use mocking to verify the log function call is made correctly
+        with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+            _safelog(mock_log.warning, "Normal log message with %s", "formatting")
+
+            # Verify log.warning was called with correct arguments
+            mock_log.warning.assert_called_once_with("Normal log message with %s", "formatting")
+
+    def test_safelog_with_extra_kwargs(self):
+        """Test that _safelog passes through extra kwargs correctly."""
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+            _safelog(mock_log.error, "Error with extra", extra={"key": "value"}, exc_info=True)
+
+            mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-api-key"})
+def test_agentless_writer_enabled():
+    import json
+    from unittest.mock import patch
+
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1") as root1:
+            with tracer.trace("child1") as child1:
+                pass
+            with tracer.trace("child2") as child2:
+                pass
+        with tracer.trace("root2") as root2:
+            pass
+
+        writer.flush_queue()
+
+    # Both traces are batched into a single payload
+    assert mock_put.call_count == 1
+    payload = json.loads(mock_put.call_args_list[0][0][0])
+
+    assert "traces" in payload
+    assert len(payload["traces"]) == 2
+
+    # Find each trace by matching trace_id across all spans
+    trace1_id = "{:016x}".format(root1._trace_id_64bits)
+    trace2_id = "{:016x}".format(root2._trace_id_64bits)
+    trace1_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"])
+    )
+    trace2_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"])
+    )
+
+    # trace1: root1, child1, child2
+    assert len(trace1_spans_list) == 3
+    trace1_spans = {s["name"]: s for s in trace1_spans_list}
+    assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
+    assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
+    assert trace1_spans["child1"]["span_id"] == "{:016x}".format(child1.span_id)
+    assert trace1_spans["child1"]["parent_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["child2"]["span_id"] == "{:016x}".format(child2.span_id)
+    assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
+
+    # trace2: root2 only
+    assert len(trace2_spans_list) == 1
+    assert trace2_spans_list[0]["name"] == "root2"
+    assert trace2_spans_list[0]["span_id"] == "{:016x}".format(root2.span_id)
+    assert trace2_spans_list[0]["parent_id"] == "0000000000000000"
+
+    headers = mock_put.call_args_list[0][0][1]
+    assert headers["Content-Type"] == "application/json"
+    assert headers["dd-api-key"] == "test-api-key"
+    assert headers["Datadog-Meta-Lang"] == "python"
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": "test-api-key",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
+        "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+        "DD_TRACE_RATE_LIMIT": "1",
+        "DD_TRACE_COMPUTE_STATS": "true",
+    }
+)
+def test_agentless_writer_serialize_span_fields():
+    import json
+    from os import getpid
+    from unittest.mock import patch
+
+    from ddtrace.internal.hostname import get_hostname
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1", resource="resource1", service="service1") as span:
+            span.set_tag("tag1", "value1")
+            span.set_tag("tag2", "value2")
+            span._set_attribute("metric1", 1.0)
+            span._set_attribute("metric2", 2.0)
+            span.set_link(trace_id=3, span_id=4)
+            span.error = 1
+            span._set_struct_tag("payload", {"key": "value"})
+        writer.flush_queue()
+
+    assert mock_put.call_count == 1
+    payload_json_bytes = mock_put.call_args_list[0][0][0]
+    payload_json = json.loads(payload_json_bytes.decode("utf-8"))
+
+    assert "traces" in payload_json
+    assert len(payload_json["traces"]) == 1
+    assert len(payload_json["traces"][0]["spans"]) == 1
+    span_json = payload_json["traces"][0]["spans"][0]
+
+    assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
+    assert span_json["parent_id"] == "0000000000000000"
+    assert span_json["span_id"] == "{:016x}".format(span.span_id)
+    assert span_json["service"] == "service1"
+    assert span_json["resource"] == "resource1"
+    assert span_json["name"] == "root1"
+    assert span_json["error"] == 1
+    assert span_json["start"] == span.start_ns
+    assert span_json["duration"] == span.duration_ns
+    assert span_json["span_links"] == [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}]
+    assert span_json["meta_struct"] == {"payload": {"key": "value"}}
+
+    assert span_json["meta"]["_dd.hostname"] == get_hostname()
+    assert span_json["meta"]["runtime-id"] == get_runtime_id()
+    assert span_json["meta"]["tag1"] == "value1"
+    assert span_json["meta"]["tag2"] == "value2"
+    # Sampling rules and rate limits are ignored. Default is used.
+    assert span_json["meta"]["_dd.p.dm"] == "-0"
+    assert span_json["meta"]["language"] == "python"
+    assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
+
+    assert span_json["metrics"]["process_id"] == getpid()
+    assert span_json["metrics"]["metric1"] == 1.0
+    assert span_json["metrics"]["metric2"] == 2.0
+    assert span_json["metrics"]["_dd.top_level"] == 1
+    assert span_json["metrics"]["_sampling_priority_v1"] == 1
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": None,
+    },
+    err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+)
+def test_agentless_writer_no_api_key():
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)

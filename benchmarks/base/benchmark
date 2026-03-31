@@ -7,14 +7,14 @@ fi
 
 ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
 
-OUTPUT_V1=${ARTIFACTS}/${DDTRACE_V1}/
+OUTPUT_V1=${ARTIFACTS}/baseline/
 mkdir -p ${OUTPUT_V1}
 source ${VENV_DDTRACE_V1}/bin/activate
 python run.py ${OUTPUT_V1}
 deactivate
 
 if [ "${DDTRACE_V2}" != "" ]; then
-  OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+  OUTPUT_V2=${ARTIFACTS}/candidate/
   mkdir -p ${OUTPUT_V2}
   source ${VENV_DDTRACE_V2}/bin/activate
   python run.py ${OUTPUT_V2}

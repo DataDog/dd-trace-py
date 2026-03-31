@@ -1,112 +1,16 @@
 #include "ddup_interface.hpp"
 
+#include "defer.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
-#include <cstdlib>
-#include <datadog/profiling.h>
 #include <iostream>
-#include <unistd.h>
+#include <string_view>
 #include <unordered_map>
-
-namespace {
-
-// The Profiles Dictionary used for interning strings and functions
-ddog_prof_ProfilesDictionaryHandle dict_handle = nullptr;
-
-// Initializes the Profiles Dictionary
-bool
-init_profiles_dictionary()
-{
-    auto result = ddog_prof_ProfilesDictionary_new(&dict_handle);
-    if (result.flags) {
-        std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-} // namespace
-
-namespace Datadog::internal {
-
-ddog_prof_ProfilesDictionaryHandle
-get_profiles_dictionary()
-{
-    return dict_handle;
-}
-
-void
-release_profiles_dictionary()
-{
-    ddog_prof_ProfilesDictionary_drop(&dict_handle);
-    dict_handle = nullptr;
-}
-
-} // namespace Datadog::internal
-
-// State
-bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-
-// When a fork is detected, we need to reinitialize this state.
-// This handler will be called in the single thread of the child process after the fork
-void
-ddup_postfork_child()
-{
-    // Free our copy of the Profiles Dictionary. Its String IDs refer
-    // to memory that doesn't exist in the child process.
-    Datadog::internal::release_profiles_dictionary();
-
-    // Re-initialize the Profiles Dictionary in the child process
-    if (!init_profiles_dictionary()) {
-        std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
-                  << std::endl;
-        is_ddup_initialized = false;
-        return;
-    }
-
-    // Initialize cached interned strings with the new Profiles Dictionary
-    Datadog::internal::init_interned_strings();
-
-    Datadog::Uploader::postfork_child();
-    Datadog::SampleManager::postfork_child();
-}
-
-void
-ddup_postfork_parent()
-{
-    // The parent keeps its Profiles Dictionary - no need to drop and recreate.
-    // The Profile is already associated with this dictionary, and all
-    // interned strings remain valid.
-
-    Datadog::Uploader::postfork_parent();
-}
-
-// Cleanup function to free the Profiles Dictionary on exit
-void
-ddup_cleanup()
-{
-    // (Eventually) order to Profile to be cleared, decreasing the refcount on the Profiles Dictionary
-    Datadog::SampleManager::cleanup();
-
-    // Decrease the refcount on the Profiles Dictionary
-    Datadog::internal::release_profiles_dictionary();
-}
-
-// Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
-// after a `fork()`, we just outright prevent uploads from happening during a `fork()` operation.  Since a
-// new upload may be scheduled _just_ as `fork()` is entered, we also need to prevent new uploads from happening.
-// This mutex is released in both the child and the parent.
-void
-ddup_prefork()
-{
-    Datadog::Uploader::prefork();
-}
 
 // Configuration
 void
@@ -214,37 +118,19 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
-    return is_ddup_initialized;
+    return Datadog::ProfilerState::get().is_initialized();
 }
 
 void
 ddup_start() // cppcheck-suppress unusedFunction
 {
-    std::call_once(ddup_init_flag, []() {
-        // Initialize the profiles dictionary at process start
-        // This is a prerequisite for Datadog::SampleManager::init()
-        // which sets the Profiles Dictionary on the Profile object.
-        if (!init_profiles_dictionary()) {
-            return false;
-        }
+    Datadog::ProfilerState::get().start();
+}
 
-        // Initialize cached interned strings (must happen after profiles dictionary is created)
-        Datadog::internal::init_interned_strings();
-
-        // Perform any one-time startup operations
-        Datadog::SampleManager::init();
-
-        // install the ddup_fork_handler for pthread_atfork
-        // Right now, only do things in the child _after_ fork
-        pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
-
-        // Register cleanup function to free resources on exit
-        std::atexit(ddup_cleanup);
-
-        // Set the global initialization flag
-        is_ddup_initialized = true;
-        return true;
-    });
+void
+ddup_cleanup()
+{
+    Datadog::ProfilerState::get().cleanup();
 }
 
 Datadog::Sample*
@@ -254,7 +140,7 @@ ddup_start_sample() // cppcheck-suppress unusedFunction
     // ddup_start() uses std::call_once, so it's safe to call multiple times.
     ddup_start();
 
-    if (!is_ddup_initialized) {
+    if (!ddup_is_initialized()) {
         return nullptr;
     }
 
@@ -264,7 +150,6 @@ ddup_start_sample() // cppcheck-suppress unusedFunction
 void
 ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count) // cppcheck-suppress unusedFunction
 {
-
     sample->push_walltime(walltime, count);
 }
 
@@ -370,6 +255,13 @@ ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_push_exception_message(Datadog::Sample* sample,
+                            std::string_view exception_message) // cppcheck-suppress unusedFunction
+{
+    sample->push_exception_message(exception_message);
+}
+
+void
 ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cppcheck-suppress unusedFunction
 {
     sample->push_class_name(class_name);
@@ -389,6 +281,18 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
+{
+    sample->push_pyframes(frame);
+}
+
+void
+ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb) // cppcheck-suppress unusedFunction
+{
+    sample->push_pytraceback(tb);
 }
 
 void
@@ -419,13 +323,23 @@ bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    if (!is_ddup_initialized) {
+    if (!ddup_is_initialized()) {
         if (!already_warned) {
             already_warned = true;
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
         }
         return false;
     }
+
+    // Acquire the upload lock before building the uploader.
+    // This ensures that if a fork happens, the prefork handler will wait for us to finish
+    // building and uploading before allowing the fork to proceed. This prevents memory
+    // allocated during build() from being orphaned in the child process.
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
 
     // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
     // This takes a reference in a way that locks the areas where the profile might
@@ -443,18 +357,23 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
 
-    // Upload without holding any locks (encoding has already been done in UploaderBuilder::build)
+    // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
     // This also cancels inflight uploads. There are better ways to do this, but this is what
     // we have for now.
-    return uploader.upload();
+    bool result = uploader.upload_unlocked();
+
+    return result;
 }
 
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
 ddup_profile_set_endpoints(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
@@ -471,11 +390,15 @@ ddup_profile_set_endpoints(
     }
 }
 
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
-ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
+  std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);

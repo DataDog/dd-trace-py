@@ -1,7 +1,4 @@
-import typing as t
-
-
-def collapse_ranges(numbers: t.List[int]) -> t.List[t.Tuple[int, int]]:
+def collapse_ranges(numbers: list[int]) -> list[tuple[int, int]]:
     # This function turns an ordered list of numbers into a list of ranges.
     # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
     if not numbers:

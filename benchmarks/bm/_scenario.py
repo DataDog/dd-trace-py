@@ -10,7 +10,7 @@ def str_to_bool(_input):
     return _input in (True, "True", "true", "Yes", "yes", "Y", "y", "On", "on", "1", 1)
 
 
-def _register(scenario_cls: typing.Type["Scenario"]) -> None:
+def _register(scenario_cls: type["Scenario"]) -> None:
     """Registers a scenario for benchmarking."""
 
     import pyperf

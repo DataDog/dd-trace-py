@@ -1,0 +1,4 @@
+fixes:
+  - |
+    lib injection: the injected ``site-packages`` directory is now added as the last entry in the ``PYTHONPATH``
+    environment variable (it previously was added before the last entry).

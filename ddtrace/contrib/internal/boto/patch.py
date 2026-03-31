@@ -1,6 +1,5 @@
 import inspect
 import os
-from typing import Dict
 
 from boto import __version__
 import boto.connection
@@ -22,6 +21,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 
 # Original boto client class
@@ -49,12 +49,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"boto": "*"}
 
 
@@ -87,20 +86,19 @@ def patched_query_request(original_func, instance, args, kwargs):
 
     endpoint_name = instance.host.split(".")[0]
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         operation_name = None
         if args:
@@ -137,7 +135,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.METHOD, result._method)
 
         return result
 
@@ -168,15 +166,14 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     endpoint_name = instance.host.split(".")[0]
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())
@@ -206,12 +203,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.METHOD, result._method)
 
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         return result
 

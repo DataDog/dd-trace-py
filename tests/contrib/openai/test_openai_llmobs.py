@@ -114,6 +114,17 @@ class TestLLMObsOpenaiV1:
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_unknown_provider(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Ensure model_provider is set to 'unknown' for chat completions with unknown base_url."""
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        assert mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["model_provider"] == "unknown"
+
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -2058,8 +2069,6 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
     def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        from typing import List
-
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2067,7 +2076,7 @@ MUL: "*"
             output: str
 
         class MathResponse(BaseModel):
-            steps: List[Step]
+            steps: list[Step]
             final_answer: str
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_parse.yaml"):
@@ -2108,8 +2117,6 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
     def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        from typing import List
-
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2117,7 +2124,7 @@ MUL: "*"
             output: str
 
         class MathResponse(BaseModel):
-            steps: List[Step]
+            steps: list[Step]
             final_answer: str
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_parse.yaml"):
@@ -2219,8 +2226,9 @@ MUL: "*"
                 {
                     "role": "reasoning",
                     "content": (
-                        '{"summary": [], "encrypted_content": null, '
-                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                        '{"encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b", '
+                        '"summary": []}'
                     ),
                 },
                 {

@@ -1,65 +1,63 @@
 #include "sample.hpp"
 
+#define PY_SSIZE_T_CLEAN
+
+#include <Python.h>
+#include <frameobject.h>
+
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
+#include "pymacro.hpp"
+#include "python_helpers.hpp"
 
 #include <algorithm>
 #include <chrono>
-#include <datadog/common.h>
 #include <datadog/profiling.h>
 #include <string_view>
 
-Datadog::string_id
+std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
 {
-    auto dict = internal::get_profiles_dictionary();
+    auto maybe_dict = ProfilerState::get().get_profiles_dictionary();
+    if (!maybe_dict) {
+        return std::nullopt;
+    }
 
     ddog_prof_StringId2 string_id;
     auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
+      &string_id, *maybe_dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
     if (insert_str_res.flags) {
         std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
-        return nullptr;
+        return std::nullopt;
     }
 
     return string_id;
 }
 
-// Static state for intern_function that needs to be reset after fork
-namespace {
-
-ddog_prof_StringId2 cached_empty_string_id = nullptr;
-
-} // namespace
-
-Datadog::function_id
+std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto dict = internal::get_profiles_dictionary();
+    auto& state = ProfilerState::get();
+    auto maybe_dict = state.get_profiles_dictionary();
+    if (!maybe_dict) {
+        return std::nullopt;
+    }
+
     ddog_prof_Function2 my_function = {
         .name = name,
-        .system_name = cached_empty_string_id, // No support for system_name in Python
+        .system_name = state.cached_empty_string_id, // No support for system_name in Python
         .file_name = filename,
     };
 
     ddog_prof_FunctionId2 function_id;
-    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, dict, &my_function);
+    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, *maybe_dict, &my_function);
     if (insert_function_res.flags) {
         std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
-        return nullptr;
+        return std::nullopt;
     }
 
     return function_id;
-}
-
-void
-Datadog::internal::init_interned_strings()
-{
-    // Initialize the cached empty string with the current Profiles Dictionary
-    cached_empty_string_id = intern_string("");
-
-    // Reset and re-initialize the tag and label key caches
-    reset_key_caches();
 }
 
 Datadog::internal::StringArena::StringArena()
@@ -100,7 +98,7 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
   , type_mask{ _type_mask }
 {
     // Initialize values
-    values.resize(profile_state.get_sample_type_length());
+    values.resize(ProfilerState::get().profile_state.get_sample_type_length());
     std::fill(values.begin(), values.end(), 0);
 
     // Initialize other state
@@ -110,20 +108,28 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    auto name_id = intern_string(name);
-    auto filename_id = intern_string(filename);
+    auto maybe_name_id = intern_string(name);
+    auto maybe_filename_id = intern_string(filename);
 
-    auto function_id = intern_function(name_id, filename_id);
+    // Skip frame if interning failed (e.g., dictionary not available)
+    if (!maybe_name_id || !maybe_filename_id) {
+        return;
+    }
 
-    push_frame_impl(function_id, address, line);
+    auto maybe_func_id = intern_function(*maybe_name_id, *maybe_filename_id);
+    if (!maybe_func_id) {
+        return;
+    }
+
+    push_frame_impl(*maybe_func_id, address, line);
 }
 
 void
-Datadog::Sample::push_frame_impl(function_id function_id, uint64_t address, int64_t line)
+Datadog::Sample::push_frame_impl(function_id func_id, uint64_t address, int64_t line)
 {
     locations.push_back({
       .mapping = nullptr, // No support for mappings in Python
-      .function = function_id,
+      .function = func_id,
       .address = address,
       .line = line,
     });
@@ -133,33 +139,212 @@ void
 Datadog::Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(name, filename, address, line);
     } else {
-        ++dropped_frames;
+        incr_dropped_frames();
+    }
+}
+
+/* Helper function to convert PyUnicode object to string_view
+ * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
+ * The pointer remains valid as long as the PyObject is alive */
+static std::string_view
+unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
+{
+    if (unicode_obj == nullptr) {
+        return fallback;
+    }
+
+    Py_ssize_t len;
+    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
+
+    if (ptr) {
+        return std::string_view(ptr, len);
+    }
+    // PyUnicode_AsUTF8AndSize sets an error on failure. Clear it because
+    // frame sampling may continue and callers preserve/restore prior state.
+    PyErr_Clear();
+    return fallback;
+}
+
+void
+Datadog::Sample::push_pyframes(PyFrameObject* frame)
+{
+    /* Walk the Python frame chain and push each frame to the sample
+     * Frames are pushed in leaf-to-root order
+     *
+     * Note: The caller retains ownership of the initial frame. We only take ownership
+     * of subsequent frames obtained from PyFrame_GetBack(). */
+
+    // Preserve any raised C-level exception already in flight. Some frame APIs
+    // may also set transient local errors while returning usable results.
+    PythonErrorRestorer error_restorer;
+
+    bool is_initial_frame = true;
+    for (PyFrameObject* f = frame; f != nullptr;) {
+        // Early exit optimization: once we've reached the frame limit, stop traversing
+        // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
+        // for frames that will be dropped anyway.
+        if (locations.size() >= max_nframes) {
+            incr_dropped_frames();
+            if (!is_initial_frame) {
+                Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
+            }
+            break;
+        }
+
+        // Extract frame info
+        int lineno_val = PyFrame_GetLineNumber(f);
+        if (lineno_val < 0) {
+            lineno_val = 0;
+        }
+
+        // Python 3.9+: PyFrame_GetCode() returns a new reference
+        PyCodeObject* code = PyFrame_GetCode(f);
+
+        std::string_view name_sv = "<unknown>";
+        std::string_view filename_sv = "<unknown>";
+
+        if (code != nullptr) {
+            // Extract function name (use co_qualname for Python 3.11+ for better context)
+#if defined(PY311_AND_LATER)
+            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+            PyObject* name_obj = code->co_name;
+#endif
+            name_sv = unicode_to_string_view(name_obj);
+            filename_sv = unicode_to_string_view(code->co_filename);
+        }
+
+        // Push frame to Sample (leaf to root order)
+        // push_frame copies the strings immediately into its StringArena
+        push_frame(name_sv, filename_sv, 0, lineno_val);
+
+        // Python 3.9+: PyFrame_GetBack() and PyFrame_GetCode() return new references.
+        PyFrameObject* back = PyFrame_GetBack(f);
+        Py_XDECREF(code); // Release code reference from PyFrame_GetCode
+
+        if (back == nullptr) {
+            if (PyErr_Occurred()) {
+                // PyFrame_GetBack can return NULL with an error set in some edge
+                // cases; clear it since we're done walking the chain.
+                PyErr_Clear();
+            }
+            if (!is_initial_frame) {
+                Py_DECREF(f);
+            }
+            break;
+        }
+
+        // Only DECREF frames we own (from PyFrame_GetBack), not the initial frame passed by caller
+        if (!is_initial_frame) {
+            Py_DECREF(f);
+        }
+        is_initial_frame = false;
+        f = back;
+    }
+    // Error state is automatically restored by error_restorer destructor
+}
+
+// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
+// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
+// The indicator is added at most once, even if export_sample() is called multiple times
+// (guarded by has_dropped_frames_indicator).
+void
+Datadog::Sample::incr_dropped_frames(size_t count)
+{
+    dropped_frames += count;
+}
+
+void
+Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
+{
+    /* Walk the Python traceback chain and push each frame to the sample.
+     * The chain goes from outermost (root) to innermost (leaf) via tb_next.
+     * We collect raw traceback pointers first, then extract frame info only
+     * for the frames we actually keep (up to max_nframes from the leaf end).
+     * Frames are pushed in leaf-to-root order to match the convention used
+     * by push_pyframes and the rest of the profiler.
+     * https://docs.python.org/3/reference/datamodel.html#traceback.tb_next */
+
+    PythonErrorRestorer error_restorer;
+
+    // First pass: collect raw traceback pointers root->leaf.
+    // These are borrowed references owned by the traceback chain, so no
+    // ref-counting is needed here.
+    std::vector<PyTracebackObject*> tb_nodes;
+
+    // Bias for bigger upfront allocations than multiple reallocations (Can revisit this with DOE)
+    tb_nodes.reserve(max_nframes);
+    for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
+        tb_nodes.push_back(tb);
+    }
+
+    // Second pass: iterate leaf->root (reverse), only extracting frame info
+    // for frames we will actually keep (up to max_nframes).
+    for (auto it = tb_nodes.rbegin(); it != tb_nodes.rend(); ++it) {
+        if (locations.size() >= max_nframes) {
+            dropped_frames += std::distance(it, tb_nodes.rend());
+            break;
+        }
+
+        PyTracebackObject* node = *it;
+
+        int lineno = node->tb_lineno;
+        if (lineno < 0) {
+            // In Python 3.12+, tb_lineno can be -1 (lazy). Resolve it through
+            // the Python property which calls PyCode_Addr2Line internally.
+            PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(node), "tb_lineno");
+            if (lineno_obj != nullptr) {
+                lineno = static_cast<int>(PyLong_AsLong(lineno_obj));
+                Py_DECREF(lineno_obj);
+                if (lineno < 0) {
+                    lineno = 0;
+                }
+            } else {
+                PyErr_Clear();
+                lineno = 0;
+            }
+        }
+
+        PyCodeObject* code = (node->tb_frame != nullptr) ? PyFrame_GetCode(node->tb_frame) : nullptr;
+        if (code != nullptr) {
+#if defined(PY311_AND_LATER)
+            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+            PyObject* name_obj = code->co_name;
+#endif
+            push_frame(unicode_to_string_view(name_obj), unicode_to_string_view(code->co_filename), 0, lineno);
+            Py_DECREF(code);
+        }
     }
 }
 
 void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(function_id, address, line);
     } else {
-        ++dropped_frames;
+        incr_dropped_frames();
     }
 }
 
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
-    // Get the interned string for the key
-    const auto key_id = internal::to_interned_string(key);
-
-    // If either the val or the key are empty, we don't add the label, but
-    // we don't return error
+    // If the value is empty, we don't add the label, but we don't return error
     // TODO is this what we want?
-    if (val.empty() || key_id == nullptr) {
+    if (val.empty()) {
+        return true;
+    }
+
+    // Get the interned string for the key
+    const auto maybe_key_id = internal::to_interned_string(key);
+    // If the key is not found, we don't add the label, but we don't return error
+    // TODO is this what we want?
+    if (!maybe_key_id) {
         return true;
     }
 
@@ -168,11 +353,12 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
-      .key = key_id,
-      // do not intern this because it could be a memory leak if values are many-valued
+      .key = *maybe_key_id,
+      // Do not intern this because it could be a memory leak if values are high-cardinality.
+      // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
       .str = to_slice(val_str),
       .num = 0,
-      // do not intern this because it could be a memory leak if values are many-valued
+      // Do not intern this because it could be a memory leak if values are high-cardinality.
       .num_unit = to_slice(unit_str.c_str()),
     });
     return true;
@@ -184,14 +370,14 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
     // Get the interned string for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
-    const auto key_id = internal::to_interned_string(key);
-    if (key_id == nullptr) {
+    const auto maybe_key_id = internal::to_interned_string(key);
+    if (!maybe_key_id) {
         return true;
     }
 
     auto empty_string = to_slice("");
     labels.push_back({
-      .key = key_id,
+      .key = *maybe_key_id,
       .str = empty_string,
       .num = val,
       .num_unit = empty_string,
@@ -200,13 +386,14 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 }
 
 void
-Datadog::Sample::clear_buffers()
+Datadog::Sample::clear()
 {
     std::fill(values.begin(), values.end(), 0);
     labels.clear();
     locations.clear();
     dropped_frames = 0;
-    reverse_locations = false;
+    has_dropped_frames_indicator = false;
+    endtime_ns = 0;
     string_storage.reset();
 }
 
@@ -217,7 +404,7 @@ Datadog::Sample::flush_sample()
     auto ret = export_sample();
 
     // Clear buffers after exporting
-    clear_buffers();
+    clear();
     return ret;
 }
 
@@ -225,15 +412,11 @@ bool
 Datadog::Sample::export_sample()
 {
     // Handle dropped frames by adding them to locations if needed
-    if (dropped_frames > 0) {
+    if (dropped_frames > 0 && !has_dropped_frames_indicator) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
-    }
-
-    if (reverse_locations) {
-        std::reverse(locations.begin(), locations.end());
-        reverse_locations = false; // Reset after reversing
+        has_dropped_frames_indicator = true;
     }
 
     const ddog_prof_Sample2 sample = {
@@ -243,7 +426,7 @@ Datadog::Sample::export_sample()
     };
 
     // Export to profile without clearing buffers
-    return profile_state.collect(sample, endtime_ns);
+    return ProfilerState::get().profile_state.collect(sample, endtime_ns);
 }
 
 bool
@@ -253,8 +436,8 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
     // NB all push-type operations return bool for semantic uniformity,
     // even if they can't error.  This should promote generic code.
     if (0U != (type_mask & SampleType::CPU)) {
-        values[profile_state.val().cpu_time] += cputime * count;
-        values[profile_state.val().cpu_count] += count;
+        values[ProfilerState::get().profile_state.val().cpu_time] += cputime * count;
+        values[ProfilerState::get().profile_state.val().cpu_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -269,8 +452,8 @@ Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Wall)) {
-        values[profile_state.val().wall_time] += walltime * count;
-        values[profile_state.val().wall_count] += count;
+        values[ProfilerState::get().profile_state.val().wall_time] += walltime * count;
+        values[ProfilerState::get().profile_state.val().wall_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -286,7 +469,7 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Exception)) {
         push_label(ExportLabelKey::exception_type, exception_type);
-        values[profile_state.val().exception_count] += count;
+        values[ProfilerState::get().profile_state.val().exception_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -301,8 +484,8 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bu
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockAcquire)) {
-        values[profile_state.val().lock_acquire_time] += acquire_time;
-        values[profile_state.val().lock_acquire_count] += count;
+        values[ProfilerState::get().profile_state.val().lock_acquire_time] += acquire_time;
+        values[ProfilerState::get().profile_state.val().lock_acquire_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -317,8 +500,8 @@ Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugpr
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockRelease)) {
-        values[profile_state.val().lock_release_time] += lock_time;
-        values[profile_state.val().lock_release_count] += count;
+        values[ProfilerState::get().profile_state.val().lock_release_time] += lock_time;
+        values[ProfilerState::get().profile_state.val().lock_release_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -343,8 +526,8 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
     }
 
     if (0U != (type_mask & SampleType::Allocation)) {
-        values[profile_state.val().alloc_space] += size;
-        values[profile_state.val().alloc_count] += count;
+        values[ProfilerState::get().profile_state.val().alloc_space] += size;
+        values[ProfilerState::get().profile_state.val().alloc_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -369,7 +552,7 @@ Datadog::Sample::push_heap(int64_t size)
     }
 
     if (0U != (type_mask & SampleType::Heap)) {
-        values[profile_state.val().heap_space] += size;
+        values[ProfilerState::get().profile_state.val().heap_space] += size;
         return true;
     }
     if (!already_warned) {
@@ -383,8 +566,8 @@ void
 Datadog::Sample::reset_alloc()
 {
     if (0U != (type_mask & SampleType::Allocation)) {
-        const size_t alloc_space_idx = profile_state.val().alloc_space;
-        const size_t alloc_count_idx = profile_state.val().alloc_count;
+        const size_t alloc_space_idx = ProfilerState::get().profile_state.val().alloc_space;
+        const size_t alloc_count_idx = ProfilerState::get().profile_state.val().alloc_count;
         if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
             values[alloc_space_idx] = 0;
             values[alloc_count_idx] = 0;
@@ -396,7 +579,7 @@ void
 Datadog::Sample::reset_heap()
 {
     if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = profile_state.val().heap_space;
+        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
         if (heap_space_idx < values.size()) {
             values[heap_space_idx] = 0;
         }
@@ -408,8 +591,8 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUTime)) {
-        values[profile_state.val().gpu_time] += time * count;
-        values[profile_state.val().gpu_count] += count;
+        values[ProfilerState::get().profile_state.val().gpu_time] += time * count;
+        values[ProfilerState::get().profile_state.val().gpu_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -424,8 +607,8 @@ Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUMemory)) {
-        values[profile_state.val().gpu_alloc_space] += size * count;
-        values[profile_state.val().gpu_alloc_count] += count;
+        values[ProfilerState::get().profile_state.val().gpu_alloc_space] += size * count;
+        values[ProfilerState::get().profile_state.val().gpu_alloc_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -440,8 +623,8 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUFlops)) {
-        values[profile_state.val().gpu_flops] += size * count;
-        values[profile_state.val().gpu_flops_samples] += count;
+        values[ProfilerState::get().profile_state.val().gpu_flops] += size * count;
+        values[ProfilerState::get().profile_state.val().gpu_flops_samples] += count;
         return true;
     }
     if (!already_warned) {
@@ -449,6 +632,13 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
         std::cerr << "bad push gpu flops" << std::endl;
     }
     return false;
+}
+
+bool
+Datadog::Sample::push_exception_message(std::string_view exception_message)
+{
+    push_label(ExportLabelKey::exception_message, exception_message);
+    return true;
 }
 
 bool
@@ -625,29 +815,29 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 void
 Datadog::Sample::set_timeline(bool enabled)
 {
-    timeline_enabled = enabled;
+    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool
 Datadog::Sample::is_timeline_enabled()
 {
-    return timeline_enabled;
+    return ProfilerState::get().timeline_enabled;
 }
 
 Datadog::ProfileBorrow
 Datadog::Sample::profile_borrow()
 {
-    return profile_state.borrow();
+    return ProfilerState::get().profile_state.borrow();
 }
 
 void
 Datadog::Sample::postfork_child()
 {
-    profile_state.postfork_child();
+    ProfilerState::get().profile_state.postfork_child();
 }
 
 void
 Datadog::Sample::cleanup()
 {
-    profile_state.cleanup();
+    ProfilerState::get().profile_state.cleanup();
 }

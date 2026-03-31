@@ -2,11 +2,8 @@ from itertools import groupby
 import json
 import os
 from pathlib import Path
-from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
@@ -25,7 +22,7 @@ from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
-_global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
+_global_relative_file_paths_for_cov: dict[str, dict[str, str]] = {}
 
 # This feature-flags experimental collection of code coverage via our internal ModuleCodeCollector.
 # It is disabled by default because it is not production-ready.
@@ -142,7 +139,7 @@ def _report_coverage_to_span(
             files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
             if not files:
                 return
-            span._set_tag_str(
+            span._set_attribute(
                 COVERAGE_TAG_NAME,
                 json.dumps({"files": files}),
             )
@@ -156,14 +153,14 @@ def _report_coverage_to_span(
         record_code_coverage_error()
         return
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
-    span._set_tag_str(
+    span._set_attribute(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
-def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
+def segments(lines: Iterable[int]) -> list[tuple[int, int, int, int, int]]:
     """Extract the relevant report data for a single file."""
     _segments = []
     for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
@@ -175,7 +172,7 @@ def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
     return _segments
 
 
-def _lines(coverage: Coverage, context: Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]:
+def _lines(coverage: Coverage, context: Optional[str]) -> dict[str, list[tuple[int, int, int, int, int]]]:
     if not coverage._collector or not coverage._collector.data:
         return {}
 

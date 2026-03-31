@@ -2,12 +2,22 @@
 schema-version: v1
 kind: mergequeue
 enable: true
-workflow_type: speculative
+# Each PR in the MQ will be rebased on the base branch before merging
+# conflicts between PRs in the MQ will not be able to be detected
+workflow_type: noqueue
 merge_method: squash
 gitlab_check_enable: true
 gitlab_jobs_retry_enable: false
-gitlab_fail_fast: false
-
+# Fail the MQ request as soon as any job fails
+# Note: the MQ will honor any `retry: #` and `allow_failures: true` set on a job
+gitlab_fail_fast: true
+# Do not add merge queue status labels on the PR, they will trigger required status checks and block the PR from the MQ
+skip_labels: true
+branches:
+  main:
+    # Allow users to skip checks when merging a PR, but require them to provide a reason for skipping checks
+    allow_skip_checks: true
+    require_reason_for_skip_checks: true
 ---
 schema-version: v1
 kind: mergegate

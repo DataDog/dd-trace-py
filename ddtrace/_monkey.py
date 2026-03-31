@@ -1,9 +1,9 @@
+from collections.abc import Callable
 import importlib
 import os
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Set
+from typing import Any
 from typing import Union
 
 from wrapt.importer import when_imported
@@ -18,12 +18,6 @@ from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import List  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -48,6 +42,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "google_adk": True,
+    "google_cloud_pubsub": True,
     "google_genai": True,
     "gevent": True,
     "graphql": True,
@@ -103,6 +98,7 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_eventhubs": True,
     "azure_functions": True,
+    "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
     "openai": True,
@@ -111,6 +107,7 @@ PATCH_MODULES = {
     "crewai": True,
     "pydantic_ai": True,
     "vllm": True,
+    "mlflow": config._model_lab_enabled,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
@@ -119,6 +116,7 @@ PATCH_MODULES = {
     "openai_agents": True,
     "ray": False,
     "protobuf": config._data_streams_enabled,
+    "claude_agent_sdk": True,
 }
 
 
@@ -159,11 +157,13 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "azure_eventhubs": ("azure.eventhub",),
+    "azure_durable_functions": ("azure.durable_functions",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_adk": ("google.adk",),
+    "google_cloud_pubsub": ("google.cloud.pubsub_v1",),
     "google_genai": ("google.genai",),
     "langchain": ("langchain_core",),
     "langgraph": (
@@ -260,8 +260,9 @@ def check_module_compatibility(
     return
 
 
-def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(
+    module: str, path_f: str, raise_errors: bool = True, patch_indicator: Union[bool, list[str]] = True
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -361,8 +362,7 @@ def _patch_all(**patch_modules: bool) -> None:
     patch(raise_errors=False, **modules)
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -373,9 +373,9 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
-            if raise_errors:
-                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
+        base_path = Path(__file__).parent / "contrib" / "internal" / contrib
+        if raise_errors and not (base_path / "patch.py").exists() and not (base_path / "patch.pyc").exists():
+            raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
@@ -398,6 +398,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules() -> Set[str]:
+def _get_patched_modules() -> set[str]:
     """Get the list of patched modules"""
     return _PATCHED_MODULES

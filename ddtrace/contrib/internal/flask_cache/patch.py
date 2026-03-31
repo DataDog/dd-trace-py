@@ -4,7 +4,6 @@ Datadog trace code for flask_cache
 
 import logging
 import typing
-from typing import Dict
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -13,6 +12,9 @@ from ddtrace.ext import db
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace import tracer as ddtracer
+from ddtrace.vendor.debtcollector import deprecate
 
 from .utils import _extract_client
 from .utils import _extract_conn_tags
@@ -33,8 +35,7 @@ CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         import flask_caching
 
@@ -43,17 +44,24 @@ def get_version():
         return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"flask_cache": ">=0.13"}
 
 
-def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
+def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
     """
     Return a traced Cache object that behaves exactly as ``cache_cls``.
 
     ``cache_cls`` defaults to ``flask.ext.cache.Cache`` if Flask-Cache is installed
     or ``flask_caching.Cache`` if flask-caching is installed.
     """
+    if tracer is not None:
+        deprecate(
+            "The tracer parameter is deprecated",
+            message="The global tracer will be used instead.",
+            category=DDTraceDeprecationWarning,
+            removal_version="5.0.0",
+        )
 
     if cache_cls is None:
         # for compatibility reason, first check if flask_cache is present
@@ -74,28 +82,28 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
         * all ``many_`` operations
         """
 
-        _datadog_tracer = ddtracer
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd):
-            # type: (str, bool) -> Span
+        def __trace(self: str, cmd: bool) -> "Span":
             """
             Start a tracing with default attributes and tags
             """
             # create a new span
-            s = self._datadog_tracer.trace(
+            # ddtracer references `ddtrace.trace.tracer`, tracer parameter will be removed in a future release.
+            s = ddtracer.trace(
                 schematize_cache_operation(cmd, cache_provider="flask_cache"),
                 span_type=SpanTypes.CACHE,
                 service=self._datadog_service,
             )
 
-            s._set_tag_str(COMPONENT, config.flask_cache.integration_name)
+            s._set_attribute(COMPONENT, config.flask_cache.integration_name)
 
-            # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # set span tags
-            s._set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
+            cache_type = self.config.get("CACHE_TYPE")
+            if cache_type is not None:
+                s._set_attribute(CACHE_BACKEND, cache_type)
             s.set_tags(self._datadog_meta)
             # add connection meta if there is one
             client = _extract_client(self.cache)
@@ -114,9 +122,9 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
-                    span._set_tag_str(COMMAND_KEY, args[0])
+                    span._set_attribute(COMMAND_KEY, args[0])
                 result = super(TracedCache, self).get(*args, **kwargs)
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result else 0)
                 return result
 
         def set(self, *args, **kwargs):
@@ -126,7 +134,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
-                    span._set_tag_str(COMMAND_KEY, args[0])
+                    span._set_attribute(COMMAND_KEY, args[0])
                 return super(TracedCache, self).set(*args, **kwargs)
 
         def add(self, *args, **kwargs):
@@ -136,7 +144,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
-                    span._set_tag_str(COMMAND_KEY, args[0])
+                    span._set_attribute(COMMAND_KEY, args[0])
                 return super(TracedCache, self).add(*args, **kwargs)
 
         def delete(self, *args, **kwargs):
@@ -146,7 +154,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
-                    span._set_tag_str(COMMAND_KEY, args[0])
+                    span._set_attribute(COMMAND_KEY, args[0])
                 return super(TracedCache, self).delete(*args, **kwargs)
 
         def delete_many(self, *args, **kwargs):
@@ -175,7 +183,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
                 span.set_tag(COMMAND_KEY, list(args))
                 result = super(TracedCache, self).get_many(*args, **kwargs)
                 # get many returns a list, with either the key value or None if it doesn't exist
-                span.set_metric(db.ROWCOUNT, sum(1 for val in result if val))
+                span._set_attribute(db.ROWCOUNT, sum(1 for val in result if val))
                 return result
 
         def set_many(self, *args, **kwargs):

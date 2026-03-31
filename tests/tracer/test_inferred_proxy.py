@@ -33,7 +33,7 @@ def test_create_inferred_proxy_span_for_apigateway(
     if not missing_resource_path:
         headers["x-dd-proxy-resource-path"] = "/{Path}"
 
-    create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of=None, tracer=tracer)
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
 
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None
@@ -61,5 +61,37 @@ def test_create_inferred_proxy_span_for_apigateway(
         assert span.get_tag("dd_resource_key") == "arn:aws:apigateway:us-east-1::/apis/abcdef123456"
     elif proxy_header == "aws-apigateway":
         assert span.get_tag("dd_resource_key") == "arn:aws:apigateway:us-east-1::/restapis/abcdef123456"
+
+    assert ctx.get_item("inferred_proxy_finish_callback") is not None
+
+
+def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "azure-apim",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy-path": "/api/my-function",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "my-api.azure-api.net",
+        "x-dd-proxy-resource-path": "/api/{resource}",
+        "user-agent": "custom-client/1.0",
+    }
+
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert span.name == "azure.apim"
+    assert span.name in SUPPORTED_PROXY_SPAN_NAMES
+    assert span.span_type == "web"
+    assert span.get_tag("span.kind") == "server"
+    assert span.resource == "GET /api/{resource}"
+    assert span.service == "my-api.azure-api.net"
+    assert span.start_ns == 1736973768000 * 1000000
+    assert span.get_tag("component") == "azure-apim"
+    assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("http.url") == "https://my-api.azure-api.net/api/my-function"
+    assert span.get_tag("http.route") == "/api/{resource}"
+    assert span.get_metric("_dd.inferred_span") == 1
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None

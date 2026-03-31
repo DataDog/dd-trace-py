@@ -31,7 +31,7 @@
         "dependency": "aiokafka",
         "integration": "aiokafka",
         "minimum_tracer_supported": "0.9.0",
-        "max_tracer_supported": "0.12.0",
+        "max_tracer_supported": "0.13.0",
         "auto-instrumented": true
     },
     {
@@ -108,6 +108,20 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "azure-functions",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.24.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-functions-durable",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.2.1",
+        "max_tracer_supported": "1.4.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "azure-eventhub",
         "integration": "azure_eventhubs",
         "minimum_tracer_supported": "5.12.2",
@@ -119,7 +133,7 @@
         "dependency": "azure-functions",
         "integration": "azure_functions",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.23.0",
+        "max_tracer_supported": "1.24.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -167,6 +181,13 @@
         "minimum_tracer_supported": "17.0.0",
         "max_tracer_supported": "18.10.0",
         "auto-instrumented": false
+    },
+    {
+        "dependency": "claude-agent-sdk",
+        "integration": "claude_agent_sdk",
+        "minimum_tracer_supported": "0.0.23",
+        "max_tracer_supported": "0.1.29",
+        "auto-instrumented": true
     },
     {
         "dependency": "python-consul",
@@ -323,6 +344,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-cloud-pubsub",
+        "integration": "google_cloud_pubsub",
+        "minimum_tracer_supported": "2.10.0",
+        "max_tracer_supported": "2.36.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "google-genai",
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
@@ -346,7 +374,7 @@
     {
         "dependency": "httpx",
         "integration": "httpx",
-        "minimum_tracer_supported": "0.17.1",
+        "minimum_tracer_supported": "0.25.2",
         "max_tracer_supported": "0.28.1",
         "auto-instrumented": true
     },
@@ -403,7 +431,7 @@
         "dependency": "litellm",
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
-        "max_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.80.16",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -441,6 +469,27 @@
         "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.16.0",
         "auto-instrumented": true
+    },
+    {
+        "dependency": "mlflow",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "2.11.4",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": false
+    },
+    {
+        "dependency": "mlflow-skinny",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "3.9.0",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": false
+    },
+    {
+        "dependency": "mlflow-tracing",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "3.9.0",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": false
     },
     {
         "dependency": "molten",
@@ -502,7 +551,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.4.4",
+        "max_tracer_supported": "0.8.1",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -524,7 +573,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.15.0",
+        "max_tracer_supported": "4.16.0",
         "auto-instrumented": true
     },
     {
@@ -639,7 +688,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.48.0",
+        "max_tracer_supported": "0.52.1",
         "auto-instrumented": true
     },
     {
@@ -699,7 +748,7 @@
         "minimum_tracer_supported": "0.13.0",
         "max_tracer_supported": "0.13.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "yaaredis",

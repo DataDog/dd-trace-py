@@ -102,3 +102,44 @@ def test_uploader_502_error():
     # Assert that 502 errors raise SignalUploaderError
     with pytest.raises(SignalUploaderError):
         uploader._write(b'{"test": "data"}', "/debugger/v1/input")
+
+
+def test_info_check_endpoint_selection():
+    """Test info_check endpoint selection and fallback behavior for both LOGS and SNAPSHOT tracks."""
+    from ddtrace.debugging._signal.model import SignalTrack
+    from ddtrace.debugging._uploader import SignalUploader
+
+    # Test 1: v2 endpoint available - both tracks use v2
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["/debugger/v2/input", "/debugger/v1/diagnostics"]}
+    assert uploader.info_check(agent_info) is True
+    assert uploader._tracks[SignalTrack.LOGS].enabled is True
+    assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is True
+    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.LOGS].endpoint
+    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
+
+    # Test 2: Only diagnostics available - both tracks fallback to diagnostics
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["/debugger/v1/diagnostics"]}
+    assert uploader.info_check(agent_info) is True
+    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.LOGS].endpoint
+    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint
+
+    # Test 3: No supported endpoints - both tracks disabled
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    agent_info = {"endpoints": ["/some/other/endpoint"]}
+    assert uploader.info_check(agent_info) is True
+    assert uploader._tracks[SignalTrack.LOGS].enabled is False
+    assert uploader._tracks[SignalTrack.SNAPSHOT].enabled is False
+
+    # Test 4: No endpoints key or agent unreachable - returns False
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    assert uploader.info_check({"version": "7.48.0"}) is False
+    assert uploader.info_check(None) is False
+
+    # Test 5: _downgrade_to_diagnostics updates both tracks
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    assert "/debugger/v2/input" in uploader._tracks[SignalTrack.LOGS].endpoint
+    uploader._downgrade_to_diagnostics()
+    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.LOGS].endpoint
+    assert "/debugger/v1/diagnostics" in uploader._tracks[SignalTrack.SNAPSHOT].endpoint

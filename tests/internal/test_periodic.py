@@ -1,5 +1,9 @@
+import ctypes
 import os
+import platform
 from threading import Event
+from threading import Thread
+from time import monotonic
 from time import sleep
 
 import pytest
@@ -114,6 +118,8 @@ def test_awakeable_periodic_service():
     for _ in range(10):
         awake_me.awake()
 
+    assert queue == list(range(n))
+
     # Sleep long enough to also trigger the periodic function with the timeout
     sleep(1.1 * interval)
 
@@ -122,7 +128,13 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_forksafe_awakeable_periodic_service():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
     queue = [None]
     periodic_ran = Event()
 
@@ -145,6 +157,7 @@ def test_forksafe_awakeable_periodic_service():
         # child: check that the thread has been restarted and the state has been
         # reset
         assert not queue
+
         awake_me.awake()
         periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
         assert queue
@@ -157,24 +170,354 @@ def test_forksafe_awakeable_periodic_service():
     assert exit_code == 42
 
 
-def test_periodic_after_fork_no_restart():
-    """Test that PeriodicThread.start() is safe to call after _after_fork().
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_autorestart_false_service_restarts_in_parent_after_fork():
+    """A PeriodicService with autorestart=False must keep running in the parent
+    process after a fork. The flag means 'do not restart in the child', not
+    'stop permanently after any fork'.
 
-    This prevents crashes when external libraries (like uvloop) call fork and
-    try to restart threads before our forksafe handlers run.
+    The practical victim is RemoteConfigPoller (autorestart=False): after the
+    first fork in a loop, its worker is stopped by _before_fork() but never
+    restarted in the parent because _after_fork() checks __autorestart__ without
+    knowing whether it is running in the child or in the parent.
     """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=0.05, autorestart=False)
+    svc.start()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+
+    # ThreadRestartTimer fires ~100 ms after _before_fork(); wait well past that.
+    sleep(0.5)
+
+    # Nudge the worker in case it missed its next scheduled wakeup.
+    if svc._worker is not None:
+        svc._worker.awake()
+
+    ran = periodic_ran.wait(timeout=2)
+
+    os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert ran, (
+        "PeriodicService with autorestart=False was not restarted in the parent "
+        "after a fork. Fix: _after_fork() must always restart in the parent, "
+        "respecting __autorestart__ only in the child."
+    )
+
+
+def test_periodic_service_no_immediate_run_after_fork():
+    periodic_ran = Event()
+
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    # Use a long interval so periodic() can only run on an explicit wakeup.
+    service = EveryMinute(60)
+    service.start()
+
+    try:
+        assert service._worker is not None
+
+        # Simulate fork stop/restart around the worker.
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork()
+
+        # Prefork stop wakeup must not trigger a synthetic run after restart.
+        assert not periodic_ran.wait(timeout=0.5)
+
+        # A real wakeup after restart must still run periodic().
+        service._worker.awake()
+        assert periodic_ran.wait(timeout=1)
+    finally:
+        service.stop()
+        service.join()
+
+
+def test_periodic_thread_preserves_awake_during_restart_window():
+    """Ensure awake() isn't lost while a periodic thread is paused for fork.
+
+    The fork-safe runtime stops periodic threads before fork and restarts them
+    afterwards. A stop wakeup from that path should not trigger an immediate
+    periodic() run after restart, but a real awake() call made during this
+    restart window must still be honored.
+    """
+    periodic_ran = Event()
+    awake_done = Event()
 
     def _run_periodic():
-        pass
+        periodic_ran.set()
 
-    t = periodic.PeriodicThread(0.1, _run_periodic)
+    t = periodic.PeriodicThread(60, _run_periodic)
     t.start()
+    t._before_fork()
+    t.join()
 
-    # Simulate what happens in a child process after fork
+    awaker = Thread(target=lambda: (t.awake(), awake_done.set()))
+    awaker.start()
+
+    # Simulate thread restart after fork in parent.
     t._after_fork()
 
-    # This should not crash or create a new thread
-    t.start()  # Should be a no-op
+    assert awake_done.wait(timeout=1), "awake() should complete after restart"
+    assert periodic_ran.wait(timeout=1), "periodic() should run for the awake request"
 
-    # Verify thread is marked as after_fork
-    assert t._is_after_fork is True
+    t.stop()
+    t.join()
+    awaker.join(timeout=1)
+
+
+def test_timer():
+    end = 0
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal end
+            end = monotonic()
+
+    T = 0.1
+    t = TestTimer(T)
+
+    start = monotonic()
+    t.start()
+    t.join()
+
+    assert end >= start + T
+
+
+def test_timer_reset():
+    end = count = 0
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal end, count
+
+            count += 1
+            end = monotonic()
+
+    T = 0.1
+    t = TestTimer(T)
+
+    start = monotonic()
+    t.start()
+
+    for _ in range(N := 5):
+        sleep(T / 2)
+        t.reset()
+
+    t.join()
+
+    assert count == 1, "timed out once"
+    assert end >= start + (N * T / 2) + T
+
+
+def _get_native_thread_name():
+    """Get the native thread name for the current thread.
+
+    Returns None if the platform doesn't support reading thread names or if reading fails.
+    """
+    system = platform.system()
+
+    if system == "Linux":
+        # Read from /proc/self/task/<tid>/comm
+        try:
+            tid = ctypes.CDLL(None).syscall(186)  # SYS_gettid
+            with open(f"/proc/self/task/{tid}/comm", "r") as f:
+                return f.read().strip()
+        except Exception:
+            return None
+
+    elif system == "Darwin":  # macOS
+        try:
+            # Use pthread_getname_np
+            pthread = ctypes.CDLL("/usr/lib/libpthread.dylib")
+            pthread_getname_np = pthread.pthread_getname_np
+            pthread_getname_np.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
+            pthread_getname_np.restype = ctypes.c_int
+
+            # Get current thread handle
+            pthread_self = pthread.pthread_self
+            pthread_self.restype = ctypes.c_void_p
+
+            thread_handle = pthread_self()
+            name_buffer = ctypes.create_string_buffer(64)
+
+            if pthread_getname_np(thread_handle, name_buffer, 64) == 0:
+                return name_buffer.value.decode("utf-8")
+        except Exception:
+            return None
+
+    elif system == "Windows":
+        # Windows thread naming is more complex and requires Windows 10+
+        # For now, skip testing on Windows
+        return None
+
+    return None
+
+
+@pytest.mark.subprocess()
+def test_periodic_thread_stop_without_join_forksafe():
+    """
+    Dropping a PeriodicThread that was stop()'d without join() in a forked child
+    must not crash, even when the OS (Linux/glibc) recycles the old pthread
+    descriptor for a new thread between the stop() call and the dealloc in the
+    child.
+
+    Scenario:
+      1. Start a PeriodicThread, call stop() — *without* join().
+      2. Wait briefly so the OS thread exits and glibc marks the pthread_t
+         reusable.
+      3. Fork.
+      4. In the child: spin up many short-lived threads to encourage glibc to
+         recycle the old pthread_t, then drop the last Python reference
+         (triggering dealloc).
+      5. Assert the child exited cleanly (not killed by a signal).
+
+    Before the fix, PeriodicThread_dealloc called join() or detach() on the
+    stale handle, which on Linux causes SIGSEGV when the pthread descriptor has
+    been reused.
+    """
+    import gc
+    import os
+    import signal
+    from threading import Thread
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    def noop():
+        pass
+
+    t = periodic.PeriodicThread(60.0, noop)
+    t.start()
+    t.stop()
+    sleep(0.3)  # let the OS thread exit so the pthread_t is eligible for recycling
+
+    pid = os.fork()
+    if pid == 0:
+        # Churn threads to encourage glibc to recycle the victim's pthread descriptor.
+        for _ in range(5):
+            batch = [Thread(target=lambda: None, daemon=True) for _ in range(20)]
+            for th in batch:
+                th.start()
+            for th in batch:
+                th.join()
+
+        # Treat a hang (futex deadlock on dead pthread) as a failure too.
+        signal.alarm(3)
+
+        del t
+        gc.collect()
+        os._exit(0)
+    else:
+        _, status = os.waitpid(pid, 0)
+        assert not os.WIFSIGNALED(status), (
+            f"child killed by signal {os.WTERMSIG(status)} — "
+            "PeriodicThread_dealloc crashed on a stale/recycled pthread handle"
+        )
+        assert os.WEXITSTATUS(status) == 0
+        # Parent still owns a reference; join to clean up properly.
+        t.join()
+
+
+def test_periodic_thread_naming():
+    """Test that native thread names are set correctly with various formats.
+
+    This verifies that the native thread naming functionality works and handles
+    truncation properly, prioritizing the class name after the colon separator.
+    """
+    native_name = [None]
+    thread_started = Event()
+
+    def _capture_native_name():
+        native_name[0] = _get_native_thread_name()
+        thread_started.set()
+
+    system = platform.system()
+
+    # Test 1: Short name (should work on all platforms)
+    thread_started.clear()
+    native_name[0] = None
+    t1 = periodic.PeriodicThread(0.1, _capture_native_name, name="ShortName")
+    t1.start()
+    thread_started.wait()
+    t1.stop()
+    t1.join()
+
+    if native_name[0] is not None:
+        assert native_name[0] == "ShortName", f"Expected 'ShortName', got '{native_name[0]}'"
+
+    # Test 2: Long name with module:class format
+    # On Linux (15 char limit), should keep "StackCollectorThread" -> truncated to "StackCollectorT"
+    # On macOS (63 char limit), should keep the full class name "StackCollectorThread"
+    thread_started.clear()
+    native_name[0] = None
+    t2 = periodic.PeriodicThread(0.1, _capture_native_name, name="ddtrace.profiling.collector:StackCollectorThread")
+    t2.start()
+    thread_started.wait()
+    t2.stop()
+    t2.join()
+
+    if native_name[0] is not None:
+        if system == "Linux":
+            # Linux truncates to 15 characters
+            assert native_name[0] == "StackCollectorT", f"Expected 'StackCollectorT' on Linux, got '{native_name[0]}'"
+        elif system == "Darwin":
+            # macOS can fit the full class name
+            assert native_name[0].endswith("StackCollectorThread"), (
+                f"Expected 'StackCollectorThread' on macOS, got '{native_name[0]}'"
+            )
+
+    # Test 3: Long name without colon (should truncate from start)
+    thread_started.clear()
+    native_name[0] = None
+    t3 = periodic.PeriodicThread(0.1, _capture_native_name, name="VeryLongThreadNameWithoutColonSeparator")
+    t3.start()
+    thread_started.wait()
+    t3.stop()
+    t3.join()
+
+    if native_name[0] is not None:
+        if system == "Linux":
+            # Should truncate from the start to 15 characters
+            assert native_name[0] == "VeryLongThreadN", f"Expected 'VeryLongThreadN' on Linux, got '{native_name[0]}'"
+        elif system == "Darwin":
+            # macOS limit is 63, name is 41 chars, should fit fully
+            assert native_name[0] == "VeryLongThreadNameWithoutColonSeparator", (
+                f"Expected full name on macOS, got '{native_name[0]}'"
+            )
+
+    # Test 4: Edge case - name that's exactly at the limit with colon
+    # "module:ClassNameFit" on Linux should become "ClassNameFit" (12 chars, fits)
+    thread_started.clear()
+    native_name[0] = None
+    t4 = periodic.PeriodicThread(0.1, _capture_native_name, name="some.module:ClassNameFit")
+    t4.start()
+    thread_started.wait()
+    t4.stop()
+    t4.join()
+
+    if native_name[0] is not None:
+        # On all platforms, the full name fits within limits (23 chars < 63 on macOS, extracts to 12 chars on Linux)
+        assert native_name[0].endswith("ClassNameFit"), (
+            f"Expected name ending with 'ClassNameFit', got '{native_name[0]}'"
+        )

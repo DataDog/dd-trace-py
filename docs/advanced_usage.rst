@@ -555,6 +555,8 @@ in use at the root level:
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
 
+To control the ``ddtrace`` logger level, you can also set the ``DD_TRACE_LOG_LEVEL`` environment variable to a value from `logging levels <https://docs.python.org/3/library/logging.html#levels>`__.
+
 Duplicate Log Entries
 ---------------------
 

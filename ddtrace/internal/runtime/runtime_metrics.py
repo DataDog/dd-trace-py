@@ -1,12 +1,11 @@
 import itertools
 from typing import ClassVar  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -79,7 +78,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
-    _lock = forksafe.Lock()
+    _lock = Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
@@ -101,15 +100,13 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self._platform_tags = self._format_tags(PlatformTags())
 
-        self._process_tags: List[str] = list(ProcessTags())
+        self._process_tags: list[str] = list(ProcessTags())
 
     @classmethod
     def disable(cls) -> None:
         with cls._lock:
             if cls._instance is None:
                 return
-
-            forksafe.unregister(cls._restart)
 
             cls._instance.stop()
             # DEV: Use timeout to avoid locking on shutdown. This seems to be
@@ -125,11 +122,6 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = False
 
     @classmethod
-    def _restart(cls):
-        cls.disable()
-        cls.enable()
-
-    @classmethod
     def enable(
         cls,
         tracer: Optional[ddtrace.trace.Tracer] = None,
@@ -141,7 +133,6 @@ class RuntimeWorker(periodic.PeriodicService):
             runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, tracer, dogstatsd_url)
             runtime_worker.start()
 
-            forksafe.register(cls._restart)
             atexit.register(cls.disable)
 
             cls._instance = runtime_worker
@@ -158,7 +149,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
 
-    def _format_tags(self, tags: RuntimeCollectorsIterable) -> List[str]:
+    def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         return ["{}:{}".format(k, v) for k, v in tags]
 

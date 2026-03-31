@@ -1,7 +1,6 @@
 import asyncio
 import functools
 from typing import Callable  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 import grpc
@@ -12,7 +11,6 @@ from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -28,18 +26,18 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-def create_aio_client_interceptors(pin, host, port):
-    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor, ...]
+def create_aio_client_interceptors(host: str, port: int) -> tuple[aio.ClientInterceptor, ...]:
     return (
-        _UnaryUnaryClientInterceptor(pin, host, port),
-        _UnaryStreamClientInterceptor(pin, host, port),
-        _StreamUnaryClientInterceptor(pin, host, port),
-        _StreamStreamClientInterceptor(pin, host, port),
+        _UnaryUnaryClientInterceptor(host, port),
+        _UnaryStreamClientInterceptor(host, port),
+        _StreamUnaryClientInterceptor(host, port),
+        _StreamStreamClientInterceptor(host, port),
     )
 
 
@@ -53,12 +51,10 @@ def _handle_add_callback(call, callback):
         callback(call)
 
 
-def _done_callback_unary(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
-    def func(call):
-        # type: (aio.Call) -> None
+def _done_callback_unary(span: Span, code: grpc.StatusCode, details: str) -> Callable[[aio.Call], None]:
+    def func(call: aio.Call) -> None:
         try:
-            span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(code))
+            span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
 
             # Handle server-side error in unary response RPCs
             if code != grpc.StatusCode.OK:
@@ -69,10 +65,8 @@ def _done_callback_unary(span, code, details):
     return func
 
 
-def _done_callback_stream(span):
-    # type: (Span) -> Callable[[aio.Call], None]
-    def func(call):
-        # type: (aio.Call) -> None
+def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
+    def func(call: aio.Call) -> None:
         try:
             if call.done():
                 # check to ensure code and details are not already set, in which case this span
@@ -83,7 +77,7 @@ def _done_callback_stream(span):
                     # we need to call __repr__ as we cannot call code() or details() since they are both async
                     code, details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
 
-                    span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(code))
+                    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
 
                     # Handle server-side error in unary response RPCs
                     if code != grpc.StatusCode.OK:
@@ -99,71 +93,61 @@ def _done_callback_stream(span):
     return func
 
 
-def _handle_error(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> None
+def _handle_error(span: Span, code: grpc.StatusCode, details: str) -> None:
     span.error = 1
-    span._set_tag_str(ERROR_MSG, details)
-    span._set_tag_str(ERROR_TYPE, str(code))
+    span._set_attribute(ERROR_MSG, details)
+    span._set_attribute(ERROR_TYPE, str(code))
 
 
-def _handle_rpc_error(span, rpc_error):
-    # type: (Span, aio.AioRpcError) -> None
+def _handle_rpc_error(span: Span, rpc_error: aio.AioRpcError) -> None:
     code = str(rpc_error.code())
     span.error = 1
-    span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
+    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code)
     details = rpc_error.details()
     if isinstance(details, bytes):
         details = details.decode("utf-8", errors="ignore")
     else:
         details = str(details)
-    span._set_tag_str(ERROR_MSG, details)
-    span._set_tag_str(ERROR_TYPE, code)
+    span._set_attribute(ERROR_MSG, details)
+    span._set_attribute(ERROR_TYPE, code)
     span.finish()
 
 
-async def _handle_cancelled_error(call, span):
-    # type: (aio.Call, Span) -> None
+async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     code = str(await call.code())
     span.error = 1
-    span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
-    span._set_tag_str(ERROR_MSG, await call.details())
-    span._set_tag_str(ERROR_TYPE, code)
+    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code)
+    span._set_attribute(ERROR_MSG, await call.details())
+    span._set_attribute(ERROR_TYPE, code)
     span.finish()
 
 
 class _ClientInterceptor:
-    def __init__(self, pin: Pin, host: str, port: int) -> None:
-        self._pin = pin
+    def __init__(self, host: str, port: int) -> None:
         self._host = host
         self._port = port
 
-    def _intercept_client_call(self, method_kind, client_call_details):
-        # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
-        tracer = self._pin.tracer
-
+    def _intercept_client_call(
+        self, method_kind: str, client_call_details: aio.ClientCallDetails
+    ) -> tuple[Span, aio.ClientCallDetails]:
         method_as_str = client_call_details.method.decode()
         span = tracer.trace(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
+            service=trace_utils.ext_service(None, config.grpc_aio_client),
             resource=method_as_str,
         )
 
-        span._set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+        span._set_attribute(COMPONENT, config.grpc_aio_client.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-
-        # inject tags from pin
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
+        span._set_attribute(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         # propagate distributed tracing headers if available
         headers = {}
@@ -216,8 +200,7 @@ class _ClientInterceptor:
         self,
         continuation: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]],
         span: Span,
-    ):
-        # type: (...) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]
+    ) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]:
         try:
             call = await continuation()
             code = await call.code()

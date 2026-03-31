@@ -1,3 +1,4 @@
+import asyncio
 import threading
 import time
 
@@ -15,6 +16,7 @@ import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
+from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 
 from .test_logs import EXPORTER_VERSION
 
@@ -82,6 +84,7 @@ def _subprocess_task(parent_span_context, errors):
     import ddtrace.auto  # noqa
 
     from ddtrace.opentelemetry import TracerProvider
+    from ddtrace.trace import tracer as ddtracer
 
     # Tracer provider must be set in the subprocess otherwise the default tracer will be used
     opentelemetry.trace.set_tracer_provider(TracerProvider())
@@ -95,7 +98,7 @@ def _subprocess_task(parent_span_context, errors):
     finally:
         # Process.terminate() send a termination signal which skips the execution of exit handlers.
         # We must flush all traces before the process is killed.
-        ot_tracer._tracer.flush()
+        ddtracer.flush()
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
@@ -105,13 +108,14 @@ def test_otel_trace_across_fork():
 
     from opentelemetry.trace import get_tracer
 
+    from ddtrace.trace import tracer as ddtracer
     from tests.opentelemetry.test_context import _subprocess_task
 
     oteltracer = get_tracer(__name__)
 
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root") as root:
-        oteltracer._tracer.sample(root._ddspan)
+        ddtracer.sample(root._ddspan)
         p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()
@@ -270,3 +274,42 @@ def test_providers_are_set():
     assert tracer_provider.get_tracer(__name__) is not None
     assert meter_provider.get_meter(__name__) is not None
     assert logger_provider.get_logger(__name__) is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.skipif(
+    OTEL_VERSION < (1, 24),
+    reason="otel start_as_current_span decorator is in beta and is unstable with earlier versions of the api",
+)
+async def test_otel_start_as_current_span_decorator_async(oteltracer):
+    @oteltracer.start_as_current_span("async-function")
+    async def async_function():
+        current_span = get_current_span()
+        assert current_span is not INVALID_SPAN
+        current_span.set_attribute("test-attribute1", "before-sleep")
+
+        await asyncio.sleep(0.01)
+
+        assert current_span is not INVALID_SPAN
+        current_span.set_attribute("test-attribute2", "after-sleep")
+
+    await async_function()
+
+
+@pytest.mark.xfail(reason="otel start_as_current_span decorator does not support generators")
+def test_otel_start_as_current_span_decorator_generator(oteltracer):
+    @oteltracer.start_as_current_span("generator-function")
+    def generator_function():
+        current_span = get_current_span()
+        assert current_span is not INVALID_SPAN
+        current_span.set_attribute("test-attribute1", "before-yield")
+        yield 1
+        current_span.set_attribute("test-attribute2", "after-yield-1")
+        yield 2
+        current_span.set_attribute("test-attribute3", "after-yield-2")
+        yield 3
+        current_span.set_attribute("test-attribute4", "after-final-yield")
+
+    values = list(generator_function())
+    assert values == [1, 2, 3]

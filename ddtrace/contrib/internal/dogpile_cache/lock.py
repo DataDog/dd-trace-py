@@ -2,6 +2,7 @@ import dogpile
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import tracer
 
 
 def _wrap_lock_ctor(func, instance, args, kwargs):
@@ -31,7 +32,7 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
             # Keys are checked in random order so the 'final' answer for partial hits
             # should really be false (ie. if any are 'negative', then the tag value
             # should be). This means ANDing all hit values and ORing all expired values.
-            span = pin.tracer.current_span()
+            span = tracer.current_span()
             if span:
                 span.set_tag("hit", asbool(span.get_tag("hit") or "True") and hit)
                 span.set_tag("expired", asbool(span.get_tag("expired") or "False") or expired)

@@ -8,6 +8,10 @@ ddtrace/appsec/_ddwaf.cpp
 ddtrace/appsec/include
 ddtrace/appsec/share
 ddtrace/profiling/collector/_task.c
+ddtrace/profiling/collector/_fast_poisson.c
+ddtrace/profiling/collector/_exception.c
+ddtrace/profiling/collector/_sampler.c
+ddtrace/profiling/collector/_lock.c
 ddtrace/profiling/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
@@ -15,7 +19,6 @@ ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
 ddtrace/internal/_encoding.c
-ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 ddtrace/internal/telemetry/metrics_namespaces.c
 pygoat/*
@@ -154,9 +157,12 @@ pip_cache_shared_venvs/
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/worktrees/
 
 # Riot
 .riot/venv*
+.riot/envs/
+.riot/.build.lock
 .riot/requirements/*.in
 
 # Benchmarks
@@ -209,3 +215,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+
+# Fuzzing corpus, output and artifacts
+.fuzz/

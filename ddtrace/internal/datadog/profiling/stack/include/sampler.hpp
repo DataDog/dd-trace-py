@@ -1,11 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include "constants.hpp"
-#include "stack_renderer.hpp"
 
 #include "echion/strings.h"
+#include "echion/timing.h"
 
 class EchionSampler;
 
@@ -18,9 +21,6 @@ class Sampler
     // to keep it aligned with the echion state.
     std::unique_ptr<EchionSampler> echion;
 
-  private:
-    std::shared_ptr<StackRenderer> renderer_ptr;
-
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };
 
@@ -29,8 +29,12 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
-    // Parameters
-    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
+    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
+    // where stop() could miss the notification and hang forever (or until timeout).
+    std::atomic<bool> thread_running{ false };
+    std::mutex thread_exit_mutex;
+    std::condition_variable thread_exit_cv;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -43,19 +47,26 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
+    double target_overhead = g_target_overhead;
+    microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     void adapt_sampling_interval();
+
+    void atfork_child();
+    friend void stack_atfork_child();
 
   public:
     // Singleton instance
     static Sampler& get();
+
+    // Accessor for EchionSampler
+    EchionSampler& get_echion() { return *echion; }
+
     bool start();
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
-    void init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks);
+    void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
@@ -63,6 +74,7 @@ class Sampler
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
@@ -70,9 +82,17 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_target_overhead(double value) { target_overhead = value; }
+    void set_max_sampling_period(microsecond_t max_interval_us)
+    {
+        max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
+    }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
 } // namespace Datadog

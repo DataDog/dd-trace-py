@@ -1,11 +1,7 @@
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Sequence
-from typing import Tuple
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
@@ -32,12 +28,12 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: Dict[int, List[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
+    _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
@@ -51,7 +47,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if provider:
                 span.set_tag("pydantic_ai.request.provider", provider)
 
-    def _get_model_and_provider(self, model: Optional[Any]) -> Tuple[str, str]:
+    def _get_model_and_provider(self, model: Optional[Any]) -> tuple[str, str]:
         model_name = getattr(model, "model_name", "")
         system = getattr(model, "system", None)
         if system:
@@ -61,8 +57,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -82,14 +78,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
-        user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
+        user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
+        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
+        # without setting user_prompt, we fall back to extracting the last user message from
+        # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
+        if user_prompt is None:
+            user_prompt = self._extract_user_prompt_from_message_history(kwargs)
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
             result = getattr(result.result, "output", "")
@@ -109,8 +110,22 @@ class PydanticAIIntegration(BaseLLMIntegration):
             }
         )
 
+    @staticmethod
+    def _extract_user_prompt_from_message_history(kwargs: dict[str, Any]) -> Optional[str]:
+        """Extract the last user prompt from message_history when user_prompt is not provided."""
+        message_history = kwargs.get("message_history")
+        if not message_history:
+            return None
+        for message in reversed(message_history):
+            for part in reversed(getattr(message, "parts", [])):
+                if getattr(part, "part_kind", None) == "user-prompt":
+                    content = getattr(part, "content", None)
+                    if content is not None:
+                        return str(content)
+        return None
+
     def _llmobs_set_tags_tool(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
@@ -150,11 +165,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
 
-        manifest: Dict[str, Any] = {}
+        manifest: dict[str, Any] = {}
         manifest["framework"] = "PydanticAI"
         manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
         model = getattr(agent, "model", None)
@@ -172,7 +187,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
-    def _get_agent_tools(self, agent: Any) -> List[Dict[str, Any]]:
+    def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """
         Extract tools from the agent and format them to be used in the agent manifest.
 
@@ -180,7 +195,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         For pydantic-ai >= 0.4.4, tools are stored in the agent's _function_toolset (tools) and
         _user_toolsets (user-defined toolsets) attributes.
         """
-        tools: Dict[str, Any] = {}
+        tools: dict[str, Any] = {}
         if hasattr(agent, "_function_tools"):
             tools = getattr(agent, "_function_tools", {}) or {}
         elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
@@ -195,16 +210,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         formatted_tools = []
         for tool_name, tool_instance in tools.items():
-            tool_dict: Dict[str, Any] = {}
+            tool_dict: dict[str, Any] = {}
             tool_dict["name"] = tool_name
             if hasattr(tool_instance, "description"):
                 tool_dict["description"] = tool_instance.description
             function_schema = getattr(tool_instance, "function_schema", {})
             json_schema = getattr(function_schema, "json_schema", {})
             required_params = {param: True for param in json_schema.get("required", [])}
-            parameters: Dict[str, Dict[str, Any]] = {}
+            parameters: dict[str, dict[str, Any]] = {}
             for param, schema in json_schema.get("properties", {}).items():
-                param_dict: Dict[str, Any] = {}
+                param_dict: dict[str, Any] = {}
                 if "type" in schema:
                     param_dict["type"] = schema["type"]
                 if param in required_params:

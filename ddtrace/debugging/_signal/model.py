@@ -10,8 +10,6 @@ import time
 from types import FrameType
 from typing import Any
 from typing import ClassVar
-from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -85,11 +83,11 @@ class Signal(abc.ABC):
     thread: Thread
     trace_context: Optional[Union[Span, Context]] = None
     state: str = SignalState.NONE
-    errors: List[EvaluationError] = field(default_factory=list)
+    errors: list[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         probe = self.probe
         if isinstance(probe, TimingMixin):
             eval_at = probe.evaluate_at
@@ -157,12 +155,12 @@ class Signal(abc.ABC):
         return False
 
     @property
-    def session(self):
+    def session(self) -> Optional[Session]:
         session_id = self.probe.tags.get("session_id")
         return Session.lookup(session_id) if session_id is not None else None
 
     @property
-    def args(self):
+    def args(self) -> dict[str, Any]:
         return dict(get_args(self.frame))
 
     @abc.abstractmethod
@@ -205,10 +203,9 @@ class Signal(abc.ABC):
             return
 
         frame = self.frame
-        extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
+        extra: dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
-        exc = exc_info[1]
-        if exc is not None:
+        if (exc := exc_info[1]) is not None:
             extra["@exception"] = exc
         else:
             extra["@return"] = retval

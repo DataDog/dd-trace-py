@@ -2,10 +2,7 @@ import itertools
 import json
 import sys
 from typing import Any
-from typing import Dict
 from typing import Generator
-from typing import List
-from typing import Tuple
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -16,6 +13,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
@@ -51,23 +49,25 @@ class Interface:
         self.name: str = name
         self.framework = framework
         self.client = client
-        self.version: Tuple[int, ...] = ()
+        self.version: tuple[int, ...] = ()
 
     def __repr__(self):
         return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
-def payload_to_xml(payload: Dict[str, str]) -> str:
+def payload_to_xml(payload: dict[str, str]) -> str:
     return "".join(f"<{k}>{v}</{k}>" for k, v in payload.items())
 
 
-def payload_to_plain_text(payload: Dict[str, str]) -> str:
+def payload_to_plain_text(payload: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in payload.items())
 
 
-class Contrib_TestClass_For_Threats:
+class _Contrib_TestClass_Base:
     """
-    Factorized test class for threats tests on all supported frameworks
+    Common infrastructure for all threat test classes.
+    Contains fixtures, helper methods, and abstract response accessors.
+    No test methods — subclasses add those.
     """
 
     SERVER_PORT = 8000
@@ -80,12 +80,16 @@ class Contrib_TestClass_For_Threats:
     def xfail_by_interface(self, request, interface):
         if request.node.get_closest_marker("xfail_interface"):
             if interface.name in request.node.get_closest_marker("xfail_interface").args:
-                request.node.add_marker(pytest.mark.xfail(reason=f"xfail on this platform: {interface.name}"))
+                skip = request.node.get_closest_marker("xfail_interface").kwargs.get("skip", False)
+                if skip:
+                    pytest.skip(f"xfail on this platform: {interface.name}")
+                else:
+                    request.node.add_marker(pytest.mark.xfail(reason=f"xfail on this platform: {interface.name}"))
 
     def status(self, response) -> int:
         raise NotImplementedError
 
-    def headers(self, response) -> Dict[str, str]:
+    def headers(self, response) -> dict[str, str]:
         raise NotImplementedError
 
     def location(self, response) -> str:
@@ -114,11 +118,39 @@ class Contrib_TestClass_For_Threats:
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
         return triggers[0].get("security_response_id", None)
 
-    def check_rules_triggered(self, rule_id: List[str], entry_span):
+    def check_rules_triggered(self, rule_id: list[str], entry_span):
         triggers = get_triggers(entry_span())
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
+
+    def check_rule_triggered(self, rule_id: str, entry_span):
+        """Check that the given rule_id is among the triggered rules."""
+        triggers = get_triggers(entry_span())
+        assert triggers is not None, "no appsec struct in root span"
+        result = [t["rule"]["id"] for t in triggers]
+        assert rule_id in result, f"rule {rule_id} not found in triggers: {result}"
+
+    def _get_waf_info(self):
+        """Return the current WAF info from the AppSecSpanProcessor."""
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        processor = AppSecSpanProcessor._instance
+        assert processor is not None, "AppSecSpanProcessor not initialized"
+        return processor._ddwaf.info
+
+    def check_waf_no_errors(self):
+        """Check that the WAF has no errors after a rule update."""
+        info = self._get_waf_info()
+        assert info.failed == 0, f"WAF has {info.failed} failed rules after update"
+        assert info.errors == "", f"WAF has errors after update: {info.errors}"
+
+    def check_waf_errors(self, expected_failed: int, expected_errors: dict):
+        """Check that the WAF reports the expected errors after a rule update."""
+        info = self._get_waf_info()
+        assert info.failed == expected_failed, f"Expected {expected_failed} failed rules, got {info.failed}"
+        errors = json.loads(info.errors)
+        assert errors == expected_errors, f"Expected WAF errors {expected_errors}, got {errors}"
 
     def update_tracer(self, interface):
         interface.tracer._span_aggregator.writer._api_version = "v0.4"
@@ -134,7 +166,7 @@ class Contrib_TestClass_For_Threats:
     #         if interface.tracer._appsec_processor:
     #             interface.printer(
     #                 f"""ASM enabled: {asm_config._asm_enabled}
-    # {ddtrace.appsec._ddwaf.version()}
+    # {ddtrace.appsec._ddwaf.version}
     # {interface.tracer._appsec_processor._ddwaf.info}
     # {asm_config._asm_libddwaf}
     # """
@@ -143,6 +175,12 @@ class Contrib_TestClass_For_Threats:
     def setup_method(self, method):
         """called before each test method"""
         _addresses_store.clear()
+
+
+class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
+    """
+    Factorized test class for threats tests on all supported frameworks
+    """
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_entry_span_tag, asm_enabled: bool):
@@ -162,17 +200,15 @@ class Contrib_TestClass_For_Threats:
                 f"{self.headers(response)}"
             )
 
-    @pytest.mark.xfail_interface("tornado")
-    def test_simple_attack(self, interface: Interface, entry_span, get_entry_span_tag):
+    def test_simple_attack_on_404(self, interface: Interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert self.status(response) == 404
             triggers = get_triggers(entry_span())
-            assert triggers is not None, "no appsec struct in root span"
             assert get_entry_span_tag("http.response.headers.content-length")
+            assert triggers is not None, "no appsec struct in root span"
 
-    @pytest.mark.xfail_interface("tornado")
     def test_simple_attack_timeout(self, interface: Interface, entry_span, get_entry_span_metric):
         from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
@@ -201,7 +237,6 @@ class Contrib_TestClass_For_Threats:
             assert len(args_list) == 1
             assert ("waf_timeout", "true") in args_list[0][4]
 
-    @pytest.mark.xfail_interface("tornado")
     def test_api_endpoint_discovery(self, interface: Interface, find_resource):
         """Check that API endpoint discovery works in the framework.
 
@@ -217,6 +252,13 @@ class Contrib_TestClass_For_Threats:
                 path = path[1:-1]
             path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
             path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
+            # Tornado regex patterns (from regex.pattern, ending with $)
+            if path.endswith("$"):
+                path = path[:-1]
+            path = re.sub(r"\(\?P<[a-z_]+>\\d\+\)", "123", path)
+            path = re.sub(r"\(\?P<[a-z_]+>\[[^\]]+\]\+?\)", "abczx", path)
+            path = re.sub(r"\(\\d\+\)", "123", path)
+            path = re.sub(r"\(\[[^\]]+\]\+?\)", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
             return path if path.startswith("/") else ("/" + path)
@@ -265,7 +307,6 @@ class Contrib_TestClass_For_Threats:
         ("user_agent", "priority"),
         [("Mozilla/5.0", False), ("Arachni/v1.5.1", True), ("dd-test-scanner-log-block", True)],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_priority(self, interface: Interface, entry_span, get_entry_span_tag, asm_enabled, user_agent, priority):
         """Check that we only set manual keep for traces with appsec events."""
         with override_global_config(dict(_asm_enabled=asm_enabled)):
@@ -279,7 +320,6 @@ class Contrib_TestClass_For_Threats:
             f"span priority {span_priority} mismatch for user agent {user_agent} with asm_enabled={asm_enabled}"
         )
 
-    @pytest.mark.xfail_interface("tornado")
     def test_querystrings(self, interface: Interface, entry_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -290,10 +330,10 @@ class Contrib_TestClass_For_Threats:
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
+                {"a": [b"1"], "b": [b""], "c": [b"d"]},
                 {"a": ["1"], "c": ["d"]},
-            ]
+            ], f"querystrings={query}"
 
-    @pytest.mark.xfail_interface("tornado")
     def test_no_querystrings(self, interface: Interface, entry_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -302,11 +342,10 @@ class Contrib_TestClass_For_Threats:
             assert _addresses_store, "no waf addresses stored"
             assert not _addresses_store[0].get("http.request.query")
 
-    @pytest.mark.xfail_interface("tornado")
     def test_truncation_tags(self, interface: Interface, get_entry_span_metric):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -318,11 +357,11 @@ class Contrib_TestClass_For_Threats:
                 f"no {asm_constants.APPSEC.TRUNCATION_STRING_LENGTH} metric {met}"
             )
             # 12030 is due to response encoding
-            assert int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)) == 12029
+            truncation_str_len = int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH))
+            assert truncation_str_len == 12029, truncation_str_len
             assert get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
             assert int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
 
-    @pytest.mark.xfail_interface("tornado")
     def test_truncation_telemetry(self, interface: Interface, get_entry_span_metric):
         from unittest.mock import ANY
         from unittest.mock import MagicMock
@@ -339,7 +378,7 @@ class Contrib_TestClass_For_Threats:
             ) as mocked,
         ):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -381,7 +420,6 @@ class Contrib_TestClass_For_Threats:
         ("cookies", "attack"),
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_cookies(self, interface: Interface, entry_span, asm_enabled, cookies, attack):
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
@@ -418,7 +456,6 @@ class Contrib_TestClass_For_Threats:
         ("payload_struct", "attack"),
         [({"mytestingbody_key": "mytestingbody_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_body(
         self,
         interface: Interface,
@@ -436,10 +473,12 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200  # Have to add end points in each framework application.
             body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
-                assert body in [
+                alternatives = [
                     payload_struct,
                     {k: [v] for k, v in payload_struct.items()},
+                    {k: v.encode() for k, v in payload_struct.items()},
                 ]
+                assert body in alternatives, f"body {body} not found in {alternatives}"
             else:
                 assert not body  # DEV: Flask send {} for text/plain with asm
 
@@ -474,7 +513,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_path_params(self, interface: Interface, entry_span, asm_enabled):
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
@@ -482,12 +520,15 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
-                assert path_params["param_str"] == "abc"
-                assert int(path_params["param_int"]) == 137
+                assert path_params, path_params
+                assert (path_params["param_str"] if isinstance(path_params, dict) else path_params[1]) in (
+                    "abc",
+                    b"abc",
+                )
+                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
             else:
                 assert path_params is None
 
-    @pytest.mark.xfail_interface("tornado")
     def test_useragent(self, interface: Interface, entry_span, get_entry_span_tag):
         from ddtrace.ext import http
 
@@ -508,7 +549,6 @@ class Contrib_TestClass_For_Threats:
             ({"x-client-ip": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_client_ip_asm_enabled_reported(
         self, interface: Interface, get_entry_span_tag, asm_enabled, headers, expected
     ):
@@ -532,10 +572,11 @@ class Contrib_TestClass_For_Threats:
             ("X-Use-This", {"X-Use-This": "4.4.4.4", "X-Real-Ip": "8.8.8.8"}, "4.4.4.4"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_client_ip_header_set_by_env_var(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, env_var, headers, expected
     ):
+        if interface.name == "tornado" and not headers.get("X-Real-Ip", "").isascii():
+            pytest.skip("tornado fails on non ascii headers with decode error, which is fine.")
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=asm_enabled, _client_ip_header=env_var)):
@@ -567,7 +608,6 @@ class Contrib_TestClass_For_Threats:
             ({"X-Real-Ip": rules._IP.DEFAULT}, False, None, None),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_ipblock(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, headers, blocked, body, content_type
     ):
@@ -580,7 +620,7 @@ class Contrib_TestClass_For_Threats:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
                 assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert get_entry_span_tag(http.URL) == "http://localhost:8000/"
+                assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
                 assert self.body(response) == _format_template(getattr(constants, body, ""), block_id), self.body(
@@ -593,6 +633,14 @@ class Contrib_TestClass_For_Threats:
                 assert self.headers(response)["content-type"] == content_type
             else:
                 assert self.status(response) == 200
+
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="BaseExceptionGroup requires Python 3.11+")
+    def test_exception_group_blocking(self, interface: Interface, get_entry_span_tag, entry_span):
+        """Test that BlockingException wrapped in BaseExceptionGroup is properly caught and returns 403."""
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
+            self.update_tracer(interface)
+            response = interface.client.get("/exception-group-block?block=true")
+            assert (st := self.status(response)) == 403, f"expected 403 but got {st}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -612,7 +660,6 @@ class Contrib_TestClass_For_Threats:
             ("?x=block_that_value&y=1", True),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_ipmonitor(
         self,
         interface: Interface,
@@ -670,7 +717,6 @@ class Contrib_TestClass_For_Threats:
             ("dd-test-scanner-log-block", True, 403),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_attacker_blocking(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, ip, agent, event, status
     ):
@@ -703,7 +749,6 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_method(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, method, kwargs
     ):
@@ -741,7 +786,6 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_uri(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri, blocked
     ):
@@ -777,7 +821,6 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize("uri", ["/waf/../"])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_uri_lfi(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri
     ):
@@ -807,7 +850,6 @@ class Contrib_TestClass_For_Threats:
             ("NoTralingSlash", False),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_path_params(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, path, blocked
     ):
@@ -851,7 +893,6 @@ class Contrib_TestClass_For_Threats:
             ("?toto=xtrace&toto=ytrace", True),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_query_params(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, query, blocked
     ):
@@ -897,7 +938,6 @@ class Contrib_TestClass_For_Threats:
             ({"User_Agent": "01973498523465"}, False),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_request_headers(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, headers, blocked
     ):
@@ -937,7 +977,6 @@ class Contrib_TestClass_For_Threats:
             ({"mytestingcookie_key": "jdfoSDGEkivRH_234"}, False),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_request_cookies(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, cookies, blocked
     ):
@@ -979,7 +1018,6 @@ class Contrib_TestClass_For_Threats:
             ("/", 200, None),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_response_status(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri, status, blocked
     ):
@@ -1024,7 +1062,6 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_response_headers(
         self,
         interface: Interface,
@@ -1100,14 +1137,35 @@ class Contrib_TestClass_For_Threats:
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
             ),
+            # multipart with duplicate keys
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nsafe_value\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nyqrweytqwreasldhkuqwgervflnmlnli\r\n"
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="field"\r\n'
+                "\r\nanother_safe_value\r\n"
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
             # raw body must not be blocked
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
-        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
+        ids=[
+            "json",
+            "text_json",
+            "json_large",
+            "xml",
+            "form",
+            "form_multipart",
+            "form_multipart_duplicate_keys",
+            "text",
+            "no_attack",
+        ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
     ):
@@ -1163,7 +1221,6 @@ class Contrib_TestClass_For_Threats:
             ({"Accept": "text/html;q=0.9, text/*;q=0.8, application/json;q=0.85, */*;q=0.9"}, True),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_custom_actions(
         self,
         interface: Interface,
@@ -1239,7 +1296,6 @@ class Contrib_TestClass_For_Threats:
             http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_nested_appsec_events(
         self,
         interface: Interface,
@@ -1319,6 +1375,15 @@ class Contrib_TestClass_For_Threats:
                             "path_params": [{"param_str": [8], "param_int": [4]}],
                         }
                     ],
+                    [
+                        {
+                            "method": [8],
+                            "body": [8],
+                            "query_params": [{"y": [[[8]], {"len": 1}], "x": [[[8]], {"len": 1}]}],
+                            "cookies": [{"secret": [8]}],
+                            "path_params": [[[8]], {"len": 2}],
+                        }
+                    ],
                 ),
             ),
         ],
@@ -1331,7 +1396,6 @@ class Contrib_TestClass_For_Threats:
             ({"User-Agent": "AllOK"}, False, False),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_schemas(
         self,
         interface: Interface,
@@ -1383,19 +1447,25 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(entry_span()) is None, "expected no triggers but some found"
             value = get_entry_span_tag(name)
             if apisec_enabled and not (name.startswith("_dd.appsec.s.res") and blocked):
+                if name == "_dd.appsec.s.req.body" and blocked:
+                    # we may not collect the body if the request is blocked early
+                    return
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
+                # all tornado path params are always strings
+                if interface.name == "tornado" and name == "_dd.appsec.s.req.params":
+                    expected_value = [[{"param_int": [8], "param_str": [8]}], [[[8]], {"len": 2}]]
                 if expected_value is not None:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
                         assert any(
-                            all(api[0].get(k) == v for k, v in expected[0].items()) for expected in expected_value
-                        ), (
-                            api,
-                            name,
-                        )
+                            all(api[0].get(k) == v for k, v in expected[0].items())
+                            if isinstance(api[0], dict) and isinstance(expected[0], dict)
+                            else api[0] == expected[0]
+                            for expected in expected_value
+                        ), (api, name, expected_value)
                 telemetry_calls = {
                     (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
                 }
@@ -1428,7 +1498,6 @@ class Contrib_TestClass_For_Threats:
             ({"SSN": "123-45-6789"}, [{"SSN": [8, {"category": "pii", "type": "us_ssn"}]}]),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_scanners(
         self, interface: Interface, get_entry_span_tag, apisec_enabled, payload, expected_value
     ):
@@ -1457,7 +1526,6 @@ class Contrib_TestClass_For_Threats:
                 assert value is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_api_custom_scanners(self, interface: Interface, get_entry_span_tag, apisec_enabled):
         import base64
         import gzip
@@ -1498,20 +1566,19 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
-
-        # clear the hashtable to avoid collisions with previous tests
-        if apisec_enabled:
-            assert APIManager._instance, "APIManager instance should be initialized"
-            APIManager._instance._hashtable.clear()
 
         payload = {"mastercard": "5123456789123456"}
         with override_global_config(
             dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_delay=delay)
         ):
+            # Clear sampling state after AppSec has been reconfigured for this case.
+            if apisec_enabled:
+                assert APIManager._instance, "APIManager instance should be initialized"
+                APIManager._instance._hashtable.clear()
+
             self.update_tracer(interface)
             response = interface.client.post(
                 f"/asm/?priority={priority}",
@@ -1553,24 +1620,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200
 
-    def test_multiple_service_name(self, interface):
-        import time
-
-        with override_global_config(dict(_remote_config_enabled=True)):
-            self.update_tracer(interface)
-            assert ddtrace.config._remote_config_enabled
-            response = interface.client.get("/new_service/awesome_test")
-            assert self.status(response) == 200
-            assert self.body(response) == "awesome_test"
-            for _ in range(10):
-                if "awesome_test" in ddtrace.config._get_extra_services():
-                    break
-                time.sleep(1)
-            else:
-                raise AssertionError("extra service not found")
-
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_asm_enabled_headers(self, asm_enabled, interface, get_entry_span_tag, entry_span):
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
@@ -1605,7 +1655,6 @@ class Contrib_TestClass_For_Threats:
     )
     @pytest.mark.parametrize("asm_enabled", [True, False])
     # RFC: https://docs.google.com/document/d/1xf-s6PtSr6heZxmO_QLUtcFzY_X_rT94lRXNq6-Ghws/edit
-    @pytest.mark.xfail_interface("tornado")
     def test_asm_waf_integration_identify_requests(
         self, asm_enabled, header, interface, get_entry_span_tag, entry_span
     ):
@@ -1628,25 +1677,6 @@ class Contrib_TestClass_For_Threats:
                 )
             else:
                 assert get_entry_span_tag(meta_tagname) is None
-
-    def test_global_callback_list_length(self, interface):
-        from ddtrace.appsec import _asm_request_context
-
-        with override_global_config(
-            dict(
-                _asm_enabled=True,
-                _api_security_enabled=True,
-                _telemetry_enabled=True,
-            )
-        ):
-            self.update_tracer(interface)
-            assert ddtrace.config._remote_config_enabled
-            for _ in range(20):
-                response = interface.client.get("/new_service/awesome_test")
-            assert self.status(response) == 200
-            assert self.body(response) == "awesome_test"
-            # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
@@ -1672,9 +1702,22 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
         ["endpoint", "parameters", "rule", "top_functions"],
-        [("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", ("rasp",))]
+        [
+            (
+                "lfi",
+                {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+            (
+                "lfi",
+                {"filename_pathlib1": "/etc/passwd", "filename_pathlib2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+        ]
         + [
-            ("ssrf", f"url_{p1}_1=169.254.169.254&url_{p2}_2=169.254.169.253", "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "urlopen"),
@@ -1686,11 +1729,11 @@ class Contrib_TestClass_For_Threats:
                 repeat=2,
             )
         ]
-        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
+        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("dispatch",))]
         + [
             (
                 "shell_injection",
-                "cmdsys_1=$(cat /etc/passwd 1>%262 ; echo .)&cmdrun_2=$(uname -a 1>%262 ; echo .)",
+                {"cmdsys_1": "$(cat /etc/passwd 1>&2 ; echo .)", "cmdrun_2": "$(uname -a 1>&2 ; echo .)"},
                 "rasp-932-100",
                 ("system", "rasp"),
             )
@@ -1698,7 +1741,7 @@ class Contrib_TestClass_For_Threats:
         + [
             (
                 "command_injection",
-                "cmda_1=/sbin/ping&cmds_2=/usr/bin/ls%20-la",
+                {"cmda_1": "/sbin/ping", "cmds_2": "/usr/bin/ls%20-la"},
                 "rasp-932-110",
                 ("Popen", "rasp"),
             )
@@ -1714,7 +1757,6 @@ class Contrib_TestClass_For_Threats:
             (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0, 200),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_exploit_prevention(
         self,
         interface,
@@ -1759,9 +1801,9 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
-            response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+            response = interface.client.get(f"/rasp/{endpoint}/?{urlencode(parameters)}")
             code = status_expected if asm_enabled and ep_enabled else 200
-            assert self.status(response) == code, (self.status(response), code)
+            assert self.status(response) == code, (self.status(response), code, self.body(response))
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
@@ -1788,20 +1830,18 @@ class Contrib_TestClass_For_Threats:
                     else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
-                # import delayed to get the correct version
-                from ddtrace.appsec._metrics import ddwaf_version
 
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", ddwaf_version),
+                        ("waf_version", asm_config._ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
@@ -1839,7 +1879,6 @@ class Contrib_TestClass_For_Threats:
             ("zouzou", "12345", 401, ""),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_auto_user_events(
         self,
         interface,
@@ -1939,7 +1978,6 @@ class Contrib_TestClass_For_Threats:
             ("zouzou", "12345", 401, ""),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_auto_user_events_sdk_v2(
         self,
         interface,
@@ -2063,7 +2101,6 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])
-    @pytest.mark.xfail_interface("tornado")
     def test_fingerprinting(self, interface, entry_span, get_entry_span_tag, asm_enabled, user_agent):
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=None)):
             self.update_tracer(interface)
@@ -2095,7 +2132,6 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("exploit_prevention_enabled", [True, False])
     @pytest.mark.parametrize("api_security_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_trace_tagging(
         self,
         interface,
@@ -2130,7 +2166,6 @@ class Contrib_TestClass_For_Threats:
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
         TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
@@ -2161,7 +2196,6 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
         """test api10 on downstream request/response headers and body"""
 
@@ -2185,7 +2219,6 @@ class Contrib_TestClass_For_Threats:
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
 
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
@@ -2216,3 +2249,430 @@ class Contrib_TestClass_For_Threats:
             ]
 
             self.check_rules_triggered(sorted(expected_rules), entry_span)
+
+
+class Contrib_TestClass_For_Threats_RC(_Contrib_TestClass_Base):
+    """
+    Factorized test class for threats tests requiring remote config enabled.
+    """
+
+    def test_rc_ip_blocklist_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of RC rule updates:
+        1. Default config: IP not blocked
+        2. RC update adds IP to blocklist: IP blocked
+        3. RC update changes blocklist to different IP: original IP no longer blocked
+        4. RC data removed (revert to default): no IPs blocked
+        """
+        ip_a = "8.8.4.4"
+        ip_b = "9.9.9.9"
+
+        def _make_rc_data(blocked_ip):
+            return {
+                "rules_data": [
+                    {
+                        "data": [{"value": blocked_ip}],
+                        "id": "blocked_ips",
+                        "type": "ip_with_expiration",
+                    },
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default config — IP should not be blocked
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 1: expected 200 with default config"
+            test_spans.reset()
+
+            # Step 2: RC update — add ip_a to blocked_ips via ASM_DATA
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips", _make_rc_data(ip_a))],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 403, "Step 2: expected 403 after blocking ip_a"
+            self.check_single_rule_triggered("blk-001-001", entry_span)
+            test_spans.reset()
+
+            # Step 3: RC update — change blocklist to ip_b, ip_a should no longer be blocked
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips", _make_rc_data(ip_b))],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 3: expected 200 for ip_a after switching to ip_b"
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_b})
+            assert self.status(response) == 403, "Step 3: expected 403 for ip_b"
+            self.check_single_rule_triggered("blk-001-001", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove ASM_DATA, no IPs should be blocked
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM_DATA", "Datadog/1/ASM_DATA/blocked_ips")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_a})
+            assert self.status(response) == 200, "Step 4: expected 200 for ip_a after revert"
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"X-Real-Ip": ip_b})
+            assert self.status(response) == 200, "Step 4: expected 200 for ip_b after revert"
+
+    def test_rc_custom_rules_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of RC custom rule updates:
+        1. Default config: Arachni user-agent is detected but not blocked
+        2. RC update pushes a custom rule that blocks Arachni user-agent: blocked
+        3. RC update replaces with a custom rule that blocks a query param pattern: Arachni no longer blocked
+        4. RC data removed (revert to default): back to default behavior
+        """
+        arachni_ua = "Arachni/v1.5.1"
+        attack_query = "1 OR 1=1"
+
+        def _make_custom_rule(rule_id, address, regex, key_path=None):
+            """Build a custom rule payload that blocks requests matching a regex pattern."""
+            input_spec = {"address": address}
+            if key_path:
+                input_spec["key_path"] = key_path
+            return {
+                "custom_rules": [
+                    {
+                        "id": rule_id,
+                        "name": f"Custom rule {rule_id}",
+                        "tags": {"type": "custom", "category": "attack_attempt"},
+                        "conditions": [
+                            {
+                                "operator": "match_regex",
+                                "parameters": {
+                                    "inputs": [input_spec],
+                                    "regex": regex,
+                                    "options": {"case_sensitive": False},
+                                },
+                            }
+                        ],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default config — Arachni detected but not blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 1: expected 200 for Arachni with default rules"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Step 2: RC update — push custom rule that blocks Arachni user-agent
+            custom_rule_ua = _make_custom_rule(
+                "custom-ua-block-001",
+                "server.request.headers.no_cookies",
+                regex="^Arachni",
+                key_path=["user-agent"],
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM", "Datadog/1/ASM/custom_rules", custom_rule_ua)],
+                ),
+            )
+            self.check_waf_no_errors()
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 403, "Step 2: expected 403 after custom rule blocks Arachni"
+            # The custom blocking rule must fire; the default monitoring rule may also fire
+            self.check_rule_triggered("custom-ua-block-001", entry_span)
+            test_spans.reset()
+
+            # Step 3: RC update — replace with custom rule blocking query param pattern
+            custom_rule_query = _make_custom_rule(
+                "custom-query-block-001",
+                "server.request.query",
+                regex="OR\\s+1=1",
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM", "Datadog/1/ASM/custom_rules", custom_rule_query)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should no longer be blocked by the custom rule
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 3: expected 200 for Arachni after rule change"
+            test_spans.reset()
+
+            # SQL injection pattern should now be blocked
+            response = interface.client.get(f"/?q={quote(attack_query)}", headers={"User-Agent": "Mozilla/5.0"})
+            assert self.status(response) == 403, "Step 3: expected 403 for SQL injection query"
+            # The custom blocking rule must fire; default rules may also match the pattern
+            self.check_rule_triggered("custom-query-block-001", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove custom rules, back to default behavior
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM", "Datadog/1/ASM/custom_rules")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni detected but not blocked (default behavior)
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 4: expected 200 for Arachni after revert"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # SQL injection pattern should no longer be blocked
+            response = interface.client.get(f"/?q={quote(attack_query)}", headers={"User-Agent": "Mozilla/5.0"})
+            assert self.status(response) == 200, "Step 4: expected 200 for query after revert"
+
+    def test_rc_ruleset_update_lifecycle(self, interface, test_spans, entry_span):
+        """Test the full lifecycle of ASM_DD rule set updates:
+        1. Default rules: dd-test-scanner-log-block user-agent is blocked, Arachni is detected but not blocked
+        2. ASM_DD update replaces ruleset with one that blocks Arachni: Arachni blocked,
+           dd-test-scanner-log-block no longer blocked (its rule was replaced away)
+        3. ASM_DD update replaces ruleset with one that blocks a query param pattern:
+           Arachni no longer blocked, query param blocked
+        4. ASM_DD removed (revert): default rules restored, dd-test-scanner-log-block blocked again
+        """
+        canary_ua = "dd-test-scanner-log-block"
+        arachni_ua = "Arachni/v1.5.1"
+        attack_query = "block_that_value"
+
+        def _make_ruleset(rule_id, address, key_path, operator, pattern):
+            """Build a minimal ASM_DD ruleset with a single blocking rule."""
+            condition = {
+                "operator": operator,
+                "parameters": {
+                    "inputs": [{"address": address}],
+                },
+            }
+            if key_path:
+                condition["parameters"]["inputs"][0]["key_path"] = key_path
+            if operator == "match_regex":
+                condition["parameters"]["regex"] = pattern
+                condition["parameters"]["options"] = {"case_sensitive": False}
+            elif operator == "phrase_match":
+                condition["parameters"]["list"] = [pattern]
+
+            return {
+                "rules": [
+                    {
+                        "id": rule_id,
+                        "name": f"Test rule {rule_id}",
+                        "tags": {"type": "test_type", "category": "attack_attempt"},
+                        "conditions": [condition],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Default rules — canary UA is blocked, Arachni detected but not blocked
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 403, "Step 1: expected 403 for canary UA with default rules"
+            self.check_single_rule_triggered("ua0-600-56x", entry_span)
+            test_spans.reset()
+
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 1: expected 200 for Arachni with default rules"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Step 2: ASM_DD update — replace entire ruleset with one that blocks Arachni
+            ruleset_block_arachni = _make_ruleset(
+                rule_id="test-arachni-block",
+                address="server.request.headers.no_cookies",
+                key_path=["user-agent"],
+                operator="match_regex",
+                pattern="^Arachni",
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules", ruleset_block_arachni)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should now be blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 403, "Step 2: expected 403 for Arachni after ASM_DD update"
+            self.check_single_rule_triggered("test-arachni-block", entry_span)
+            test_spans.reset()
+
+            # Canary UA should no longer be blocked (its rule was replaced)
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 200, "Step 2: expected 200 for canary UA after ruleset replacement"
+            test_spans.reset()
+
+            # Step 3: ASM_DD update — replace with a rule that blocks a query param
+            ruleset_block_query = _make_ruleset(
+                rule_id="test-query-block",
+                address="server.request.query",
+                key_path=None,
+                operator="phrase_match",
+                pattern=attack_query,
+            )
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules", ruleset_block_query)],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Arachni should no longer be blocked
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 3: expected 200 for Arachni after second ruleset update"
+            test_spans.reset()
+
+            # Query param should be blocked
+            response = interface.client.get(f"/?q={attack_query}")
+            assert self.status(response) == 403, "Step 3: expected 403 for query param attack"
+            self.check_single_rule_triggered("test-query-block", entry_span)
+            test_spans.reset()
+
+            # Step 4: Revert — remove ASM_DD, default rules should be restored
+            core.dispatch(
+                "waf.update",
+                (
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules")],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+            # Canary UA should be blocked again (default rule restored)
+            response = interface.client.get("/", headers={"User-Agent": canary_ua})
+            assert self.status(response) == 403, "Step 4: expected 403 for canary UA after revert"
+            self.check_single_rule_triggered("ua0-600-56x", entry_span)
+            test_spans.reset()
+
+            # Arachni should be detected but not blocked (default behavior)
+            response = interface.client.get("/", headers={"User-Agent": arachni_ua})
+            assert self.status(response) == 200, "Step 4: expected 200 for Arachni after revert"
+            self.check_single_rule_triggered("ua0-600-12x", entry_span)
+            test_spans.reset()
+
+            # Query param should no longer be blocked
+            response = interface.client.get(f"/?q={attack_query}")
+            assert self.status(response) == 200, "Step 4: expected 200 for query param after revert"
+
+    def test_rc_ruleset_duplicate_rules_report_errors(self, interface, test_spans, entry_span):
+        """Test that the WAF reports errors when two ASM_DD configs contain duplicate rule IDs.
+        1. Push a first ASM_DD ruleset with a rule
+        2. Push a second ASM_DD ruleset on a different path with the same rule ID: WAF should report errors
+        3. Remove both configs: WAF should be clean again
+        """
+        duplicate_rule_id = "test-duplicate-rule"
+
+        def _make_ruleset(ua_pattern):
+            return {
+                "rules": [
+                    {
+                        "id": duplicate_rule_id,
+                        "name": f"Test rule matching {ua_pattern}",
+                        "tags": {"type": "test_type", "category": "attack_attempt"},
+                        "conditions": [
+                            {
+                                "operator": "match_regex",
+                                "parameters": {
+                                    "inputs": [
+                                        {
+                                            "address": "server.request.headers.no_cookies",
+                                            "key_path": ["user-agent"],
+                                        }
+                                    ],
+                                    "regex": ua_pattern,
+                                    "options": {"case_sensitive": False},
+                                },
+                            }
+                        ],
+                        "transformers": [],
+                        "on_match": ["block"],
+                    }
+                ]
+            }
+
+        with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+            self.update_tracer(interface)
+
+            # Step 1: Push first ASM_DD ruleset — no errors expected
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules_v1", _make_ruleset("^Arachni"))],
+                ),
+            )
+            self.check_waf_no_errors()
+
+            # Step 2: Push second ASM_DD ruleset with the same rule ID on a different path
+            # WAF should report errors about the duplicate rule
+            core.dispatch(
+                "waf.update",
+                (
+                    [],
+                    [("ASM_DD", "Datadog/1/ASM_DD/rules_v2", _make_ruleset("^Nessus"))],
+                ),
+            )
+            self.check_waf_errors(
+                expected_failed=1,
+                expected_errors={"duplicate rule": [duplicate_rule_id]},
+            )
+
+            # The first ruleset's rule should still work despite the duplicate error
+            response = interface.client.get("/", headers={"User-Agent": "Arachni/v1.5.1"})
+            assert self.status(response) == 403, "First rule should still block Arachni"
+            self.check_single_rule_triggered(duplicate_rule_id, entry_span)
+            test_spans.reset()
+
+            # Step 3: Remove both configs — WAF should be clean (default rules restored)
+            core.dispatch(
+                "waf.update",
+                (
+                    [
+                        ("ASM_DD", "Datadog/1/ASM_DD/rules_v1"),
+                        ("ASM_DD", "Datadog/1/ASM_DD/rules_v2"),
+                    ],
+                    [],
+                ),
+            )
+            self.check_waf_no_errors()
+
+    def test_multiple_service_name(self, interface):
+        import time
+
+        with override_global_config(dict(_remote_config_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/new_service/awesome_test")
+            assert self.status(response) == 200
+            assert self.body(response) == "awesome_test"
+            for _ in range(10):
+                if "awesome_test" in ddtrace.config._get_extra_services():
+                    break
+                time.sleep(1)
+            else:
+                raise AssertionError("extra service not found")

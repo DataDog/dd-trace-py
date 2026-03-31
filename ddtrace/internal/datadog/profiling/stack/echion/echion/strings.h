@@ -15,7 +15,6 @@
 #include <unordered_map>
 
 #include <echion/long.h>
-#include <echion/render.h>
 #include <echion/vm.h>
 
 constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB
@@ -43,10 +42,11 @@ enum class StringTag : uint8_t
     GreenletName = 4 // greenlet names
 };
 
-class StringTable : public std::unordered_map<uintptr_t, std::string>
+class StringTable
 {
   public:
     using Key = uintptr_t;
+    using Map = std::unordered_map<Key, std::string>;
 
     // Tag is stored in the upper 8 bits of the key (bits 56-63).
     // On x86_64, only 48 bits are used for virtual addresses, so this is safe.
@@ -60,6 +60,21 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
         return (addr & ~TAG_MASK) | (static_cast<Key>(tag) << TAG_SHIFT);
     }
 
+    [[nodiscard]] static constexpr StringTag extract_tag(Key key)
+    {
+        return static_cast<StringTag>((key & TAG_MASK) >> TAG_SHIFT);
+    }
+
+    static constexpr bool is_ephemeral(StringTag tag)
+    {
+        // NOTE: GreenletName is NOT ephemeral because greenlet names are cached in
+        // GreenletInfo::name as StringTable keys. If clear_ephemeral ran while a
+        // GreenletInfo still held the key, subsequent lookups would fail and
+        // sampling would be lost for that greenlet. Greenlet strings are
+        // explicitly removed via StringTable::erase in untrack_greenlet.
+        return tag == StringTag::TaskName;
+    }
+
     static constexpr Key INVALID = 1;
     static constexpr Key UNKNOWN = 2;
     static constexpr Key C_FRAME = 3;
@@ -67,23 +82,44 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
     // Python string object
     [[nodiscard]] Result<Key> key(PyObject* s, StringTag tag = StringTag::Unknown);
 
-    [[nodiscard]] Key key_unsafe(PyObject* s, StringTag tag = StringTag::Unknown);
-
     [[nodiscard]] Result<std::reference_wrapper<const std::string>> lookup(Key key) const;
 
     [[nodiscard]] inline size_t size() const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
-        return std::unordered_map<uintptr_t, std::string>::size();
-    };
+        return stable_.size() + ephemeral_.size();
+    }
+
+    [[nodiscard]] inline size_t stable_size() const
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        return stable_.size();
+    }
+
+    [[nodiscard]] inline size_t ephemeral_size() const
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        return ephemeral_.size();
+    }
+
+    void clear_ephemeral()
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        ephemeral_.clear();
+    }
+
+    void erase(Key key)
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        table_for(extract_tag(key)).erase(key);
+    }
 
     StringTable()
-      : std::unordered_map<uintptr_t, std::string>()
     {
-        this->emplace(0, "");
-        this->emplace(INVALID, "<invalid>");
-        this->emplace(UNKNOWN, "<unknown>");
-    };
+        stable_.emplace(0, "");
+        stable_.emplace(INVALID, "<invalid>");
+        stable_.emplace(UNKNOWN, "<unknown>");
+    }
 
     void postfork_child()
     {
@@ -92,10 +128,12 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
     }
 
   private:
+    Map& table_for(StringTag tag) { return is_ephemeral(tag) ? ephemeral_ : stable_; }
+    const Map& table_for(StringTag tag) const { return is_ephemeral(tag) ? ephemeral_ : stable_; }
+
+    const Map& table_for_key(Key k) const { return table_for(extract_tag(k)); }
+
+    Map stable_;
+    Map ephemeral_;
     mutable std::mutex table_lock;
 };
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline StringTable& string_table = *(new StringTable());

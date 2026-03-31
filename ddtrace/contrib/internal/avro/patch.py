@@ -1,11 +1,10 @@
-from typing import Dict
-
 import avro
 import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 from .schema_iterator import SchemaExtractor
 
@@ -16,12 +15,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(avro, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"avro": "*"}
 
 
@@ -59,7 +57,7 @@ def _traced_serialize(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
         return func(*args, **kwargs)
@@ -77,7 +75,7 @@ def _traced_deserialize(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
         return func(*args, **kwargs)

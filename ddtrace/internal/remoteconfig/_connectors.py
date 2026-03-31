@@ -2,7 +2,6 @@ from dataclasses import asdict
 import json
 import os
 import time
-from typing import List
 from typing import Sequence
 from uuid import UUID
 
@@ -17,7 +16,7 @@ log = get_logger(__name__)
 # It must be large enough to receive at least 2500 IPs or 2500 users to block.
 SHARED_MEMORY_SIZE = 0x100000
 
-SharedDataType = List[Payload]
+SharedDataType = list[Payload]
 
 
 class UUIDEncoder(json.JSONEncoder):
@@ -87,7 +86,7 @@ class PublisherSubscriberConnector:
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
             self.data.value = data
-            log.debug("[%s][P: %s] write message of length %s", os.getpid(), os.getppid(), data_len)
+            log.debug("[%s][P: %s] Write message of length %s", os.getpid(), os.getppid(), data_len)
             self.checksum = last_checksum
 
     @staticmethod

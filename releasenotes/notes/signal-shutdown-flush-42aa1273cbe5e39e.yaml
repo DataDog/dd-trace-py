@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where traces may not be flushed during the handling of ``SIGTERM`` or ``SIGINT`` signals.

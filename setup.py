@@ -5,6 +5,7 @@ import os
 import platform
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -24,9 +25,9 @@ from setuptools import Distribution, Extension, find_packages, setup  # isort: s
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
-from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-from distutils.dep_util import newer_group
+from distutils.dep_util import newer_group  # isort: skip
+from distutils.util import get_platform  # isort: skip
 
 
 try:
@@ -84,6 +85,11 @@ else:
 
 if FAST_BUILD:
     os.environ["DD_COMPILE_ABSEIL"] = "0"
+    # Trade binary size for compilation speed in dev environments by disabling
+    # LTO and increasing codegen parallelism. Never used for release wheels.
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "16")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_OPT_LEVEL", "2")
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
@@ -95,16 +101,21 @@ DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
-LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
-IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
-DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
+DDTRACE_DIR = HERE / "ddtrace"
+LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
+IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
+DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
+STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
+VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
+DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 CURRENT_OS = platform.system()
+SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
+WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "1.30.1"
 
@@ -120,10 +131,11 @@ def interpose_sccache():
     if not SCCACHE_COMPILE:
         return
 
-    # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
+    # Check for sccache.  We don't do multi-step failover (e.g., if the path is set, but the binary is invalid)
+    # Honor both SCCACHE_PATH and SCCACHE env vars for compatibility with docs
+    _sccache_path = os.getenv("SCCACHE_PATH") or os.getenv("SCCACHE") or shutil.which("sccache")
     if _sccache_path is None:
-        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
+        print("WARNING: sccache not found in SCCACHE_PATH, SCCACHE, or PATH, skipping sccache interposition")
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
@@ -266,10 +278,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = []
+rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-    rust_features.append("crashtracker")
     rust_features.append("profiling")
+    if not SERVERLESS_BUILD:
+        rust_features.append("crashtracker")
+if not SERVERLESS_BUILD:
+    rust_features.append("ffe")
 
 
 class PatchedDistribution(Distribution):
@@ -290,6 +305,7 @@ class PatchedDistribution(Distribution):
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
                 env=rust_env,
+                args=DD_CARGO_ARGS,
             )
         ]
 
@@ -314,11 +330,14 @@ class ExtensionHashes(build_ext):
                     sources = [Path(_) for _ in ext.sources]
 
                 sources_hash = hashlib.sha256()
+                # DEV: Make sure to include the rust features since changing them changes what gets built
+                for feature in rust_features:
+                    sources_hash.update(feature.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
 
-                entries: t.List[t.Tuple[str, str, str]] = []
+                entries: list[tuple[str, str, str]] = []
                 entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
 
                 # For profiling, these headers are generated by the Rust extension
@@ -445,7 +464,7 @@ class LibraryDownload:
             return
 
         for arch in cls.available_releases[CURRENT_OS]:
-            if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
+            if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
                 continue
             elif CURRENT_OS == "Darwin":
@@ -574,6 +593,29 @@ class LibDDWafDownload(LibraryDownload):
         return archive_dir
 
 
+# Source/build file extensions that should never appear in a binary wheel.
+# These live alongside .py files in package dirs but are only needed for compiling.
+_WHEEL_EXCLUDED_EXTENSIONS = frozenset(
+    [
+        # C/C++ source and headers (compiled into .so extensions)
+        ".c",
+        ".h",
+        ".cpp",
+        ".cc",
+        ".hpp",
+        # Cython source (compiled into .so extensions; .pxd kept for sdist only)
+        ".pyx",
+        ".pxd",
+        # Build system files
+        ".cmake",
+        ".sh",
+        # Developer tooling
+        ".plantuml",
+        ".supp",
+    ]
+)
+
+
 class LibraryDownloader(BuildPyCommand):
     def run(self):
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
@@ -586,28 +628,95 @@ class LibraryDownloader(BuildPyCommand):
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
+        self._strip_build_artifacts()
+
+    def find_data_files(self, package, src_dir):
+        """Strip build/source artifacts from wheel data files."""
+        files = BuildPyCommand.find_data_files(self, package, src_dir)
+        return [f for f in files if os.path.splitext(f)[1].lower() not in _WHEEL_EXCLUDED_EXTENSIONS]
+
+    def _strip_build_artifacts(self):
+        """Remove source/build artifacts from the build_lib directory after copying.
+
+        find_data_files() handles most setuptools code paths, but the PEP 517
+        build backend may populate build_lib via a different route. This post-
+        processing pass guarantees the artifacts are absent from the final wheel.
+        """
+        if not self.build_lib:
+            return
+        build_lib = Path(self.build_lib)
+        removed = 0
+        for path in build_lib.rglob("*"):
+            if path.is_file() and path.suffix.lower() in _WHEEL_EXCLUDED_EXTENSIONS:
+                path.unlink()
+                removed += 1
+        if removed:
+            print(f"Stripped {removed} build artifact(s) from wheel", flush=True)
 
 
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_artifacts():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(IAST_DIR / "*.so", True)
+    def remove_native_extensions():
+        """Remove native extensions and shared libraries installed by setup.py."""
+        for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
+            for path in DDTRACE_DIR.rglob(pattern):
+                # Avoid modifying vendored directories
+                if path.is_file() and not path.is_relative_to(VENDOR_DIR):
+                    try:
+                        path.unlink()
+                    except OSError as e:
+                        print(f"WARNING: could not remove {path}: {e}")
 
     @staticmethod
-    def remove_rust():
-        """Clean the Rust crate using cargo clean."""
-        if CARGO_TARGET_DIR.exists():
-            subprocess.run(
-                ["cargo", "clean"],
-                cwd=str(NATIVE_CRATE),
-                check=True,
-            )
+    def remove_artifacts():
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        CleanLibraries.remove_native_extensions()
+
+    @staticmethod
+    def remove_rust_targets():
+        """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
+        # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
+        for target_dir in NATIVE_CRATE.glob("target*"):
+            if target_dir.is_dir():
+                shutil.rmtree(target_dir, True)
+
+    @staticmethod
+    def remove_build_artifacts():
+        """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
+
+        The base distutils clean command does not remove these. They can cause
+        stale metadata and odd behavior on reinstall. Invoked only for
+        ``clean --all`` to give a full reset before a fresh build.
+        """
+        for path in (HERE / "ddtrace.egg-info", HERE / "dist", HERE / ".eggs"):
+            if path.exists():
+                shutil.rmtree(path, True)
+        for egg in HERE.glob("*.egg"):
+            if egg.is_file():
+                egg.unlink(missing_ok=True)
+            elif egg.is_dir():
+                shutil.rmtree(egg, True)
+        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        if cmake_deps.exists():
+            shutil.rmtree(cmake_deps, True)
+
+    @staticmethod
+    def remove_build_dir():
+        """Remove the entire build/ tree for a clean slate.
+
+        The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
+        per runtime. We remove build/ wholesale so all build output is cleared.
+        """
+        build_dir = HERE / "build"
+        if build_dir.exists():
+            shutil.rmtree(build_dir, True)
 
     def run(self):
-        CleanLibraries.remove_rust()
+        CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
-        CleanCommand.run(self)
+        CleanLibraries.remove_build_dir()
+        if self.all:
+            CleanLibraries.remove_build_artifacts()
 
 
 class CustomBuildExt(build_ext):
@@ -797,10 +906,15 @@ class CustomBuildExt(build_ext):
 
     def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
         """Get common CMake arguments used by both libdd_wrapper and extensions."""
+        # Use base_prefix (not prefix) to get the actual Python installation path even when in a venv
+        # Resolve symlinks so CMake can find include/lib directories relative to the real installation
+        python_root = Path(sys.base_prefix).resolve()
+
         cmake_args = [
             f"-S{source_dir}",
             f"-B{build_dir}",
-            f"-DPython3_ROOT_DIR={sys.prefix}",
+            f"-DPython3_ROOT_DIR={python_root}",
+            f"-DPython3_EXECUTABLE={sys.executable}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
             f"-DLIB_INSTALL_DIR={output_dir}",
@@ -808,6 +922,16 @@ class CustomBuildExt(build_ext):
             f"-DEXTENSION_SUFFIX={self.suffix}",
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
+        ]
+
+        # Point FetchContent downloads at the persistent download cache so CMake
+        # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
+        # The cache dir is shared with other downloaded build dependencies and is
+        # preserved between CI runs. FETCHCONTENT_BASE_DIR defaults to a path
+        # inside the ephemeral cmake build dir, so without this every build would
+        # re-download from GitHub.
+        cmake_args += [
+            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
         ]
 
         # Add sccache support if available
@@ -1035,7 +1159,7 @@ class CMakeExtension(Extension):
         self.optional = optional  # If True, cmake errors are ignored
         self.dependencies = dependencies
 
-    def get_sources(self, cmd: build_ext) -> t.List[Path]:
+    def get_sources(self, cmd: build_ext) -> list[Path]:
         """
         Returns the list of source files for this extension.
         This is used by the CustomBuildExt class to determine if the extension needs to be rebuilt.
@@ -1128,7 +1252,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
+    ext_modules: list[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
@@ -1166,10 +1290,14 @@ if not IS_PYSTON:
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        memalloc_cmake_args = []
+        if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
+            memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
+                cmake_args=memalloc_cmake_args,
                 optional=False,
             )
         )
@@ -1208,11 +1336,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
-                "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
@@ -1230,11 +1353,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 language="c",
             ),
             Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
                 sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",
@@ -1242,6 +1360,26 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._task",
                 sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._exception",
+                sources=["ddtrace/profiling/collector/_exception.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._fast_poisson",
+                sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._sampler",
+                sources=["ddtrace/profiling/collector/_sampler.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._lock",
+                sources=["ddtrace/profiling/collector/_lock.pyx"],
                 language="c",
             ),
         ],
@@ -1257,18 +1395,34 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
         cache=True,
     )
 
+PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
+if PACKAGE_NAME != "ddtrace":
+    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
+print(f"INFO: building package '{PACKAGE_NAME}'")
+
 interpose_sccache()
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
+    packages=find_packages(
+        exclude=[
+            "tests*",
+            "benchmarks*",
+            "scripts*",
+            # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
+            "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
+            # C++ test helpers, not needed at runtime
+            "ddtrace.internal.datadog.profiling.ddup.test*",
+        ]
+    ),
+    include_package_data=False,
     package_data={
-        "ddtrace": ["py.typed"],
+        # Type stubs and markers for all packages
+        "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"]
-            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
@@ -1281,7 +1435,12 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
+    setup_requires=[
+        "cython",
+        "cmake>=3.24.2,<3.28",
+        "setuptools-rust<2",
+        "patchelf>=0.17.0.0; sys_platform == 'linux'",
+    ],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )

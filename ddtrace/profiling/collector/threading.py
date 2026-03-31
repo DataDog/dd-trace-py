@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import threading
 from types import ModuleType
 import typing
-from typing import Type
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
@@ -35,7 +34,7 @@ class _ProfiledThreadingCondition(_lock._ProfiledLock):
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingLock] = _ProfiledThreadingLock
+    PROFILED_LOCK_CLASS: type[_ProfiledThreadingLock] = _ProfiledThreadingLock
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Lock"
 
@@ -43,7 +42,7 @@ class ThreadingLockCollector(_lock.LockCollector):
 class ThreadingRLockCollector(_lock.LockCollector):
     """Record threading.RLock usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
+    PROFILED_LOCK_CLASS: type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "RLock"
 
@@ -51,7 +50,7 @@ class ThreadingRLockCollector(_lock.LockCollector):
 class ThreadingSemaphoreCollector(_lock.LockCollector):
     """Record threading.Semaphore usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
+    PROFILED_LOCK_CLASS: type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Semaphore"
 
@@ -59,7 +58,7 @@ class ThreadingSemaphoreCollector(_lock.LockCollector):
 class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
     """Record threading.BoundedSemaphore usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
+    PROFILED_LOCK_CLASS: type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "BoundedSemaphore"
 
@@ -67,7 +66,7 @@ class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
 class ThreadingConditionCollector(_lock.LockCollector):
     """Record threading.Condition usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
+    PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Condition"
 
@@ -75,6 +74,8 @@ class ThreadingConditionCollector(_lock.LockCollector):
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack() -> None:
     if config.stack.enabled and stack.is_available:
+        from ddtrace.profiling._threading import get_thread_native_id
+
         _thread_set_native_id = typing.cast(
             typing.Callable[[threading.Thread], None],
             ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
@@ -99,7 +100,7 @@ def init_stack() -> None:
 
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
-            stack.register_thread(thread_id, thread.native_id, thread.name)
+            stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
 
         # Import _asyncio to ensure asyncio post-import wrappers are initialised
         from ddtrace.profiling import _asyncio  # noqa: F401

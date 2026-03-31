@@ -8,7 +8,6 @@ from typing import Optional
 from typing import Union
 from urllib import parse
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -27,8 +26,11 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -94,7 +96,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
     return tags
 
 
-def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_headers(scope: Mapping[str, Any]) -> dict[str, str]:
     """
     Extract and decode headers from ASGI scope.
 
@@ -110,7 +112,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_tag_str(http.STATUS_CODE, "500")
+    span._set_attribute(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -165,7 +167,13 @@ class TraceMiddleware:
         span_modifier=None,
     ):
         self.app = guarantee_single_callable(app)
-        self.tracer = tracer or ddtrace.tracer
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
@@ -200,7 +208,7 @@ class TraceMiddleware:
             headers = {}
         else:
             trace_utils.activate_distributed_headers(
-                self.tracer, int_config=self.integration_config, request_headers=headers
+                tracer, int_config=self.integration_config, request_headers=headers
             )
         resource = " ".join([method, scope["path"]])
 
@@ -290,7 +298,7 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             for name, value in tags.items():
-                span._set_tag_str(name, value)
+                span._set_attribute(name, value)
 
             @wraps(receive)
             async def wrapped_receive():
@@ -319,7 +327,6 @@ class TraceMiddleware:
 
                 with core.context_with_data(
                     "asgi.websocket.receive.message",
-                    tracer=self.tracer,
                     integration_config=self.integration_config,
                     span_name="websocket.receive",
                     service=span.service,
@@ -447,7 +454,7 @@ class TraceMiddleware:
                     return await send(message)
                 finally:
                     trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status, response_headers=headers
+                        span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
@@ -473,8 +480,10 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
-                if span in scope["datadog"]["request_spans"]:
-                    scope["datadog"]["request_spans"].remove(span)
+                # missing datadog scope should not crash request teardown.
+                request_spans = scope.get("datadog", {}).get("request_spans")
+                if request_spans and span in request_spans:
+                    request_spans.remove(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
@@ -490,7 +499,6 @@ class TraceMiddleware:
 
         with core.context_with_data(
             "asgi.websocket.send.message",
-            tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.send",
             service=request_span.service,
@@ -514,7 +522,6 @@ class TraceMiddleware:
 
         with core.context_with_data(
             "asgi.websocket.close.message",
-            tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
             resource=f"websocket {scope.get('path', '')}",
@@ -534,7 +541,7 @@ class TraceMiddleware:
         message: Mapping[str, Any],
         span: Span,
         method: str,
-        response_headers: Optional[Mapping[str, Any]],
+        response_headers: Optional[Mapping[str, str]],
     ):
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)
@@ -572,7 +579,6 @@ class TraceMiddleware:
         # Create the span when the handler is invoked (when receive() is called)
         with core.context_with_data(
             "asgi.websocket.disconnect.message",
-            tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
             service=request_span.service,

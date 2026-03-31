@@ -16,7 +16,12 @@ setup_rust() {
   section_start "install_rust" "Rust toolchain"
   export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:${PATH}"
   if ! command -v rustc &> /dev/null; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    for i in 1 2 3; do
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && break
+      echo "rustup install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
+    done
   fi
   rustup default stable
   which rustc && rustc --version
@@ -33,7 +38,12 @@ setup_python() {
     export PATH="$(dirname "${UV_PYTHON}"):${PATH}"
   fi
   if ! command -v uv &> /dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    for i in 1 2 3; do
+      curl -LsSf https://astral.sh/uv/install.sh | sh && break
+      echo "uv install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install uv after 3 attempts"; exit 1; }
+    done
   fi
   which python && python --version
   if [[ ${UNPIN_DEPENDENCIES:-"false"} == "true" ]]
@@ -63,13 +73,13 @@ build_wheel() {
   section_start "build_wheel_function" "Building wheel function"
 
   # Determine Python version for log filename
-  if [[ "${UV_PYTHON}" =~ ([0-9]+\.[0-9]+) ]]; then
-    PYTHON_VER="${BASH_REMATCH[1]}"
-  else
-    PYTHON_VER="unknown"
-  fi
+  PYTHON_VER=$(uv run --no-project python -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')")
 
-  export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_VER}.log"
+  # Get a rough Python tag for logging purposes
+  #   e.g. "cp313-x86_64_pc_linux_gnu", "cp39-x86_64_pc_linux_musl", etc
+  PYTHON_TAG=$(uv run --no-project python -c "import sysconfig; import sys; build_type = sysconfig.get_config_var('BUILD_GNU_TYPE'); py_ver = sysconfig.get_config_var('py_version_nodot'); print('cp' + py_ver + '-' + build_type.replace('-', '_'))")
+
+  export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
   # Redirect build output to log file
@@ -142,6 +152,7 @@ test_wheel() {
   export VIRTUAL_ENV="${VENV_PATH}"
   export PATH="${VENV_PATH}/bin:${PATH}"
   cd "${TEST_WHEEL_DIR}"
+  ls -al "${FINAL_WHEEL_FILE}"
   # Activate venv and install wheel in a subshell
   # Unset UV_PYTHON so uv respects the venv instead of the global setting
   (

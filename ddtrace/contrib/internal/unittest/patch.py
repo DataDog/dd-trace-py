@@ -1,6 +1,5 @@
 import inspect
 import os
-from typing import Dict
 from typing import Optional
 from typing import Union
 import unittest
@@ -10,7 +9,7 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import get_coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
@@ -68,12 +67,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"unittest": "*"}
 
 
@@ -151,11 +149,11 @@ def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, 
     _global_skipped_elements += 1
 
     test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
-    test_module_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-    test_module_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+    test_module_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+    test_module_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
-    test_session_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-    test_session_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+    test_session_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+    test_session_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
 
 def _store_test_span(item, span: ddtrace.trace.Span):
@@ -227,7 +225,7 @@ def _update_status_item(item: ddtrace.trace.Span, status: str):
     existing_status = item.get_tag(test.STATUS)
     if existing_status and (status == test.Status.SKIP.value or existing_status == test.Status.FAIL.value):
         return None
-    item._set_tag_str(test.STATUS, status)
+    item._set_attribute(test.STATUS, status)
     return None
 
 
@@ -284,12 +282,12 @@ def _generate_session_resource(test_command: str) -> str:
 
 
 def _set_test_skipping_tags_to_span(span: ddtrace.trace.Span):
-    span._set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-    span._set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
-    span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
-    span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
-    span._set_tag_str(test.ITR_FORCED_RUN, "false")
-    span._set_tag_str(test.ITR_UNSKIPPABLE, "false")
+    span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "true")
+    span._set_attribute(test.ITR_TEST_SKIPPING_TYPE, TEST)
+    span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+    span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+    span._set_attribute(test.ITR_FORCED_RUN, "false")
+    span._set_attribute(test.ITR_UNSKIPPABLE, "false")
 
 
 def _set_identifier(item, name: str):
@@ -406,7 +404,7 @@ def _update_remaining_suites_and_modules(
 
 def _update_test_skipping_count_span(span: ddtrace.trace.Span):
     if _CIVisibility.test_skipping_enabled():
-        span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
+        span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
 
 
 def _extract_skip_if_reason(args, kwargs):
@@ -470,11 +468,11 @@ def _set_test_span_status(test_item, status: str, exc_info: Optional[str] = None
     if not span:
         log.debug("Tried setting test result for test but could not find span for %s", test_item)
         return None
-    span._set_tag_str(test.STATUS, status)
+    span._set_attribute(test.STATUS, status)
     if exc_info:
         span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
     if status == test.Status.SKIP.value:
-        span._set_tag_str(test.SKIP_REASON, skip_reason)
+        span._set_attribute(test.SKIP_REASON, skip_reason)
 
 
 def _set_test_xpass_xfail_result(test_item, result: str):
@@ -485,13 +483,13 @@ def _set_test_xpass_xfail_result(test_item, result: str):
     if not span:
         log.debug("Tried setting test result for an xpass or xfail test but could not find span for %s", test_item)
         return None
-    span._set_tag_str(test.RESULT, result)
+    span._set_attribute(test.RESULT, result)
     status = span.get_tag(test.STATUS)
     if result == test.Status.XFAIL.value:
         if status == test.Status.PASS.value:
-            span._set_tag_str(test.STATUS, test.Status.FAIL.value)
+            span._set_attribute(test.STATUS, test.Status.FAIL.value)
         elif status == test.Status.FAIL.value:
-            span._set_tag_str(test.STATUS, test.Status.PASS.value)
+            span._set_attribute(test.STATUS, test.Status.PASS.value)
 
 
 def add_success_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
@@ -576,27 +574,27 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
 
             if _CIVisibility.test_skipping_enabled():
                 if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:
-                    span._set_tag_str(
+                    span._set_attribute(
                         ITR_CORRELATION_ID_TAG_NAME, _CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME]
                     )
 
                 if _is_marked_as_unskippable(instance):
-                    span._set_tag_str(test.ITR_UNSKIPPABLE, "true")
-                    test_module_span._set_tag_str(test.ITR_UNSKIPPABLE, "true")
-                    test_session_span._set_tag_str(test.ITR_UNSKIPPABLE, "true")
+                    span._set_attribute(test.ITR_UNSKIPPABLE, "true")
+                    test_module_span._set_attribute(test.ITR_UNSKIPPABLE, "true")
+                    test_session_span._set_attribute(test.ITR_UNSKIPPABLE, "true")
                 test_module_suite_path_without_extension = "{}/{}".format(
                     os.path.splitext(test_module_path)[0], test_suite_name
                 )
                 if _should_be_skipped_by_itr(args, test_module_suite_path_without_extension, test_name, instance):
                     if _is_marked_as_unskippable(instance):
-                        span._set_tag_str(test.ITR_FORCED_RUN, "true")
-                        test_module_span._set_tag_str(test.ITR_FORCED_RUN, "true")
-                        test_session_span._set_tag_str(test.ITR_FORCED_RUN, "true")
+                        span._set_attribute(test.ITR_FORCED_RUN, "true")
+                        test_module_span._set_attribute(test.ITR_FORCED_RUN, "true")
+                        test_session_span._set_attribute(test.ITR_FORCED_RUN, "true")
                     else:
                         _update_skipped_elements_and_set_tags(test_module_span, test_session_span)
                         instance._dd_itr_skip = True
-                        span._set_tag_str(test.ITR_SKIPPED, "true")
-                        span._set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
+                        span._set_attribute(test.ITR_SKIPPED, "true")
+                        span._set_attribute(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
 
             if _is_skipped_by_itr(instance):
                 result = args[0]
@@ -655,18 +653,18 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
         span_type=SpanTypes.TEST,
         resource=resource_name,
     )
-    test_session_span._set_tag_str(_EVENT_TYPE, _SESSION_TYPE)
-    test_session_span._set_tag_str(_SESSION_ID, str(test_session_span.span_id))
+    test_session_span._set_attribute(_EVENT_TYPE, _SESSION_TYPE)
+    test_session_span._set_attribute(_SESSION_ID, str(test_session_span.span_id))
 
-    test_session_span._set_tag_str(COMPONENT, COMPONENT_VALUE)
-    test_session_span._set_tag_str(SPAN_KIND, KIND)
+    test_session_span._set_attribute(COMPONENT, COMPONENT_VALUE)
+    test_session_span._set_attribute(SPAN_KIND, KIND)
 
-    test_session_span._set_tag_str(test.COMMAND, test_command)
-    test_session_span._set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_session_span._set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
+    test_session_span._set_attribute(test.COMMAND, test_command)
+    test_session_span._set_attribute(test.FRAMEWORK, FRAMEWORK)
+    test_session_span._set_attribute(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
-    test_session_span._set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-    test_session_span._set_tag_str(
+    test_session_span._set_attribute(test.TEST_TYPE, SpanTypes.TEST)
+    test_session_span._set_attribute(
         test.ITR_TEST_CODE_COVERAGE_ENABLED,
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
@@ -676,7 +674,7 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_session_span)
     else:
-        test_session_span._set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
+        test_session_span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_module_identifier(instance)
     if _is_coverage_invoked_by_coverage_run():
         patch_coverage()
@@ -699,29 +697,29 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
         child_of=test_session_span,
         resource=resource_name,
     )
-    test_module_span._set_tag_str(_EVENT_TYPE, _MODULE_TYPE)
-    test_module_span._set_tag_str(_SESSION_ID, str(test_session_span.span_id))
-    test_module_span._set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+    test_module_span._set_attribute(_EVENT_TYPE, _MODULE_TYPE)
+    test_module_span._set_attribute(_SESSION_ID, str(test_session_span.span_id))
+    test_module_span._set_attribute(_MODULE_ID, str(test_module_span.span_id))
 
-    test_module_span._set_tag_str(COMPONENT, COMPONENT_VALUE)
-    test_module_span._set_tag_str(SPAN_KIND, KIND)
+    test_module_span._set_attribute(COMPONENT, COMPONENT_VALUE)
+    test_module_span._set_attribute(SPAN_KIND, KIND)
 
-    test_module_span._set_tag_str(test.COMMAND, test_session_span.get_tag(test.COMMAND))
-    test_module_span._set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_module_span._set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
+    test_module_span._set_attribute(test.COMMAND, test_session_span.get_tag(test.COMMAND))
+    test_module_span._set_attribute(test.FRAMEWORK, FRAMEWORK)
+    test_module_span._set_attribute(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
-    test_module_span._set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-    test_module_span._set_tag_str(test.MODULE, test_module_name)
-    test_module_span._set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
-    test_module_span._set_tag_str(
+    test_module_span._set_attribute(test.TEST_TYPE, SpanTypes.TEST)
+    test_module_span._set_attribute(test.MODULE, test_module_name)
+    test_module_span._set_attribute(test.MODULE_PATH, _extract_module_file_path(instance))
+    test_module_span._set_attribute(
         test.ITR_TEST_CODE_COVERAGE_ENABLED,
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_module_span)
-        test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
+        test_module_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
-        test_module_span._set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
+        test_module_span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_suite_identifier(instance)
     return test_module_span
 
@@ -743,22 +741,22 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
         activate=True,
         resource=resource_name,
     )
-    test_suite_span._set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
-    test_suite_span._set_tag_str(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
-    test_suite_span._set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-    test_suite_span._set_tag_str(_MODULE_ID, str(test_module_span.span_id))
+    test_suite_span._set_attribute(_EVENT_TYPE, _SUITE_TYPE)
+    test_suite_span._set_attribute(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
+    test_suite_span._set_attribute(_SUITE_ID, str(test_suite_span.span_id))
+    test_suite_span._set_attribute(_MODULE_ID, str(test_module_span.span_id))
 
-    test_suite_span._set_tag_str(COMPONENT, COMPONENT_VALUE)
-    test_suite_span._set_tag_str(SPAN_KIND, KIND)
+    test_suite_span._set_attribute(COMPONENT, COMPONENT_VALUE)
+    test_suite_span._set_attribute(SPAN_KIND, KIND)
 
-    test_suite_span._set_tag_str(test.COMMAND, test_module_span.get_tag(test.COMMAND))
-    test_suite_span._set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    test_suite_span._set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
+    test_suite_span._set_attribute(test.COMMAND, test_module_span.get_tag(test.COMMAND))
+    test_suite_span._set_attribute(test.FRAMEWORK, FRAMEWORK)
+    test_suite_span._set_attribute(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
-    test_suite_span._set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-    test_suite_span._set_tag_str(test.SUITE, test_suite_name)
-    test_suite_span._set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-    test_suite_span._set_tag_str(test.MODULE_PATH, test_module_path)
+    test_suite_span._set_attribute(test.TEST_TYPE, SpanTypes.TEST)
+    test_suite_span._set_attribute(test.SUITE, test_suite_name)
+    test_suite_span._set_attribute(test.MODULE, test_module_span.get_tag(test.MODULE))
+    test_suite_span._set_attribute(test.MODULE_PATH, test_module_path)
     return test_suite_span
 
 
@@ -779,25 +777,25 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
         child_of=test_suite_span,
         activate=True,
     )
-    span._set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-    span._set_tag_str(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
-    span._set_tag_str(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
-    span._set_tag_str(_SUITE_ID, test_suite_span.get_tag(_SUITE_ID))
+    span._set_attribute(_EVENT_TYPE, SpanTypes.TEST)
+    span._set_attribute(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
+    span._set_attribute(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
+    span._set_attribute(_SUITE_ID, test_suite_span.get_tag(_SUITE_ID))
 
-    span._set_tag_str(COMPONENT, COMPONENT_VALUE)
-    span._set_tag_str(SPAN_KIND, KIND)
+    span._set_attribute(COMPONENT, COMPONENT_VALUE)
+    span._set_attribute(SPAN_KIND, KIND)
 
-    span._set_tag_str(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
-    span._set_tag_str(test.FRAMEWORK, FRAMEWORK)
-    span._set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
+    span._set_attribute(test.COMMAND, test_suite_span.get_tag(test.COMMAND))
+    span._set_attribute(test.FRAMEWORK, FRAMEWORK)
+    span._set_attribute(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
-    span._set_tag_str(test.TYPE, SpanTypes.TEST)
-    span._set_tag_str(test.NAME, test_name)
-    span._set_tag_str(test.SUITE, test_suite_name)
-    span._set_tag_str(test.MODULE, test_suite_span.get_tag(test.MODULE))
-    span._set_tag_str(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
-    span._set_tag_str(test.STATUS, test.Status.FAIL.value)
-    span._set_tag_str(test.CLASS_HIERARCHY, test_suite_name)
+    span._set_attribute(test.TYPE, SpanTypes.TEST)
+    span._set_attribute(test.NAME, test_name)
+    span._set_attribute(test.SUITE, test_suite_name)
+    span._set_attribute(test.MODULE, test_suite_span.get_tag(test.MODULE))
+    span._set_attribute(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
+    span._set_attribute(test.STATUS, test.Status.FAIL.value)
+    span._set_attribute(test.CLASS_HIERARCHY, test_suite_name)
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
@@ -816,7 +814,7 @@ def _finish_span(current_span: ddtrace.trace.Span):
     if current_status and parent_span:
         _update_status_item(parent_span, current_status)
     elif not current_status:
-        current_span._set_tag_str(test.SUITE, test.Status.FAIL.value)
+        current_span._set_attribute(test.SUITE, test.Status.FAIL.value)
     current_span.finish()
 
 
@@ -829,7 +827,7 @@ def _finish_test_session_span():
         _stop_coverage(unittest)
     if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
         run_coverage_report()
-        _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
+        _add_pct_covered_to_span(get_coverage_data(), _CIVisibility._datadog_session_span)
         unpatch_coverage()
     _finish_span(_CIVisibility._datadog_session_span)
 

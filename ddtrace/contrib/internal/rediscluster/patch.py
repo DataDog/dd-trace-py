@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 # 3p
 import rediscluster
@@ -24,6 +23,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
@@ -40,12 +40,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(rediscluster, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"rediscluster": ">=2.0"}
 
 
@@ -96,19 +95,17 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         stringify_cache_args(c.args, cmd_max_len=config.rediscluster.cmd_max_length) for c in instance.command_stack
     ]
     resource = "\n".join(cmds)
-    tracer = pin.tracer
     with tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
         span_type=SpanTypes.REDIS,
     ) as s:
-        s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        s._set_tag_str(COMPONENT, config.rediscluster.integration_name)
-        s._set_tag_str(db.SYSTEM, redisx.APP)
-        # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
-        s._set_tag_str(redisx.RAWCMD, resource)
-        s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
+        s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+        s._set_attribute(COMPONENT, config.rediscluster.integration_name)
+        s._set_attribute(db.SYSTEM, redisx.APP)
+        s._set_attribute(_SPAN_MEASURED_KEY, 1)
+        s._set_attribute(redisx.RAWCMD, resource)
+        s._set_attribute(redisx.PIPELINE_LEN, len(instance.command_stack))
 
         return func(*args, **kwargs)

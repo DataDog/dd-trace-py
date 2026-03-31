@@ -140,7 +140,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
-        connpool.datadog_tracer = self.tracer
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200

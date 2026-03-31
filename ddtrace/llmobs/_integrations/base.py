@@ -1,11 +1,8 @@
 import abc
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -16,6 +13,7 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -44,7 +42,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -52,12 +50,12 @@ class BaseLLMIntegration:
         """
         span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
-        parent_context = kwargs.get("parent_context") or pin.tracer.context_provider.active()
+        parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 
-        span = pin.tracer.start_span(
+        span = tracer.start_span(
             span_name,
             child_of=parent_context,
-            service=int_service(pin, self.integration_config),
+            service=int_service(None, self.integration_config),
             resource=operation_id,
             span_type=span_type,
             activate=True,
@@ -69,8 +67,7 @@ class BaseLLMIntegration:
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
             span._set_ctx_item(INTEGRATION, self._integration_name)
@@ -79,8 +76,8 @@ class BaseLLMIntegration:
     def llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -96,14 +93,14 @@ class BaseLLMIntegration:
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:

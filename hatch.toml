@@ -13,10 +13,10 @@ dependencies = [
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
-    "ddapm-test-agent>=1.2.0",
+    "ddapm-test-agent==1.43.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.20.1",
+    "riot==0.21.0",
     "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
@@ -46,6 +46,16 @@ fmt = [
     "ruff check --fix --no-cache {args:.}",
     "style",
 ]
+ruff-fix = [
+    "ruff check --fix --show-fixes --no-cache {args:.}",
+]
+# Pre-commit: format + lint in one pass (no redundant checks). Replaces separate fmt + ruff hooks.
+# cython-lint catches E711 and other rules ruff may not; runs on .py files too.
+pre-commit-python = [
+    "ruff format --no-cache {args:.}",
+    "ruff check --fix --show-fixes --no-cache {args:.}",
+    "cython-lint {args:.}",
+]
 # checks should encapsulate all rules used in pre-check
 checks = [
     "style",
@@ -55,6 +65,7 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "profiling-native-check",
     "error-log-check",
     "sg",
     "sg-test",
@@ -77,6 +88,9 @@ riot = [
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
 ]
+profiling-native-check = [
+    "python scripts/check_profiling_native_coverage.py"
+]
 error-log-check = [
     "python scripts/check_constant_log_message.py"
 ]
@@ -85,6 +99,25 @@ sg = [
 ]
 sg-test = [
     "ast-grep test {args}",
+]
+ci-deps-check = [
+    "bash scripts/check-ci-dependencies",
+]
+
+[envs.clean]
+detached = true
+python = "3.10"
+# setup.py requires these at import time; needed to run python setup.py clean --all
+dependencies = [
+    "cython",
+    "cmake>=3.24.2,<3.28",
+    "setuptools-rust<2",
+    "setuptools-scm[toml]>=4",
+]
+
+[envs.clean.scripts]
+all = [
+    "python setup.py clean --all",
 ]
 
 [envs.scripts]
@@ -104,108 +137,3 @@ test = [
 needs_testrun = [
   "scripts/needs_testrun.py {args}",
 ]
-
-
-## ASM Appsec Aggregated Leak Testing
-
-[envs.iast_aggregated_leak_testing]
-template = "iast_aggregated_leak_testing"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "requests",
-    "pytest-asyncio",
-    "anyio",
-    "pydantic",
-    "pydantic-settings",
-]
-
-[envs.iast_aggregated_leak_testing.env-vars]
-DD_IAST_ENABLED = "true"
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
-DD_FAST_BUILD = "0"
-
-[envs.iast_aggregated_leak_testing.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
-]
-
-[[envs.iast_aggregated_leak_testing.matrix]]
-python = ["3.10", "3.11", "3.12"]
-
-## pytorch profiling test
-
-[envs.profiling_pytorch]
-dependencies = [
-    "protobuf",
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "torch>=1.8.1",
-    "torchvision",
-    "zstandard",
-]
-
-[envs.profiling_pytorch.env-vars]
-DD_PROFILING_ENABLED = "true"
-DD_PROFILING_PYTORCH_ENABLED = "true"
-
-[envs.profiling_pytorch.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
-]
-
-[[envs.profiling_pytorch.matrix]]
-python = ["3.12"]
-
-## Multiple OS tests
-
-[envs.multiple_os_tests]
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "flask",
-    "asgiref",
-    "botocore",
-    "dnspython",
-]
-
-[envs.multiple_os_tests.env-vars]
-DD_IAST_ENABLED = "false"
-DD_REMOTE_CONFIGURATION_ENABLED = "false"
-CMAKE_BUILD_PARALLEL_LEVEL="6"
-CARGO_BUILD_JOBS = "6"
-
-[envs.multiple_os_tests.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s",
-    "python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
-]
-
-[[envs.multiple_os_tests.matrix]]
-python = ["3.14", "3.12", "3.10"]
-
-[envs.snapshot_viewer]
-dev-mode = false
-detached = true
-template = "snapshot_viewer"
-dependencies = [
-    "PrettyPrintTree"
-]
-
-[envs.snapshot_viewer.scripts]
-view = [
-    "python scripts/ci_visibility/view_snapshot.py {args:}",
-]
-

@@ -35,6 +35,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -49,7 +50,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 def run_llmobs_trace_filter(tracer, test_spans):
     with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
-        span._set_tag_str(SPAN_KIND, "llm")
+        span._set_attribute(SPAN_KIND, "llm")
     return test_spans.pop()
 
 
@@ -421,7 +422,11 @@ def test_embedding_span(llmobs, llmobs_events):
 def test_annotate_no_active_span_logs_warning(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.annotate(metadata={"test": "test"})
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.annotate(span=<your_span>, ...) "
+        "when annotating from a different thread or async task than where the span was created."
+    )
 
 
 def test_annotate_non_llm_span_logs_warning(tracer, llmobs):
@@ -780,6 +785,7 @@ def test_annotate_prompt_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
@@ -804,6 +810,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -828,6 +835,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -948,14 +956,22 @@ def test_export_span_specified_span_returns_span_context(llmobs):
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.export_span()
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+        "when exporting from a different thread or async task than where the span was created."
+    )
 
 
 def test_export_span_active_span_not_llmobs_span_raises(llmobs):
     with llmobs._instance.tracer.trace("non_llmobs_span"):
         with pytest.raises(Exception) as excinfo:
             llmobs.export_span()
-        assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+        assert str(excinfo.value) == (
+            "No span provided and no active LLMObs-generated span found. "
+            "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+            "when exporting from a different thread or async task than where the span was created."
+        )
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
@@ -1337,11 +1353,19 @@ def test_annotation_context_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
             assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+
+
+def test_annotation_context_prompt_includes_ml_app(llmobs):
+    prompt = {"template": "test_template"}
+    with llmobs.annotation_context(prompt=prompt):
+        with llmobs.llm(name="test_agent", model_name="test") as span:
+            assert span._get_ctx_item(INPUT_PROMPT).get("ml_app") == "unnamed-ml-app"
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1574,6 +1598,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1751,11 +1776,11 @@ def test_submit_evaluation_label_value_with_a_period_raises_error(llmobs, mock_l
 
 
 def test_submit_evaluation_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', 'boolean', or 'json'."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', 'boolean', or 'json'."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
@@ -2151,3 +2176,79 @@ def test_submit_evaluation_incorrect_categorical_value_type_raises_error(llmobs,
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
         )
+
+
+def test_submit_evaluation_incorrect_json_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="value must be a dict for a json metric."):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="json", value="high"
+        )
+
+
+class TestBuildSpanEventFromMetaStructE2E:
+    def test_llm_span_with_messages(self, llmobs, llmobs_events):
+        with llmobs.llm(model_name="test_model", model_provider="test_provider", name="test_llm") as span:
+            _annotate_llmobs_span_data(
+                span,
+                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
+                model_name="test_model",
+                model_provider="test_provider",
+                input_messages=[{"role": "user", "content": "hello"}],
+                output_messages=[{"role": "assistant", "content": "hi"}],
+                metadata={"temperature": 0.5},
+                metrics={"input_tokens": 5, "output_tokens": 3},
+            )
+        assert len(llmobs_events) == 1
+        event = llmobs_events[0]
+        assert event["meta"]["span"]["kind"] == "llm"
+        assert event["meta"]["model_name"] == "test_model"
+        assert event["meta"]["model_provider"] == "test_provider"
+        assert event["meta"]["input"]["messages"] == [{"role": "user", "content": "hello"}]
+        assert event["meta"]["output"]["messages"] == [{"role": "assistant", "content": "hi"}]
+        assert event["meta"]["metadata"] == {"temperature": 0.5}
+        assert event["metrics"] == {"input_tokens": 5, "output_tokens": 3}
+        assert event["status"] == "ok"
+
+    def test_task_span_with_value(self, llmobs, llmobs_events):
+        with llmobs.task(name="test_task") as span:
+            _annotate_llmobs_span_data(
+                span,
+                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
+                input_value="some input",
+                output_value="some output",
+            )
+        assert len(llmobs_events) == 1
+        event = llmobs_events[0]
+        assert event["meta"]["span"]["kind"] == "task"
+        assert event["meta"]["input"]["value"] == "some input"
+        assert event["meta"]["output"]["value"] == "some output"
+
+    def test_embedding_span_with_documents(self, llmobs, llmobs_events):
+        with llmobs.embedding(model_name="text-embedding-3", model_provider="openai", name="test_embedding") as span:
+            _annotate_llmobs_span_data(
+                span,
+                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
+                model_name="text-embedding-3",
+                model_provider="openai",
+                input_documents=[{"text": "embed this"}],
+                output_value="[0.1, 0.2]",
+            )
+        assert len(llmobs_events) == 1
+        event = llmobs_events[0]
+        assert event["meta"]["span"]["kind"] == "embedding"
+        assert event["meta"]["input"]["documents"] == [{"text": "embed this"}]
+        assert event["meta"]["output"]["value"] == "[0.1, 0.2]"
+
+    def test_error_span(self, llmobs, llmobs_events):
+        with pytest.raises(ValueError):
+            with llmobs.llm(name="test_error") as span:
+                _annotate_llmobs_span_data(
+                    span,
+                    trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
+                )
+                raise ValueError("something went wrong")
+        assert len(llmobs_events) == 1
+        event = llmobs_events[0]
+        assert event["status"] == "error"
+        assert event["meta"]["error"]["type"] == "builtins.ValueError"
+        assert event["meta"]["error"]["message"] == "something went wrong"

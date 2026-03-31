@@ -69,7 +69,6 @@ add_library(
     src/echion/strings.cc
     src/echion/tasks.cc
     src/echion/threads.cc
-    src/echion/timing.cc
     src/echion/vm.cc
     src/sampler.cpp
     src/stack.cpp
@@ -150,4 +149,19 @@ endif()
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
+endif()
+
+# Fuzzing harnesses (off by default)
+if(NOT DEFINED BUILD_FUZZING)
+    set(BUILD_FUZZING
+        OFF
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+else()
+    set(BUILD_FUZZING
+        ON
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+endif()
+
+if(BUILD_FUZZING)
+    add_subdirectory(fuzz)
 endif()

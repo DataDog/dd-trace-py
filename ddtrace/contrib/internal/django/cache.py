@@ -2,10 +2,7 @@ from collections.abc import Iterable
 from types import FunctionType
 from types import ModuleType
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
-from typing import Type
 from typing import cast
 
 from ddtrace import config
@@ -46,7 +43,7 @@ def func_cache_operation(func: FunctionType) -> str:
     return fname
 
 
-def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+def traced_cache(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     if not config_django.instrument_caches:
         return func(*args, **kwargs)
 
@@ -73,8 +70,6 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
         service=get_service_name(config_django.cache_service_name),
         resource=resource,
         tags=tags,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ) as ctx:
         result = func(*args, **kwargs)
 
@@ -106,7 +101,7 @@ def instrument_caches(django: ModuleType) -> None:
     for cache_path in cache_backends:
         for method_name in ["get", "set", "add", "delete", "incr", "decr", "get_many", "set_many", "delete_many"]:
             try:
-                cls: Type[Any] = django.utils.module_loading.import_string(cache_path)
+                cls: type[Any] = django.utils.module_loading.import_string(cache_path)
                 method: Optional[FunctionType] = getattr(cls, method_name, None)
                 if method and not is_wrapped_with(method, traced_cache):
                     wrap(method, traced_cache)

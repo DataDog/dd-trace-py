@@ -133,6 +133,7 @@ class FlaskScenarioMixin:
                     template=probe_id,
                     segments=[LiteralTemplateSegment(probe_id)],
                     take_snapshot=True,
+                    capture_expressions=[],
                     limits=DEFAULT_CAPTURE_LIMITS,
                     condition=None,
                     condition_error_rate=0.0,

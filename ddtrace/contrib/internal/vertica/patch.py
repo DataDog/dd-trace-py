@@ -1,5 +1,4 @@
 import importlib
-from typing import Dict
 
 import wrapt
 
@@ -19,6 +18,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -37,11 +37,11 @@ def execute_span_start(instance, span, conf, *args, **kwargs):
 
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def fetch_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
@@ -121,14 +121,13 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import vertica_python
 
     return vertica_python.__version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"vertica": ">=0.6"}
 
 
@@ -229,21 +228,19 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 return result
 
             operation_name = conf["operation_name"]
-            tracer = pin.tracer
             with tracer.trace(
                 operation_name,
                 service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
-                span._set_tag_str(COMPONENT, config.integration_name)
-                span._set_tag_str(dbx.SYSTEM, "vertica")
+                span._set_attribute(COMPONENT, config.integration_name)
+                span._set_attribute(dbx.SYSTEM, "vertica")
 
                 # set span.kind to the type of operation being performed
-                span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+                span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
                 if conf.get("measured", False):
-                    # PERF: avoid setting via Span.set_tag
-                    span.set_metric(_SPAN_MEASURED_KEY, 1)
+                    span._set_attribute(_SPAN_MEASURED_KEY, 1)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:

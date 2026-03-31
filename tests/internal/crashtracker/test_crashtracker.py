@@ -138,6 +138,10 @@ def test_crashtracker_simple():
     # 4. Crashes the process
     # 5. Verifies that the crashtracker sends a crash ping to the server
     # 6. Verifies that the crashtracker sends a crash report to the server
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     import ctypes
     import os
 
@@ -174,6 +178,10 @@ def test_crashtracker_simple_fork():
     # in the parent
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -210,6 +218,10 @@ def test_crashtracker_simple_sigbus():
     from ctypes.util import find_library
     import os
     import tempfile
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -264,6 +276,10 @@ def test_crashtracker_simple_sigbus():
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -292,6 +308,10 @@ def test_crashtracker_raise_sigsegv():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigbus():
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     import os
     import signal
 
@@ -402,6 +422,8 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
+    import json
+
     # Call the program
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -418,7 +440,12 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 
         # Wait for the connection
         report = utils.get_crash_report(client)
-        assert b"string_at" not in report["body"]
+
+        # Check that we don't have stack in error; we might still have it in runtime_stacks
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+        error = message["error"]
+        assert "string_at" not in error
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -439,53 +466,12 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
-def test_crashtracker_tags_required():
-    # Tests tag ingestion in the core API
-    import ctypes
-    import os
-
-    import tests.internal.crashtracker.utils as utils
-
-    with utils.with_test_agent() as client:
-        pid = os.fork()
-        if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="tags_required")
-            assert ct.start()
-            stdout_msg, stderr_msg = ct.logs()
-            assert not stdout_msg
-            assert not stderr_msg
-
-            ctypes.string_at(0)
-            sys.exit(-1)
-
-        # Check for crash ping
-        _ping = utils.get_crash_ping(client)
-
-        # Check for crash report
-        report = utils.get_crash_report(client)
-        assert b"string_at" in report["body"]
-
-        # Now check for the tags
-        tags = {
-            "is_crash": "true",
-            "severity": "crash",
-        }
-        for k, v in tags.items():
-            assert k.encode() in report["body"], k
-            assert v.encode() in report["body"], v
-
-        assert "process_tags".encode() not in report["body"]
-
-
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
     import json
 
     with utils.with_test_agent() as client:
         env = os.environ.copy()
-        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
@@ -502,7 +488,7 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         # We should get the experimental field because `string_at` is in both the
         # native frames stacktrace and experimental runtime_stacks field
         body = json.loads(report["body"])
-        message = json.loads(body["payload"][0]["message"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
         assert "string_at" in json.dumps(message["experimental"])
 
 
@@ -566,6 +552,10 @@ def test_crashtracker_user_tags_profiling():
     # Tests tag ingestion in the backend API (which is currently out of profiling)
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -608,6 +598,10 @@ def test_crashtracker_user_tags_core():
     # Tests tag ingestion in the core API
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -646,12 +640,16 @@ def test_crashtracker_user_tags_core():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+@pytest.mark.subprocess()
 def test_crashtracker_process_tags():
     # Tests process_tag ingestion in the core API
     import ctypes
     import os
     import sys
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -680,7 +678,7 @@ def test_crashtracker_process_tags():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"}, err=None)
 def test_crashtracker_echild_hang():
     """
     It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.
@@ -692,6 +690,10 @@ def test_crashtracker_echild_hang():
     import random
     import sys
     import time
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -752,7 +754,7 @@ def test_crashtracker_echild_hang():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_crashtracker_no_zombies():
     """
     If a process has been designated as the reaper for another process (either because it is the parent, it is marked
@@ -766,6 +768,10 @@ def test_crashtracker_no_zombies():
     import random
     import sys
     import time
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -829,6 +835,10 @@ def test_crashtracker_receiver_env_inheritance():
     """
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 

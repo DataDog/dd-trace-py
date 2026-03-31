@@ -3,6 +3,8 @@ import os
 
 from aiohttp import web
 
+from ddtrace.trace import tracer
+
 
 try:
     import aiohttp_jinja2
@@ -10,8 +12,6 @@ except ImportError:
     aiohttp_jinja2 = None
 else:
     import jinja2
-
-from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -35,7 +35,6 @@ async def response_headers(request):
 
 
 async def coroutine_chaining(request):
-    tracer = get_tracer(request)
     span = tracer.trace("aiohttp.coro_1")
     text = await coro_2(request)
     span.finish()
@@ -51,8 +50,6 @@ async def route_async_exception(request):
 
 
 async def route_wrapped_coroutine(request):
-    tracer = get_tracer(request)
-
     @tracer.wrap("nested")
     async def nested():
         await asyncio.sleep(0.25)
@@ -62,7 +59,6 @@ async def route_wrapped_coroutine(request):
 
 
 async def route_sub_span(request):
-    tracer = get_tracer(request)
     with tracer.trace("aiohttp.sub_span") as span:
         span.set_tag("sub_span", "true")
         return web.Response(text="OK")
@@ -77,7 +73,6 @@ async def caught_server_error(request):
 
 
 async def coro_2(request):
-    tracer = get_tracer(request)
     with tracer.trace("aiohttp.coro_2") as span:
         span.set_tag("aiohttp.worker", "pending")
     return "OK"
@@ -178,11 +173,3 @@ def set_filesystem_loader(app):
 
 def set_package_loader(app):
     aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader("tests.contrib.aiohttp.app", "templates"))
-
-
-def get_tracer(request):
-    """
-    Utility function to retrieve the tracer from the given ``request``.
-    It is meant to be used only for testing purposes.
-    """
-    return request.app[CONFIG_KEY]["tracer"]

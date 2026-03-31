@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Any
 from typing import Callable
-from typing import Type
 from typing import Union
 import uuid
 
@@ -22,6 +21,7 @@ from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
@@ -30,14 +30,14 @@ init_linenos(__file__)
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-# Type aliases for supported classes
+# type aliases for supported classes
 LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore, asyncio.Condition]
-LockTypeClass = Type[LockTypeInst]
+LockTypeClass = type[LockTypeInst]
 
 CollectorTypeInst = Union[
     AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector, AsyncioConditionCollector
 ]
-CollectorTypeClass = Type[CollectorTypeInst]
+CollectorTypeClass = type[CollectorTypeInst]
 
 
 @pytest.mark.parametrize(
@@ -45,19 +45,19 @@ CollectorTypeClass = Type[CollectorTypeInst]
     [
         (
             AsyncioLockCollector,
-            "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",
+            "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioSemaphoreCollector,
-            "AsyncioSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioBoundedSemaphoreCollector,
-            "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioConditionCollector,
-            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
     ],
 )
@@ -244,11 +244,11 @@ class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Lock profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioLockCollector]:
+    def collector_class(self) -> type[AsyncioLockCollector]:
         return AsyncioLockCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Lock]:
+    def lock_class(self) -> type[asyncio.Lock]:
         return asyncio.Lock
 
 
@@ -256,11 +256,11 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Semaphore profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioSemaphoreCollector]:
+    def collector_class(self) -> type[AsyncioSemaphoreCollector]:
         return AsyncioSemaphoreCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Semaphore]:
+    def lock_class(self) -> type[asyncio.Semaphore]:
         return asyncio.Semaphore
 
 
@@ -268,11 +268,11 @@ class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.BoundedSemaphore profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioBoundedSemaphoreCollector]:
+    def collector_class(self) -> type[AsyncioBoundedSemaphoreCollector]:
         return AsyncioBoundedSemaphoreCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.BoundedSemaphore]:
+    def lock_class(self) -> type[asyncio.BoundedSemaphore]:
         return asyncio.BoundedSemaphore
 
     async def test_bounded_behavior_preserved(self) -> None:
@@ -294,9 +294,34 @@ class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Condition profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioConditionCollector]:
+    def collector_class(self) -> type[AsyncioConditionCollector]:
         return AsyncioConditionCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Condition]:
+    def lock_class(self) -> type[asyncio.Condition]:
         return asyncio.Condition
+
+
+class TestAsyncGenericLockProfiling:
+    """Generic asyncio lock profiling tests that run once with asyncio.Lock.
+
+    Mirrors TestGenericLockProfiling in test_threading.py. Tests here verify
+    _LockAllocatorWrapper behavior that is shared across all asyncio lock types.
+    """
+
+    @property
+    def collector_class(self) -> type[AsyncioLockCollector]:
+        return AsyncioLockCollector
+
+    @property
+    def lock_class(self) -> type[asyncio.Lock]:
+        return asyncio.Lock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]

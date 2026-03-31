@@ -1,6 +1,6 @@
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:I001
-from typing import Dict
+from typing import Union
 
 import asyncpg
 import wrapt
@@ -10,6 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module
@@ -24,11 +25,10 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Union  # noqa:F401
-
     from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
 
 
@@ -51,12 +51,11 @@ def get_version() -> str:
     return getattr(asyncpg, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"asyncpg": ">=0.23.0"}
 
 
-def _get_connection_tags(conn):
-    # type: (asyncpg.Connection) -> Dict[str, str]
+def _get_connection_tags(conn: asyncpg.Connection) -> dict[str, str]:
     addr = conn._addr
     params = conn._params
     host = port = ""
@@ -96,14 +95,13 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     # When using a pool, there's a connection_class args
     is_pool_context = "connection_class" in kwargs
 
-    with pin.tracer.trace(
-        "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
-    ) as span:
-        span._set_tag_str(COMPONENT, config.asyncpg.integration_name)
-        span._set_tag_str(db.SYSTEM, DBMS_NAME)
+    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)) as span:
+        maybe_set_service_source_tag(span, config.asyncpg)
+        span._set_attribute(COMPONENT, config.asyncpg.integration_name)
+        span._set_attribute(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         raw_conn = await func(*args, **kwargs)
         if is_pool_context:
@@ -125,19 +123,18 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
 
 async def _traced_query(pin, method, query, args, kwargs):
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_database_operation("postgres.query", database_provider="postgresql"),
         resource=query,
         service=ext_service(pin, config.asyncpg),
         span_type=SpanTypes.SQL,
     ) as span:
-        span._set_tag_str(COMPONENT, config.asyncpg.integration_name)
-        span._set_tag_str(db.SYSTEM, DBMS_NAME)
+        span._set_attribute(COMPONENT, config.asyncpg.integration_name)
+        span._set_attribute(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)
 
         # dispatch DBM
@@ -152,7 +149,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
 @with_traced_module
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
-    state = get_argument_value(args, kwargs, 0, "state")  # type: Union[str, PreparedStatement]
+    state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
     query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
     return await _traced_query(pin, func, query, args, kwargs)
 
@@ -163,8 +160,7 @@ def _patch(asyncpg: ModuleType) -> None:
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     import asyncpg
 
     if getattr(asyncpg, "_datadog_patch", False):
@@ -182,8 +178,7 @@ def _unpatch(asyncpg: ModuleType) -> None:
         unwrap(asyncpg.protocol.Protocol, method)
 
 
-def unpatch():
-    # type: () -> None
+def unpatch() -> None:
     import asyncpg
 
     if not getattr(asyncpg, "_datadog_patch", False):

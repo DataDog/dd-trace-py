@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import celery
 
@@ -18,16 +17,17 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
         "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
         "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+        "_default_service_producer": PRODUCER_SERVICE,
+        "_default_service_worker": WORKER_SERVICE,
     },
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return str(celery.__version__)
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"celery": ">=4.4"}
 
 

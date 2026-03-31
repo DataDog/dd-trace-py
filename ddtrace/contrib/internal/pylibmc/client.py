@@ -20,6 +20,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.trace import tracer
 
 
 # Original Client class
@@ -30,7 +31,7 @@ log = get_logger(__name__)
 
 
 class TracedClient(ObjectProxy):
-    """TracedClient is a proxy for a pylibmc.Client that times it's network operations."""
+    """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
     def __init__(self, client=None, service=memcached.SERVICE, tracer=None, *args, **kwargs):
         """Create a traced client that wraps the given memcached client."""
@@ -51,8 +52,7 @@ class TracedClient(ObjectProxy):
 
         schematized_service = schematize_service_name(service)
         pin = Pin(service=schematized_service)
-        if tracer is not None:
-            pin._tracer = tracer
+
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -123,12 +123,14 @@ class TracedClient(ObjectProxy):
                 return result
 
             if args:
-                span._set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
+                span._set_attribute(memcached.QUERY, "%s %s" % (method_name, args[0]))
             if method_name == "get":
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
                 # returns a tuple object that may be (None, None)
-                span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
+                span._set_attribute(
+                    db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0
+                )
             return result
 
     def _trace_multi_cmd(self, method_name, *args, **kwargs):
@@ -141,11 +143,11 @@ class TracedClient(ObjectProxy):
 
             pre = kwargs.get("key_prefix")
             if pre:
-                span._set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
+                span._set_attribute(memcached.QUERY, "%s %s" % (method_name, pre))
 
             if method_name == "get_multi":
                 # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
-                span.set_metric(
+                span._set_attribute(
                     db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
                 )
             return result
@@ -160,21 +162,20 @@ class TracedClient(ObjectProxy):
         if not pin or not pin.enabled():
             return self._no_span()
 
-        span = pin.tracer.trace(
+        span = tracer.trace(
             schematize_cache_operation("memcached.cmd", cache_provider="memcached"),
             service=pin.service,
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
         )
 
-        span._set_tag_str(COMPONENT, config.pylibmc.integration_name)
-        span._set_tag_str(db.SYSTEM, memcached.DBMS_NAME)
+        span._set_attribute(COMPONENT, config.pylibmc.integration_name)
+        span._set_attribute(db.SYSTEM, memcached.DBMS_NAME)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         try:
             self._tag_span(span)
@@ -187,6 +188,6 @@ class TracedClient(ObjectProxy):
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
             _, host, port, _ = random.choice(self._addresses)  # nosec
-            span._set_tag_str(net.TARGET_HOST, host)
+            span._set_attribute(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
-            span._set_tag_str(net.SERVER_ADDRESS, host)
+            span._set_attribute(net.SERVER_ADDRESS, host)

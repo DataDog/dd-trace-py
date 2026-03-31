@@ -7,9 +7,7 @@ from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from typing import Iterator
-from typing import List
 from typing import MutableMapping
-from typing import Set
 from typing import cast
 
 from ddtrace.internal.safety import _isinstance
@@ -17,18 +15,18 @@ from ddtrace.internal.utils.cache import cached
 
 
 @singledispatch
-def linenos(_) -> Set[int]:
+def linenos(_) -> set[int]:
     raise NotImplementedError()
 
 
 @linenos.register
-def _(code: CodeType) -> Set[int]:
+def _(code: CodeType) -> set[int]:
     """Get the line numbers of a function."""
     return {ln for _, ln in findlinestarts(code) if ln is not None} - {code.co_firstlineno}
 
 
 @linenos.register
-def _(f: FunctionType) -> Set[int]:
+def _(f: FunctionType) -> set[int]:
     return linenos(f.__code__)
 
 
@@ -157,13 +155,13 @@ def link_function_to_code(code: CodeType, function: FunctionType) -> None:
 
 
 @lru_cache(maxsize=(1 << 14))  # 16k entries
-def _functions_for_code_gc(code: CodeType) -> List[FunctionType]:
+def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
     import gc
 
     return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
 
 
-def functions_for_code(code: CodeType) -> List[FunctionType]:
+def functions_for_code(code: CodeType) -> list[FunctionType]:
     global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 
     try:

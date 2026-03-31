@@ -3,9 +3,9 @@ import logging
 import re
 import typing as t
 
+from ddtrace.ext.ci import github_actions
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
 log = logging.getLogger(__name__)
@@ -14,6 +14,9 @@ log = logging.getLogger(__name__)
 class CITag:
     # Stage Name
     STAGE_NAME = "ci.stage.name"
+
+    # Job ID
+    JOB_ID = "ci.job.id"
 
     # Job Name
     JOB_NAME = "ci.job.name"
@@ -49,8 +52,8 @@ class CITag:
     _CI_ENV_VARS = "_dd.ci.env_vars"
 
 
-TProviderFunction = t.Callable[[t.MutableMapping[str, str]], t.Dict[str, t.Optional[str]]]
-PROVIDERS: t.List[t.Tuple[str, TProviderFunction]] = []
+TProviderFunction = t.Callable[[t.MutableMapping[str, str]], dict[str, t.Optional[str]]]
+PROVIDERS: list[tuple[str, TProviderFunction]] = []
 
 
 def register_provider(key: str) -> t.Callable[[TProviderFunction], TProviderFunction]:
@@ -67,7 +70,7 @@ def register_provider(key: str) -> t.Callable[[TProviderFunction], TProviderFunc
     return decorator
 
 
-def get_ci_tags(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def get_ci_tags(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract tags from CI  provider environment variables."""
     for key, extract in PROVIDERS:
         if key in env:
@@ -77,7 +80,7 @@ def get_ci_tags(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]
 
 
 @register_provider("APPVEYOR")
-def extract_appveyor(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_appveyor(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Appveyor environ."""
     url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
@@ -115,14 +118,16 @@ def extract_appveyor(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[
 
 
 @register_provider("TF_BUILD")
-def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Azure pipelines environ."""
     if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
-        base_url: t.Optional[str] = "{0}{1}/_build/results?buildId={2}".format(
+        base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url = base_url
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))  # type: ignore
+        pipeline_url: t.Optional[str] = base_url
+        job_url: t.Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
+            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+        )
     else:
         pipeline_url = job_url = None
 
@@ -143,6 +148,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Op
         GitTag.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         GitTag.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         CITag.STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
+        CITag.JOB_ID: env.get("SYSTEM_JOBID"),
         CITag.JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
         CITag._CI_ENV_VARS: json.dumps(
             {
@@ -156,7 +162,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Op
 
 
 @register_provider("BITBUCKET_COMMIT")
-def extract_bitbucket(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_bitbucket(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Bitbucket environ."""
     url = "https://bitbucket.org/{0}/addon/pipelines/home#!/results/{1}".format(
         env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
@@ -177,10 +183,10 @@ def extract_bitbucket(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
 
 
 @register_provider("BUILDKITE")
-def extract_buildkite(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Buildkite environ."""
     # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
-    node_label_list: t.List[str] = []
+    node_label_list: list[str] = []
     buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
@@ -196,6 +202,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
         CITag.PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
         CITag.PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         CITag.PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
+        CITag.JOB_ID: env.get("BUILDKITE_JOB_ID"),
         CITag.JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
         CITag.PROVIDER_NAME: "buildkite",
         CITag.WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
@@ -217,7 +224,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
 
 
 @register_provider("CIRCLECI")
-def extract_circle_ci(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_circle_ci(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from CircleCI environ."""
     return {
         GitTag.BRANCH: env.get("CIRCLE_BRANCH"),
@@ -243,7 +250,7 @@ def extract_circle_ci(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
 
 
 @register_provider("CF_BUILD_ID")
-def extract_codefresh(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_codefresh(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Codefresh environ."""
     build_id = env.get("CF_BUILD_ID")
     return {
@@ -261,57 +268,13 @@ def extract_codefresh(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
 
 
 @register_provider("GITHUB_SHA")
-def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
-    """Extract CI tags from Github environ."""
-    github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
-    github_repository = env.get("GITHUB_REPOSITORY")
-    git_commit_sha = env.get("GITHUB_SHA")
-    github_run_id = env.get("GITHUB_RUN_ID")
-    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
-
-    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        github_server_url,
-        github_repository,
-        github_run_id,
-    )
-
-    git_commit_head_sha = None
-    if "GITHUB_EVENT_PATH" in env:
-        try:
-            with open(env["GITHUB_EVENT_PATH"]) as f:
-                github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
-        except Exception as e:
-            log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
-
-    env_vars = {
-        "GITHUB_SERVER_URL": github_server_url,
-        "GITHUB_REPOSITORY": github_repository,
-        "GITHUB_RUN_ID": github_run_id,
-    }
-    if run_attempt:
-        env_vars["GITHUB_RUN_ATTEMPT"] = run_attempt
-        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
-
-    return {
-        GitTag.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
-        GitTag.COMMIT_SHA: git_commit_sha,
-        GitTag.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
-        GitTag.COMMIT_HEAD_SHA: git_commit_head_sha,
-        CITag.JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
-        CITag.PIPELINE_ID: github_run_id,
-        CITag.PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
-        CITag.PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        CITag.PIPELINE_URL: pipeline_url,
-        CITag.JOB_NAME: env.get("GITHUB_JOB"),
-        CITag.PROVIDER_NAME: "github",
-        CITag.WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        CITag._CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
-    }
+def extract_github_actions(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
+    """Extract CI tags from Github Actions environment."""
+    return github_actions.extract_github_actions(env)
 
 
 @register_provider("GITLAB_CI")
-def extract_gitlab(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_gitlab(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Gitlab environ."""
     author = env.get("CI_COMMIT_AUTHOR")
     author_name = None
@@ -326,6 +289,7 @@ def extract_gitlab(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[st
         GitTag.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         GitTag.TAG: env.get("CI_COMMIT_TAG"),
         CITag.STAGE_NAME: env.get("CI_JOB_STAGE"),
+        CITag.JOB_ID: env.get("CI_JOB_ID"),
         CITag.JOB_NAME: env.get("CI_JOB_NAME"),
         CITag.JOB_URL: env.get("CI_JOB_URL"),
         CITag.PIPELINE_ID: env.get("CI_PIPELINE_ID"),
@@ -352,7 +316,7 @@ def extract_gitlab(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[st
 
 
 @register_provider("JENKINS_URL")
-def extract_jenkins(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Jenkins environ."""
     branch = env.get("GIT_BRANCH", "")
     name = env.get("JOB_NAME")
@@ -360,7 +324,7 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[s
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-    node_labels_list: t.List[str] = []
+    node_labels_list: list[str] = []
     node_labels_env = env.get("NODE_LABELS")
     if node_labels_env:
         node_labels_list = node_labels_env.split()
@@ -386,7 +350,7 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[s
 
 
 @register_provider("TEAMCITY_VERSION")
-def extract_teamcity(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_teamcity(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Teamcity environ."""
     return {
         CITag.JOB_URL: env.get("BUILD_URL"),
@@ -396,7 +360,7 @@ def extract_teamcity(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[
 
 
 @register_provider("TRAVIS")
-def extract_travis(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_travis(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Travis environ."""
     return {
         GitTag.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
@@ -415,7 +379,7 @@ def extract_travis(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[st
 
 
 @register_provider("BITRISE_BUILD_SLUG")
-def extract_bitrise(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_bitrise(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Bitrise environ."""
     commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
     branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
@@ -448,7 +412,7 @@ def extract_bitrise(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[s
 
 
 @register_provider("BUDDY")
-def extract_buddy(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_buddy(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Buddy environ."""
     return {
         CITag.PROVIDER_NAME: "buddy",
@@ -467,7 +431,7 @@ def extract_buddy(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str
 
 
 @register_provider("CODEBUILD_INITIATOR")
-def extract_codebuild(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def extract_codebuild(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from codebuild environments."""
     tags = {}
 

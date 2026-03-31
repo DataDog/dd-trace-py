@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where OpenAI spans would show `model_name: "None"` instead of falling back to the request model if the API response returns a None model field. The model name now properly falls back to `openai.request.model` or `"unknown_model"` if both are unavailable.

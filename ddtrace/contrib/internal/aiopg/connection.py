@@ -15,6 +15,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.trace import tracer
 
 
 AIOPG_VERSION = parse_version(__version__)
@@ -34,20 +35,19 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             result = await method(*args, **kwargs)
             return result
 
-        with pin.tracer.trace(
+        with tracer.trace(
             self._datadog_name,
             service=trace_utils.ext_service(pin, config.aiopg),
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            s._set_tag_str(COMPONENT, config.aiopg.integration_name)
-            s._set_tag_str(db.SYSTEM, "postgresql")
+            s._set_attribute(COMPONENT, config.aiopg.integration_name)
+            s._set_attribute(db.SYSTEM, "postgresql")
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -55,7 +55,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric(db.ROWCOUNT, self.rowcount)
+                s._set_attribute(db.ROWCOUNT, self.rowcount)
 
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different

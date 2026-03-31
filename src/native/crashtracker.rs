@@ -231,8 +231,6 @@ pub fn crashtracker_init<'py>(
     mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
     mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
     mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
-    // TODO: Add this back in post Code Freeze (need to update config registry)
-    // emit_runtime_stacks: bool,
 ) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
@@ -244,33 +242,22 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            let should_emit_runtime_stacks = std::env::var("DD_CRASHTRACKING_EMIT_RUNTIME_STACKS")
-                .ok()
-                .is_some_and(|v| {
-                    matches!(
-                        v.to_ascii_lowercase().as_str(),
-                        "true" | "yes" | "1"
+            unsafe {
+                init_dump_traceback_fn();
+            }
+            let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
+            if dump_fn_available {
+                if let Err(e) =
+                    register_runtime_stacktrace_string_callback(
+                        native_runtime_stack_string_callback,
                     )
-                });
-
-            if should_emit_runtime_stacks {
-                unsafe {
-                    init_dump_traceback_fn();
-                }
-                let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
-                if dump_fn_available {
-                    if let Err(e) =
-                        register_runtime_stacktrace_string_callback(
-                            native_runtime_stack_string_callback,
-                        )
-                    {
-                        eprintln!("Failed to register runtime stacktrace callback: {}", e);
-                    }
-                } else if let Err(e) =
-                    register_runtime_frame_callback(native_runtime_stack_frame_callback)
                 {
-                    eprintln!("Failed to register runtime frame callback: {}", e);
+                    eprintln!("Failed to register runtime stacktrace callback: {}", e);
                 }
+            } else if let Err(e) =
+                register_runtime_frame_callback(native_runtime_stack_frame_callback)
+            {
+                eprintln!("Failed to register runtime frame callback: {}", e);
             }
             match libdd_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) =>

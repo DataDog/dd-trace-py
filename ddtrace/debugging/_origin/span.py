@@ -17,9 +17,11 @@ from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal.forksafe import Lock
+from ddtrace.internal.compat import NO_EXCEPTION
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
@@ -51,6 +53,7 @@ class EntrySpanProbe(LogFunctionProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
@@ -78,7 +81,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
     __enabled__ = False
     __priority__ = 199
 
-    def __init__(self, uploader: t.Type[SignalUploader], f: FunctionType) -> None:
+    def __init__(self, uploader: type[SignalUploader], f: FunctionType) -> None:
         super().__init__(f)
 
         self.uploader = uploader
@@ -94,7 +97,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
         )
 
-    def __enter__(self):
+    def __enter__(self) -> "EntrySpanWrappingContext":
         super().__enter__()
 
         if self.__enabled__:
@@ -106,18 +109,18 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
             # Add tags to the local root
             for s in (root, span):
-                s._set_tag_str("_dd.code_origin.type", "entry")
+                s._set_attribute("_dd.code_origin.type", "entry")
 
-                s._set_tag_str("_dd.code_origin.frames.0.file", location.file)
-                s._set_tag_str("_dd.code_origin.frames.0.line", str(location.line))
-                s._set_tag_str("_dd.code_origin.frames.0.type", location.module)
-                s._set_tag_str("_dd.code_origin.frames.0.method", location.name)
+                s._set_attribute("_dd.code_origin.frames.0.file", location.file)
+                s._set_attribute("_dd.code_origin.frames.0.line", str(location.line))
+                s._set_attribute("_dd.code_origin.frames.0.type", location.module)
+                s._set_attribute("_dd.code_origin.frames.0.method", location.name)
 
             self.set("start_time", monotonic_ns())
 
         return self
 
-    def _close_signal(self, retval=None, exc_info=(None, None, None)):
+    def _close_signal(self, retval: t.Any = None, exc_info: ExcInfoType = NO_EXCEPTION) -> None:
         if not self.__enabled__:
             return
 
@@ -147,20 +150,25 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             snapshot.do_enter()
 
             # Correlate the snapshot with the span
-            root._set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-            span._set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+            root._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+            span._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
             snapshot.do_exit(retval, exc_info, monotonic_ns() - start_time)
 
             if (collector := self.uploader.get_collector()) is not None:
                 collector.push(snapshot)
 
-    def __return__(self, retval):
+    def __return__(self, retval: t.Any) -> t.Any:
         self._close_signal(retval=retval)
         return super().__return__(retval)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._close_signal(exc_info=(exc_type, exc_value, traceback))
+    def __exit__(
+        self,
+        exc_type: t.Optional[type[BaseException]],
+        exc_value: t.Optional[BaseException],
+        traceback: t.Optional[t.Any],
+    ) -> None:
+        self._close_signal(exc_info=t.cast(ExcInfoType, (exc_type, exc_value, traceback)))
         super().__exit__(exc_type, exc_value, traceback)
 
 
@@ -170,7 +178,7 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: t.List = []
+    _pending: list = []
     _lock = Lock()
 
     @classmethod
@@ -178,7 +186,7 @@ class SpanCodeOriginProcessorEntry:
         if isinstance(f, MethodType):
             f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
-            log.warning("Cannot instrument view %r: not a function", f)
+            log.debug("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:
@@ -194,7 +202,7 @@ class SpanCodeOriginProcessorEntry:
             EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
 
     @classmethod
-    def enable(cls):
+    def enable(cls) -> None:
         if cls._instance is not None:
             return
 
@@ -214,7 +222,7 @@ class SpanCodeOriginProcessorEntry:
         log.debug("Code Origin for Spans (entry) enabled")
 
     @classmethod
-    def disable(cls):
+    def disable(cls) -> None:
         if cls._instance is None:
             return
 

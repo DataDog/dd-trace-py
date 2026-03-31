@@ -23,19 +23,21 @@ log = get_logger(__name__)
 
 if sys.version_info >= (3, 10):
 
-    def get_product_entry_points() -> t.List[t.Any]:
+    def get_product_entry_points() -> list[t.Any]:
         return list(entry_points(group="ddtrace.products"))
 
 else:
 
-    def get_product_entry_points() -> t.List[t.Any]:
+    def get_product_entry_points() -> list[t.Any]:
         return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
 
 
 class Product(Protocol):
-    requires: t.List[str]
+    requires: list[str]
 
     def post_preload(self) -> None: ...
+
+    def enabled(self) -> bool: ...
 
     def start(self) -> None: ...
 
@@ -43,15 +45,13 @@ class Product(Protocol):
 
     def stop(self, join: bool = False) -> None: ...
 
-    def at_exit(self, join: bool = False) -> None: ...
-
 
 class ProductManager:
-    __products__: t.Dict[str, Product] = {}  # All discovered products
+    __products__: dict[str, Product] = {}  # All discovered products
 
     def __init__(self) -> None:
-        self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
-        self._failed: t.Set[str] = set()
+        self._products: t.Optional[list[tuple[str, Product]]] = None  # Topologically sorted products
+        self._failed: set[str] = set()
 
     def _load_products(self) -> None:
         for product_plugin in get_product_entry_points():
@@ -74,11 +74,11 @@ class ProductManager:
 
             self.__products__[name] = product
 
-    def _sort_products(self) -> t.List[t.Tuple[str, Product]]:
+    def _sort_products(self) -> list[tuple[str, Product]]:
         # Data structures for topological sorting
-        q: t.Deque[str] = deque()  # Queue of products with no dependencies
+        q: deque[str] = deque()  # Queue of products with no dependencies
         g = defaultdict(list)  # Graph of dependencies
-        f: t.Dict[str, set] = {}  # Remaining dependencies for each product
+        f: dict[str, set] = {}  # Remaining dependencies for each product
 
         # Include failed products in the graph to avoid reporting false circular
         # dependencies when a product fails to load
@@ -110,13 +110,13 @@ class ProductManager:
         return [(name, self.__products__[name]) for name in ordering if name not in f and name in self.__products__]
 
     @property
-    def products(self) -> t.List[t.Tuple[str, Product]]:
+    def products(self) -> list[tuple[str, Product]]:
         if self._products is None:
             self._products = self._sort_products()
         return self._products
 
     def start_products(self) -> None:
-        failed: t.Set[str] = set()
+        failed: set[str] = set()
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -129,6 +129,9 @@ class ProductManager:
                 continue
 
             try:
+                if not product.enabled():
+                    log.debug("Product '%s' is not enabled, skipping", name)
+                    continue
                 product.start()
                 log.debug("Started product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), True)
@@ -147,7 +150,7 @@ class ProductManager:
                 log.exception("Failed to execute before-fork hook for product '%s'", name)
 
     def restart_products(self, join: bool = False) -> None:
-        failed: t.Set[str] = set()
+        failed: set[str] = set()
 
         for name, product in self.products:
             failed_requirements = failed & set(getattr(product, "requires", []))
@@ -169,6 +172,8 @@ class ProductManager:
     def stop_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
+                if not product.enabled():
+                    continue
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), False)
@@ -178,10 +183,15 @@ class ProductManager:
     def exit_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
-                log.debug("Exiting product '%s'", name)
-                product.at_exit(join=join)
+                if not product.enabled():
+                    continue
+                if (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
+                    log.debug("Skipping stop on exit for product '%s'", name)
+                    continue
+                product.stop(join=join)
+                log.debug("Stopped product '%s' on exit", name)
             except Exception:
-                log.exception("Failed to exit product '%s'", name)
+                log.exception("Failed to stop product '%s' on exit", name)
 
     def post_preload_products(self) -> None:
         for name, product in self.products:
@@ -232,14 +242,11 @@ class ProductManager:
         else:
             self._do_products()
 
-    def is_enabled(self, product_name: str, enabled_attribute: str = "enabled") -> bool:
+    def is_enabled(self, product_name: str) -> bool:
         if (product := self.__products__.get(product_name)) is None:
             return False
 
-        if (config := getattr(product, "config", None)) is None:
-            return False
-
-        return getattr(config, enabled_attribute, False)
+        return product.enabled()
 
 
 manager = ProductManager()

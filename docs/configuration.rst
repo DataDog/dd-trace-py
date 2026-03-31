@@ -380,6 +380,30 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_LLMOBS_PAYLOAD_SIZE_BYTES:
+     type: Int
+     default: 5242880
+
+     description: |
+         The max size in bytes of an LLMObs payload submitted to Datadog. When the buffer reaches this
+         limit it is flushed immediately before the next event is enqueued. Defaults to 5 MiB.
+
+         This controls the size of LLMObs payloads sent directly to Datadog when agentless mode is
+         enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
+         the EVP proxy max payload size configured in the Datadog Agent.
+
+   DD_LLMOBS_EVENT_SIZE_BYTES:
+     type: Int
+     default: 5000000
+
+     description: |
+         The max size in bytes of a single LLMObs event submitted to Datadog. Events that exceed this
+         limit have their input/output fields truncated before submission. Defaults to 5 MB.
+
+         This controls the size of individual LLMObs events sent directly to Datadog when agentless
+         mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
+         exceed the EVP proxy max event size configured in the Datadog Agent.
+
 Trace Context propagation
 -------------------------
 
@@ -561,7 +585,7 @@ Application & API Security
      default: 1
      description: Maximum number of downstream requests per request whose (request and response) bodies will be analyzed by the WAF
 
-   DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE:
+   DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE:
      type: Float
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
@@ -746,12 +770,12 @@ Test Visibility
 
    DD_PYTEST_USE_NEW_PLUGIN:
      type: Boolean
-     default: False
+     default: True
 
      description: |
         Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
         independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements. The new version is currently experimental.
+        also contains performance and memory usage improvements.
 
      version_added:
         v4.3.0:
@@ -892,9 +916,21 @@ Logs
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 
+         Takes precedence over ``DD_TRACE_LOG_LEVEL``.
+
      version_added:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_DEBUG``
+
+   DD_TRACE_LOG_LEVEL:
+     type: String
+     default: None
+
+     description: |
+         Sets the log level for the ddtrace logger, overriding inheritance from the root logger.
+         Valid values are ``NOTSET``, ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and ``CRITICAL``
+         (case-insensitive). Setting NOTSET will cause the ddtrace logger to inherit from the root logger.
+         ``DD_TRACE_DEBUG=true`` takes precedence over ``DD_TRACE_LOG_LEVEL``.
 
    DD_TRACE_LOG_FILE:
      description: |

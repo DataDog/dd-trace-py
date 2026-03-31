@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where the dropped frames indicator frame could be added multiple times when exporting the same sample repeatedly, resulting in duplicate ``"<N frame(s) omitted>"`` entries in profiling data and unbounded memory growth in the memory profiler.

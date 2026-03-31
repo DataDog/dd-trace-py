@@ -1,3 +1,4 @@
+#include <mutex>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@ typedef struct
 static memalloc_context_t global_memalloc_ctx;
 
 static bool memalloc_enabled = false;
+static std::once_flag memalloc_fork_handler_once_flag;
 
 static void
 memalloc_free(void* ctx, void* ptr)
@@ -40,8 +42,17 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack_no_cpython(ptr);
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    /* Abort in test builds if we're re-entering from the malloc hook.
+     * In production we can't abort or skip untrack (skipping would leak
+     * heap tracker entries), so we just let it proceed — direct struct
+     * access frame walking avoids calling CPython APIs that could free and is thus safe. */
+    if (_MEMALLOC_ON_THREAD) {
+        _memalloc_abort_free_reentry();
+    }
+#endif // MEMALLOC_ASSERT_ON_REENTRY
 
+    memalloc_heap_untrack_no_cpython(ptr);
     alloc->free(alloc->ctx, ptr);
 }
 
@@ -86,6 +97,13 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+    } else if (new_size == 0 && ptr != NULL) {
+        // realloc(ptr, 0) is implementation-defined: some allocators (including
+        // glibc) free ptr and return NULL.  In that case ptr is gone and must be
+        // untracked so allocs_m doesn't keep a dangling/stale entry forever.
+        // When new_size > 0 and ptr2 == NULL the allocation failed; ptr is
+        // still valid and must stay tracked, so we only act on new_size == 0.
+        memalloc_heap_untrack_no_cpython(ptr);
     }
 
     return ptr2;
@@ -107,13 +125,26 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
     if (memalloc_enabled) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
-        return NULL;
+        return nullptr;
     }
 
     // Ensure profile_state is initialized before creating Sample objects
     // This initializes the Sample::profile_state which is required for Sample objects to work correctly
     // ddup_start() uses std::call_once, so it's safe to call multiple times
+    // ddup_start also registers fork handlers for various components, so if
+    // any of memalloc's states refer to states that are reset after fork,
+    // memalloc also has to clear its state after fork via below fork handler.
     ddup_start();
+
+    // Register fork handler
+    // Mainly to clear the heap tracker state before running any Python code,
+    // otherwise it can lead to undefined behaviors and/or crashes, ref:
+    // incident-48649.
+    // We use std::call_once as registered fork handlers persist after fork, and
+    // we want to ensure that the fork handlers are registered only once per
+    // process, even when the memory profiler is restarted after fork.
+    std::call_once(memalloc_fork_handler_once_flag,
+                   []() { pthread_atfork(nullptr, nullptr, memalloc_heap_postfork_child); });
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
@@ -126,26 +157,27 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     long long int heap_sample_size;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size))
-        return NULL;
+    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size)) {
+        // Don't set an error string, ParseTuple will set it to a TypeError already.
+        return nullptr;
+    }
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
         PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %u]", TRACEBACK_MAX_NFRAME);
-        return NULL;
+        return nullptr;
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
-        return NULL;
+        return nullptr;
     }
 
-    if (!traceback_t::init_invokes_cpython())
-        return NULL;
-
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
-        return NULL;
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
+        return nullptr;
+    }
 
     PyMemAllocatorEx alloc;
 
@@ -188,9 +220,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
     memalloc_heap_tracker_deinit_no_cpython();
-
-    /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
-    traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
 

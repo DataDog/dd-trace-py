@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import signal
 
 import mock
 import pytest
@@ -24,8 +25,8 @@ def test_single_trace_single_span(tracer):
     s.set_tag("k", "v")
     # numeric tag
     s.set_tag("num", 1234)
-    s.set_metric("float_metric", 12.34)
-    s.set_metric("int_metric", 4321)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
     s.finish()
     tracer.flush()
 
@@ -61,15 +62,15 @@ def test_multiple_traces(tracer):
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
 
     with tracer.trace("operation2", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
     tracer.flush()
 
@@ -200,15 +201,33 @@ def test_tracer_trace_across_multiple_popens():
 @snapshot()
 @pytest.mark.subprocess()
 def test_wrong_span_name_type_not_sent():
-    """Span names should be a text type."""
-    import mock
+    """Span names should be a text type.
 
+    When an invalid type is passed, the span is created with an empty name
+    instead of raising an error (graceful degradation).
+    """
     from ddtrace.trace import tracer
 
-    with mock.patch("ddtrace._trace.span.log") as log:
-        with tracer.trace(123):
-            pass
-        log.exception.assert_called_once_with("error closing trace")
+    # Should not raise - instead creates span with empty name
+    with tracer.trace(123) as span:
+        # Invalid type gets coerced to empty string
+        assert span.name == ""
+
+
+@snapshot()
+@pytest.mark.subprocess()
+def test_wrong_service_type_not_sent():
+    """Span service should be a text type.
+
+    When an invalid type is passed, the span is created with an empty service
+    instead of raising an error (graceful degradation).
+    """
+    from ddtrace.trace import tracer
+
+    # Should not raise - instead creates span with empty service
+    with tracer.trace("test.span", service=456) as span:
+        # Invalid type gets coerced to empty string
+        assert span.service is None
 
 
 @pytest.mark.parametrize(
@@ -277,7 +296,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span._set_attribute(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 
@@ -328,9 +347,9 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
     with override_global_config(dict(_trace_api=encoding)):
         s = tracer.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
-        s.set_metric("number1", 123)
-        s.set_metric("number2", 12.0)
-        s.set_metric("number3", "1")
+        s._set_attribute("number1", 123)
+        s._set_attribute("number2", 12.0)
+        s._set_attribute("number3", "1")
         s.finish()
 
 
@@ -371,3 +390,125 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
     span1.duration_ns = 1
     span2.finish()
     span1.finish()
+
+
+@pytest.mark.parametrize("use_ddtrace_run", [True, False])
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
+@pytest.mark.parametrize("writer_class", ["AgentWriter", "NativeWriter"])
+@pytest.mark.parametrize("api_version", ["v0.4", "v0.5"])
+@pytest.mark.parametrize("compute_stats", ["false", "true"])
+def test_signal_shutdown_flushes_traces(
+    use_ddtrace_run,
+    signum,
+    writer_class,
+    api_version,
+    compute_stats,
+    tmpdir,
+    ddtrace_run_python_code_in_subprocess,
+    run_python_code_in_subprocess,
+    snapshot_context,
+):
+    """
+    Regression test: Ensure traces are flushed when a process receives SIGTERM or SIGINT.
+
+    The subprocess creates a trace, signals it's ready, then waits. The parent sends
+    the specified signal, and the tracer should flush traces before exiting.
+    """
+    import subprocess
+    import sys
+
+    code = """
+import time
+
+from ddtrace.trace import tracer
+
+with tracer.trace("signal-shutdown-test", service="signal-test-svc"):
+    pass
+
+# Give NativeWriter time to fully initialize before signaling ready
+# NativeWriter has startup overhead (especially with stats enabled) that can cause
+# a race condition if the parent sends a signal before initialization completes
+try:
+    time.sleep(0.25)
+    print("READY", flush=True)
+
+    # Busy loop waiting to get killed by parent
+    # time.sleep(30) sometimes causes the process to block the signal handling
+    while True:
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    # Don't crash on SIGINT
+    pass
+"""
+
+    # Write code to temp file
+    pyfile = tmpdir.join("test_signal_shutdown.py")
+    pyfile.write(code)
+
+    # Build command
+    cmd = [sys.executable, str(pyfile)]
+    if use_ddtrace_run:
+        cmd = ["ddtrace-run"] + cmd
+
+    # Use different snapshot tokens for stats vs nostats since stats sends additional payloads
+    token = "tests.integration.test_integration_snapshots.test_signal_shutdown_flushes_traces"
+    variants = {
+        "nostats": compute_stats == "false",
+        "stats": compute_stats == "true",
+    }
+
+    with snapshot_context(
+        token=token,
+        ignores=["meta._dd.base_service"],
+        variants=variants,
+    ):
+        # Copy environment INSIDE snapshot_context so it includes the test session token
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
+                "DD_TRACE_API_VERSION": api_version,
+                "DD_TRACE_COMPUTE_STATS": compute_stats,
+                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
+            }
+        )
+
+        # Start subprocess - capture stderr to see what it's sending
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,  # Capture stderr instead of passing through
+        )
+
+        try:
+            ready = False
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+
+                if b"READY" in line:
+                    ready = True
+                    break
+
+            if not ready:
+                stderr = proc.stderr.read()
+                pytest.fail(f"Subprocess did not signal ready. Got: {line!r}, stderr: {stderr.decode()}")
+
+            # Send the signal
+            os.kill(proc.pid, signum)
+
+            # Wait for process to exit (should flush traces during shutdown)
+            # Tracer has SHUTDOWN_TIMEOUT=5s, allow some extra time for test agent communication
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                pytest.fail("Process did not exit after SIGTERM")
+
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()

@@ -5,7 +5,6 @@ import dis
 from enum import Enum
 import gzip
 from hashlib import sha1
-from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -31,10 +30,13 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.periodic import Timer
+from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
@@ -83,7 +85,7 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
-def get_fields(cls: type) -> t.Set[str]:
+def get_fields(cls: type) -> set[str]:
     # If the class has a __slots__ attribute, return it.
     try:
         return set(object.__getattribute__(cls, "__slots__"))
@@ -121,7 +123,7 @@ class Symbol:
     type: t.Optional[str] = None
 
     @classmethod
-    def from_code(cls, code: CodeType) -> t.List["Symbol"]:
+    def from_code(cls, code: CodeType) -> list["Symbol"]:
         nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
         arg_names = code.co_varnames[:nargs]
         locals_names = code.co_varnames[nargs:]
@@ -146,7 +148,7 @@ class ScopeType(str, Enum):
 @dataclass
 class ScopeData:
     origin: Path
-    seen: t.Set[t.Any]
+    seen: set[t.Any]
 
 
 @dataclass
@@ -158,8 +160,8 @@ class Scope:
     source_file: str
     start_line: int
     end_line: int
-    symbols: t.List[Symbol]
-    scopes: t.List["Scope"]
+    symbols: list[Symbol]
+    scopes: list["Scope"]
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -168,12 +170,18 @@ class Scope:
 
     @singledispatchmethod
     @classmethod
-    def _get_from(cls, _: t.Any, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
+    def _get_from(cls, _: t.Any, data: ScopeData) -> t.Optional["Scope"]:
         return None
 
-    @_get_from.register
+    # DEV: We pass the type explicitly to all @_get_from.register() calls below
+    # rather than relying on annotation inference. When the type is omitted,
+    # singledispatch calls get_type_hints() to determine the dispatch type, which
+    # evaluates forward references (e.g. Optional["Scope"]) at class-definition
+    # time — before Scope is fully defined — causing a NameError on Python 3.13+.
+    # See https://github.com/python/cpython/issues/86153
+    @_get_from.register(ModuleType)
     @classmethod
-    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True):
+    def _(cls, module: ModuleType, data: ScopeData) -> t.Optional["Scope"]:
         if module in data.seen:
             return None
         data.seen.add(module)
@@ -185,28 +193,27 @@ class Scope:
         symbols = []
         scopes = []
 
-        if recursive:
-            for alias, child in object.__getattribute__(module, "__dict__").items():
-                if _isinstance(child, ModuleType):
-                    # We don't want to traverse other modules.
-                    continue
+        for alias, child in object.__getattribute__(module, "__dict__").items():
+            if _isinstance(child, ModuleType):
+                # We don't want to traverse other modules.
+                continue
 
-                try:
-                    if _isinstance(child, FunctionType):
-                        child = undecorated(child, alias, module_origin)
-                    scope = Scope._get_from(child, data)
-                    if scope is not None:
-                        scopes.append(scope)
-                    elif not callable(child):
-                        symbols.append(
-                            Symbol(
-                                symbol_type=SymbolType.STATIC_FIELD,
-                                name=alias,
-                                line=0,
-                            )
+            try:
+                if _isinstance(child, FunctionType):
+                    child = undecorated(child, alias, module_origin)
+                scope = Scope._get_from(child, data)
+                if scope is not None:
+                    scopes.append(scope)
+                elif not callable(child):
+                    symbols.append(
+                        Symbol(
+                            symbol_type=SymbolType.STATIC_FIELD,
+                            name=alias,
+                            line=0,
                         )
-                except Exception:
-                    log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
+                    )
+            except Exception:
+                log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
         source_git_hash = sha1()  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
@@ -225,9 +232,9 @@ class Scope:
             language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
-    @_get_from.register
+    @_get_from.register(type)
     @classmethod
-    def _(cls, obj: type, data: ScopeData, recursive: bool = True):
+    def _(cls, obj: type, data: ScopeData) -> t.Optional["Scope"]:
         if obj in data.seen:
             return None
         data.seen.add(obj)
@@ -315,9 +322,9 @@ class Scope:
             language_specifics={"super_classes": super_classes},
         )
 
-    @_get_from.register
+    @_get_from.register(CodeType)
     @classmethod
-    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True):
+    def _(cls, code: CodeType, data: ScopeData) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
         # we cannot put it directly into the set.
         code_id = f"code-{id(code)}"
@@ -348,9 +355,9 @@ class Scope:
             ],
         )
 
-    @_get_from.register
+    @_get_from.register(FunctionType)
     @classmethod
-    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True):
+    def _(cls, f: FunctionType, data: ScopeData) -> t.Optional["Scope"]:
         if f in data.seen:
             return None
         data.seen.add(f)
@@ -396,9 +403,9 @@ class Scope:
 
         return code_scope
 
-    @_get_from.register
+    @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: classmethod, data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -406,9 +413,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: staticmethod, data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -416,9 +423,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(property)
     @classmethod
-    def _(cls, pr: property, data: ScopeData, recursive: bool = True):
+    def _(cls, pr: property, data: ScopeData) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
             return None
         data.seen.add(pr.fget)
@@ -450,7 +457,7 @@ class Scope:
     # TODO: support for singledispatch
 
     @classmethod
-    def from_module(cls, module: ModuleType, recursive: bool = True) -> "Scope":
+    def from_module(cls, module: ModuleType) -> "Scope":
         """Get the scope of a module.
 
         The module must have an origin.
@@ -459,34 +466,74 @@ class Scope:
         if module_origin is None:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
-        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set()), recursive))
+        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
 
 
 class ScopeContext:
-    def __init__(self, scopes: t.Optional[t.List[Scope]] = None) -> None:
-        self._scopes: t.List[Scope] = scopes if scopes is not None else []
+    __scope_limit__: int = 400
+
+    def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
+        self._scopes: list[Scope] = scopes if scopes is not None else []
+        self._scopes_lock = RLock()
 
         self._event_data = {
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
             "runtimeId": get_runtime_id(),
+            "parentId": get_ancestor_runtime_id(),
             "type": "symdb",
         }
 
+        self._timer: t.Optional[Timer] = None
+        self._timer_lock = RLock()
+
+    def _set_timer(self) -> None:
+        with self._timer_lock:
+            if self._timer is None:
+
+                class BatchTimer(Timer):
+                    def timeout(_timer) -> None:
+                        log.debug(
+                            "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
+                            os.getpid(),
+                            len(self._scopes),
+                        )
+                        self.upload()
+
+                        with self._timer_lock:
+                            self._timer = None
+
+                self._timer = BatchTimer(1.0)  # 1 second batch timer
+                self._timer.start()
+
+            else:
+                self._timer.reset()
+
     def add_scope(self, scope: Scope) -> None:
-        self._scopes.append(scope)
+        with self._scopes_lock:
+            # Flush the scopes if we reached the size limit.
+            if (n := len(self._scopes)) >= self.__scope_limit__:
+                log.debug("[PID %d] SymDB: Flushing batch of %d module scopes due to size limit", os.getpid(), n)
+                self.upload()
+
+            # Add the new scope.
+            self._scopes.append(scope)
+
+            # Set the timer to upload after a short delay.
+            self._set_timer()
 
     def to_json(self) -> dict:
-        return {
-            "schema_version": 1,
-            "service": config.service or DEFAULT_SERVICE_NAME,
-            "env": config.env or "",
-            "version": config.version or "",
-            "language": "python",
-            "scopes": [_.to_json() for _ in self._scopes],
-        }
+        with self._scopes_lock:
+            return {
+                "schema_version": 1,
+                "service": config.service or DEFAULT_SERVICE_NAME,
+                "env": config.env or "",
+                "version": config.version or "",
+                "language": "python",
+                "scopes": [_.to_json() for _ in self._scopes],
+            }
 
-    def upload(self) -> HTTPResponse:
+    def upload(self) -> None:
         body, headers = multipart(
             parts=[
                 FormData(
@@ -504,22 +551,34 @@ class ScopeContext:
             ]
         )
 
+        with self._scopes_lock:
+            payload = self.to_json()
+            n = len(self._scopes)
+            self._scopes.clear()
+
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
         # replace it with the compressed JSON.
-        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
+        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(payload).encode("utf-8")))
 
         with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
-            return conn.getresponse()
+            try:
+                log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
+                if (result := conn.getresponse()).status // 100 != 2:
+                    log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
+            except Exception:
+                log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
 
     def __bool__(self) -> bool:
-        return bool(self._scopes)
+        with self._scopes_lock:
+            return bool(self._scopes)
 
     def __len__(self) -> int:
-        return len(self._scopes)
+        with self._scopes_lock:
+            return len(self._scopes)
 
 
 def is_module_included(module: ModuleType) -> bool:
@@ -549,26 +608,22 @@ def is_module_included(module: ModuleType) -> bool:
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
-    __scope_limit__: int = 400
     __file_number_limit__: int = 10000
-
-    shallow: bool = True
 
     def __init__(self) -> None:
         super().__init__()
 
-        self._seen_modules: t.Set[str] = set()
+        self._seen_modules: set[str] = set()
         self._update_called = False
         self._processed_files_count = 0
+
+        self._context = ScopeContext()
 
         self._process_unseen_loaded_modules()
 
     def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
-        recursive = not self.shallow
-
-        context = ScopeContext()
         for name, module in list(sys.modules.items()):
             if self._processed_files_count >= self.__file_number_limit__:
                 log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
@@ -591,38 +646,15 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
                 continue
 
             try:
-                scope = Scope.from_module(module, recursive)
+                scope = Scope.from_module(module)
             except Exception:
                 log.debug("Cannot get symbol scope for module %s", module.__name__, exc_info=True)
                 continue
 
             if scope is not None:
                 log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
-                context.add_scope(scope)
+                self._context.add_scope(scope)
                 self._processed_files_count += 1
-
-            # Batching: send at most 100 module scopes at a time
-            n = len(context)
-            if n >= self.__scope_limit__:
-                log.debug("[PID %d] SymDB: Flushing batch of %d module scopes", os.getpid(), n)
-                try:
-                    self._upload_context(context)
-                except Exception:
-                    log.error(
-                        "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n, exc_info=True
-                    )
-                    return
-                context = ScopeContext()
-
-        try:
-            self._upload_context(context)
-        except Exception:
-            log.error(
-                "[PID %d] SymDB: Failed to upload symbols context with %d scopes",
-                os.getpid(),
-                len(context),
-                exc_info=True,
-            )
 
     def after_import(self, module: ModuleType) -> None:
         if self._processed_files_count >= self.__file_number_limit__:
@@ -633,13 +665,12 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
 
-        scope = Scope.from_module(module, recursive=not self.shallow)
-        if scope is not None:
-            self._upload_context(ScopeContext([scope]))
+        if (scope := Scope.from_module(module)) is not None:
+            self._context.add_scope(scope)
             self._processed_files_count += 1
 
     @classmethod
-    def update(cls):
+    def update(cls) -> None:
         instance = t.cast(SymbolDatabaseUploader, cls._instance)
         if instance is None:
             return
@@ -653,23 +684,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
         instance._update_called = True
 
-    @staticmethod
-    def _upload_context(context: ScopeContext) -> None:
-        if not context:
-            return
-
-        try:
-            log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), len(context._scopes))
-            result = context.upload()
-            if result.status // 100 != 2:
-                log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
-
-        except Exception:
-            log.exception(
-                "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), len(context._scopes)
-            )
-
     @classmethod
-    def install(cls, shallow=True):
-        cls.shallow = shallow
+    def install(cls) -> None:
         return super().install()

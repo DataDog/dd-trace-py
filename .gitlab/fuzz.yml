@@ -1,0 +1,49 @@
+variables:
+  REPO_LANG: python # "python" is used everywhere rather than "py"
+  FUZZ_IMAGE: registry.ddbuild.io/dd-trace-py-fuzz
+  FUZZYDOG_VERSION: "0.27.1"
+  FUZZ_BASE_IMAGE: registry.ddbuild.io/dd-trace-py:v104604389-11e1de9-fuzz_base
+  # CI_DEBUG_SERVICES: "true"
+
+fuzz_infra:
+  needs: []
+  image: registry.ddbuild.io/images/docker:27.3.1
+  tags: ["arch:amd64"]
+  stage: fuzz
+  timeout: 30m
+  allow_failure: true
+  id_tokens:
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
+  rules:
+    # runs during nightly builds
+    - if: $NIGHTLY_BUILD == "true"
+    # Also allow manual run in branches for ease of debug / testing
+    - when: manual
+  parallel:
+    matrix:
+      - PYTHON_VERSION: "3.9"
+      - PYTHON_VERSION: "3.10"
+      - PYTHON_VERSION: "3.11"
+      - PYTHON_VERSION: "3.12"
+      - PYTHON_VERSION: "3.13"
+      - PYTHON_VERSION: "3.14"
+  before_script:
+    - apt update && apt install -y python3 unzip
+    # TODO: Install fuzzydog on the image directly when version is stable
+    - >-
+      curl -sL "https://binaries.ddbuild.io/fuzzing/fuzzydog/${FUZZYDOG_VERSION}/fuzzydog-tar.tar.gz"
+      -o /tmp/fuzzydog-tar.tar.gz
+    - tar -C /usr/local/bin -zxf /tmp/fuzzydog-tar.tar.gz fuzzydog-linux-amd64
+    - mv /usr/local/bin/fuzzydog-linux-amd64 /usr/local/bin/fuzzydog
+    - rm /tmp/fuzzydog-tar.tar.gz
+    # Install vault for fuzzing API authentication
+    - >-
+      VAULT_VERSION=1.21.1 &&
+      curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip"
+      -o /tmp/vault.zip &&
+      unzip -o /tmp/vault.zip -d /usr/local/bin &&
+      rm /tmp/vault.zip &&
+      chmod +x /usr/local/bin/vault
+  script:
+    - python3 .gitlab/scripts/fuzz_infra.py

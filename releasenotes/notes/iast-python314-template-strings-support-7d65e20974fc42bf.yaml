@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Code Security (IAST): This introduces support for Python 3.14 template strings (PEP-750).
+    Template strings (t-strings) are now tracked for taint propagation, enabling detection of
+    security vulnerabilities when user input is embedded in template strings.

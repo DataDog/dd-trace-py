@@ -62,13 +62,13 @@ Run scenario
 
 The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
 
-  scripts/perf-run-scenario <scenario> <version> <version> --artifacts <artifacts>
+  scripts/perf-run-scenario <scenario> <baseline-version> <candidate-version> --artifacts <artifacts>
 
 The version specifiers can reference published versions on PyPI, git repositories, or `.` for your local version.
 
 To run benchmarks against a single version without comparison, pass an empty string ``""`` as the second version::
 
-  scripts/perf-run-scenario <scenario> <version> "" --artifacts <artifacts>
+  scripts/perf-run-scenario <scenario> <baseline-version> "" --artifacts <artifacts>
 
 Example::
 

@@ -1,9 +1,9 @@
 import json
 from typing import Any
-from typing import List
 from typing import Sequence
 import uuid
 
+from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Function
@@ -79,15 +79,6 @@ def _try_parse_json(value: dict, attribute: str) -> Any:
         return {attribute: json_str}
 
 
-def _try_format_json(value: Any) -> str:
-    if not value:
-        return ""
-    try:
-        return json.dumps(value)
-    except Exception:
-        return str(value)
-
-
 def _get_message_text(msg: Any) -> str:
     if isinstance(msg.content, str):
         return msg.content
@@ -108,7 +99,7 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     from langchain_core.messages.function import FunctionMessage
     from langchain_core.messages.tool import ToolMessage
 
-    result: List[Message] = []
+    result: list[Message] = []
     for message in messages:
         try:
             if isinstance(message, HumanMessage):
@@ -123,7 +114,7 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
                         ToolCall(
                             id=call.get("id", ""),
                             function=Function(
-                                name=call.get("name", ""), arguments=_try_format_json(call.get("args", {}))
+                                name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))
                             ),
                         )
                         for call in message.tool_calls
@@ -176,7 +167,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
                                 id=tool_call_id,
                                 function=Function(
                                     name=intermediate_step.tool,
-                                    arguments=_try_format_json(intermediate_step.tool_input),
+                                    arguments=try_format_json(intermediate_step.tool_input),
                                 ),
                             )
                             messages.append(Message(role="assistant", tool_calls=[tool_call]))
@@ -190,7 +181,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
                         tool_calls=[
                             ToolCall(
                                 id="",
-                                function=Function(name=action.tool, arguments=_try_format_json(action.tool_input)),
+                                function=Function(name=action.tool, arguments=try_format_json(action.tool_input)),
                             )
                         ],
                     )

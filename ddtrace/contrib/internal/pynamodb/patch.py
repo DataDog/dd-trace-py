@@ -2,8 +2,6 @@
 Trace queries to botocore api done via a pynamodb client
 """
 
-from typing import Dict
-
 import pynamodb.connection.base
 import wrapt
 
@@ -22,6 +20,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.trace import tracer
 
 
 # Pynamodb connection class
@@ -39,7 +38,7 @@ def get_version() -> str:
     return getattr(pynamodb, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"pynamodb": ">=5.5.1"}
 
 
@@ -63,19 +62,18 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation("pynamodb.command", cloud_provider="aws", cloud_service="dynamodb"),
         service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.pynamodb.integration_name)
-        span._set_tag_str(db.SYSTEM, "dynamodb")
+        span._set_attribute(COMPONENT, config.pynamodb.integration_name)
+        span._set_attribute(db.SYSTEM, "dynamodb")
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
@@ -83,8 +81,8 @@ def patched_api_call(original_func, instance, args, kwargs):
 
             if args[1] and "TableName" in args[1]:
                 table_name = args[1]["TableName"]
-                span._set_tag_str("table_name", table_name)
-                span._set_tag_str("tablename", table_name)
+                span._set_attribute("table_name", table_name)
+                span._set_attribute("tablename", table_name)
                 span.resource = span.resource + " " + table_name
 
         except ArgumentError:

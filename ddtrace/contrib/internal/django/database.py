@@ -2,13 +2,9 @@ import logging
 from types import FunctionType
 from types import ModuleType
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
-from typing import Type
 from typing import cast
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
@@ -43,7 +39,7 @@ DB_CONN_ATTR_BY_TAG = {
 
 
 @cached()
-def get_traced_cursor_cls(cursor_type: Type[Any]) -> Type[dbapi.TracedCursor]:
+def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
     traced_cursor_cls = dbapi.TracedCursor
     try:
         if cursor_type.__module__.startswith("psycopg2.") or cursor_type.__name__ == "Psycopg2TracedCursor":
@@ -61,7 +57,7 @@ def get_traced_cursor_cls(cursor_type: Type[Any]) -> Type[dbapi.TracedCursor]:
     return traced_cursor_cls
 
 
-def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     cursor = func(*args, **kwargs)
 
     # Don't double wrap Django database cursors:
@@ -82,7 +78,6 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         else:
             pin = Pin(tags=tags)
             pin.onto(cursor.cursor)
-        pin._tracer = config_django._tracer or pin._tracer or ddtrace.tracer
         return cursor
 
     # Always wrap Django database cursors:
@@ -146,9 +141,7 @@ def get_conn_pin(conn: Any) -> Pin:
                 tags[tag] = str(conn.settings_dict.get(attr))
 
     service = get_conn_service_name(alias)
-    tracer = config_django._tracer or ddtrace.tracer
     pin = Pin(service, tags=tags)
-    pin._tracer = tracer
     return pin
 
 
@@ -168,7 +161,7 @@ def patch_conn(conn: Any) -> Any:
         wrap(conn.__class__.cursor, cursor)
 
 
-def get_connection(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+def get_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     conn = func(*args, **kwargs)
     try:
         patch_conn(conn)

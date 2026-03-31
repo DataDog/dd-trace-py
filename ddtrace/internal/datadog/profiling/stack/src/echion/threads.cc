@@ -1,3 +1,5 @@
+#include <echion/state.h>
+#include <echion/tasks.h>
 #include <echion/threads.h>
 
 #include <echion/echion_sampler.h>
@@ -6,58 +8,101 @@
 #include <optional>
 
 void
-ThreadInfo::unwind(PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
-    unwind_python_stack(tstate, python_stack);
+    unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(tstate);
+        (void)unwind_tasks(echion, tstate);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id);
     }
 }
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(PyThreadState* tstate)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
-    // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
+    // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
 
-    // Check if the Python stack contains "_run".
+    // Check if the Python stack contains the asyncio boundary frame.
+    // For regular asyncio, this is "Handle._run" from asyncio/events.py.
+    // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
-    // of the cache key of the "_run" Frame.
-    static std::optional<Frame::Key> frame_cache_key;
+    // of the cache key of the boundary frame.
+
+    // Note: We use separate cache keys for asyncio and uvloop because switching between them
+    // (though unlikely at runtime) would cause incorrect boundary detection otherwise.
+    auto& asyncio_frame_cache_key = echion.asyncio_frame_cache_key();
+    auto& uvloop_frame_cache_key = echion.uvloop_frame_cache_key();
+
+    auto& frame_cache_key = using_uvloop ? uvloop_frame_cache_key : asyncio_frame_cache_key;
+
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
-            const auto& frame_name = string_table.lookup(frame.name)->get();
+            auto maybe_frame_name = echion.string_table().lookup(frame.name);
+            if (!maybe_frame_name) {
+                continue;
+            }
+            const auto& frame_name = maybe_frame_name->get();
 
+            bool is_boundary_frame = false;
+
+            if (using_uvloop) {
+                // For uvloop, the boundary frame depends on the Python version:
+                // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
+                // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
 #if PY_VERSION_HEX >= 0x030b0000
-            // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
-            // can use the qualified name to identify the "_run" Frame.
-            constexpr std::string_view _run = "Handle._run";
-            auto is_run_frame = frame_name == _run;
+                constexpr std::string_view runner_run = "Runner.run";
+                is_boundary_frame = frame_name == runner_run;
 #else
-            // Before Python 3.11, function names in Frames are not qualified, so we
-            // can use the filename to identify the "_run" Frame.
-            constexpr std::string_view asyncio_runners_py = "asyncio/events.py";
-            constexpr std::string_view _run = "_run";
-            auto filename = string_table.lookup(frame.filename)->get();
-            auto is_asyncio = filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
-            auto is_run_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+                constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
+                constexpr std::string_view run = "run";
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+                if (!maybe_filename) {
+                    continue;
+                }
+                const auto& filename = maybe_filename->get();
+                auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+                is_boundary_frame = is_uvloop && (frame_name == run);
 #endif
-            if (is_run_frame) {
+            } else {
+                // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py
+#if PY_VERSION_HEX >= 0x030b0000
+                // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
+                // can use the qualified name to identify the "_run" Frame.
+                constexpr std::string_view _run = "Handle._run";
+                is_boundary_frame = frame_name == _run;
+#else
+                // Before Python 3.11, function names in Frames are not qualified, so we
+                // can use the filename to identify the "_run" Frame.
+                constexpr std::string_view asyncio_events_py = "asyncio/events.py";
+                constexpr std::string_view _run = "_run";
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+                if (!maybe_filename) {
+                    continue;
+                }
+                const auto& filename = maybe_filename->get();
+                auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
+                                  filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+                is_boundary_frame = is_asyncio && (frame_name.size() >= _run.size() &&
+                                                   frame_name.rfind(_run) == frame_name.size() - _run.size());
+#endif
+            }
+
+            if (is_boundary_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and re-use it to determine
-                // whether we see the "_run" Frame in the Python stack.
+                // This means we can keep the cache key and reuse it to determine
+                // whether we see the boundary Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 upper_python_stack_size = python_stack.size() - i;
                 break;
@@ -77,16 +122,19 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
-    static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(tstate);
+    auto maybe_all_tasks = get_all_tasks(echion, tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
     {
-        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        auto& previous_task_objects = echion.previous_task_objects();
+        std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+
+        auto& task_link_map = echion.task_link_map();
+        auto& weak_task_link_map = echion.weak_task_link_map();
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
@@ -163,6 +211,17 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         }
     }
 
+    // Pre-compute per-task coroutine stacks so that each task's coroutine chain is walked exactly once.
+    // Without this, a parent task's coroutine chain would be walked once for each child task that
+    // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
+    // of the parent's coroutine chain).
+    std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
+    for (auto& task : all_tasks) {
+        FrameStack task_stack;
+        task->unwind(echion, task_stack, using_uvloop);
+        task_coro_stacks.emplace(task->origin, std::move(task_stack));
+    }
+
     // Make sure the on CPU task is first
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
         if (leaf_tasks[i].get().is_on_cpu) {
@@ -177,10 +236,25 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        // Safety: prevent infinite loops from cycles in task chain maps
+        size_t task_chain_depth = 0;
         for (auto current_task = leaf_task;;) {
+            if (++task_chain_depth > MAX_RECURSION_DEPTH) {
+                break;
+            }
             auto& task = current_task.get();
 
-            auto task_stack_size = task.unwind(stack);
+            // Look up the pre-computed coroutine stack for this task
+            size_t task_stack_size = 0;
+            if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
+                task_stack_size = it->second.size();
+                for (const auto& frame_ref : it->second) {
+                    if (stack.size() >= max_frames) {
+                        break;
+                    }
+                    stack.push_back(frame_ref);
+                }
+            }
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -197,12 +271,17 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                                           : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
+
+                    // Skip the uvloop wrapper frame if present in the Python stack
+                    if (using_uvloop && is_uvloop_wrapper_frame(echion, using_uvloop, python_frame.get())) {
+                        continue;
+                    }
                     stack.push_front(python_frame);
                 }
             }
 
             // Add the task name frame
-            stack.push_back(Frame::get(task.name));
+            stack.push_back(Frame::get(echion, task.name));
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
@@ -213,7 +292,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             {
                 // Check for, e.g., gather links
-                std::lock_guard<std::mutex> lock(task_link_map_lock);
+                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+                auto& task_link_map = echion.task_link_map();
+                auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
@@ -221,13 +302,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                         continue;
                     }
                 }
-            }
 
-            // Check for weak links
-            if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                continue;
+                // Check for weak links
+                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
+                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
+                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+                    continue;
+                }
             }
 
             break;
@@ -259,7 +340,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 Result<void>
-ThreadInfo::get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector<TaskInfo::Ptr>& tasks)
 {
     if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -274,11 +355,13 @@ ThreadInfo::get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks)
     constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
     uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
 
-    return get_tasks_from_linked_list(head_addr, tasks);
+    return get_tasks_from_linked_list(echion, head_addr, tasks);
 }
 
 Result<void>
-ThreadInfo::get_tasks_from_interpreter_linked_list(PyThreadState* tstate, std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
+                                                   PyThreadState* tstate,
+                                                   std::vector<TaskInfo::Ptr>& tasks)
 {
     if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -287,11 +370,11 @@ ThreadInfo::get_tasks_from_interpreter_linked_list(PyThreadState* tstate, std::v
     constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
     uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
 
-    return get_tasks_from_linked_list(head_addr, tasks);
+    return get_tasks_from_linked_list(echion, head_addr, tasks);
 }
 
 Result<void>
-ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
 {
     if (head_addr == 0 || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -336,7 +419,7 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
         uintptr_t task_addr_uint = next_node_addr - task_node_offset_val;
 
         // Create TaskInfo for the task
-        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr_uint));
+        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr_uint));
         if (maybe_task_info) {
             auto& task_info = *maybe_task_info;
             if (task_info->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
@@ -354,7 +437,7 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
 }
 
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState* tstate)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
@@ -367,10 +450,10 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
     // First, get tasks from this thread's linked-list (if tstate_addr is set)
     // Note: We continue processing even if one source fails to maximize partial results
     if (tstate != nullptr && this->tstate_addr != 0) {
-        (void)get_tasks_from_thread_linked_list(tasks);
+        (void)get_tasks_from_thread_linked_list(echion, tasks);
 
         // Second, get tasks from interpreter's linked-list (lingering tasks)
-        (void)get_tasks_from_interpreter_linked_list(tstate, tasks);
+        (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
     }
 
     // Handle third-party tasks from Python _scheduled_tasks WeakSet
@@ -378,6 +461,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
     // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
     // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
     // This is typically empty in practice, but we handle it for completeness.
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     if (asyncio_scheduled_tasks != nullptr) {
         if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
             auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
@@ -385,7 +469,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
                 auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
                 for (auto task_addr : scheduled_tasks) {
                     // In WeakSet.data (set), elements are the Task objects themselves
-                    auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+                    auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
                     if (maybe_task_info &&
                         (*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
                         tasks.push_back(std::move(*maybe_task_info));
@@ -395,7 +479,8 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -410,7 +495,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
             if (maybe_task_info) {
                 if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
                     tasks.push_back(std::move(*maybe_task_info));
@@ -424,12 +509,13 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
 #else
 // Pre-Python 3.14: get_all_tasks uses WeakSet approach
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState*)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
         return tasks;
 
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
     if (!maybe_scheduled_tasks_set) {
         return ErrorKind::TaskInfoError;
@@ -447,15 +533,16 @@ ThreadInfo::get_all_tasks(PyThreadState*)
         if (copy_type(task_wr_addr, task_wr))
             continue;
 
-        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_wr.wr_object));
+        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_wr.wr_object));
         if (maybe_task_info) {
-            if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+            if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                 tasks.push_back(std::move(*maybe_task_info));
             }
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -470,9 +557,9 @@ ThreadInfo::get_all_tasks(PyThreadState*)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
             if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                     tasks.push_back(std::move(*maybe_task_info));
                 }
             }
@@ -485,74 +572,101 @@ ThreadInfo::get_all_tasks(PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    std::vector<GreenletSnapshot> snapshots;
 
-    if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
-        return;
+    // Phase 1: Snapshot greenlet data under the lock.
+    // This minimises the time we hold greenlet_info_map_lock, which is also
+    // acquired by update_greenlet_frame() on every greenlet switch.  Holding
+    // the lock during the expensive unwind (Phase 2) would block ALL greenlet
+    // switches and lead to resource exhaustion (e.g. DB connection pools).
+    {
+        const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
 
-    std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        auto& greenlet_info_map = echion.greenlet_info_map();
+        auto& greenlet_parent_map = echion.greenlet_parent_map();
+        auto& greenlet_thread_map = echion.greenlet_thread_map();
 
-    // Collect all parent greenlets
-    std::transform(greenlet_parent_map.cbegin(),
-                   greenlet_parent_map.cend(),
-                   std::inserter(parent_greenlets, parent_greenlets.begin()),
-                   [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
+        if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
+            return;
 
-    // Unwind the leaf greenlets
-    for (auto& greenlet_info : greenlet_info_map) {
-        auto greenlet_id = greenlet_info.first;
-        auto& greenlet = greenlet_info.second;
+        std::unordered_set<GreenletInfo::ID> parent_greenlets;
 
-        if (parent_greenlets.contains(greenlet_id))
-            continue;
+        // Collect all parent greenlets
+        std::transform(greenlet_parent_map.cbegin(),
+                       greenlet_parent_map.cend(),
+                       std::inserter(parent_greenlets, parent_greenlets.begin()),
+                       [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
 
-        auto frame = greenlet->frame;
-        if (frame == FRAME_NOT_SET) {
-            // The greenlet has not been started yet or has finished
-            continue;
+        // Snapshot the leaf greenlets and precompute their parent chains
+        for (auto& [gid, greenlet] : greenlet_info_map) {
+            if (parent_greenlets.contains(gid))
+                continue;
+
+            auto frame = greenlet->frame;
+            if (frame == FRAME_NOT_SET) {
+                // The greenlet has not been started yet or has finished
+                continue;
+            }
+
+            GreenletSnapshot snap;
+            snap.greenlet_id = gid;
+            snap.name = greenlet->name;
+            snap.frame = frame;
+
+            // Precompute parent chain while we still hold the lock
+            auto current_id = gid;
+            std::unordered_set<GreenletInfo::ID> visited;
+            // The limit here is arbitrary, but it should be more than enough for
+            // most use cases.
+            const size_t MAX_GREENLET_DEPTH = 512;
+            // Safety: prevent infinite loops from cycles or corrupted parent maps
+            for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
+                // Check for cycles
+                if (visited.contains(current_id))
+                    break;
+                visited.insert(current_id);
+
+                auto pit = greenlet_parent_map.find(current_id);
+                if (pit == greenlet_parent_map.end())
+                    break;
+
+                auto parent_id = pit->second;
+                auto git = greenlet_info_map.find(parent_id);
+                if (git == greenlet_info_map.end())
+                    break;
+
+                auto parent_frame = git->second->frame;
+                if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
+                    break;
+
+                snap.parent_chain.emplace_back(git->second->name, parent_frame);
+
+                // Move up the greenlet chain
+                current_id = parent_id;
+            }
+
+            snapshots.push_back(std::move(snap));
         }
+    } // Lock released here
 
-        bool on_cpu = frame == Py_None;
-
-        auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
+    // Phase 2: Unwind outside the lock.
+    // The expensive process_vm_readv / copy_type calls happen here, without
+    // blocking greenlet switches.  Snapshotted frame pointers may have become
+    // stale, but unwind_frame() handles invalid pointers gracefully via
+    // copy_type() which returns non-zero on failure.
+    for (auto& snap : snapshots) {
+        bool on_cpu = snap.frame == Py_None;
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
         auto& stack = stack_info->stack;
 
-        greenlet->unwind(frame, tstate, stack);
+        GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
+        temp.unwind(echion, snap.frame, tstate, stack);
 
-        std::unordered_set<GreenletInfo::ID> visited;
-
-        // Unwind the parent greenlets
-        // The limit here is arbitrary, but it should be more than enough for
-        // most use cases.
-        const size_t MAX_GREENLET_DEPTH = 512;
-        // Safety: prevent infinite loops from cycles or corrupted parent maps
-        for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
-            // Check for cycles
-            if (visited.contains(greenlet_id)) {
-                break;
-            }
-            visited.insert(greenlet_id);
-
-            auto parent_greenlet_info = greenlet_parent_map.find(greenlet_id);
-            if (parent_greenlet_info == greenlet_parent_map.end())
-                break;
-
-            auto parent_greenlet_id = parent_greenlet_info->second;
-
-            auto parent_greenlet = greenlet_info_map.find(parent_greenlet_id);
-            if (parent_greenlet == greenlet_info_map.end())
-                break;
-
-            auto parent_frame = parent_greenlet->second->frame;
-            if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
-                break;
-
-            parent_greenlet->second->unwind(parent_frame, tstate, stack);
-
-            // Move up the greenlet chain
-            greenlet_id = parent_greenlet_id;
+        for (auto& [parent_name, parent_frame] : snap.parent_chain) {
+            GreenletInfo parent_temp(0, parent_frame, parent_name);
+            parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
         current_greenlets.push_back(std::move(stack_info));
@@ -561,9 +675,10 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
-    Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
+    auto& renderer = echion.renderer();
+    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
     auto update_cpu_time_success = update_cpu_time();
@@ -571,9 +686,9 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         return ErrorKind::CpuTimeError;
     }
 
-    Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
+    renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(tstate);
+    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -581,43 +696,40 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
-            auto maybe_task_name = string_table.lookup(task_stack_info->task_name);
+            auto maybe_task_name = echion.string_table().lookup(task_stack_info->task_name);
             if (!maybe_task_name) {
                 return ErrorKind::ThreadInfoError;
             }
 
             const auto& task_name = maybe_task_name->get();
-            Renderer::get().render_task_begin(task_name, task_stack_info->on_cpu);
-            Renderer::get().render_stack_begin(pid, iid, name);
+            renderer.render_task_begin(task_name, task_stack_info->on_cpu);
 
-            task_stack_info->stack.render();
+            task_stack_info->stack.render(echion);
 
-            Renderer::get().render_stack_end(MetricType::Time, delta);
+            renderer.render_stack_end();
         }
 
         current_tasks.clear();
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
-            auto maybe_task_name = string_table.lookup(greenlet_stack->task_name);
+            auto maybe_task_name = echion.string_table().lookup(greenlet_stack->task_name);
             if (!maybe_task_name) {
                 return ErrorKind::ThreadInfoError;
             }
 
             const auto& task_name = maybe_task_name->get();
-            Renderer::get().render_task_begin(task_name, greenlet_stack->on_cpu);
-            Renderer::get().render_stack_begin(pid, iid, name);
+            renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
 
             auto& stack = greenlet_stack->stack;
-            stack.render();
+            stack.render(echion);
 
-            Renderer::get().render_stack_end(MetricType::Time, delta);
+            renderer.render_stack_end();
         }
 
         current_greenlets.clear();
     } else {
-        Renderer::get().render_stack_begin(pid, iid, name);
-        python_stack.render();
-        Renderer::get().render_stack_end(MetricType::Time, delta);
+        python_stack.render(echion);
+        renderer.render_stack_end();
     }
 
     return Result<void>::ok();
@@ -627,29 +739,18 @@ Result<void>
 ThreadInfo::update_cpu_time()
 {
 #if defined PL_LINUX
-    struct timespec ts1;
-    if (clock_gettime(cpu_clock_id, &ts1)) {
+    struct timespec ts;
+    if (clock_gettime(cpu_clock_id, &ts)) {
         // If the clock is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (errno == EINVAL) {
-            this->running_ = false;
             return Result<void>::ok();
         }
 
         return ErrorKind::CpuTimeError;
     }
 
-    this->cpu_time = TS_TO_MICROSECOND(ts1);
-
-    // Determine if running by checking if CPU time advances between two back-to-back
-    // measurements. This is done here to avoid a separate is_running() call with
-    // its own syscalls (reduces 3 syscalls per thread to 2).
-    struct timespec ts2;
-    if (clock_gettime(cpu_clock_id, &ts2) != 0) {
-        this->running_ = false;
-    } else {
-        this->running_ = (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
-    }
+    this->cpu_time = TS_TO_MICROSECOND(ts);
 #elif defined PL_DARWIN
     thread_basic_info_data_t info;
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -660,7 +761,6 @@ ThreadInfo::update_cpu_time()
         // If the thread is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (kr == KERN_INVALID_ARGUMENT) {
-            this->running_ = false;
             return Result<void>::ok();
         }
 
@@ -668,27 +768,17 @@ ThreadInfo::update_cpu_time()
     }
 
     if (info.flags & TH_FLAGS_IDLE) {
-        this->running_ = false;
         return Result<void>::ok();
     }
 
     this->cpu_time = TV_TO_MICROSECOND(info.user_time) + TV_TO_MICROSECOND(info.system_time);
-    // On macOS, thread_info already gives us run_state, so no need to check if the clock is advancing
-    this->running_ = (info.run_state == TH_STATE_RUNNING);
 #endif
 
     return Result<void>::ok();
 }
 
-bool
-ThreadInfo::is_running()
-{
-    // Running state is computed in update_cpu_time by taking two back-to-back measurements of the CPU time.
-    return this->running_;
-}
-
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;

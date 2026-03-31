@@ -5,10 +5,7 @@ from pathlib import Path
 import re
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Set
 from typing import Union
 from urllib import parse
 
@@ -58,6 +55,7 @@ from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
 from ddtrace.internal.ci_visibility.service_registry import register_ci_visibility_instance
 from ddtrace.internal.ci_visibility.service_registry import unregister_ci_visibility_instance
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
+from ddtrace.internal.ci_visibility.writer import CIVisibilityCoverageReportClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
@@ -71,6 +69,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
+from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.trace import Span
@@ -122,7 +121,7 @@ def _get_git_repo() -> Optional[str]:
     return None
 
 
-def _get_custom_configurations() -> Dict[str, str]:
+def _get_custom_configurations() -> dict[str, str]:
     custom_configurations = {}
     for tag, value in ddconfig.tags.items():
         if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
@@ -222,16 +221,16 @@ class CIVisibility(Service):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
+        self._tags: dict[str, str] = ci.tags(cwd=_get_git_repo())
         self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
-        self._itr_meta: Dict[str, Any] = {}
+        self._itr_meta: dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
-        self._known_test_ids: Set[TestId] = set()
-        self._test_properties: Dict[TestId, TestProperties] = {}
+        self._known_test_ids: set[TestId] = set()
+        self._test_properties: dict[TestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -309,6 +308,9 @@ class CIVisibility(Service):
         self._api_settings = self._check_enabled_features()
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._api_settings.coverage_enabled)
+        self._coverage_report_upload_enabled = self._should_upload_coverage_report(
+            self._api_settings.coverage_report_upload_enabled
+        )
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
@@ -316,6 +318,7 @@ class CIVisibility(Service):
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
+        log.info("API-provided settings: coverage report upload: %s", self._api_settings.coverage_report_upload_enabled)
         log.info(
             "API-provided settings: Intelligent Test Runner: %s, test skipping: %s",
             self._api_settings.itr_enabled,
@@ -346,6 +349,16 @@ class CIVisibility(Service):
         ):
             return False
         return True
+
+    @staticmethod
+    def _should_upload_coverage_report(coverage_report_upload_enabled_by_api):
+        """Check if coverage report upload is enabled via API settings or environment variable.
+
+        Environment variable takes precedence over API settings.
+        """
+        return asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")) or (
+            coverage_report_upload_enabled_by_api or False
+        )
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
         _error_return_value = TestVisibilityAPISettings()
@@ -401,11 +414,15 @@ class CIVisibility(Service):
         if requests_mode is None:
             requests_mode = self._requests_mode
 
+        # Check if coverage report upload is enabled
+        coverage_report_upload_enabled = self._coverage_report_upload_enabled
+
         if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             headers = {"dd-api-key": self._api_key or ""}
             writer = CIVisibilityWriter(
                 headers=headers,
                 coverage_enabled=coverage_enabled,
+                coverage_report_upload_enabled=coverage_report_upload_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
                 use_gzip=True,
             )
@@ -415,6 +432,7 @@ class CIVisibility(Service):
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
+                coverage_report_upload_enabled=coverage_report_upload_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
                 use_gzip=self._is_gzip_supported_by_agent(),
             )
@@ -514,6 +532,16 @@ class CIVisibility(Service):
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         )
 
+    @classmethod
+    def should_upload_coverage_report(cls) -> bool:
+        """Check if coverage report upload is enabled.
+
+        Returns True if enabled via API settings or DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED env var.
+        """
+        if cls._instance is None:
+            return False
+        return cls._instance._coverage_report_upload_enabled
+
     def _fetch_tests_to_skip(self) -> None:
         # Make sure git uploading has finished
         # this will block the thread until that happens
@@ -542,7 +570,7 @@ class CIVisibility(Service):
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
-    def _fetch_known_tests(self) -> Optional[Set[TestId]]:
+    def _fetch_known_tests(self) -> Optional[set[TestId]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_known_tests()
@@ -551,7 +579,7 @@ class CIVisibility(Service):
             log.debug("Error fetching unique tests", exc_info=True)
         return None
 
-    def _fetch_test_management_tests(self) -> Optional[Dict[TestId, TestProperties]]:
+    def _fetch_test_management_tests(self) -> Optional[dict[TestId, TestProperties]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_test_management_tests()
@@ -966,6 +994,63 @@ class CIVisibility(Service):
     def get_test_properties(self, test_id: TestId) -> Optional[TestProperties]:
         return self._test_properties.get(test_id)
 
+    def upload_coverage_report(self, coverage_report_bytes: bytes, coverage_format: str) -> bool:
+        """
+        Upload coverage report through the native writer/encoder infrastructure.
+
+        This method properly uses the CI Visibility writer system following the
+        correct architectural pattern where the recorder handles business logic,
+        the encoder formats data, and the writer handles transport.
+        """
+        try:
+            # Check if coverage upload is enabled
+            if not self._coverage_report_upload_enabled:
+                log.debug("Coverage report upload not enabled in settings or environment variable")
+                return False
+
+            # Get the writer from the tracer
+            writer = self.tracer._span_aggregator.writer
+            if not isinstance(writer, CIVisibilityWriter):
+                log.debug("Writer is not a CIVisibilityWriter, cannot upload coverage report")
+                return False
+
+            coverage_report_client = None
+            for client in writer._clients:
+                if isinstance(client, CIVisibilityCoverageReportClient):
+                    coverage_report_client = client
+                    break
+
+            if not coverage_report_client:
+                log.debug("No coverage report client available in writer")
+                return False
+
+            # Pass all tags - the utility function filters to only git.* and ci.*
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                tags=self._tags,
+            )
+
+            # Use the encoder to format the data
+            encoded_data = coverage_report_client.coverage_encoder.encode_coverage_report(
+                coverage_report_bytes, coverage_format, event_data
+            )
+
+            # Send through the writer's HTTP infrastructure
+            headers = {"Content-Type": coverage_report_client.coverage_encoder.content_type}
+            response = writer._put(data=encoded_data, headers=headers, client=coverage_report_client, no_trace=True)
+
+            success = response.status < 400
+            if success:
+                log.info("Successfully uploaded coverage report")
+            else:
+                log.error("Coverage report upload failed: HTTP %d", response.status)
+
+            return success
+
+        except Exception as e:
+            log.exception("Error uploading coverage report through recorder: %s", e)
+            return False
+
 
 def _requires_civisibility_enabled(func: Callable) -> Callable:
     def wrapper(*args, **kwargs) -> Any:
@@ -1060,7 +1145,7 @@ class CIVisibilitySpanForwarder(TraceFilter):
     def __init__(self, tracer):
         self.tracer = tracer
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         log.debug("Forwarding trace to CI Visibility: %r", trace)
         self.tracer._span_aggregator.writer.write(trace)
         return None

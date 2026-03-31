@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 from urllib import parse
 
 import urllib3
@@ -9,6 +8,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
@@ -22,6 +22,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -39,12 +40,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(urllib3, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"urllib3": ">=1.25.0"}
 
 
@@ -119,15 +119,16 @@ def _wrap_urlopen(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.urllib3.integration_name)
+        maybe_set_service_source_tag(span, config.urllib3)
+        span._set_attribute(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         if config.urllib3.split_by_domain:
             span.service = hostname
@@ -158,6 +159,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 response_headers={} if response is None else dict(response.headers),
                 retries_remain=retries,
             )
-            span._set_tag_str(net.SERVER_ADDRESS, instance.host)
+            span._set_attribute(net.SERVER_ADDRESS, instance.host)
 
         return response

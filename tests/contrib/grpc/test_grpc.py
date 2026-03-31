@@ -212,7 +212,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_client_span(client_span, "grpc-client", "SayHello", "unary")
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
 
-    def test_pin_not_activated(self):
+    def test_tracer_not_activated(self):
         self.tracer.enabled = False
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
@@ -585,9 +585,18 @@ class GrpcTestCase(GrpcBaseTestCase):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             future = stub.SayHello.future(HelloRequest(name="test"))
+
+            callback_completed = threading.Event()
+
+            def _wait_callback(_future):
+                callback_completed.set()
+
+            future.add_done_callback(_wait_callback)
             assert self.tracer.current_span() is None
+
             # wait so that we don't cancel the request
             future.result()
+            assert callback_completed.wait(timeout=10)
 
         self.get_spans_with_sync_and_assert(size=2)
 

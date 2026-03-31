@@ -83,14 +83,33 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
-    async def test_agent_run_stream_structured(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    async def test_agent_run_stream_method(self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method):
+        if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
+            pytest.skip("pydantic-ai < 0.8.1 does not support stream_responses")
+
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_structured():
-                    if chunk[1]:
-                        output = chunk[0].parts[0].content
+                stream_func = getattr(result, stream_method)
+                async for chunk in stream_func():
+                    output = chunk[0].parts[0].content
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output)
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 8, 1), reason="pydantic-ai < 0.8.1 does not support stream_responses")
+    async def test_agent_run_stream_responses_early_exit(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that the span is still finished when the stream is exited early"""
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!") as result:
+                async for chunk, last in result.stream_responses():
+                    assert not last  # assert this is not the last chunk
+                    output = chunk.parts[0].content
+                    break
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
@@ -127,7 +146,13 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    async def test_agent_run_stream_method_with_tool(
+        self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
+    ):
+        if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
+            pytest.skip("pydantic-ai < 0.8.1 does not support stream_responses")
+
         class Output(TypedDict):
             original_number: int
             square: int
@@ -142,7 +167,8 @@ class TestLLMObsPydanticAI:
                 output_type=Output,
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for chunk in result.stream_structured(debounce_by=None):
+                stream_func = getattr(result, stream_method)
+                async for chunk in stream_func(debounce_by=None):
                     output = chunk
         trace = test_spans.pop_traces()[0]
         agent_span = trace[0]
@@ -224,6 +250,66 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_agent_span_event(
             span, result.output, tools=expected_calculate_square_tool() + expected_foo_tool()
         )
+
+    async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            result = await agent.run(message_history=message_history)
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, input_value="Hello from history!")
+
+    async def test_agent_run_stream_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history for run_stream."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream(message_history=message_history) as result:
+                async for chunk in result.stream(debounce_by=None):
+                    output = chunk
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output, input_value="Hello from history!")
+
+    async def test_agent_iter_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history for iter."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.iter(message_history=message_history) as agent_run:
+                async for _ in agent_run:
+                    pass
+                output = agent_run.result.output
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output, input_value="Hello from history!")
+
+    async def test_agent_run_with_user_prompt_and_message_history(
+        self, pydantic_ai, request_vcr, llmobs_events, test_spans
+    ):
+        """Test that user_prompt takes precedence over message_history."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            result = await agent.run("Hello, world!", message_history=message_history)
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, input_value="Hello, world!")
 
 
 class TestLLMObsPydanticAISpanLinks:

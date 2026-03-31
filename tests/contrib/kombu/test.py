@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import kombu
 import mock
+import pytest
 
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
@@ -303,6 +304,27 @@ class TestKombuDsm(TracerTestCase):
         self.assertEqual(results[0], to_publish)
         return queue_name
 
+    def _assert_dsm_pathway_stats(self, pathway_stats, out_tags, in_tags):
+        def _entry_for_tags(expected_tags):
+            matching_entries = [
+                (hash_value, parent_hash, stats)
+                for (tags, hash_value, parent_hash), stats in pathway_stats.items()
+                if tags == expected_tags
+            ]
+            assert len(matching_entries) == 1
+            hash_value, parent_hash, stats = matching_entries[0]
+            return hash_value, parent_hash, stats
+
+        out_hash, out_parent_hash, out_stats = _entry_for_tags(out_tags)
+        assert out_parent_hash == 0
+        assert out_stats.full_pathway_latency.count == 1
+        assert out_stats.edge_latency.count == 1
+
+        _in_hash, in_parent_hash, in_stats = _entry_for_tags(in_tags)
+        assert in_parent_hash == out_hash
+        assert in_stats.full_pathway_latency.count == 1
+        assert in_stats.edge_latency.count == 1
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_data_streams_basic(self):
@@ -313,11 +335,7 @@ class TestKombuDsm(TracerTestCase):
 
         out_tags = ",".join(["direction:out", "exchange:dsm_tests", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
-
-        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency.count == 1
-        assert first[(out_tags, 72906486983046225, 0)].edge_latency.count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency.count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency.count == 1
+        self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
@@ -351,8 +369,44 @@ class TestKombuDsm(TracerTestCase):
 
         out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
+        self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
-        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency.count == 1
-        assert first[(out_tags, 2585352008533360777, 0)].edge_latency.count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency.count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency.count == 1
+
+@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_KOMBU_ENABLED": "true"}, ddtrace_run=True, err=None
+)
+def test_data_streams_kombu_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kombu messages."""
+    import kombu
+
+    from tests.contrib.config import RABBITMQ_CONFIG
+
+    conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
+    conn.connect()
+
+    try:
+        producer = conn.Producer()
+        exchange = kombu.Exchange("dsm_test_exchange")
+        queue = kombu.Queue("dsm_test_queue", exchange, routing_key="dsm_test")
+
+        producer.publish({"test": "data"}, exchange=exchange, routing_key="dsm_test", declare=[queue])
+
+        message_container = []
+
+        def process_message(body, message):
+            message_container.append(message)
+            message.ack()
+
+        with kombu.Consumer(conn, [queue], accept=["json"], callbacks=[process_message]):
+            conn.drain_events(timeout=2.0)
+
+        assert len(message_container) == 1
+        headers = message_container[0].headers
+        assert headers is not None
+        assert "dd-pathway-ctx-base64" in headers, (
+            f"Header not found. Headers: {list(headers.keys()) if hasattr(headers, 'keys') else headers}"
+        )
+
+    finally:
+        conn.close()

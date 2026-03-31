@@ -1,11 +1,9 @@
 from inspect import unwrap
-from typing import Dict
 
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
-from werkzeug.exceptions import abort
 
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
@@ -17,8 +15,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
-from ddtrace.internal.utils import http as http_utils
-from ddtrace.internal.utils import set_blocked
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -32,7 +28,7 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
@@ -40,10 +36,9 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
 
-from .wrappers import _wrap_call_with_pin_check
-from .wrappers import get_current_app
+from .wrappers import _wrap_call_with_tracing_check
 from .wrappers import simple_call_wrapper
-from .wrappers import with_instance_pin
+from .wrappers import with_tracing_enabled
 from .wrappers import wrap_function
 from .wrappers import wrap_view
 
@@ -74,17 +69,15 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return get_version_for_package("flask")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"flask": ">=1.1.4"}
 
 
-def get_werkzeug_version():
-    # type: () -> str
+def get_werkzeug_version() -> str:
     return get_version_for_package("werkzeug")
 
 
@@ -181,7 +174,6 @@ def patch():
         return
     flask._datadog_patch = True
 
-    Pin().onto(flask.Flask)
     core.dispatch("flask.patch", (flask_version,))
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", patched_wsgi_app)
@@ -196,10 +188,6 @@ def patch():
         _w("flask", "Flask.register_error_handler", patched_register_error_handler)
     else:
         _w("flask", "Flask._register_error_handler", patched__register_error_handler)
-
-    # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
-    _w("flask", "Blueprint.register", patched_blueprint_register)
-    _w("flask", "Blueprint.add_url_rule", patched_blueprint_add_url_rule)
 
     flask_hooks = [
         "before_request",
@@ -319,9 +307,6 @@ def unpatch():
         "Flask.after_request",
         "Flask.teardown_request",
         "Flask.teardown_appcontext",
-        # Blueprint
-        "Blueprint.register",
-        "Blueprint.add_url_rule",
         # Blueprint Hooks
         "Blueprint.after_app_request",
         "Blueprint.after_request",
@@ -388,13 +373,13 @@ def unpatch():
         _u(obj, prop)
 
 
-@with_instance_pin
-def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
+@with_tracing_enabled
+def patched_wsgi_app(wrapped, instance, args, kwargs):
     # This wrapper is the starting point for all requests.
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-    middleware = _FlaskWSGIMiddleware(wrapped, pin.tracer, config.flask, pin)
+    middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask)
     return middleware(environ, start_response)
 
 
@@ -406,36 +391,6 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     if getattr(rv, "is_sequence", False):
         core.dispatch("flask.finalize_request.post", (rv.response, rv.headers))
     return rv
-
-
-def patched_blueprint_register(wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.blueprints.Blueprint.register
-
-    This wrapper just ensures the blueprint has a pin, either set manually on
-    itself from the user or inherited from the application
-    """
-    app = get_argument_value(args, kwargs, 0, "app")
-    # Check if this Blueprint has a pin, otherwise clone the one from the app onto it
-    pin = Pin.get_from(instance)
-    if not pin:
-        pin = Pin.get_from(app)
-        if pin:
-            pin.clone().onto(instance)
-    return wrapped(*args, **kwargs)
-
-
-def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
-    pin = Pin._find(wrapped, instance)
-    if not pin:
-        return wrapped(*args, **kwargs)
-
-    def _wrap(rule, endpoint=None, view_func=None, **kwargs):
-        if view_func:
-            pin.clone().onto(view_func)
-        return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
-
-    return _wrap(*args, **kwargs)
 
 
 def patched_render_debugger_html(wrapped, instance, args, kwargs):
@@ -500,17 +455,16 @@ def _build_render_template_wrapper(name):
     name = "flask.%s" % name
 
     def traced_render(wrapped, instance, args, kwargs):
-        pin = Pin._find(wrapped, instance, get_current_app())
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
         with (
             core.context_with_data(
                 "flask.render_template",
                 span_name=name,
-                pin=pin,
                 flask_config=config.flask,
                 tags={COMPONENT: config.flask.integration_name},
                 span_type=SpanTypes.TEMPLATE,
+                integration_config=config.flask,
             ) as ctx,
             ctx.span,
         ):
@@ -520,9 +474,7 @@ def _build_render_template_wrapper(name):
 
 
 def patched_render(wrapped, instance, args, kwargs):
-    pin = Pin._find(wrapped, instance, get_current_app())
-
-    if not pin.enabled:
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
@@ -546,27 +498,16 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def _block_request_callable(call):
-    set_blocked()
-    core.dispatch("flask.blocked_request_callable", (call,))
-    block_config = get_blocked()
-    ctype = block_config.content_type if block_config else "application/json"
-    block_id = block_config.block_id if block_config else "(default)"
-    abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=403))
-
-
 def request_patcher(name):
-    @with_instance_pin
-    def _patched_request(pin, wrapped, instance, args, kwargs):
+    @with_tracing_enabled
+    def _patched_request(wrapped, instance, args, kwargs):
         with (
             core.context_with_data(
                 "flask._patched_request",
                 span_name=".".join(("flask", name)),
-                pin=pin,
-                service=trace_utils.int_service(pin, config.flask, pin),
+                service=trace_utils.int_service(None, config.flask),
                 flask_config=config.flask,
                 flask_request=flask.request,
-                block_request_callable=_block_request_callable,
                 ignored_exception_type=NotFound,
                 tags={COMPONENT: config.flask.integration_name},
             ) as ctx,
@@ -586,14 +527,13 @@ def patched_signal_receivers_for(signal):
         if isinstance(sender, flask.Flask):
             app = sender
         for receiver in wrapped(*args, **kwargs):
-            yield _wrap_call_with_pin_check(receiver, app, func_name(receiver), signal=signal)
+            yield _wrap_call_with_tracing_check(receiver, app, func_name(receiver), signal=signal)
 
     return outer
 
 
 def patched_jsonify(wrapped, instance, args, kwargs):
-    pin = Pin._find(wrapped, instance, get_current_app())
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     with (
@@ -602,7 +542,6 @@ def patched_jsonify(wrapped, instance, args, kwargs):
             span_name="flask.jsonify",
             flask_config=config.flask,
             tags={COMPONENT: config.flask.integration_name},
-            pin=pin,
         ) as ctx,
         ctx.span,
     ):

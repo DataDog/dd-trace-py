@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 # 3p
 import kombu
@@ -24,6 +23,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -33,8 +33,7 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return str(kombu.__version__)
 
 
@@ -51,7 +50,7 @@ config._add(
 propagator = HTTPPropagator
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"kombu": ">=4.6.6"}
 
 
@@ -109,27 +108,26 @@ def traced_receive(func, instance, args, kwargs):
     # Signature only takes 2 args: (body, message)
     message = get_argument_value(args, kwargs, 1, "message")
 
-    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, int_config=config.kombu)
+    trace_utils.activate_distributed_headers(tracer, request_headers=message.headers, int_config=config.kombu)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s._set_tag_str(COMPONENT, config.kombu.integration_name)
+        s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        s._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
 
-        # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s._set_attribute(_SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
-        s._set_tag_str(kombux.EXCHANGE, exchange)
+        s._set_attribute(kombux.EXCHANGE, exchange)
 
         s.set_tags(extract_conn_tags(message.channel.connection))
-        s._set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
+        s._set_attribute(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         result = func(*args, **kwargs)
         core.dispatch("kombu.amqp.receive.post", [instance, message, s])
         return result
@@ -140,26 +138,25 @@ def traced_publish(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s._set_tag_str(COMPONENT, config.kombu.integration_name)
+        s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        s._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
-        # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s._set_attribute(_SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
-        s._set_tag_str(kombux.EXCHANGE, exchange_name)
+        s._set_attribute(kombux.EXCHANGE, exchange_name)
         if pin.tags:
             s.set_tags(pin.tags)
-        s._set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
+        s._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
-        s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
+        s._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
         # run the command
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])

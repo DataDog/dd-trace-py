@@ -1,5 +1,3 @@
-from typing import Dict
-
 import mako
 from mako.template import DefTemplate
 from mako.template import Template
@@ -14,16 +12,16 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.trace import tracer
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(mako, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"mako": ">=1.0.0"}
 
 
@@ -64,13 +62,12 @@ def _wrap_render(wrapped, instance, args, kwargs):
         template_name = getattr(instance, "filename", None)
     template_name = template_name or DEFAULT_TEMPLATE_NAME
 
-    with pin.tracer.trace(
+    with tracer.trace(
         func_name(wrapped), int_service(pin, config.mako, schematize_service_name("mako")), span_type=SpanTypes.TEMPLATE
     ) as span:
-        span._set_tag_str(COMPONENT, "mako")
+        span._set_attribute(COMPONENT, "mako")
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)
         finally:

@@ -16,4 +16,4 @@ def ai_guard_client(tracer) -> AIGuardClient:
             _dd_app_key="test-application-key",
         )
     ):
-        return new_ai_guard_client(tracer=tracer)
+        return new_ai_guard_client()

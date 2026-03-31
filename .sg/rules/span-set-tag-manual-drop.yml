@@ -1,0 +1,13 @@
+id: span-set-tag-manual-drop
+message: "Use `span._override_sampling_decision(USER_REJECT)` instead of `set_tag(MANUAL_DROP_KEY)`"
+severity: warning
+language: python
+rule:
+  any:
+    - pattern: $X.set_tag(MANUAL_DROP_KEY)
+    - pattern: $X.set_tag(MANUAL_DROP_KEY, $VALUE)
+note: |
+  `set_tag(MANUAL_DROP_KEY)` is a special case that calls `_override_sampling_decision(USER_REJECT)`.
+  The value argument (if any) is ignored by `set_tag`.
+  Use `span._override_sampling_decision(USER_REJECT)` directly to make this side-effect explicit.
+  Remember to import USER_REJECT from ddtrace.constants.

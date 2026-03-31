@@ -1,0 +1,19 @@
+interactions:
+- request:
+    body: null
+    headers:
+      accept:
+      - application/json
+      content-type:
+      - application/json
+    method: POST
+    uri: https://test.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-10-21
+  response:
+    content: '{"id":"chatcmpl-test-score","object":"chat.completion","created":1700000000,"model":"gpt-4o","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"score_eval\":
+      8}"}}],"usage":{"prompt_tokens":20,"completion_tokens":10,"total_tokens":30}}'
+    headers:
+      Content-Type:
+      - application/json
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

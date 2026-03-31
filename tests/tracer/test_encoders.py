@@ -5,7 +5,6 @@ import random
 import string
 import threading
 from typing import Any
-from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -27,6 +26,7 @@ from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
@@ -227,6 +227,55 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
+    def test_encode_traces_json_agentless(self):
+        span = Span(
+            name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
+        )
+        span.set_tag("tag1", "value1")
+        span.set_tag("manual.keep")
+        span._set_attribute("munir.metric", 1.0)
+        span.set_link(trace_id=3, span_id=4)
+        span.error = 1
+        span.start_ns = 1771941568700091000
+        span.duration_ns = 1000000000
+
+        span.span_type = SpanTypes.WEB
+        span._set_struct_tag("payload", {"key": "value"})
+        encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
+        encoder.put([span])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        data = json.loads(payload_bytes.decode("utf-8"))
+
+        assert n_traces == 1
+        assert data == {
+            "traces": [
+                {
+                    "spans": [
+                        {
+                            "trace_id": "1234567890abcdef",
+                            "parent_id": "0000000000000000",
+                            "span_id": "1234567890abcdef",
+                            "service": "svc",
+                            "resource": "/r",
+                            "name": "span1",
+                            "error": 1,
+                            "start": 1771941568700091000,
+                            "duration": 1000000000,
+                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                            "type": "web",
+                            "span_links": [
+                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
+                            ],
+                            "meta_struct": {"payload": {"key": "value"}},
+                        }
+                    ]
+                }
+            ]
+        }
+
 
 def test_encode_meta_struct():
     # test encoding for MsgPack format
@@ -320,7 +369,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0]._set_tag_str("some_tag", rand_string)
+    trace[0]._set_attribute("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -332,7 +381,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
@@ -549,9 +598,9 @@ def test_span_link_v04_encoding():
                     "link.name": "link_name",
                     "link.kind": "link_kind",
                     "someval": 1,
-                    "drop_me": "bye",
                     "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -562,10 +611,6 @@ def test_span_link_v04_encoding():
         extra_attributes={"some": "extra"},
     )
     assert span._links
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_6, *others] = [link for link in span._links if link.span_id == 6]
-    assert not others
-    link_6._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -629,8 +674,6 @@ def test_span_link_v04_encoding():
 def test_span_event_encoding_msgpack():
     import os
 
-    import mock
-
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
     from tests.tracer.test_encoders import decode
@@ -669,8 +712,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
-        span._add_event("We are going to the moon")
+    span._add_event("We are going to the moon", timestamp=2234567890123456)
 
     # Get test parameters from environment variables
     version = os.getenv("DD_TRACE_API_VERSION")
@@ -730,9 +772,9 @@ def test_span_link_v05_encoding():
                     "moon": "ears",
                     "link.name": "link_name",
                     "link.kind": "link_kind",
-                    "drop_me": "bye",
                     "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
+                _dropped_attributes=1,
             ),
         ],
     )
@@ -743,10 +785,6 @@ def test_span_link_v05_encoding():
     )
 
     assert len(span._links) == 3
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
-    assert not others
-    link_bignum._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -829,9 +867,10 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-def test_encoder_buffer_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
-    encoder = MsgpackEncoderV05(buffer_size, buffer_size)
+    encoder = encoder_cls(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
     encoder.put(trace)
@@ -850,20 +889,16 @@ def test_encoder_buffer_size_limit_v05():
         encoder.put(trace)
 
 
-def test_encoder_buffer_item_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
-    encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
+    encoder = encoder_cls(max_item_size << 1, max_item_size)
 
     span = Span(name="test")
-    trace = [span]
-    encoder.put(trace)
-    base_size = encoder.size
-    encoder.put(trace)
-
-    trace_size = encoder.size - base_size
-
+    encoder.put([span])
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        span.set_tag("test", "a" * (max_item_size + 1))
+        encoder.put([span])
 
 
 def test_custom_msgpack_encode_v05():
@@ -946,33 +981,55 @@ def _value():
 
 
 @pytest.mark.parametrize(
-    "data",
+    "field,invalid_value,expected_value,span_name",
     [
-        {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
-        {"parent_id": "parent_id"},
-        {"service": True},
-        {"resource": 50},
-        {"name": [1, 2, 3]},
-        {"start_ns": []},
-        {"duration_ns": {}},
-        {"span_type": 100},
+        ("service", True, None, "test"),  # Invalid service type -> None
+        ("name", [1, 2, 3], "", "test"),  # Invalid name type -> "" (default)
+        ("service", {"dict": "value"}, None, "test"),  # Invalid service type -> None
+        ("name", 123, "", "test"),  # Invalid name type -> ""
+        ("resource", 50, "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", [1, 2, 3], "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", {"dict": "value"}, "", "my-name"),  # Invalid resource type -> "" (empty string)
+        ("span_type", 100, None, "test"),  # Invalid span_type -> None
+        ("span_type", True, None, "test"),  # Invalid span_type -> None
+        ("span_type", {"dict": "value"}, None, "test"),  # Invalid span_type -> None
+        ("start_ns", [], 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("start_ns", {}, 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("duration_ns", {}, None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
+        ("duration_ns", [], None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
     ],
 )
-def test_encoding_invalid_data_raises(data):
+def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_value, expected_value, span_name):
+    """Test that invalid data types for Rust-backed string fields are handled gracefully.
+
+    Since name, service, resource, span_type, start_ns, and duration_ns are now backed by Rust, invalid types
+    are converted at setter time rather than raising during encoding.
+
+    - Invalid name types -> "" (empty string)
+    - Invalid service types -> None (allows inheritance from parent/config)
+    - Invalid resource types -> "" (empty string)
+      Note: fallback to name only happens when resource=None in __new__, not on setter
+    - Invalid span_type types -> None
+    - Invalid start_ns types -> 0 (default)
+    - Invalid duration_ns types -> None (sentinel -1 for "not set")
+    """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
-    span = Span(name="test")
-    for key, value in data.items():
-        setattr(span, key, value)
+    span = Span(name=span_name)
+    setattr(span, field, invalid_value)
 
+    # Ensure name is never None (must always be a string)
+    assert span.name is not None
+    assert isinstance(span.name, str)
+
+    # Should not raise - invalid types are converted gracefully
     trace = [span]
-    with pytest.raises(RuntimeError) as e:
-        encoder.put(trace)
+    encoder.put(trace)
 
-    assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
-    assert (not encoded_traces) or (encoded_traces[0][0] is None)
+    assert encoded_traces is not None
+    # Verify the span field was converted to the expected value
+    assert getattr(span, field) == expected_value
 
 
 @pytest.mark.parametrize(
@@ -984,7 +1041,7 @@ def test_encoding_invalid_data_raises(data):
         ({}, {"key": "value"}),
     ],
 )
-def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
     """Encoding invalid meta/metrics data should not raise an exception"""
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
@@ -1049,7 +1106,10 @@ def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
 
-    Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
+    Ensure we properly handle `bytes` objects when encoding with the JSONEncoder.
+
+    Note: Invalid UTF-8 bytes are converted to empty string at the Rust layer,
+    as we only accept valid str/bytes/None types for span names.
     """
     import json
     import os
@@ -1063,7 +1123,7 @@ def test_json_encoder_traces_bytes():
     data = encoder.encode_traces(
         [
             [
-                Span(name=b"\x80span.a"),
+                Span(name=b"\x80span.a"),  # Invalid UTF-8 bytes -> empty string
                 Span(name="\x80span.b"),
                 Span(name="\x80span.b"),
             ]
@@ -1076,6 +1136,7 @@ def test_json_encoder_traces_bytes():
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
 
-    assert "\\x80span.a" == span_a["name"]
+    # Invalid UTF-8 bytes are converted to empty string
+    assert "" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]

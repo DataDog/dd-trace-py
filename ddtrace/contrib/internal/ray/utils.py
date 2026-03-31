@@ -8,8 +8,6 @@ import socket
 import sys
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 
 import ray
@@ -60,7 +58,7 @@ def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     return old_sig.replace(parameters=sorted_params)
 
 
-def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
+def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
     if "kwargs" not in kwargs or kwargs["kwargs"] is None:
@@ -87,36 +85,36 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
 
 
 def _inject_ray_span_tags_and_metrics(span: Span) -> None:
-    span._set_tag_str("component", RAY_COMPONENT)
-    span._set_tag_str(RAY_HOSTNAME, socket.gethostname())
-    span.set_metric(_AI_OBS_ENABLED_KEY, 1)
-    span.set_metric(_DJM_ENABLED_KEY, 1)
-    span.set_metric(_FILTER_KEPT_KEY, 1)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+    span._set_attribute("component", RAY_COMPONENT)
+    span._set_attribute(RAY_HOSTNAME, socket.gethostname())
+    span._set_attribute(_AI_OBS_ENABLED_KEY, 1)
+    span._set_attribute(_DJM_ENABLED_KEY, 1)
+    span._set_attribute(_FILTER_KEPT_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
     submission_id = os.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
-        span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+        span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 
     if ray.is_initialized():
         runtime_context = get_runtime_context()
 
-        span._set_tag_str(RAY_JOB_ID, runtime_context.get_job_id())
-        span._set_tag_str(RAY_NODE_ID, runtime_context.get_node_id())
+        span._set_attribute(RAY_JOB_ID, runtime_context.get_job_id())
+        span._set_attribute(RAY_NODE_ID, runtime_context.get_node_id())
 
         worker_id = runtime_context.get_worker_id()
         if worker_id is not None:
-            span._set_tag_str(RAY_WORKER_ID, worker_id)
+            span._set_attribute(RAY_WORKER_ID, worker_id)
 
         if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
             task_id = runtime_context.get_task_id()
             if task_id is not None:
-                span._set_tag_str(RAY_TASK_ID, task_id)
+                span._set_attribute(RAY_TASK_ID, task_id)
 
         actor_id = runtime_context.get_actor_id()
         if actor_id is not None:
-            span._set_tag_str(RAY_ACTOR_ID, actor_id)
+            span._set_attribute(RAY_ACTOR_ID, actor_id)
 
 
 def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
@@ -187,7 +185,7 @@ def redact_paths(s: str) -> str:
     return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
 
 
-def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
+def flatten_metadata_dict(data: dict) -> dict[str, Any]:
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
     dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.
@@ -237,7 +235,7 @@ def get_signature(func: Any) -> inspect.Signature:
     it is relatively stable. Future versions of Python may allow overloading
     the inspect 'isfunction' and 'ismethod' functions / create ABC for Python
     functions. Until then, it appears that Cython won't do anything about
-    compatability with the inspect module.
+    compatibility with the inspect module.
 
     Args:
         func: The function whose signature should be checked.
@@ -268,7 +266,7 @@ def get_signature(func: Any) -> inspect.Signature:
     return inspect.signature(func)
 
 
-def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
+def extract_signature(func: Any, ignore_first: bool = False) -> list[Parameter]:
     """Extract the function signature from the function.
 
     Args:
@@ -277,7 +275,7 @@ def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
             be used when func is a method of a class.
 
     Returns:
-        List of Parameter objects representing the function signature.
+        list of Parameter objects representing the function signature.
     """
     signature_parameters = list(get_signature(func).parameters.values())
 

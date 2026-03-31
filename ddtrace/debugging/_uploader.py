@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Optional
-from typing import Set
 from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
@@ -57,8 +56,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
     """
 
     _instance: Optional["SignalUploader"] = None
-    _products: Set[UploaderProduct] = set()
-    _agent_endpoints: Set[str] = set()
+    _products: set[UploaderProduct] = set()
+    _agent_endpoints: set[str] = set()
 
     __queue__ = SignalQueue
     __collector__ = SignalCollector
@@ -75,7 +74,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(
                 track=SignalTrack.LOGS,
-                endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                endpoint=f"/debugger/v2/input{endpoint_suffix}",  # start optimistically
                 queue=self.__queue__(
                     encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
                 ),
@@ -120,23 +119,29 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             return False
 
         endpoints = set(agent_info.get("endpoints", []))
+
+        logs_track = self._tracks[SignalTrack.LOGS]
         snapshot_track = self._tracks[SignalTrack.SNAPSHOT]
+        logs_track.enabled = True
         snapshot_track.enabled = True
 
         if "/debugger/v2/input" in endpoints:
             log.debug("Detected /debugger/v2/input endpoint")
+            logs_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v2/input{self._endpoint_suffix}"
         elif "/debugger/v1/diagnostics" in endpoints:
             log.debug("Detected /debugger/v1/diagnostics endpoint fallback")
+            logs_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
             snapshot_track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
         else:
+            logs_track.enabled = False
             snapshot_track.enabled = False
             log.warning(
                 UNSUPPORTED_AGENT,
                 extra={
                     "product": "debugger",
                     "more_info": (
-                        "Unsupported Datadog agent detected. Snapshots from Dynamic Instrumentation/"
+                        "Unsupported Datadog agent detected. Logs and snapshots from Dynamic Instrumentation/"
                         "Exception Replay/Code Origin for Spans will not be uploaded. "
                         "Please upgrade to version 7.49.0 or later"
                     ),
@@ -179,6 +184,13 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
 
+    def _downgrade_to_diagnostics(self) -> None:
+        """Downgrade both tracks to the diagnostics endpoint."""
+        diagnostics_endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
+        self._tracks[SignalTrack.LOGS].endpoint = diagnostics_endpoint
+        self._tracks[SignalTrack.SNAPSHOT].endpoint = diagnostics_endpoint
+        log.debug("Downgrading debugger endpoints to %s", diagnostics_endpoint)
+
     def _flush_track(self, track: UploaderTrack) -> None:
         if (data := track.queue.flush()) is not None and track.enabled:
             payload, count = data
@@ -186,16 +198,15 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 self._write_with_backoff(payload, track.endpoint)
                 meter.distribution("batch.cardinality", count)
             except SignalUploaderError:
-                if track.track is SignalTrack.SNAPSHOT and not track.endpoint.startswith("/debugger/v1/diagnostics"):
-                    # Downgrade to diagnostics endpoint and retry once
-                    track.endpoint = f"/debugger/v1/diagnostics{self._endpoint_suffix}"
-                    log.debug("Downgrading snapshot endpoint to %s and trying again", track.endpoint)
+                if not track.endpoint.startswith("/debugger/v1/diagnostics"):
+                    # Downgrade both tracks to diagnostics endpoint and retry once
+                    self._downgrade_to_diagnostics()
                     self._write_with_backoff(payload, track.endpoint)
                     meter.distribution("batch.cardinality", count)
                 else:
                     raise  # Propagate error to transition to agent check state
             except Exception:
-                log.debug("Cannot upload logs payload", exc_info=True)
+                log.debug("Cannot upload payload", exc_info=True)
 
     def online(self) -> None:
         """Upload the buffer content to the agent."""
@@ -210,11 +221,11 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             if track.queue.count:
                 self._flush_track(track)
 
-        if not self._tracks[SignalTrack.SNAPSHOT].enabled:
-            # If the snapshot track is not enabled, we raise an exception to
+        if not self._tracks[SignalTrack.SNAPSHOT].enabled or not self._tracks[SignalTrack.LOGS].enabled:
+            # If the tracks are not enabled, we raise an exception to
             # transition back to the agent check state in case we detect an
-            # agent that can handle snapshots safely.
-            msg = "Snapshot track not enabled"
+            # agent that can handle logs and snapshots safely.
+            msg = "Debugger tracks not enabled"
             raise ValueError(msg)
 
     on_shutdown = online

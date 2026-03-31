@@ -5,7 +5,6 @@ import os
 import sys
 from typing import Any
 from typing import Callable
-from typing import Dict
 
 import ray
 from wrapt import wrap_function_wrapper as _w
@@ -93,7 +92,7 @@ config._add(
 )
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"ray": ">=2.46.0"}
 
 
@@ -137,13 +136,13 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
             result = wrapped(*args, **kwargs)
 
-            task_execute_span._set_tag_str(RAY_TASK_STATUS, RAY_STATUS_SUCCESS)
+            task_execute_span._set_attribute(RAY_TASK_STATUS, RAY_STATUS_SUCCESS)
             return result
         except BaseException as e:
             log.debug(
                 "Ray task %s execution failed: %s", f"{wrapped.__module__}.{wrapped.__qualname__}", e, exc_info=True
             )
-            task_execute_span._set_tag_str(RAY_TASK_STATUS, RAY_STATUS_ERROR)
+            task_execute_span._set_attribute(RAY_TASK_STATUS, RAY_STATUS_ERROR)
             raise
 
 
@@ -175,7 +174,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
         service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags_and_metrics(span)
 
         try:
@@ -190,11 +189,11 @@ def traced_submit_task(wrapped, instance, args, kwargs):
 
             resp = wrapped(*args, **kwargs)
 
-            span._set_tag_str(RAY_TASK_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
+            span._set_attribute(RAY_TASK_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
             return resp
         except BaseException as e:
             log.debug("Failed to submit Ray task %s : %s", f"{instance._function_name}.remote()", e, exc_info=True)
-            span._set_tag_str(RAY_TASK_SUBMIT_STATUS, RAY_STATUS_ERROR)
+            span._set_attribute(RAY_TASK_SUBMIT_STATUS, RAY_STATUS_ERROR)
             raise e
 
 
@@ -203,7 +202,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     of creating the root span.
     It will also inject _RAY_SUBMISSION_ID and _RAY_JOB_NAME
     in the env variable as some spans will not have access to them
-    trough ray_ctx
+    through ray_ctx
     """
     from ray.dashboard.modules.job.job_manager import generate_job_id
 
@@ -231,9 +230,9 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     try:
         # Root span creation
         _inject_ray_span_tags_and_metrics(job_span)
-        job_span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+        job_span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
         if entrypoint:
-            job_span._set_tag_str(RAY_ENTRYPOINT, entrypoint)
+            job_span._set_attribute(RAY_ENTRYPOINT, entrypoint)
 
         dot_paths = flatten_metadata_dict(metadata)
         for k, v in dot_paths.items():
@@ -246,8 +245,8 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             "ray.job.submit", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY
         ) as submit_span:
             _inject_ray_span_tags_and_metrics(submit_span)
-            submit_span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-            submit_span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
+            submit_span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
+            submit_span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 
             # Inject the context of the job so that ray.job.run is its child
             runtime_env = kwargs.get("runtime_env") or {}
@@ -262,14 +261,14 @@ def traced_submit_job(wrapped, instance, args, kwargs):
 
             try:
                 resp = wrapped(*args, **kwargs)
-                submit_span._set_tag_str(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
+                submit_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
                 return resp
             except BaseException as e:
                 log.debug("Failed to submit Ray Job %s : %s", job_name, e, exc_info=True)
-                submit_span._set_tag_str(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_ERROR)
+                submit_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_ERROR)
                 raise
     except BaseException as e:
-        job_span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_ERROR)
+        job_span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_ERROR)
         job_span.error = 1
         job_span.set_exc_info(type(e), e, e.__traceback__)
         stop_long_running_job(submission_id)
@@ -300,7 +299,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         span_type=SpanTypes.RAY,
         resource=f"{actor_name}.{method_name}.remote",
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         if config.ray.trace_args_kwargs:
             set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
             set_tag_or_truncate(span, RAY_ACTOR_METHOD_KWARGS, get_argument_value(args, kwargs, 1, "kwargs"))
@@ -327,13 +326,13 @@ def traced_get(wrapped, instance, args, kwargs):
         child_of=tracer.context_provider.active(),
         activate=True,
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         timeout = kwargs.get("timeout")
         if timeout is not None:
-            span._set_tag_str("ray.get.timeout_s", str(timeout))
+            span._set_attribute("ray.get.timeout_s", str(timeout))
         _inject_ray_span_tags_and_metrics(span)
         get_value = get_argument_value(args, kwargs, 0, "object_refs")
-        span._set_tag_str(RAY_GET_VALUE_SIZE_BYTES, str(sys.getsizeof(get_value)))
+        span._set_attribute(RAY_GET_VALUE_SIZE_BYTES, str(sys.getsizeof(get_value)))
         return wrapped(*args, **kwargs)
 
 
@@ -348,12 +347,12 @@ def traced_put(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace("ray.put", service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags_and_metrics(span)
 
         put_value = get_argument_value(args, kwargs, 0, "value")
-        span._set_tag_str(RAY_PUT_VALUE_TYPE, str(type(put_value).__name__))
-        span._set_tag_str(RAY_PUT_VALUE_SIZE_BYTES, str(sys.getsizeof(put_value)))
+        span._set_attribute(RAY_PUT_VALUE_TYPE, str(type(put_value).__name__))
+        span._set_attribute(RAY_PUT_VALUE_SIZE_BYTES, str(sys.getsizeof(put_value)))
 
         return wrapped(*args, **kwargs)
 
@@ -376,18 +375,18 @@ def traced_wait(wrapped, instance, args, kwargs):
         child_of=tracer.context_provider.active(),
         activate=True,
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags_and_metrics(span)
 
         timeout = kwargs.get("timeout")
         num_returns = kwargs.get("num_returns")
         fetch_local = kwargs.get("fetch_local")
         if timeout is not None:
-            span._set_tag_str(RAY_WAIT_TIMEOUT, str(timeout))
+            span._set_attribute(RAY_WAIT_TIMEOUT, str(timeout))
         if num_returns is not None:
-            span._set_tag_str(RAY_WAIT_NUM_RETURNS, str(num_returns))
+            span._set_attribute(RAY_WAIT_NUM_RETURNS, str(num_returns))
         if fetch_local is not None:
-            span._set_tag_str(RAY_WAIT_FETCH_LOCAL, str(fetch_local))
+            span._set_attribute(RAY_WAIT_FETCH_LOCAL, str(fetch_local))
         return wrapped(*args, **kwargs)
 
 
@@ -444,7 +443,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
             service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
-            span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+            span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags_and_metrics(span)
 
             return method(self, *args, **kwargs)

@@ -1,3 +1,6 @@
+from typing import Final
+
+
 SPAN_KIND = "_ml_obs.meta.span.kind"
 SESSION_ID = "_ml_obs.session_id"
 METADATA = "_ml_obs.meta.metadata"
@@ -13,6 +16,7 @@ AGENT_MANIFEST = "_ml_obs.meta.agent_manifest"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
 MODEL_PROVIDER = "_ml_obs.meta.model_provider"
+UNKNOWN_MODEL_PROVIDER = "unknown"
 
 INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
@@ -32,12 +36,13 @@ SPAN_START_WHILE_DISABLED_WARNING = (
     " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
+CLAUDE_AGENT_SDK_APM_SPAN_NAME = "claude_agent_sdk.request"
+CREWAI_APM_SPAN_NAME = "crewai.request"
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
-CREWAI_APM_SPAN_NAME = "crewai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
@@ -46,6 +51,8 @@ CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
+CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
+CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -66,6 +73,7 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
+DD_SITE_STAGING = "datad0g.com"
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
@@ -131,6 +139,7 @@ EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
+EXPERIMENT_CONFIG = "_ml_obs.config"
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
@@ -145,3 +154,44 @@ FILE_FALLBACK_MARKER = "[file]"
 INPUT_TYPE_IMAGE = "input_image"
 INPUT_TYPE_FILE = "input_file"
 INPUT_TYPE_TEXT = "input_text"
+
+# Managed Prompts Cache and Timeout defaults
+DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
+
+# Managed Prompts API
+PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
+
+
+class LLMOBS_STRUCT:
+    """Nested LLMObs struct keys in span._meta_struct."""
+
+    KEY: Final = "llmobs"
+    NAME: Final = "name"
+    PARENT_ID: Final = "parent_id"
+    TRACE_ID: Final = "trace_id"
+    ML_APP: Final = "ml_app"
+    SESSION_ID: Final = "session_id"
+    TAGS: Final = "tags"
+    PROMPT: Final = "prompt"
+    METRICS: Final = "metrics"
+    METADATA: Final = "metadata"
+    SPAN_LINKS: Final = "span_links"
+    # All ragas traces have this context item set so we can differentiate
+    # spans generated from the ragas integration vs user application spans.
+    IS_EVALUATION_SPAN: Final = "is_evaluation_span"
+    META: Final = "meta"
+    TOOL_DEFINITIONS: Final = "tool_definitions"
+    INPUT: Final = "input"
+    OUTPUT: Final = "output"
+    EXPECTED_OUTPUT: Final = "expected_output"
+    VALUE: Final = "value"
+    MESSAGES: Final = "messages"
+    DOCUMENTS: Final = "documents"
+    AGENT_MANIFEST: Final = "agent_manifest"
+    SPAN: Final = "span"
+    KIND: Final = "kind"
+    MODEL_NAME: Final = "model_name"
+    MODEL_PROVIDER: Final = "model_provider"
+    INTENT: Final = "intent"
+    CONFIG: Final = "config"

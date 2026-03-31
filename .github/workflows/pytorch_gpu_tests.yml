@@ -7,11 +7,13 @@ on:
     paths:
       - ddtrace/internal/datadog/profiling/**
       - ddtrace/profiling/**
+      - scripts/download-s3-wheels.sh
       - .github/workflows/pytorch_gpu_tests.yml
   pull_request:
     paths:
       - ddtrace/internal/datadog/profiling/**
       - ddtrace/profiling/**
+      - scripts/download-s3-wheels.sh
       - .github/workflows/pytorch_gpu_tests.yml
   workflow_dispatch:
 
@@ -19,26 +21,79 @@ jobs:
    unit-tests:
     runs-on: APM-4-CORE-GPU-LINUX
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # Include all history and tags
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
-        name: Install Python
+      - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: '3.12'
 
-      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
-      - name: Install latest stable toolchain and rustfmt
-        run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
+      - name: Setup uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.10.4"
 
-      - name: Install hatch
-        run: pip install hatch==1.12.0
+      - name: Show system info
+        run: uname -a
 
-      - name: Install PyTorch
-        run: pip install torch
+      - name: Resolve commit SHA
+        id: resolve-sha
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download ddtrace wheels from S3
+        run: |
+          bash scripts/download-s3-wheels.sh \
+            "${{ steps.resolve-sha.outputs.sha }}" \
+            ./wheels \
+            manylinux2014_x86_64
 
       - name: Run tests
-        run: hatch run profiling_pytorch:test
+        env:
+          DD_PROFILING_ENABLED: "true"
+          DD_PROFILING_PYTORCH_ENABLED: "true"
+        run: |
+          set -euo pipefail
+
+          REPO_ROOT="$(pwd)"
+          WHEEL_PATH=$(find "$REPO_ROOT/wheels" -maxdepth 1 -type f -name "ddtrace-*-cp312-cp312-*x86_64*.whl" | sort | head -n 1)
+          if [ -z "$WHEEL_PATH" ]; then
+            echo "Could not find a cp312 x86_64 wheel in ./wheels" >&2
+            ls -la ./wheels >&2
+            exit 1
+          fi
+          echo "Using wheel: $WHEEL_PATH"
+
+          ISOLATED_DIR="$(mktemp -d)"
+          TEST_ROOT="$ISOLATED_DIR/tests"
+
+          mkdir -p "$TEST_ROOT/profiling"
+          cp "$REPO_ROOT/tests/__init__.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/utils.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/subprocesstest.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
+          cp -R "$REPO_ROOT/tests/profiling/collector" "$TEST_ROOT/profiling/"
+
+          cd "$ISOLATED_DIR"
+
+          uv run \
+            --no-project \
+            --with "$WHEEL_PATH" \
+            --with protobuf \
+            --with pytest \
+            --with pytest-cov \
+            --with requests \
+            --with hypothesis \
+            --with "torch>=1.8.1" \
+            --with torchvision \
+            --with zstandard \
+            pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys

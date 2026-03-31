@@ -10,13 +10,13 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import TestRun
 
 
 if t.TYPE_CHECKING:
     from ddtrace.testing.internal.http import BackendConnectorSetup
+    from ddtrace.testing.internal.test_data import TestRun
 
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ class ErrorType(str, Enum):
     TIMEOUT = "timeout"
     NETWORK = "network"
     CODE_4XX = "status_code_4xx_response"
+    RATE_LIMITED = "rate_limited"
     CODE_5XX = "status_code_5xx_response"
     BAD_JSON = "bad_json"
     UNKNOWN = "unknown"
@@ -81,17 +82,17 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
-    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[t.Dict[str, t.Any]] = None) -> None:
+    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
         log.debug("Recording Test Optimization telemetry count: %r %r %r", metric_name, value, tags)
         self.writer.add_count_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
     def add_distribution_metric(
-        self, metric_name: str, value: float, tags: t.Optional[t.Dict[str, t.Any]] = None
+        self, metric_name: str, value: float, tags: t.Optional[dict[str, t.Any]] = None
     ) -> None:
         log.debug("Recording Test Optimization telemetry distribution: %r %r %r", metric_name, value, tags)
         self.writer.add_distribution_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
-    def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Tuple[t.Tuple[str, str], ...]:
+    def _make_tags(self, tags: t.Optional[dict[str, t.Any]]) -> tuple[tuple[str, str], ...]:
         """
         Convert a tag dictionary into a tag tuple.
 
@@ -101,7 +102,7 @@ class TelemetryAPI:
         if not tags:
             return ()
 
-        tag_list: t.List[t.Tuple[str, str]] = []
+        tag_list: list[tuple[str, str]] = []
         for key, value in tags.items():
             if value is None or value is False:
                 continue
@@ -143,6 +144,15 @@ class TelemetryAPI:
             else "itr_skippable_tests.response_tests"
         )
         self.add_count_metric(skippable_count_metric, count)
+
+    def record_itr_skipped(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_skipped", 1, {"event_type": event_type.value})
+
+    def record_itr_unskippable(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_unskippable", 1, {"event_type": event_type.value})
+
+    def record_itr_forced_run(self, event_type: EventType) -> None:
+        self.add_count_metric("itr_forced_run", 1, {"event_type": event_type.value})
 
     def record_settings(self, settings: Settings) -> None:
         tags = {
@@ -197,7 +207,7 @@ class TelemetryAPI:
         # `endpoint_payload.requests_errors` accepts a different set of error types, so we need to convert them here.
         if error == ErrorType.TIMEOUT:
             endpoint_error = "timeout"
-        elif error in (ErrorType.CODE_4XX, ErrorType.CODE_5XX):
+        elif error in (ErrorType.CODE_4XX, ErrorType.RATE_LIMITED, ErrorType.CODE_5XX):
             endpoint_error = "status_code"
         else:
             endpoint_error = "network"
@@ -304,4 +314,6 @@ class TelemetryAPIRequestMetrics:
             self.record_error(error)
 
     def record_error(self, error: ErrorType) -> None:
-        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error})
+        # Map RATE_LIMITED to the same telemetry value as CODE_4XX for cross-language consistency
+        error_type = ErrorType.CODE_4XX if error == ErrorType.RATE_LIMITED else error
+        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error_type})

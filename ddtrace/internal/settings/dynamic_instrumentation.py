@@ -14,8 +14,7 @@ from ddtrace.version import __version__
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
-def _derive_tags(c):
-    # type: (DDConfig) -> str
+def _derive_tags(c: DDConfig) -> str:
     _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=__version__)
     _tags.update(ddconfig.tags)
 
@@ -29,7 +28,7 @@ def normalize_ident(ident):
     return ident.strip().lower().replace("_", "")
 
 
-def validate_type_patterns(types: t.Set[str]):
+def validate_type_patterns(types: set[str]):
     for typ in types:
         for s in typ.strip().split("."):
             s = s.strip().replace("*", "a")

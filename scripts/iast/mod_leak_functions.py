@@ -4,7 +4,6 @@ import random
 import re
 import subprocess
 from typing import Optional
-from typing import Tuple
 
 import anyio
 from pydantic import BaseModel
@@ -54,7 +53,7 @@ class AspectModel(BaseModel):
 
 class Aspectvalidation(BaseModel):
     timestamp: datetime
-    tuple_strings: Tuple[str, str]
+    tuple_strings: tuple[str, str]
     dictionary_strs: dict[str, str]
     tag: Optional[str] = None
     author: Optional[str] = None
@@ -237,7 +236,13 @@ def re_module(string_tainted):
     return string27
 
 
+_sink_call_count = 0
+
+
 def sink_points(string_tainted):
+    global _sink_call_count
+    _sink_call_count += 1
+
     try:
         # Path traversal vulnerability
         m = open("/" + string_tainted + ".txt")
@@ -245,18 +250,23 @@ def sink_points(string_tainted):
     except Exception:
         pass
 
-    try:
-        # Command Injection vulnerability
-        _ = subprocess.Popen("ls " + string_tainted)
-    except Exception:
-        pass
+    # Command Injection and SSRF sinks are expensive (subprocess.Popen forks a process,
+    # requests.get does DNS resolution + HTTP connection). Only call them occasionally
+    # since the IAST sink detection is exercised on every call regardless of outcome,
+    # and this test's goal is to detect memory leaks, not to stress-test I/O.
+    if _sink_call_count % 100 == 1:
+        try:
+            # Command Injection vulnerability
+            _ = subprocess.Popen("ls " + string_tainted)
+        except Exception:
+            pass
 
-    try:
-        # SSRF vulnerability
-        requests.get("http://" + string_tainted, timeout=1)
-        # urllib3.request("GET", "http://" + "foobar")
-    except Exception:
-        pass
+        try:
+            # SSRF vulnerability
+            requests.get("http://" + string_tainted, timeout=1)
+            # urllib3.request("GET", "http://" + "foobar")
+        except Exception:
+            pass
 
     _ = eval(f"'a' + '{string_tainted}'")
     # Weak Randomness vulnerability

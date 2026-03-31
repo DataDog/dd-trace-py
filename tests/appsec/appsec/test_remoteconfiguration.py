@@ -12,7 +12,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
-from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
@@ -20,7 +19,6 @@ from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
-from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
@@ -30,6 +28,13 @@ from tests.appsec.utils import build_payload
 from tests.appsec.utils import get_waf_addresses
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+@pytest.fixture(autouse=True)
+def patch_remoteconfig_poller_for_appsec(rc_poller):
+    """Patch the global remoteconfig_poller with the test fixture for appsec tests."""
+    with mock.patch("ddtrace.appsec._remoteconfiguration.remoteconfig_poller", rc_poller):
+        yield
 
 
 def _set_and_get_appsec_tags(tracer, check_client_id=False):
@@ -57,19 +62,19 @@ def test_rc_enabled_by_default(tracer):
     assert asm_config._asm_can_be_enabled
 
 
-def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
+def test_rc_activate_is_active_and_get_processor_tags(tracer, rc_poller):
     with override_global_config(dict(_remote_config_enabled=True)):
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
         rc_config = build_payload("ASM_FEATURES", None, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
         assert AppSecSpanProcessor._instance is None
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
 
@@ -82,7 +87,7 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
         ("true", False),
     ],
 )
-def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
+def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, rc_poller):
     with (
         override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}),
         override_global_config(dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)),
@@ -90,7 +95,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": rc_value}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         result = _set_and_get_appsec_tags(tracer)
         assert result
 
@@ -103,7 +108,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         ("false", True),
     ],
 )
-def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
+def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, rc_poller):
     with override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
@@ -114,7 +119,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
             if rc_value is False:
                 rc_configs = []
 
-            _appsec_callback(rc_configs, tracer)
+            _appsec_callback(rc_configs)
             result = _set_and_get_appsec_tags(tracer)
             assert result is None
 
@@ -150,30 +155,30 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
         ({"_asm_static_rule_file": DEFAULT.RULES}, "gAAAAg=="),  # Only ASM_FEATURES
     ],
 )
-def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
+def test_rc_activation_capabilities(tracer, rc_poller, env_rules, expected):
     global_config = dict(_asm_enabled=False, _remote_config_enabled=True)
     global_config.update(env_rules)
     with override_global_config(global_config):
         rc_configs = [build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")]
         # flaky test
-        # assert not remoteconfig_poller._worker
+        # assert not rc_poller._worker
 
-        _appsec_callback(rc_configs, test_tracer=tracer)
+        _appsec_callback(rc_configs)
 
         assert _appsec_rc_capabilities() == expected
 
 
-def test_rc_activation_validate_products(tracer, remote_config_worker):
+def test_rc_activation_validate_products(tracer, rc_poller):
     with override_global_config(dict(_asm_enabled=False, _remote_config_enabled=True, api_version="v0.4")):
-        assert not remoteconfig_poller._worker
+        assert not rc_poller._worker
 
         enable_appsec_rc()
 
-        assert remoteconfig_poller._client._products["ASM_FEATURES"]
+        assert rc_poller._client._product_callbacks["ASM_FEATURES"]
     disable_appsec_rc()
 
 
-def test_rc_activation_validate_client_id(tracer, remote_config_worker):
+def test_rc_activation_validate_client_id(tracer, rc_poller):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc()
@@ -203,7 +208,7 @@ def test_rc_activation_validate_client_id(tracer, remote_config_worker):
     ],
 )
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
-    tracer, remote_config_worker, env_rules, expected, enable_config_content, disable_config_content
+    tracer, rc_poller, env_rules, expected, enable_config_content, disable_config_content
 ):
     global_config = dict(_remote_config_enabled=True, _asm_enabled=True)
     global_config.update(env_rules)
@@ -215,43 +220,42 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     disable_config = [build_payload("ASM_FEATURES", disable_config_content, "config")]
     with override_global_config(global_config):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
-        pubsub = remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+        enable_appsec_rc()
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _preprocess_results_appsec_1click_activation(empty_config, pubsub)
+        _appsec_callback(empty_config)
 
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending empty config for asm should disable asm (meaning asm was deleted)
-        _preprocess_results_appsec_1click_activation(disable_config, pubsub)
+        _appsec_callback(disable_config)
 
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _preprocess_results_appsec_1click_activation(empty_config, pubsub)
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+        _appsec_callback(empty_config)
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending config should enable asm again
-        _preprocess_results_appsec_1click_activation(enable_config, pubsub)
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM)) is expected
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+        _appsec_callback(enable_config)
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
     disable_appsec_rc()
 
 
 @pytest.mark.parametrize("auto_user", [True, False])
-def test_rc_activation_with_auto_user_appsec_fixed(tracer, remote_config_worker, auto_user):
+def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user):
     with (
         override_env({APPSEC.ENV: "true"}),
         override_global_config(
@@ -264,26 +268,20 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, remote_config_worker,
         ),
     ):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
 
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
-        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
-        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == auto_user
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)
+        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM)
+        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)) == auto_user
 
     disable_appsec_rc()
 
 
-@mock.patch(
-    "ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation",
-    wraps=_preprocess_results_appsec_1click_activation,
-)
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_callback")
-def test_load_new_configurations_dispatch_applied_configs(
-    mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
-):
+def test_load_new_configurations_dispatch_applied_configs(mock_appsec_rules_data, rc_poller, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": [{"test": "data"}]}'
         payload = AgentPayload(
@@ -309,31 +307,33 @@ def test_load_new_configurations_dispatch_applied_configs(
             ),
         }
         list_callbacks = []
-        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
         assert list_callbacks
-        remoteconfig_poller._client._publish_configuration(list_callbacks)
-        remoteconfig_poller._poll_data()
-        for mockf in [mock_appsec_1click_activation, mock_appsec_rules_data]:
-            assert mockf.call_count == 1
-            arg = mockf.call_args[0][0]
-            assert isinstance(arg, list)
-            assert len(arg) == 2
-            assert arg[0].metadata.product_name == "ASM_FEATURES"
-            assert arg[1].metadata.product_name == "ASM_DATA"
-        disable_appsec_rc()
+        rc_poller._client._publish_configuration(list_callbacks)
+        rc_poller.poll()
+
+        # Callback should be called at least once (once per product)
+        assert mock_appsec_rules_data.call_count >= 1
+
+        # Collect all payloads from all calls
+        all_payloads = []
+        for call in mock_appsec_rules_data.call_args_list:
+            payloads = call[0][0]
+            assert isinstance(payloads, list)
+            all_payloads.extend(payloads)
+
+        # Should have received both ASM_FEATURES and ASM_DATA payloads
+        product_names = {p.metadata.product_name for p in all_payloads}
+        assert "ASM_FEATURES" in product_names
+        assert "ASM_DATA" in product_names
+    disable_appsec_rc()
 
 
-@mock.patch(
-    "ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation",
-    wraps=_preprocess_results_appsec_1click_activation,
-)
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_callback")
-def test_load_new_configurations_empty_config(
-    mock_appsec_rules_data, mock_appsec_1click_activation, remote_config_worker, tracer
-):
+def test_load_new_configurations_empty_config(mock_appsec_rules_data, rc_poller, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": []}'
         payload = AgentPayload(
@@ -359,86 +359,89 @@ def test_load_new_configurations_empty_config(
             ),
         }
         list_callbacks = []
-        remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
-        remoteconfig_poller._client._publish_configuration(list_callbacks)
+        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._publish_configuration(list_callbacks)
 
-        remoteconfig_poller._poll_data()
-        for mockf in [mock_appsec_1click_activation, mock_appsec_rules_data]:
-            assert mockf.call_count == 1
-            arg = mockf.call_args[0][0]
-            assert isinstance(arg, list)
-            assert len(arg) == 2
-            assert arg[0].metadata.product_name == "ASM_FEATURES"
-            assert arg[1].metadata.product_name == "ASM_DATA"
+        rc_poller.poll()
+
+        # Callback should be called at least once (once per product)
+        assert mock_appsec_rules_data.call_count >= 1
+
+        # Collect all payloads from all calls
+        all_payloads = []
+        for call in mock_appsec_rules_data.call_args_list:
+            payloads = call[0][0]
+            assert isinstance(payloads, list)
+            all_payloads.extend(payloads)
+
+        # Should have received both ASM_FEATURES and ASM_DATA payloads
+        product_names = {p.metadata.product_name for p in all_payloads}
+        assert "ASM_FEATURES" in product_names
+        assert "ASM_DATA" in product_names
     disable_appsec_rc()
 
 
-@mock.patch(
-    "ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation",
-    wraps=_preprocess_results_appsec_1click_activation,
-)
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_callback")
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     mock_appsec_rules_data,
-    mock_preprocess_results_appsec_1click_activation,
-    remote_config_worker,
+    rc_poller,
 ):
     with override_global_config(dict(_remote_config_enabled=True)):
         enable_appsec_rc()
-    asm_features_data = b'{"asm":{"enabled":true}}'
-    asm_data_data = b'{"data":{}}'
-    payload = AgentPayload(
-        target_files=[
-            TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
-            TargetFile(path="mock/ASM_DATA", raw=base64.b64encode(asm_data_data)),
-        ]
-    )
-    client_configs = {
-        "mock/ASM_FEATURES": ConfigMetadata(
-            id="",
-            product_name="ASM_FEATURES",
-            sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
-            length=5,
-            tuf_version=5,
-        ),
-        "mock/ASM_DATA": ConfigMetadata(
-            id="",
-            product_name="ASM_DATA",
-            sha256_hash=hashlib.sha256(asm_data_data).hexdigest(),
-            length=5,
-            tuf_version=5,
-        ),
-    }
+        asm_features_data = b'{"asm":{"enabled":true}}'
+        asm_data_data = b'{"data":{}}'
+        payload = AgentPayload(
+            target_files=[
+                TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
+                TargetFile(path="mock/ASM_DATA", raw=base64.b64encode(asm_data_data)),
+            ]
+        )
+        client_configs = {
+            "mock/ASM_FEATURES": ConfigMetadata(
+                id="",
+                product_name="ASM_FEATURES",
+                sha256_hash=hashlib.sha256(asm_features_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+            "mock/ASM_DATA": ConfigMetadata(
+                id="",
+                product_name="ASM_DATA",
+                sha256_hash=hashlib.sha256(asm_data_data).hexdigest(),
+                length=5,
+                tuf_version=5,
+            ),
+        }
 
-    payload_mock = [build_payload("ASM_FEATURES", {"asm": {"enabled": False}}, "config")]
-    mock_preprocess_results_appsec_1click_activation.return_value = payload_mock
+        rc_poller._client._applied_configs = client_configs
+        list_callbacks = []
+        rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+        rc_poller._client._publish_configuration(list_callbacks)
 
-    remoteconfig_poller._client._applied_configs = client_configs
-    list_callbacks = []
-    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
-    remoteconfig_poller._client._publish_configuration(list_callbacks)
+        rc_poller.poll()
 
-    remoteconfig_poller._poll_data()
+        # Callback should be called with removal payloads (content=None)
+        assert mock_appsec_rules_data.call_count >= 1
 
-    arg = mock_preprocess_results_appsec_1click_activation.call_args[0][0]
-    assert isinstance(arg, list)
-    assert len(arg) == 1
-    mock_appsec_rules_data.assert_called_with(payload_mock)
+        # Verify at least one call has removal payload (content=None)
+        has_removal = any(any(p.content is None for p in call[0][0]) for call in mock_appsec_rules_data.call_args_list)
+        assert has_removal, "Expected at least one removal payload with content=None"
 
-    mock_appsec_rules_data.reset_mock()
+        mock_appsec_rules_data.reset_mock()
 
-    # Not called because with this configuration the above condition is True:
-    # applied_config = self._applied_configs.get(target)
-    # if applied_config == config:
-    #     continue
-    remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
-    remoteconfig_poller._client._publish_configuration(list_callbacks)
-    remoteconfig_poller._poll_data()
-    mock_appsec_rules_data.assert_not_called()  # ({"asm": {"enabled": False}}, None)
+        # Not called because with this configuration the above condition is True:
+        # applied_config = self._applied_configs.get(target)
+        # if applied_config == config:
+        #     continue
+        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._publish_configuration(list_callbacks)
+        rc_poller.poll()
+        # Should not be called again since configs haven't changed
+        mock_appsec_rules_data.assert_not_called()
     disable_appsec_rc()
 
 
-def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(remote_config_worker):
+def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(rc_poller):
     """
     The previous code raises a key error in `self._products[config.product_name]` when appsec features is disabled
     with ASM_FEATURES product and then loops over the config in _load_new_configurations
@@ -470,16 +473,16 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
         ),
     }
     list_callbacks = []
-    remoteconfig_poller._client._applied_configs = client_configs
-    remoteconfig_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
-    remoteconfig_poller._client._publish_configuration(list_callbacks)
+    rc_poller._client._applied_configs = client_configs
+    rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+    rc_poller._client._publish_configuration(list_callbacks)
 
-    remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
-    remoteconfig_poller._client._publish_configuration(list_callbacks)
+    rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+    rc_poller._client._publish_configuration(list_callbacks)
     disable_appsec_rc()
 
 
-def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
+def test_rc_activation_ip_blocking_data(tracer, rc_poller):
     with override_global_config({"_asm_enabled": True}):
         rc_config = {
             "rules_data": [
@@ -497,9 +500,9 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 },
             ]
         }
-        assert remoteconfig_poller.status == ServiceStatus.STOPPED
+        assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(
                 span,
@@ -509,7 +512,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
         assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
 
 
-def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
+def test_rc_activation_ip_blocking_data_expired(tracer, rc_poller):
     with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True)
         rc_config = {
@@ -524,9 +527,9 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
             ]
         }
 
-        assert remoteconfig_poller.status == ServiceStatus.STOPPED
+        assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
 
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(
@@ -536,7 +539,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
         assert get_triggers(span) is None
 
 
-def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
+def test_rc_activation_ip_blocking_data_not_expired(tracer, rc_poller):
     with override_global_config({"_asm_enabled": True}):
         rc_config = {
             "rules_data": [
@@ -550,9 +553,9 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             ]
         }
 
-        assert remoteconfig_poller.status == ServiceStatus.STOPPED
+        assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
 
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(

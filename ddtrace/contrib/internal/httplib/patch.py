@@ -2,7 +2,6 @@ import functools
 import http.client as httplib
 import os
 import sys
-from typing import Dict
 from urllib import parse
 
 import wrapt
@@ -22,6 +21,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 span_name = "http.client.request"
@@ -39,12 +39,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"http.client": "*"}
 
 
@@ -70,7 +69,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             if span:
                 if resp:
                     trace_utils.set_http_meta(
-                        span, config.httplib, status_code=resp.status, response_headers=resp.getheaders()
+                        span, config.httplib, status_code=resp.status, response_headers=dict(resp.getheaders())
                     )
 
                 span.finish()
@@ -100,12 +99,12 @@ def _wrap_request(func, instance, args, kwargs):
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+        span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        span._set_tag_str(COMPONENT, config.httplib.integration_name)
+        span._set_attribute(COMPONENT, config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
 
@@ -145,12 +144,12 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span = instance._datadog_span
         else:
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-            span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+            span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            span._set_tag_str(COMPONENT, config.httplib.integration_name)
+            span._set_attribute(COMPONENT, config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             instance._datadog_span = span
 
@@ -210,7 +209,7 @@ def should_skip_request(pin, request):
     # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
     # Tracing these requests introduces a significant noise and instability in ddtrace tests.
     # TO DO: Avoid tracing requests to APM internal services (ie: extend this functionality to agentless products).
-    agent_url = pin.tracer.agent_trace_url
+    agent_url = tracer.agent_trace_url
     if agent_url:
         parsed = parse.urlparse(agent_url)
         return request.host == parsed.hostname and request.port == parsed.port

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    logging: Adds a new environment variable ``DD_TRACE_LOG_LEVEL`` to control the ddtrace logger level, following the log levels available in the logging module.

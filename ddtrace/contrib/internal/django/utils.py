@@ -1,8 +1,6 @@
 import io
 import json
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
@@ -52,7 +50,7 @@ REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
-_quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
+_quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
 
 
 def resource_from_cache_prefix(resource: str, cache: Any) -> str:
@@ -68,8 +66,7 @@ def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     return name.lower()
 
 
-def quantize_key_values(keys):
-    # type: (_quantize_param) -> Text
+def quantize_key_values(keys: _quantize_param) -> Text:
     """
     Used for Django cache key normalization.
 
@@ -79,9 +76,9 @@ def quantize_key_values(keys):
 
     If text is provided we convert to text.
     """
-    args = []  # type: List[Union[Text, bytes, Any]]
+    args: list[Union[Text, bytes, Any]] = []
 
-    # Normalize input values into a List[Text, bytes]
+    # Normalize input values into a list[Text, bytes]
     if isinstance(keys, dict):
         args = list(keys.keys())
     elif isinstance(keys, (list, tuple)):
@@ -116,11 +113,11 @@ def set_tag_array(span, prefix, value):
 
     if len(value) == 1:
         if value[0]:
-            span._set_tag_str(prefix, value[0])
+            span._set_attribute(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
             if v:
-                span._set_tag_str("".join((prefix, ".", str(i))), v)
+                span._set_attribute("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -206,7 +203,7 @@ def _set_resolver_tags(pin, span, request):
             # Determine the resolver and resource name for this request
             route = get_django_2_route(request, resolver_match)
             if route:
-                span._set_tag_str("http.route", route)
+                span._set_attribute("http.route", route)
 
         if config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
@@ -224,7 +221,7 @@ def _set_resolver_tags(pin, span, request):
 
                 resource = " ".join((request.method, handler))
 
-        span._set_tag_str("django.view", resolver_match.view_name)
+        span._set_attribute("django.view", resolver_match.view_name)
         set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
         # Django >= 2.0.0
@@ -257,7 +254,7 @@ def _before_request_tags(pin, span, request):
     span.span_type = SpanTypes.WEB
     span._metrics[_SPAN_MEASURED_KEY] = 1
 
-    span._set_tag_str("django.request.class", func_name(request))
+    span._set_attribute("django.request.class", func_name(request))
 
 
 def _extract_body(request):
@@ -297,12 +294,11 @@ def _remake_body(request):
             log.debug("Failed to remake Django request body", exc_info=True)
 
 
-def _get_request_headers(request):
-    # type: (Any) -> Mapping[str, str]
+def _get_request_headers(request: Any) -> Mapping[str, str]:
     if DJANGO22:
-        request_headers = request.headers  # type: Mapping[str, str]
+        request_headers: Mapping[str, str] = request.headers
     else:
-        request_headers = {}  # type: Mapping[str, str]
+        request_headers: Mapping[str, str] = {}
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:
@@ -327,16 +323,16 @@ def _after_request_tags(pin, span: Span, request, response):
             # - use a thread or sync_to_async.
             try:
                 if hasattr(user, "is_authenticated"):
-                    span._set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
+                    span._set_attribute("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
                 if uid and isinstance(uid, (int, uuid.UUID)):
-                    span._set_tag_str("django.user.id", str(uid))
-                    span._set_tag_str(_user.ID, str(uid))
+                    span._set_attribute("django.user.id", str(uid))
+                    span._set_attribute(_user.ID, str(uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:
-                        span._set_tag_str("django.user.name", username)
+                        span._set_attribute("django.user.name", username)
             except Exception:
                 log.debug("Error retrieving authentication information for user", exc_info=True)
 
@@ -345,7 +341,7 @@ def _after_request_tags(pin, span: Span, request, response):
         _set_resolver_tags(pin, span, request)
         if response:
             status = response.status_code
-            span._set_tag_str("django.response.class", func_name(response))
+            span._set_attribute("django.response.class", func_name(response))
             if hasattr(response, "template_name"):
                 # template_name is a bit of a misnomer, as it could be any of:
                 # a list of strings, a tuple of strings, a single string, or an instance of Template

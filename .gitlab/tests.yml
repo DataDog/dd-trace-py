@@ -1,7 +1,6 @@
 stages:
   - setup
   - riot
-  - hatch
   - exploration
 
 variables:
@@ -12,46 +11,6 @@ variables:
 include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
-
-.test_base_hatch:
-  extends: .testrunner
-  stage: hatch
-  # Hatch doesn't use pre-built wheels or venvs so we can start them right away
-  needs: [ prechecks ]
-  parallel: 4
-  # DEV: This is the max retries that GitLab currently allows for
-  before_script:
-    - !reference [.testrunner, before_script]
-  script:
-    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
-    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - export DD_FAST_BUILD="1"
-    - |
-      envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
-      if [[ ${#envs[@]} -eq 0 ]]; then
-        echo "No hatch envs found for ${SUITE_NAME}"
-        exit 1
-      fi
-      for env in "${envs[@]}"
-      do
-        echo "Running hatch env: ${env}:test"
-        hatch run ${env}:test
-      done
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL = "12"
-    CARGO_BUILD_JOBS = "12"
-    DD_FAST_BUILD = "1"
-
-
-.test_base_hatch_snapshot:
-  extends: .test_base_hatch
-  services:
-    - !reference [.services, testagent]
-  before_script:
-    - !reference [.test_base_hatch, before_script]
-    # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
-    # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
-    - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
@@ -71,6 +30,7 @@ include:
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD}"
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
         exit 1
@@ -84,8 +44,8 @@ include:
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-      ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
-        "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
+      ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
+        "Registry YAML file (scripts/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 
 
 .test_base_riot_snapshot:

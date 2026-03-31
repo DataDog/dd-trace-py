@@ -10,8 +10,7 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
@@ -36,9 +35,9 @@ def install_coverage(workspace_path: Path) -> None:
 
 class CoverageData:
     def __init__(self) -> None:
-        self._covered_lines: t.Optional[t.Dict[str, CoverageLines]] = None
+        self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
 
-    def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[t.Tuple[str, bytes]]:
+    def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         if not self._covered_lines:
             return
 
@@ -78,25 +77,29 @@ def uninstall_coverage_percentage():
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.
+
+    This retrieves the coverage percentage from coverage.py patching, coverage report upload,
+    or generates a report if using 'coverage run' without pytest-cov.
     """
-    invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
-    if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
-        if invoked_by_coverage_run_status and not pytest_cov_status:
-            run_coverage_report()
+    # Generate report if using coverage run without pytest-cov
+    if not pytest_cov_status and _is_coverage_invoked_by_coverage_run() and _is_coverage_patched():
+        run_coverage_report()
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if lines_pct_value is None:
-            log.debug("Unable to retrieve coverage data for the session span")
-        elif not isinstance(lines_pct_value, (float, int)):
-            t = type(lines_pct_value)
-            log.warning(
-                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-                t.__module__,
-                t.__name__,
-                lines_pct_value,
-            )
-        else:
-            log.debug("Code coverage: %s%%", lines_pct_value)
-            return lines_pct_value
+    # Get cached percentage (works for pytest-cov, coverage run, and coverage report upload)
+    lines_pct_value = _get_coverage_percentage()
 
-    return None
+    if lines_pct_value is None:
+        log.debug("Unable to retrieve coverage data for the session span")
+        return None
+
+    if not isinstance(lines_pct_value, (float, int)):
+        log.warning(
+            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+            type(lines_pct_value).__module__,
+            type(lines_pct_value).__name__,
+            lines_pct_value,
+        )
+        return None
+
+    log.debug("Code coverage: %s%%", lines_pct_value)
+    return float(lines_pct_value)

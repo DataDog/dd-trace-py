@@ -1,12 +1,12 @@
 from pathlib import Path
 from random import random
-import typing as t
 
 from _config import config as expl_config
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
+from debugging.utils import create_log_function_probe
 from debugging.utils import create_snapshot_function_probe
 from output import log
 from utils import COLS
@@ -19,7 +19,7 @@ from ddtrace.internal.module import origin
 
 
 # Track all instrumented functions and their call count.
-_tracked_funcs: t.Dict[str, int] = {}
+_tracked_funcs: dict[str, int] = {}
 
 
 class FunctionCollector(ModuleCollector):
@@ -52,6 +52,14 @@ class FunctionCollector(ModuleCollector):
                     func_qname=f.__qualname__,
                     rate=float("inf"),
                     limits=expl_config.limits,
+                )
+                if expl_config.capture
+                else create_log_function_probe(
+                    probe_id=f"{o}:{f.__code__.co_firstlineno}",
+                    module=module.__name__,
+                    func_qname=f.__qualname__,
+                    template="",
+                    segments=[],
                 )
             )
 

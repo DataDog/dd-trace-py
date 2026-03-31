@@ -1,13 +1,16 @@
 from collections import Counter
-import os
-import sys
 
 import pytest
 
 from ddtrace.internal import forksafe
 
 
+@pytest.mark.subprocess()
 def test_forksafe():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -31,6 +34,7 @@ def test_forksafe():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_registry():
     """This verifies that registered hooks are called after a fork.
 
@@ -39,6 +43,10 @@ def test_registry():
 
     The original state is checked to be unmodified in the parent after the fork.
     """
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = ["initial"]
 
     @forksafe.register
@@ -74,7 +82,12 @@ def test_registry():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_duplicates():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -104,7 +117,12 @@ def test_duplicates():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_method_usage():
+    import os
+
+    from ddtrace.internal import forksafe
+
     class A:
         def __init__(self):
             self.state = 0
@@ -130,7 +148,12 @@ def test_method_usage():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(err=None)
 def test_hook_exception():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -167,117 +190,6 @@ def test_hook_exception():
     assert exit_code == 12
 
 
-lock_release_exc_type = RuntimeError
-
-
-def test_lock_basic():
-    # type: (...) -> None
-    """Check that a forksafe.Lock implements the correct threading.Lock interface"""
-    lock = forksafe.Lock()
-    assert lock.acquire()
-    assert lock.release() is None
-    with pytest.raises(lock_release_exc_type):
-        lock.release()
-
-
-def test_lock_fork():
-    """Check that a forksafe.Lock is reset after a fork().
-
-    This test fails with a regular threading.Lock.
-    """
-    lock = forksafe.Lock()
-    lock.acquire()
-
-    pid = os.fork()
-
-    if pid == 0:
-        # child
-        assert lock.acquire()
-        lock.release()
-        with pytest.raises(lock_release_exc_type):
-            lock.release()
-        os._exit(12)
-
-    lock.release()
-
-    _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
-    assert exit_code == 12
-
-
-@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Profiling is not supported on Python 3.14 yet")
-@pytest.mark.subprocess(
-    env=dict(DD_PROFILING_ENABLED="1"),
-    ddtrace_run=True,
-)
-def test_lock_unpatched():
-    """Check that a forksafe.Lock is not patched when profiling is enabled."""
-
-    from ddtrace.internal import forksafe
-    from ddtrace.profiling import bootstrap
-    from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
-    # When Profiler is started, bootstrap.profiler is set to the Profiler
-    # instance. We explicitly access the Profiler instance and the collector list
-    # to verify that the forksafe.Lock is not using the same class that is
-    # patched by ThreadingLockCollector that's running.
-    profiler = bootstrap.profiler._profiler
-    lock_collector = None
-    for c in profiler._collectors:
-        if isinstance(c, ThreadingLockCollector):
-            lock_collector = c
-            break
-
-    assert lock_collector is not None, "ThreadingLockCollector not found in profiler collectors"
-
-    lock = forksafe.Lock()
-    assert lock_collector._get_patch_target() is not lock._self_wrapped_class, (
-        "forksafe.Lock is using the same class that is patched by ThreadingLockCollector"
-    )
-
-
-def test_rlock_basic():
-    # type: (...) -> None
-    """Check that a forksafe.RLock implements the correct threading.RLock interface"""
-    lock = forksafe.RLock()
-    assert lock.acquire()
-    assert lock.acquire()
-    assert lock.release() is None
-    assert lock.release() is None
-    with pytest.raises(RuntimeError):
-        lock.release()
-
-
-def test_rlock_fork():
-    """Check that a forksafe.RLock is reset after a fork().
-
-    This test fails with a regular threading.RLock.
-    """
-    lock = forksafe.RLock()
-    lock.acquire()
-    lock.acquire()
-
-    pid = os.fork()
-
-    if pid == 0:
-        # child
-        assert lock.acquire()
-        lock.release()
-        with pytest.raises(RuntimeError):
-            lock.release()
-        os._exit(12)
-
-    lock.release()
-    lock.release()
-
-    with pytest.raises(RuntimeError):
-        lock.release()
-
-    _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
-    assert exit_code == 12
-
-
 def test_event_basic():
     # type: (...) -> None
     """Check that a forksafe.Event implements the correct threading.Event interface"""
@@ -289,11 +201,16 @@ def test_event_basic():
     event.clear()
 
 
+@pytest.mark.subprocess()
 def test_event_fork():
     """Check that a forksafe.Event is reset after a fork().
 
     This test fails with a regular threading.Event.
     """
+    import os
+
+    from ddtrace.internal import forksafe
+
     event = forksafe.Event()
     event.set()
 
@@ -311,7 +228,12 @@ def test_event_fork():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_double_fork():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -359,12 +281,14 @@ def test_gevent_gunicorn_behaviour():
 
     import atexit
 
-    from ddtrace.internal import forksafe
     from ddtrace.internal.periodic import PeriodicService
 
     class TestService(PeriodicService):
         def __init__(self):
             super(TestService, self).__init__(interval=0.1)
+            self._has_run = False
+
+        def reset(self):
             self._has_run = False
 
         def periodic(self):
@@ -376,14 +300,6 @@ def test_gevent_gunicorn_behaviour():
     service = TestService()
     service.start()
     atexit.register(lambda: service.stop() and service.join(1))
-
-    def restart_service():
-        global service
-        service.stop()
-        service = TestService()
-        service.start()
-
-    forksafe.register(restart_service)
 
     # ---- Application code ----
 

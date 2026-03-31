@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: Adds built-in evaluators for common evaluation tasks. The following evaluators are now available:
+
+    - ``StringCheckEvaluator``: Performs string comparison operations (equals, not equals, contains, case-insensitive contains).
+    - ``RegexMatchEvaluator``: Validates output against regex patterns with search, match, or fullmatch modes.
+    - ``LengthEvaluator``: Validates output length constraints by characters, words, or lines.
+    - ``JSONEvaluator``: Validates JSON syntax and optionally checks for required keys.
+    - ``SemanticSimilarityEvaluator``: Measures semantic similarity between output and expected output using embedding vectors.

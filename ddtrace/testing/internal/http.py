@@ -31,6 +31,7 @@ from ddtrace.testing.internal.utils import asbool
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
 MAX_ATTEMPTS = 5
+MAX_RETRY_AFTER_SECONDS = 120.0
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class BackendResult:
     parsed_response: t.Any = None
     is_gzip_response: bool = False
     elapsed_seconds: float = 0.0
+    retry_after_seconds: t.Optional[float] = None
 
     def on_error_raise_exception(self) -> None:
         if self.error_type:
@@ -61,9 +63,16 @@ class Subdomain(str, Enum):
     API = "api"
     CITESTCYCLE = "citestcycle-intake"
     CITESTCOV = "citestcov-intake"
+    CICOVREPRT = "ci-intake"
 
 
-RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
+RETRIABLE_ERRORS = {
+    ErrorType.TIMEOUT,
+    ErrorType.NETWORK,
+    ErrorType.CODE_5XX,
+    ErrorType.BAD_JSON,
+    ErrorType.RATE_LIMITED,
+}
 
 
 class BackendConnectorSetup:
@@ -89,11 +98,11 @@ class BackendConnectorSetup:
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
         if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
-            log.info("Connecting to backend in agentless mode")
+            log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
         else:
-            log.info("Connecting to backend through agent in EVP proxy mode")
+            log.debug("Connecting to backend through agent in EVP proxy mode")
             return cls._detect_evp_proxy_setup()
 
     @classmethod
@@ -158,7 +167,7 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.api_key = api_key
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
-        if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
+        if agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL"):
             url = agentless_url
         else:
             url = f"https://{subdomain.value}.{self.site}"
@@ -206,7 +215,7 @@ class BackendConnector(threading.local):
     def __init__(
         self,
         url: str,
-        default_headers: t.Optional[t.Dict[str, str]] = None,
+        default_headers: t.Optional[dict[str, str]] = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         base_path: t.Optional[str] = None,
         use_gzip: bool = False,
@@ -258,7 +267,7 @@ class BackendConnector(threading.local):
         method: str,
         path: str,
         data: t.Optional[bytes] = None,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
     ) -> BackendResult:
@@ -285,6 +294,23 @@ class BackendConnector(threading.local):
                 result.error_description = f"{result.response.status} {result.response.reason}"
                 if result.response.status >= 500:
                     result.error_type = ErrorType.CODE_5XX
+                elif result.response.status == 429:
+                    result.error_type = ErrorType.RATE_LIMITED
+                    reset_header = result.response.headers.get("X-RateLimit-Reset")
+                    if reset_header is not None:
+                        try:
+                            reset_value = int(reset_header)
+                            now = int(time.time())
+                            if reset_value > now:
+                                # Unix timestamp: wait until that point in time
+                                delay = float(reset_value - now)
+                            else:
+                                # Duration in seconds
+                                delay = float(reset_value)
+                            # Cap to avoid unreasonable waits (e.g. expired timestamp misread as duration)
+                            result.retry_after_seconds = min(delay, MAX_RETRY_AFTER_SECONDS)
+                        except ValueError:
+                            pass  # Fall back to exponential backoff in the retry loop
                 elif result.response.status >= 400:
                     result.error_type = ErrorType.CODE_4XX
                 else:
@@ -298,7 +324,7 @@ class BackendConnector(threading.local):
         except Exception as e:
             result.error_type = ErrorType.UNKNOWN
             result.error_description = str(e)
-            log.exception("Error requesting %s %s", method, path)
+            log.warning("Error requesting %s %s", method, path)
         finally:
             result.elapsed_seconds = time.perf_counter() - start_time
 
@@ -309,7 +335,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing response for %s %s", method, path)
+                log.warning("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 
@@ -323,7 +349,7 @@ class BackendConnector(threading.local):
         method: str,
         path: str,
         data: t.Optional[bytes] = None,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
@@ -351,7 +377,10 @@ class BackendConnector(threading.local):
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
-                delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
+                if result.retry_after_seconds is not None:
+                    delay_seconds = result.retry_after_seconds
+                else:
+                    delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
                 log.debug(
                     "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
@@ -364,7 +393,7 @@ class BackendConnector(threading.local):
     def get_json(
         self,
         path: str,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
@@ -384,7 +413,7 @@ class BackendConnector(threading.local):
         self,
         path: str,
         data: t.Any,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
@@ -405,8 +434,8 @@ class BackendConnector(threading.local):
     def post_files(
         self,
         path: str,
-        files: t.List[FileAttachment],
-        headers: t.Optional[t.Dict[str, str]] = None,
+        files: list[FileAttachment],
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,

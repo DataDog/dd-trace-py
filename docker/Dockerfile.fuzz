@@ -1,0 +1,65 @@
+# Fuzzing image for the stack_v2/echion harness (libFuzzer + ASAN/UBSAN).
+#
+# Uses the pre-built fuzz_base image (images/dd-trace-py/fuzz_base/) which
+# already contains the C++ toolchain, Rust, fuzzydog, and all Python versions
+# (via pyenv).  This stage only adds source code and runs the actual build.
+#
+# Build:
+#   $ docker build -f docker/Dockerfile.fuzz \
+#       --build-arg FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base \
+#       --build-arg PYTHON_VERSION=3.10 \
+#       -t ddtrace-py-stackv2-fuzz .
+#
+# Run with fuzzydog (requires FUZZYDOG_AUTH_TOKEN):
+#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
+#
+# Run a specific target via fuzzydog:
+#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz \
+#       fuzzydog fuzzer run dd-trace-py-local fuzz_echion_strings \
+#       --type libfuzzer --team profiling-python \
+#       --build-path /fuzzer/builds/ \
+#       --skip-dl-build --skip-dl-inputs \
+#       --slack-channel fuzzing-ops \
+#       --repository-url https://github.com/DataDog/dd-trace-py
+
+# ── Build stage ───────────────────────────────────────────────────────────────
+ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py/fuzz_base:latest
+FROM ${FUZZ_BASE_IMAGE} AS build
+
+# Select the Python version for this build (major.minor, e.g. "3.10").
+# Must match one of the versions installed by pyenv in fuzz_base.
+ARG PYTHON_VERSION=3.12
+RUN pyenv global "${PYTHON_VERSION}"
+
+# ── Build and package all fuzz targets ────────────────────────────────────────
+WORKDIR /src
+COPY . /src
+
+# Discover and build all fuzz targets (0-click onboarding)
+RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
+      echo "=== Building: $script ===" && \
+      (cd "$(dirname "$script")" && bash "$script"); \
+    done
+
+# Copy built binaries and LSan suppression file to /fuzzer/builds/
+RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /fuzz_binaries.txt \
+  && cp /tmp/fuzz/build/fuzz/lsan.supp /fuzzer/builds/lsan.supp \
+  && ls -la /fuzzer/builds/
+
+ENV LSAN_OPTIONS="suppressions=/fuzzer/builds/lsan.supp"
+
+CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
+     "--type", "libfuzzer", \
+     "--team", "profiling-python", \
+     "--build-path", "/fuzzer/builds/", \
+     "--skip-dl-build", \
+     "--skip-dl-inputs", \
+     "--slack-channel", "fuzzing-ops", \
+     "--repository-url", "https://github.com/DataDog/dd-trace-py"]
+
+# ── Manifest stage (lightweight, used by CI to extract the binary list) ──
+FROM scratch AS manifest
+COPY --from=build /fuzz_binaries.txt /fuzz_binaries.txt
+
+# ── Default stage (so `docker build` without --target still works) ──
+FROM build

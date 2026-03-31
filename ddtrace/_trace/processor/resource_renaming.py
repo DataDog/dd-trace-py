@@ -1,5 +1,4 @@
 import re
-from typing import List
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -50,7 +49,7 @@ class SimplifiedEndpointComputer:
         if not path or path == "/":
             return "/"
 
-        elements: List[str] = []
+        elements: list[str] = []
         for part in path.split("/"):
             if part:
                 elements.append(part)
@@ -83,4 +82,4 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
             url = span.get_tag(http.URL)
             endpoint = self.simplified_endpoint_computer.from_url(url)
-            span._set_tag_str(http.ENDPOINT, endpoint)
+            span._set_attribute(http.ENDPOINT, endpoint)

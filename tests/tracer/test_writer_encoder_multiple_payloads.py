@@ -1,7 +1,5 @@
 import gzip
-from typing import List
 from typing import Optional
-from typing import Tuple
 from unittest import mock
 
 from ddtrace.internal._encoding import BufferedEncoder
@@ -40,7 +38,7 @@ class MultiplePayloadEncoder(BufferedEncoder):
     def put(self, item):
         self._traces.append(item)
 
-    def encode(self) -> List[Tuple[Optional[bytes], int]]:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         """Return multiple payloads as the encoder change expects."""
         return list(zip(self.payloads_data, self.n_traces_data))
 
@@ -78,7 +76,7 @@ class SinglePayloadEncoder(BufferedEncoder):
     def put(self, item):
         self._traces.append(item)
 
-    def encode(self) -> List[Tuple[Optional[bytes], int]]:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         """Return single payload."""
         return [(self.payload_data, self.n_traces)]
 
@@ -106,7 +104,7 @@ class NonePayloadEncoder(BufferedEncoder):
     def put(self, item):
         self._traces.append(item)
 
-    def encode(self) -> List[Tuple[Optional[bytes], int]]:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         """Return payloads with None data."""
         return [(None, 1), (b"valid_payload", 1)]
 

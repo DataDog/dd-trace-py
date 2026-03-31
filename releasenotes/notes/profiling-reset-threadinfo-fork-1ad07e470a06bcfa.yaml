@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: The stack Profiler now correctly resets thread, task, and greenlet information
+    after a fork, preventing stale data from the parent process from affecting profiling in
+    child processes.

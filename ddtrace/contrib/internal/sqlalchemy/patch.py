@@ -1,5 +1,3 @@
-from typing import Dict
-
 import sqlalchemy
 from wrapt import wrap_function_wrapper as _w
 
@@ -9,12 +7,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from .engine import _wrap_create_engine
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(sqlalchemy, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"sqlalchemy": ">=1.3"}
 
 
