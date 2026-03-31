@@ -17,8 +17,8 @@ Environment:
 """
 
 import argparse
-from pathlib import Path
 import os
+from pathlib import Path
 import sys
 
 from packaging.utils import parse_sdist_filename
@@ -42,9 +42,7 @@ BASE_PLATFORMS = [
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
-def build_expected_set(
-    version: str, args: argparse.Namespace
-) -> set[tuple[str, str, str, str]]:
+def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
@@ -61,17 +59,13 @@ def build_expected_set(
     return expected
 
 
-def reconstruct_wheel_filename(
-    version: str, python_tag: str, platform: str, flavor: str
-) -> str:
+def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
     package_name = f"ddtrace{flavor}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
-def validate_sdist(
-    wheels_dir: str, package_version: str
-) -> tuple[bool, str, str | None]:
+def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, str | None]:
     """Validate sdist exists and has correct version.
 
     Returns:
@@ -127,9 +121,7 @@ def parse_actual_wheels(
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
-                raise ValueError(
-                    f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}"
-                )
+                raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
 
             flavor = name.replace("ddtrace", "").replace("-", "_")
             actual.add((str(version), py_tag, platform, flavor))
