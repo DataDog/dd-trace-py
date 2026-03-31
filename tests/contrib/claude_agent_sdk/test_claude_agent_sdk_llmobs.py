@@ -77,7 +77,7 @@ class TestLLMObsClaudeAgentSdk:
                 "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)},
             },
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
