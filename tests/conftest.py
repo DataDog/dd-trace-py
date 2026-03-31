@@ -31,6 +31,7 @@ import pytest
 
 import ddtrace
 
+
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
 os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
