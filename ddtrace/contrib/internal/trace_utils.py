@@ -464,7 +464,7 @@ def set_http_meta(
                     SpanKind.CLIENT,
                     SpanKind.SERVER,
                 )
-                http_config = None
+                http_config = config._http_server
             if http_config is not None and http_config.is_error_code(int_status_code):
                 span.error = 1
 
