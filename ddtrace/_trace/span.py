@@ -292,6 +292,10 @@ class Span(SpanData):
 
     def _set_attribute(self, key: str, value: Union[str, int, float]) -> None:
         """Set a tag key/value pair on the span. Values must be either strings or numbers."""
+        # DEV: `http.status_code` must be stored in `meta` as a string for
+        #   metrics calculated in the trace agent
+        if key == http.STATUS_CODE:
+            value = str(value)
         if isinstance(value, str):
             self._meta[key] = value
             if key in self._metrics:
