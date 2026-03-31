@@ -17,6 +17,10 @@ variables:
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
   retry: 2
+  variables:
+    # Default to 4 when `-n auto` is used
+    # DEV: auto/logical doesn't work well in k8s so we manually set it
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
   artifacts:
     when: always
     paths:
