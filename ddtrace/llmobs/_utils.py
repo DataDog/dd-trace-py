@@ -353,13 +353,13 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def get_llmobs_parent_id(span: Span) -> Optional[int]:
+def get_llmobs_parent_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
 
 
-def get_llmobs_trace_id(span: Span) -> Optional[int]:
+def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
@@ -454,8 +454,8 @@ def _annotate_llmobs_span_data(
     experiment_input: Optional[str] = None,
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
-    parent_id: Optional[int] = None,
-    trace_id: Optional[int] = None,
+    parent_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 

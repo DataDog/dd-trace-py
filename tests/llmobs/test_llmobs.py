@@ -58,7 +58,7 @@ def test_set_correct_parent_id(llmobs, tracer):
         with tracer.trace("child_span") as child_span:
             assert get_llmobs_parent_id(child_span) is None
             with llmobs.task("llm_span") as grandchild_span:
-                assert get_llmobs_parent_id(grandchild_span) == root_span.span_id
+                assert get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
 
 
 class TestSessionId:
