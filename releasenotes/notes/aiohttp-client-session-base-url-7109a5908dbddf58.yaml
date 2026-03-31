@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    aiohttp: Fixed an issue where spans captured an incomplete URL (e.g. ``/status/200``)
+    when ``aiohttp.ClientSession`` was initialized with a ``base_url``. The span now
+    records the fully-resolved URL (e.g. ``http://host:port/status/200``), matching
+    aiohttp's internal behaviour.

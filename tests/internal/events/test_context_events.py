@@ -24,22 +24,22 @@ def test_basic_context_event():
     called = []
 
     @dataclass
-    class TestContextEvent(Event):
+    class ContextEvent(Event):
         event_name = "test.event"
 
     def on_context_started(ctx: core.ExecutionContext):
-        called.append(f"{TestContextEvent.event_name}.started")
+        called.append(f"{ContextEvent.event_name}.started")
 
     def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
-        called.append(f"{TestContextEvent.event_name}.ended")
+        called.append(f"{ContextEvent.event_name}.ended")
 
-    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
-    core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
+    core.on(f"context.started.{ContextEvent.event_name}", on_context_started)
+    core.on(f"context.ended.{ContextEvent.event_name}", on_context_ended)
 
-    with core.context_with_event(TestContextEvent()):
+    with core.context_with_event(ContextEvent()):
         pass
 
-    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"], (
+    assert called == [f"{ContextEvent.event_name}.started", f"{ContextEvent.event_name}.ended"], (
         "event should trigger started then ended handlers in order; got %r" % (called,)
     )
 
@@ -53,7 +53,7 @@ def test_context_event_enforce_kwargs_error():
     called = []
 
     @dataclass
-    class TestContextEvent(Event):
+    class ContextEvent(Event):
         event_name = "test.event"
         foo: str = event_field()
         bar: int = event_field()
@@ -67,11 +67,11 @@ def test_context_event_enforce_kwargs_error():
     ) -> None:
         called.append("ended")
 
-    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
-    core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
+    core.on(f"context.started.{ContextEvent.event_name}", on_context_started)
+    core.on(f"context.ended.{ContextEvent.event_name}", on_context_ended)
 
     with pytest.raises(TypeError):
-        with core.context_with_event(TestContextEvent(foo="toto")):
+        with core.context_with_event(ContextEvent(foo="toto")):  # pyright: ignore[reportCallIssue]
             pass
 
     assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)
@@ -82,7 +82,7 @@ def test_context_event_event_field():
     called = []
 
     @dataclass
-    class TestContextEvent(Event):
+    class ContextEvent(Event):
         event_name = "test.event"
         foo: str = event_field()
         with_default: str = event_field(default="test")
@@ -92,7 +92,7 @@ def test_context_event_event_field():
             called.append(not_in_context)
 
     def on_context_started(ctx: core.ExecutionContext) -> None:
-        event: TestContextEvent = ctx.event
+        event: ContextEvent = ctx.event
         called.append(event.foo)
         called.append(event.with_default)
 
@@ -100,9 +100,9 @@ def test_context_event_event_field():
             "InitVar field marked out of context should not be present on context event"
         )
 
-    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
+    core.on(f"context.started.{ContextEvent.event_name}", on_context_started)
 
-    with core.context_with_event(TestContextEvent(foo="toto", not_in_context=0)):
+    with core.context_with_event(ContextEvent(foo="toto", not_in_context=0)):
         pass
 
     assert called == [0, "toto", "test"], (
@@ -116,7 +116,7 @@ def test_context_with_event_context_name_override():
     called = []
 
     @dataclass
-    class TestContextEvent(Event):
+    class ContextEvent(Event):
         event_name = "test.event.default_name"
 
     override_name = "test.event.override_name"
@@ -135,10 +135,10 @@ def test_context_with_event_context_name_override():
 
     core.on(f"context.started.{override_name}", on_override_started)
     core.on(f"context.ended.{override_name}", on_override_ended)
-    core.on(f"context.started.{TestContextEvent.event_name}", on_default_started)
-    core.on(f"context.ended.{TestContextEvent.event_name}", on_default_ended)
+    core.on(f"context.started.{ContextEvent.event_name}", on_default_started)
+    core.on(f"context.ended.{ContextEvent.event_name}", on_default_ended)
 
-    with core.context_with_event(TestContextEvent(), context_name_override=override_name):
+    with core.context_with_event(ContextEvent(), context_name_override=override_name):
         pass
 
     assert called == ["override_started", "override_ended"], (
@@ -152,7 +152,7 @@ def test_context_with_event_dispatch_end_event_false_no_auto_end():
     called = []
 
     @dataclass
-    class TestContextEvent(Event):
+    class ContextEvent(Event):
         event_name = "test.event.no_auto_end"
 
     def on_context_started(ctx: core.ExecutionContext):
@@ -161,10 +161,10 @@ def test_context_with_event_dispatch_end_event_false_no_auto_end():
     def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
         called.append("ended")
 
-    core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
-    core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
+    core.on(f"context.started.{ContextEvent.event_name}", on_context_started)
+    core.on(f"context.ended.{ContextEvent.event_name}", on_context_ended)
 
-    with core.context_with_event(TestContextEvent(), dispatch_end_event=False):
+    with core.context_with_event(ContextEvent(), dispatch_end_event=False):
         pass
 
     assert called == ["started"], (

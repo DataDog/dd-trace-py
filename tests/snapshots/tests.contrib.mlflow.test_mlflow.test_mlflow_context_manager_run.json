@@ -1,0 +1,62 @@
+[[
+  {
+    "name": "run",
+    "service": "tests.contrib.mlflow",
+    "resource": "run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1461800000000",
+      "component": "mlflow",
+      "language": "python",
+      "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb",
+      "mlflow.run_name": "context_run",
+      "runtime-id": "00c5ae6586e749afa643c7d3f002dd8d",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 40358625,
+    "start": 1773225496692068127
+  },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "duration": 9422334,
+       "start": 1773225496722917168
+     },
+        {
+          "name": "mlflow.manual.work",
+          "service": "tests.contrib.mlflow",
+          "resource": "mlflow.manual.work",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb"
+          },
+          "duration": 60792,
+          "start": 1773225496723051960
+        }]]
