@@ -10,10 +10,10 @@ import pytest
 )
 def test_otlp_traces_sent_via_http():
     """Traces generated with tracer.trace() are exported as OTLP JSON to the configured HTTP endpoint."""
+    from http.server import BaseHTTPRequestHandler
     import json
     import os
     import queue
-    from http.server import BaseHTTPRequestHandler
     import socketserver
     import threading
 
