@@ -136,7 +136,6 @@ finalize() {
   export TMP_WHEEL_FILE=$(ls ${TMP_WHEEL_DIR}/*.whl | head -n 1)
   WHEEL_BASENAME=$(basename "${TMP_WHEEL_FILE}")
   mv "${TMP_WHEEL_FILE}" "${FINAL_WHEEL_DIR}/"
-  ls -al "${FINAL_WHEEL_DIR}"
   export FINAL_WHEEL_FILE="${FINAL_WHEEL_DIR}/${WHEEL_BASENAME}"
   section_end "finalize_wheel"
 }

@@ -17,8 +17,8 @@ Environment:
 """
 
 import argparse
-import os
 from pathlib import Path
+import os
 import sys
 
 from packaging.utils import parse_sdist_filename
@@ -42,7 +42,9 @@ BASE_PLATFORMS = [
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
-def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str]]:
+def build_expected_set(
+    version: str, args: argparse.Namespace
+) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
@@ -55,16 +57,21 @@ def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str,
             # Add win_arm64 for Python 3.11+
             if py_tag in WIN_ARM64_PYTHON_TAGS:
                 expected.add((version, py_tag, "win_arm64", ""))
+
     return expected
 
 
-def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
+def reconstruct_wheel_filename(
+    version: str, python_tag: str, platform: str, flavor: str
+) -> str:
     """Reconstruct wheel filename from components."""
     package_name = f"ddtrace{flavor}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
-def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, str | None]:
+def validate_sdist(
+    wheels_dir: str, package_version: str
+) -> tuple[bool, str, str | None]:
     """Validate sdist exists and has correct version.
 
     Returns:
@@ -94,7 +101,9 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
         return False, f"Failed to parse sdist filename: {e}", sdist_path.name
 
 
-def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]], list[str], int]:
+def parse_actual_wheels(
+    wheels_dir: str,
+) -> tuple[set[tuple[str, str, str, str]], list[str], int]:
     """Parse actual wheel files.
 
     Returns:
@@ -118,7 +127,9 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
-                raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
+                raise ValueError(
+                    f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}"
+                )
 
             flavor = name.replace("ddtrace", "").replace("-", "_")
             actual.add((str(version), py_tag, platform, flavor))
@@ -129,7 +140,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
 
 
 def identify_version_mismatches(
-    actual_set: set[tuple[str, str, str]], package_version: str
+    actual_set: set[tuple[str, str, str, str]], package_version: str
 ) -> dict[str, tuple[str, str]]:
     """Identify wheels with wrong versions."""
     mismatches: dict[str, tuple[str, str]] = {}
