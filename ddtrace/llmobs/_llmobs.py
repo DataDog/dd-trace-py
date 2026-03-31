@@ -495,6 +495,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
+            span.set_tag("_dd.llmobs.submitted", "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
