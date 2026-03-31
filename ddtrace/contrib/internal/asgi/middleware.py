@@ -255,20 +255,30 @@ class TraceMiddleware:
 
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
+            # Use raw_path for WAF evaluation — scope["path"] may have path
+            # traversal sequences resolved (e.g. /waf/../ becomes /) which
+            # prevents LFI detection. raw_path preserves the original URI.
+            raw_path = scope.get("raw_path")
+            raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
+                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
                 url = "{}://{}{}".format(scheme, server_host, full_path)
+                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
             else:
                 url = None
+                raw_url = None
             query_string = scope.get("query_string")
             if query_string:
                 query_string = bytes_to_str(query_string)
                 if url:
                     url = f"{url}?{query_string}"
+                if raw_url:
+                    raw_url = f"{raw_url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
@@ -290,7 +300,7 @@ class TraceMiddleware:
                 url=url,
                 query=query_string,
                 request_headers=headers,
-                raw_uri=url,
+                raw_uri=raw_url,
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,

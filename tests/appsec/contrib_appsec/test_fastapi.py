@@ -28,7 +28,39 @@ class _Test_FastAPI_Base:
 
             client = TestClient(application, base_url="http://localhost:%d" % self.SERVER_PORT)
 
+            # Patch the test client transport to preserve the original URL path
+            # as raw_path in the ASGI scope. httpx resolves path traversal sequences
+            # (e.g. /waf/../ -> /) before creating the Request object, so both
+            # scope["path"] and scope["raw_path"] lose the original URI.
+            # This stores the original path on the client and injects it into the
+            # ASGI scope, matching what real ASGI servers (uvicorn) do.
+            transport = client._transport
+            original_handle = transport.handle_request
+            client._raw_path = None
+
+            def _handle_with_raw_path(request):
+                # Temporarily monkey-patch the app to inject raw_path into scope
+                original_app = transport.app
+
+                async def app_with_raw_path(scope, receive, send):
+                    if client._raw_path is not None and scope["type"] == "http":
+                        scope["raw_path"] = client._raw_path.encode()
+                    return await original_app(scope, receive, send)
+
+                transport.app = app_with_raw_path
+                try:
+                    return original_handle(request)
+                finally:
+                    transport.app = original_app
+
+            transport.handle_request = _handle_with_raw_path
+
             def parse_arguments(*args, **kwargs):
+                # Store the original URL path for raw_path injection
+                if args:
+                    client._raw_path = args[0] if isinstance(args[0], str) else None
+                else:
+                    client._raw_path = kwargs.get("url")
                 if "content_type" in kwargs:
                     headers = kwargs.get("headers", {})
                     headers["Content-Type"] = kwargs["content_type"]
