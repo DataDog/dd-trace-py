@@ -136,13 +136,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not trace_info:
             return
         parent_id = get_llmobs_parent_id(llmobs_span)
-        if oai_span.span_type == "agent" and parent_id is not None and str(parent_id) == trace_info.span_id:
+        if oai_span.span_type == "agent" and parent_id == trace_info.span_id:
             trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
         if (
             oai_span.span_type == "response"
             and parent_id is not None
             and not trace_info.input_oai_span
-            and str(parent_id) == trace_info.current_top_level_agent_span_id
+            and parent_id == trace_info.current_top_level_agent_span_id
         ):
             trace_info.input_oai_span = oai_span
 
@@ -163,7 +163,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         current_top_level_agent_span_id = trace_info.current_top_level_agent_span_id
         if (
             current_top_level_agent_span_id
-            and str(get_llmobs_parent_id(llmobs_span)) == current_top_level_agent_span_id
+            and get_llmobs_parent_id(llmobs_span) == current_top_level_agent_span_id
         ):
             trace_info.output_oai_span = oai_span
 
@@ -197,7 +197,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         name = None
         parent = _get_nearest_llmobs_ancestor(span)
         trace_info = self._llmobs_get_trace_info(oai_span)
-        if parent and trace_info and str(get_llmobs_parent_id(span)) == trace_info.current_top_level_agent_span_id:
+        if parent and trace_info and get_llmobs_parent_id(span) == trace_info.current_top_level_agent_span_id:
             name = _get_span_name(parent) + " (LLM)"
 
         input_messages = None
