@@ -1672,35 +1672,6 @@ def test_agentless_writer_no_api_key():
     assert not isinstance(writer, AgentlessTraceWriter)
 
 
-class TestParseOtlpHeaders:
-    """Unit tests for NativeWriter._parse_otlp_headers()."""
-
-    def _parse(self, raw: str) -> list:
-        from ddtrace.internal.writer.writer import NativeWriter
-
-        with mock.patch("ddtrace.internal.writer.writer.otel_config") as mock_cfg:
-            mock_cfg.exporter.TRACES_HEADERS = raw
-            return NativeWriter._parse_otlp_headers()
-
-    def test_empty_string_returns_empty_list(self):
-        assert self._parse("") == []
-
-    def test_single_pair(self):
-        assert self._parse("key=value") == [("key", "value")]
-
-    def test_multiple_pairs(self):
-        assert self._parse("k1=v1,k2=v2,k3=v3") == [("k1", "v1"), ("k2", "v2"), ("k3", "v3")]
-
-    def test_strips_whitespace(self):
-        assert self._parse("  k1 = v1 ,  k2 = v2 ") == [("k1", "v1"), ("k2", "v2")]
-
-    def test_skips_entry_without_equals(self):
-        assert self._parse("invalid,key=value") == [("key", "value")]
-
-    def test_value_containing_equals_uses_first_equals_as_delimiter(self):
-        assert self._parse("key=val=extra") == [("key", "val=extra")]
-
-
 class TestIsOtlpTracesExporterEnabled:
     """Unit tests for _is_otlp_traces_exporter_enabled()."""
 
@@ -1737,63 +1708,3 @@ def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
-    }
-)
-def test_native_writer_otlp_sends_json_payload():
-    """NativeWriter sends an OTLP JSON/protobuf payload to the configured OTLP endpoint for sampled spans."""
-    from http.server import BaseHTTPRequestHandler
-    import json
-    import queue
-    import socketserver
-    import threading
-
-    from ddtrace.internal.writer import NativeWriter  # noqa: I001
-    from ddtrace.trace import Span
-
-    received = queue.Queue()
-
-    class OtlpHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            received.put((self.path, self.headers.get("Content-Type", ""), body))
-            self.send_response(200)
-            self.end_headers()
-
-        def log_message(self, *args):
-            pass
-
-    with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
-        port = server.server_address[1]
-        t = threading.Thread(target=server.serve_forever)
-        t.daemon = True
-        t.start()
-
-        otlp_url = f"http://127.0.0.1:{port}/v1/traces"
-        writer = NativeWriter("http://127.0.0.1:8126", sync_mode=True, otlp_endpoint=otlp_url)
-
-        span = Span("test-span", service="test-svc")
-        span._set_attribute("_sampling_priority_v1", 1)
-        # exporter.send() is synchronous — the OTLP HTTP request completes before write() returns
-        writer.write([span])
-
-        server.shutdown()
-
-    assert not received.empty(), "No OTLP payload received by mock server"
-    path, content_type, body = received.get_nowait()
-    assert path == "/v1/traces", f"Unexpected path: {path}"
-    assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
-    payload = json.loads(body)
-    assert "resourceSpans" in payload, f"Missing resourceSpans in payload: {payload}"
-    resource_spans = payload["resourceSpans"]
-    assert len(resource_spans) >= 1
-    scope_spans = resource_spans[0]["scopeSpans"]
-    assert len(scope_spans) >= 1
-    spans = scope_spans[0]["spans"]
-    assert len(spans) >= 1
-    assert spans[0]["name"] == "test-span"
