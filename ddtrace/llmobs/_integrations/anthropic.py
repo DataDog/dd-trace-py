@@ -21,9 +21,11 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -48,6 +50,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         **kwargs: dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+        self._base_url = self._get_base_url(**kwargs)
         if model is not None:
             span._set_attribute(MODEL, model)
 
@@ -84,7 +87,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             {
                 SPAN_KIND: span_kind,
                 MODEL_NAME: span.get_tag("anthropic.request.model") or "",
-                MODEL_PROVIDER: "anthropic",
+                MODEL_PROVIDER: self._get_model_provider(),
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
@@ -133,7 +136,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         thinking_text = _get_attr(block, "thinking", "")
                         input_messages.append(Message(content=str(thinking_text), role="reasoning"))
 
-                    elif _get_attr(block, "type", None) == "tool_use":
+                    elif "tool_use" in _get_attr(block, "type", None):
                         text = _get_attr(block, "text", None)
                         input_data = _get_attr(block, "input", "")
                         if isinstance(input_data, str):
@@ -148,7 +151,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                             text = ""
                         input_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
 
-                    elif _get_attr(block, "type", None) == "tool_result":
+                    elif "tool_result" in _get_attr(block, "type", None):
                         content = _get_attr(block, "content", None)
                         formatted_content = self._format_tool_result_content(content)
                         tool_result_info = ToolResult(
@@ -165,6 +168,8 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _format_tool_result_content(self, content) -> str:
         if isinstance(content, str):
             return content
+        elif isinstance(content, dict):
+            return safe_json(content)
         elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
@@ -192,9 +197,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_messages.append(Message(content=str(thinking_text), role="reasoning"))
                     continue
                 text = _get_attr(completion, "text", None)
-                if isinstance(text, str):
-                    output_messages.append(Message(content=text, role=str(role)))
-                elif _get_attr(completion, "type", None) == "tool_use":
+                output_message = Message(content=str(text) if text else "", role=str(role))
+                if "tool_use" in _get_attr(completion, "type", None):
                     input_data = _get_attr(completion, "input", "")
                     if isinstance(input_data, str):
                         input_data = json.loads(input_data)
@@ -204,9 +208,19 @@ class AnthropicIntegration(BaseLLMIntegration):
                         tool_id=str(_get_attr(completion, "id", "")),
                         type=str(_get_attr(completion, "type", "")),
                     )
-                    if text is None:
-                        text = ""
-                    output_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
+                    output_message["tool_calls"] = [tool_call_info]
+                if "tool_result" in _get_attr(completion, "type", None):
+                    result = _get_attr(completion, "content", {})
+                    if hasattr(result, "model_dump") and callable(result.model_dump):
+                        result = result.model_dump()
+                    formatted_result = self._format_tool_result_content(result)
+                    tool_result_info = ToolResult(
+                        result=formatted_result,
+                        tool_id=str(_get_attr(completion, "tool_use_id", "")),
+                        type="tool_result",
+                    )
+                    output_message["tool_results"] = [tool_result_info]
+                output_messages.append(output_message)
         return output_messages
 
     def _extract_usage(self, span: Span, usage: dict[str, Any]):
@@ -242,6 +256,15 @@ class AnthropicIntegration(BaseLLMIntegration):
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
+
+    def _get_model_provider(self) -> str:
+        """Return the model provider based on the base_url.
+        Returns "anthropic" for default clients or when the base_url contains "anthropic".
+        Returns "unknown" when a custom base_url is set that doesn't contain "anthropic".
+        """
+        if not self._base_url or "anthropic" in self._base_url.lower():
+            return "anthropic"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")

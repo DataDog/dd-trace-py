@@ -103,7 +103,7 @@ def expected_llmobs_tool_span_events_agent_run(
     assert llmobs_event[1] == _expected_llmobs_non_llm_span_event(
         span=multiply_tool_span,
         span_kind="tool",
-        input_value='{"b": 3, "a": 5}',
+        input_value='{"a": 5, "b": 3}',
         output_value='{"product": 15}',
         metadata={"description": "Simple arithmetic tool."},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},

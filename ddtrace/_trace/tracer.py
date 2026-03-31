@@ -272,13 +272,15 @@ class Tracer(object):
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
-        return {
+        log_context = {
             LOG_ATTR_TRACE_ID: trace_id,
             LOG_ATTR_SPAN_ID: span_id,
             LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
             LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
             LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
         }
+        core.dispatch("trace.log_correlation_context", (log_context,))
+        return log_context
 
     def configure(
         self,
