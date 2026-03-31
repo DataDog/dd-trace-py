@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
@@ -15,6 +16,7 @@ Usage:
 """
 
 import doctest
+import importlib.util
 import sys
 
 
@@ -26,7 +28,10 @@ _FILES = [
 
 failures = 0
 for path in _FILES:
-    result = doctest.testfile(path, module_relative=False, verbose=False)
+    spec = importlib.util.spec_from_file_location("_doctest_module", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result = doctest.testmod(module, verbose=False)
     failures += result.failed
 
 sys.exit(failures)
