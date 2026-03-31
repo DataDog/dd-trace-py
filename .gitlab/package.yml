@@ -197,15 +197,15 @@ variables:
 "upload serverless":
   extends: .upload_wheels_base
   needs:
-    - job: "build linux"
+    - job: "build linux serverless"
       artifacts: true
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp311-cp311"
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
-            PYTHON_TAG: "cp311-cp311"
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
     - job: "package version"
   variables:
