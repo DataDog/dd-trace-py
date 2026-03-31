@@ -1702,23 +1702,25 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         import ddtrace.internal.telemetry
 
         def validate_top_function(trace):
-            # Check the first few frames for the expected function name.
-            # The stack may have ddtrace-internal frames (e.g. report_stack,
-            # _waf_action, _traced_subprocess_init) above the expected function
-            # when crop_trace doesn't fully trim the stack.
-            # For httpx SSRF, the stack trace is not cropped (no crop_trace in
-            # the httpx code path) so the stack only contains ddtrace internals.
-            # Skip validation in that case.
+            # Validate that the stack trace contains an expected function near the top.
+            # Several cases to handle:
+            # - Properly cropped stacks: expected function at frame 0 (endswith match)
+            # - Qualified names (Python 3.11+): e.g. "RaspHandler._handle" contains "rasp"
+            # - Intermediate ddtrace frames: search first 6 frames
+            # - Untrimmed httpx stacks: report_stack at frame 0 — skip validation
             if trace["frames"][0]["function"] == "report_stack":
                 return True
             for frame in trace["frames"][:6]:
                 fname = frame["function"]
                 fname_lower = fname.lower()
-                # Use endswith for exact match, and case-insensitive containment
-                # for qualified names (e.g. "RaspHandler._handle" contains "rasp")
                 if any(fname.endswith(tf) or tf.lower() in fname_lower for tf in top_functions) or (
                     asm_config._iast_enabled and fname.endswith("ast_function")
                 ):
+                    return True
+                # On Python <3.11 co_qualname is unavailable, so Tornado's
+                # "RaspHandler._handle" appears as just "_handle". Accept it
+                # only if the frame is from a test app file, not ddtrace internals.
+                if fname == "_handle" and "contrib_appsec" in frame.get("file", ""):
                     return True
             return False
 
