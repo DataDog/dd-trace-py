@@ -59,7 +59,7 @@ rule:
     - pattern: from os import getenv as $ALIAS, $$$IMPORTS
 note: |
   Direct access to `os.environ` or `os.getenv` is not allowed in `ddtrace/`.
-  Use `dd_environ` from `ddtrace.internal.settings.env` instead:
+  Use `env` from `ddtrace.internal.settings` instead:
 
   Before:
     import os
