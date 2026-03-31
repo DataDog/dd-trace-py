@@ -203,10 +203,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: *X86_64_IMAGES
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            IMAGE_TAG: *AARCH64_IMAGES
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"
