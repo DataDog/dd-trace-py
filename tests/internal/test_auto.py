@@ -176,5 +176,4 @@ def test_uwsgi_gevent():
             proc.wait()
         else:
             msg = "application is running successfully"
-            print(f"uwsgi failed to start: {proc.stdout.read()}\n---\n{proc.stderr.read()}")
             raise AssertionError(msg)
