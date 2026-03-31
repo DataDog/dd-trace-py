@@ -9,11 +9,7 @@
 #   "vcrpy==6.0.2",
 # ]
 # ///
-"""Run doctests for helper scripts and test specifications.
-
-Usage:
-    uv run scripts/run-script-doctests.py
-"""
+"""Run doctests for helper scripts and test specifications."""
 
 import doctest
 import importlib.util
