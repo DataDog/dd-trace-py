@@ -31,6 +31,7 @@ from ddtrace.testing.internal.utils import asbool
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
 MAX_ATTEMPTS = 5
+MAX_RETRY_AFTER_SECONDS = 120.0
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class BackendResult:
     parsed_response: t.Any = None
     is_gzip_response: bool = False
     elapsed_seconds: float = 0.0
+    retry_after_seconds: t.Optional[float] = None
 
     def on_error_raise_exception(self) -> None:
         if self.error_type:
@@ -64,7 +66,13 @@ class Subdomain(str, Enum):
     CICOVREPRT = "ci-intake"
 
 
-RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
+RETRIABLE_ERRORS = {
+    ErrorType.TIMEOUT,
+    ErrorType.NETWORK,
+    ErrorType.CODE_5XX,
+    ErrorType.BAD_JSON,
+    ErrorType.RATE_LIMITED,
+}
 
 
 class BackendConnectorSetup:
@@ -286,6 +294,23 @@ class BackendConnector(threading.local):
                 result.error_description = f"{result.response.status} {result.response.reason}"
                 if result.response.status >= 500:
                     result.error_type = ErrorType.CODE_5XX
+                elif result.response.status == 429:
+                    result.error_type = ErrorType.RATE_LIMITED
+                    reset_header = result.response.headers.get("X-RateLimit-Reset")
+                    if reset_header is not None:
+                        try:
+                            reset_value = int(reset_header)
+                            now = int(time.time())
+                            if reset_value > now:
+                                # Unix timestamp: wait until that point in time
+                                delay = float(reset_value - now)
+                            else:
+                                # Duration in seconds
+                                delay = float(reset_value)
+                            # Cap to avoid unreasonable waits (e.g. expired timestamp misread as duration)
+                            result.retry_after_seconds = min(delay, MAX_RETRY_AFTER_SECONDS)
+                        except ValueError:
+                            pass  # Fall back to exponential backoff in the retry loop
                 elif result.response.status >= 400:
                     result.error_type = ErrorType.CODE_4XX
                 else:
@@ -352,7 +377,10 @@ class BackendConnector(threading.local):
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
-                delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
+                if result.retry_after_seconds is not None:
+                    delay_seconds = result.retry_after_seconds
+                else:
+                    delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
                 log.debug(
                     "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
