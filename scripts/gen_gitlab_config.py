@@ -20,13 +20,14 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import datetime
+import hashlib
 import os
 import re
 import subprocess
 import typing as t
 
 
-MAX_BENCHMARKS_PER_GROUP = 8
+MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
@@ -44,7 +45,6 @@ class BenchmarkSpec:
 @dataclass
 class JobSpec:
     name: str
-    runner: str
     stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
@@ -63,7 +63,7 @@ class JobSpec:
 
     def __str__(self) -> str:
         lines = []
-        base = f".test_base_{self.runner}"
+        base = ".test_base_riot"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -75,13 +75,11 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Set needs based on runner type
+        # Jobs need build_base_venvs artifacts
         lines.append("  needs:")
         lines.append("    - prechecks")
-        if self.runner == "riot":
-            # Riot jobs need build_base_venvs artifacts
-            lines.append("    - job: build_base_venvs")
-            lines.append("      artifacts: true")
+        lines.append("    - job: build_base_venvs")
+        lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -106,8 +104,7 @@ class JobSpec:
         lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            if self.runner == "riot" and wait_for:
-                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
@@ -116,19 +113,13 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        if self.runner == "riot":
-            env["PIP_CACHE_KEY"] = (
-                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-            )
-            lines.append("  cache:")
-            lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
-        else:
-            lines.append("  cache:")
-            lines.append("    key: v1-${CI_JOB_NAME}-pip-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["PIP_CACHE_KEY"] = (
+            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+        )
+        lines.append("  cache:")
+        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+        lines.append("    paths:")
+        lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -158,19 +149,15 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     """Calculate parallelism based on venvs_per_job configuration.
 
     Packs N venvs per parallel job, scaling automatically with venv count changes.
-    Only applies to riot runner suites with venvs_per_job configured.
+    Only applies to suites with venvs_per_job configured.
 
     Args:
         suite_name: The name of the test suite
         suite_config: The suite configuration dict from suitespec
 
     Returns:
-        The calculated parallelism value (1 to 20), or None if venvs_per_job not configured
+        The calculated parallelism value (1 to 25), or None if venvs_per_job not configured
     """
-    # Only for riot suites
-    if suite_config.get("runner") != "riot":
-        return None
-
     # Check if venvs_per_job is configured
     venvs_per_job = suite_config.get("venvs_per_job")
     if venvs_per_job is None:
@@ -206,7 +193,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     calculated = math.ceil(venv_count / venvs_per_job)
 
     # Cap at 20 to avoid over-parallelization
-    MAX_PARALLELISM = 20
+    MAX_PARALLELISM = 25
     calculated = min(calculated, MAX_PARALLELISM)
 
     LOGGER.debug(
@@ -375,8 +362,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
-            # Calculate dynamic parallelism for riot suites without explicit value
-            if jobspec.parallelism is None and suite_config.get("runner") == "riot":
+            # Calculate dynamic parallelism for suites without explicit value
+            if jobspec.parallelism is None:
                 calculated = calculate_dynamic_parallelism(suite, suite_config)
                 if calculated is not None:
                     jobspec.parallelism = calculated
@@ -438,6 +425,11 @@ def gen_pre_checks() -> None:
         name="Typing",
         command="hatch run lint:typing",
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+    )
+    check(
+        name="Spelling",
+        command="hatch run lint:spelling",
+        paths={"*"},
     )
     check(
         name="Security",
@@ -525,7 +517,13 @@ prechecks:
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
     with TESTS_GEN.open("a") as f:
-        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
+        f.write(
+            template(
+                "cached-testrunner",
+                current_month=datetime.datetime.now().month,
+                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
+            )
+        )
 
 
 def gen_build_base_venvs() -> None:
@@ -542,71 +540,6 @@ def gen_build_base_venvs() -> None:
                 nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
             )
         )
-
-
-def gen_debugger_exploration() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because it depends
-    on the cached testrunner job, which is also generated dynamically.
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/debugging/exploration.yml",
-            "ddtrace/debugging/*",
-            "ddtrace/internal/bytecode_injection/__init__.py",
-            "ddtrace/internal/wrapping/context.py",
-            "tests/debugging/exploration/*",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("debugging/exploration"))
-
-
-def gen_appsec_iast_aggregated_leak_testing() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because
-    we don't use riot to execute the tests
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
-            "tests/appsec/iast_aggregated_memcheck/*",
-            "ddtrace/appsec/_iast/**",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("appsec/iast_aggregated_leak_testing"))
-
-
-def gen_detect_global_locks() -> None:
-    """Generate the global lock detection job."""
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            "ddtrace/*",
-            "setup.py",
-            "setup.cfg",
-            "pyproject.toml",
-            "src/native/*",
-            "scripts/global-lock-detection.py",
-            ".gitlab/templates/detect-global-locks.yml",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("detect-global-locks"))
 
 
 # -----------------------------------------------------------------------------
@@ -640,6 +573,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+
+# Compute a short hash of the testrunner image so cache keys are automatically
+# invalidated whenever the image changes (e.g. Python patch version bumps).
+import ruamel.yaml as _ruamel_yaml  # noqa: E402
+
+
+_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
