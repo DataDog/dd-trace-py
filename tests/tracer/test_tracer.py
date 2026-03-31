@@ -225,9 +225,20 @@ class TracerTestCases(TracerTestCase):
         self.assertEqual(f.i(), 3)
 
         self.assert_span_count(3)
-        self.spans[0].assert_matches(name="tests.tracer.test_tracer.s")
-        self.spans[1].assert_matches(name="tests.tracer.test_tracer.c")
-        self.spans[2].assert_matches(name="tests.tracer.test_tracer.i")
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.Foo.s")
+        self.spans[1].assert_matches(name="tests.tracer.test_tracer.Foo.c")
+        self.spans[2].assert_matches(name="tests.tracer.test_tracer.Foo.i")
+
+    def test_tracer_wrap_local_function_no_locals_in_name(self):
+        @self.tracer.wrap()
+        def local_func():
+            pass
+
+        local_func()
+
+        self.assert_span_count(1)
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.local_func")
+        assert "<locals>" not in self.spans[0].name
 
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
