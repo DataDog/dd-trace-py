@@ -34,26 +34,27 @@ class _Test_FastAPI_Base:
             # scope["path"] and scope["raw_path"] lose the original URI.
             # This stores the original path on the client and injects it into the
             # ASGI scope, matching what real ASGI servers (uvicorn) do.
-            transport = client._transport
-            original_handle = transport.handle_request
+            # Only available on newer Starlette/httpx versions that expose _transport.
             client._raw_path = None
+            transport = getattr(client, "_transport", None)
+            if transport is not None:
+                original_handle = transport.handle_request
 
-            def _handle_with_raw_path(request):
-                # Temporarily monkey-patch the app to inject raw_path into scope
-                original_app = transport.app
+                def _handle_with_raw_path(request):
+                    original_app = transport.app
 
-                async def app_with_raw_path(scope, receive, send):
-                    if client._raw_path is not None and scope["type"] == "http":
-                        scope["raw_path"] = client._raw_path.encode()
-                    return await original_app(scope, receive, send)
+                    async def app_with_raw_path(scope, receive, send):
+                        if client._raw_path is not None and scope["type"] == "http":
+                            scope["raw_path"] = client._raw_path.encode()
+                        return await original_app(scope, receive, send)
 
-                transport.app = app_with_raw_path
-                try:
-                    return original_handle(request)
-                finally:
-                    transport.app = original_app
+                    transport.app = app_with_raw_path
+                    try:
+                        return original_handle(request)
+                    finally:
+                        transport.app = original_app
 
-            transport.handle_request = _handle_with_raw_path
+                transport.handle_request = _handle_with_raw_path
 
             def parse_arguments(*args, **kwargs):
                 # Store the original URL path for raw_path injection
