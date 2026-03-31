@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes duplicate spans appearing in LLMObs traces when using the
+    ddtrace SDK alongside OTel-based instrumentation (e.g. Strands Agents). Spans
+    submitted by the SDK are now marked so the backend processor does not create a
+    second event for the same span.
