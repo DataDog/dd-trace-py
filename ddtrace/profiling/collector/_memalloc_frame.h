@@ -14,7 +14,7 @@
  *
  * The core frame-access logic and line table parsing are provided by the
  * shared profiling headers (ddtrace/internal/datadog/profiling/shared/).
- * This file provides the memalloc_get_lineno() helper that combines lasti
+ * This file provides the memalloc_get_lineno helper that combines lasti
  * computation with table-pointer fetching and line number parsing.
  */
 
