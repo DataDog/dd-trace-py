@@ -1,3 +1,5 @@
+from typing import Optional
+
 import aiohttp
 import wrapt
 from yarl import URL
@@ -81,7 +83,10 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
     method: str = get_argument_value(args, kwargs, 0, "method")
-    url: URL = URL(get_argument_value(args, kwargs, 1, "url"))
+    raw_url: URL = URL(str(get_argument_value(args, kwargs, 1, "url")))
+    # Resolve against base_url if present, mirroring aiohttp's internal behaviour.
+    base_url: Optional[URL] = getattr(instance, "_base_url", None)
+    url: URL = base_url.join(raw_url) if base_url is not None else raw_url
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
 
