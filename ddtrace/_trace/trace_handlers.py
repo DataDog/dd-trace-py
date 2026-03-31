@@ -286,8 +286,6 @@ def _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id
         span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
 
 
-
-
 def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     """Create an inferred parent span for GCP Pub/Sub push subscriptions.
 
