@@ -361,6 +361,10 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                # pip 25+ changed dist-info registration, causing pip to not appear in
+                # packages_distributions(), which breaks IAST first-party detection tests.
+                # TODO: fix the first-party detection logic in iastpatch.c
+                "pip": "<25",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -580,13 +584,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                         "zope-event": "==5.0",
                         "zope-interface": "==7.2",
                     },
@@ -1343,14 +1350,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.11"),
                     pkgs={
                         "mlflow": ["~=2.11.0"],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
                     pkgs={
                         "mlflow": [latest],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
             ],
@@ -1480,6 +1489,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pyyaml": "==6.0.1",
+                # pip==25.0.0 removed the --global-option install arg
+                "pip": "<25",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "false",
@@ -2492,7 +2503,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2511,9 +2526,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2553,15 +2572,15 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": ["~=22.12.0", latest],
+                        "sanic": ["~=22.12.0", "~=23.12"],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
                 Venv(
                     pys="3.12",
                     pkgs={
-                        "sanic": [latest],
-                        "sanic-testing": "~=22.3.0",
+                        "sanic": ["~=23.12"],
+                        "sanic-testing": "~=23.12.0",
                     },
                 ),
             ],
@@ -3180,6 +3199,8 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "mlflow[default]": ["~=3.9.0", latest],
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
         ),
         Venv(
@@ -3276,6 +3297,10 @@ venv = Venv(
         Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
+            pkgs={
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.11"),
