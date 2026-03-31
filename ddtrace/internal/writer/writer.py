@@ -30,6 +30,7 @@ from ddtrace.version import __version__
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat
 from .. import periodic
+from .. import process_tags
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
@@ -990,6 +991,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
+        if p_tags := process_tags.process_tags:
+            builder.set_process_tags(p_tags)
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:

@@ -373,9 +373,9 @@ def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) ->
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
-            if raise_errors:
-                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
+        base_path = Path(__file__).parent / "contrib" / "internal" / contrib
+        if raise_errors and not (base_path / "patch.py").exists() and not (base_path / "patch.pyc").exists():
+            raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
