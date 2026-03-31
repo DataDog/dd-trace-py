@@ -5,12 +5,9 @@ Add all monkey-patching that needs to run by default here
 
 import typing as t
 
-from ddtrace import config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
-from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
-from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
 
@@ -42,53 +39,12 @@ manager.run_protocol()
 register_post_preload(manager.post_preload_products)
 
 
-# TODO: Migrate the following product logic to the new product plugin interface
-
-# DEV: We want to start the crashtracker as early as possible
-if crashtracker_config.enabled:
-    try:
-        from ddtrace.internal.core import crashtracking
-
-        crashtracking.start()
-    except Exception:
-        log.error("failed to enable crashtracking", exc_info=True)
-
-
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
     try:
         import ddtrace.profiling.auto  # noqa: F401
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
-
-if config._runtime_metrics_enabled:
-    RuntimeWorker.enable()
-
-
-@ModuleWatchdog.after_module_imported("opentelemetry")
-def _otel_signals(_):
-    if config._otel_trace_enabled:
-        from opentelemetry.trace import set_tracer_provider
-
-        from ddtrace.opentelemetry import TracerProvider
-
-        set_tracer_provider(TracerProvider())
-
-    if config._otel_logs_enabled:
-        from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
-
-        set_otel_logs_provider()
-
-    if config._otel_metrics_enabled:
-        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-        set_otel_meter_provider()
-
-
-if config._llmobs_enabled:
-    from ddtrace.llmobs import LLMObs
-
-    LLMObs.enable(_auto=True)
 
 
 @ModuleWatchdog.after_module_imported("gevent.monkey")

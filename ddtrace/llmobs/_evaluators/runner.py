@@ -89,12 +89,15 @@ class EvaluatorRunner(PeriodicService):
         self.periodic(_wait_sync=True)
         self.executor.shutdown(wait=True)
 
-    def recreate(self) -> "EvaluatorRunner":
-        return self.__class__(
-            interval=self._interval,
-            llmobs_service=self.llmobs_service,
-            evaluators=self.evaluators,
-        )
+    def reset(self) -> None:
+        """Discard buffered spans and recreate the executor after a fork.
+
+        The worker thread is restarted automatically; the ThreadPoolExecutor is not
+        fork-safe (its internal threads die across fork) so it must be recreated.
+        """
+        with self._lock:
+            self._buffer = []
+        self.executor = futures.ThreadPoolExecutor()
 
     def enqueue(self, span_event: LLMObsSpanEvent, span: Span) -> None:
         if self.status == ServiceStatus.STOPPED:
