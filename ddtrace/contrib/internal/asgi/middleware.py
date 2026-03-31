@@ -96,7 +96,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
     return tags
 
 
-def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_headers(scope: Mapping[str, Any]) -> dict[str, str]:
     """
     Extract and decode headers from ASGI scope.
 
@@ -454,7 +454,7 @@ class TraceMiddleware:
                     return await send(message)
                 finally:
                     trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status, response_headers=headers
+                        span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
@@ -541,7 +541,7 @@ class TraceMiddleware:
         message: Mapping[str, Any],
         span: Span,
         method: str,
-        response_headers: Optional[Mapping[str, Any]],
+        response_headers: Optional[Mapping[str, str]],
     ):
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)
