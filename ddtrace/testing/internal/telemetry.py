@@ -28,6 +28,7 @@ class ErrorType(str, Enum):
     TIMEOUT = "timeout"
     NETWORK = "network"
     CODE_4XX = "status_code_4xx_response"
+    RATE_LIMITED = "rate_limited"
     CODE_5XX = "status_code_5xx_response"
     BAD_JSON = "bad_json"
     UNKNOWN = "unknown"
@@ -206,7 +207,7 @@ class TelemetryAPI:
         # `endpoint_payload.requests_errors` accepts a different set of error types, so we need to convert them here.
         if error == ErrorType.TIMEOUT:
             endpoint_error = "timeout"
-        elif error in (ErrorType.CODE_4XX, ErrorType.CODE_5XX):
+        elif error in (ErrorType.CODE_4XX, ErrorType.RATE_LIMITED, ErrorType.CODE_5XX):
             endpoint_error = "status_code"
         else:
             endpoint_error = "network"
@@ -313,4 +314,6 @@ class TelemetryAPIRequestMetrics:
             self.record_error(error)
 
     def record_error(self, error: ErrorType) -> None:
-        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error})
+        # Map RATE_LIMITED to the same telemetry value as CODE_4XX for cross-language consistency
+        error_type = ErrorType.CODE_4XX if error == ErrorType.RATE_LIMITED else error
+        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error_type})
