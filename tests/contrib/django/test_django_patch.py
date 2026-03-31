@@ -1,5 +1,8 @@
+from unittest import mock
+
 import pytest
 
+from ddtrace.contrib.internal.django.patch import _unpatch
 from ddtrace.contrib.internal.django.patch import get_version
 from ddtrace.contrib.internal.django.patch import patch
 from tests.contrib.patch import PatchTestCase
@@ -72,3 +75,18 @@ def test_tracing_minimal_patching():
     from ddtrace.internal.wrapping import is_wrapped
 
     assert is_wrapped(django.template.base.Template.render)
+
+
+def test__unpatch_unwraps_technical_500_response_from_django_views_debug():
+    fake_django = mock.MagicMock()
+    fake_django.VERSION = (2, 2, 0)
+    fake_django.db.connections.all.return_value = [mock.MagicMock()]
+
+    with (
+        mock.patch("ddtrace.contrib.internal.django.patch.trace_utils.unwrap") as unwrap_mock,
+        mock.patch("ddtrace.contrib.internal.django.response.uninstrument_module"),
+        mock.patch("ddtrace.contrib.internal.django.templates.uninstrument_module"),
+    ):
+        _unpatch(fake_django)
+
+    unwrap_mock.assert_any_call(fake_django.views.debug.technical_500_response, "technical_500_response")
