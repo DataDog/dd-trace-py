@@ -48,6 +48,8 @@ def mock_evaluate_response(
     tags: list[str] = None,
     block: bool = True,
     sds_findings: list = None,
+    sanitized_messages: list = None,
+    removed_segments: list = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -59,6 +61,10 @@ def mock_evaluate_response(
     }
     if sds_findings is not None:
         attributes["sds_findings"] = sds_findings
+    if sanitized_messages is not None:
+        attributes["sanitized_messages"] = sanitized_messages
+    if removed_segments is not None:
+        attributes["removed_segments"] = removed_segments
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 
@@ -70,7 +76,10 @@ def assert_mock_execute_request_call(
     meta: Optional[dict[str, Any]] = None,
     endpoint: Optional[str] = None,
 ):
-    expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
+    expected_attributes = {
+        "messages": messages,
+        "meta": meta or {"service": config.service, "env": config.env, "sanitize_enabled": True},
+    }
 
     expected_payload = {"data": {"attributes": expected_attributes}}
 

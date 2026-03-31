@@ -453,6 +453,7 @@ class AI_GUARD(metaclass=Constant_Class):
     TARGET_TAG: str = TAG + ".target"
     BLOCKED_TAG: str = TAG + ".blocked"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
+    SANITIZED_TAG: str = TAG + ".sanitized"
 
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"

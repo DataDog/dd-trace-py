@@ -58,9 +58,11 @@ except ImportError:
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
+from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
+from ddtrace.appsec.ai_guard._api_client import SANITIZE
 from ddtrace.appsec.ai_guard._api_client import ToolCall
 from ddtrace.appsec.ai_guard._api_client import new_ai_guard_client
 from ddtrace.internal.logger import get_logger
@@ -299,11 +301,27 @@ class AIGuardStrandsIntegration:
         except Exception:
             logger.debug("Failed to evaluate tool invocation", exc_info=True)
 
+    @staticmethod
+    def _apply_sanitized_tool_result(event: _AfterToolCallEvent, result: Evaluation) -> None:
+        """Replace tool result content with the sanitized version from AI Guard."""
+        tool_use_id = event.tool_use.get("toolUseId", "")
+        sanitized_messages = result.get("sanitized_messages", [])
+        for msg in sanitized_messages:
+            if msg.get("role") == "tool" and msg.get("tool_call_id") == tool_use_id:
+                event.result["content"] = [{"text": msg.get("content", "")}]
+                return
+        # Fallback: use the last tool message if no matching tool_call_id
+        for msg in reversed(sanitized_messages):
+            if msg.get("role") == "tool":
+                event.result["content"] = [{"text": msg.get("content", "")}]
+                return
+
     def _on_after_tool_call_base(self, event: _AfterToolCallEvent) -> None:
         """Evaluate tool result after execution.
 
         Builds the conversation history including the tool call and its result,
-        then evaluates against security policies. On block: replaces the tool
+        then evaluates against security policies. On SANITIZE: replaces the tool
+        result content with the sanitized version. On block: replaces the tool
         result content with a blocked message.
         """
         tool_name = ""
@@ -322,6 +340,8 @@ class AIGuardStrandsIntegration:
 
             result = self._client.evaluate(ai_guard_messages, Options(block=True))
             logger.debug("AIGuard client evaluate result: %s", result)
+            if result.get("action") == SANITIZE:
+                self._apply_sanitized_tool_result(event, result)
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
                 raise

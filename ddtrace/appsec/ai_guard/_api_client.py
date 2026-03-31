@@ -28,7 +28,8 @@ logger = ddlogger.get_logger(__name__)
 ALLOW = "ALLOW"
 DENY = "DENY"
 ABORT = "ABORT"
-ACTIONS = [ALLOW, DENY, ABORT]
+SANITIZE = "SANITIZE"
+ACTIONS = [ALLOW, DENY, ABORT, SANITIZE]
 
 
 class Function(TypedDict):
@@ -58,11 +59,19 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
 
 
-class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
+class RemovedSegment(TypedDict, total=False):
+    path: str
+    tag: str
+    preview: str
+
+
+class Evaluation(TypedDict, total=False):
+    action: Literal["ALLOW", "DENY", "ABORT", "SANITIZE"]
     reason: str
     tags: list[str]
     sds: list
+    sanitized_messages: list[Message]
+    removed_segments: list[RemovedSegment]
 
 
 class Options(TypedDict, total=False):
@@ -123,7 +132,7 @@ class AIGuardClient:
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
-        self._meta = {"service": config.service, "env": config.env}
+        self._meta = {"service": config.service, "env": config.env, "sanitize_enabled": True}
         self._timeout = ai_guard_config._ai_guard_timeout // 1000
 
     @staticmethod
@@ -263,6 +272,8 @@ class AIGuardClient:
                         tags = attributes.get("tags", [])
                         sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
+                        sanitized_messages = attributes.get("sanitized_messages") or []
+                        removed_segments = attributes.get("removed_segments") or []
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
                         raise AIGuardClientError(
@@ -283,6 +294,9 @@ class AIGuardClient:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                     if sds_findings:
                         meta_struct.update({"sds": sds_findings})
+
+                    is_sanitized = action == SANITIZE
+                    span.set_tag(AI_GUARD.SANITIZED_TAG, str(is_sanitized).lower())
                 else:
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
@@ -290,7 +304,11 @@ class AIGuardClient:
                         errors=result["errors"] if "errors" in result else None,
                     )
 
-                should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
+                should_block = (
+                    self._is_blocking_enabled(options, blocking_enabled)
+                    and action != ALLOW
+                    and action != SANITIZE
+                )
                 self._add_request_to_telemetry(
                     (
                         ("action", action),
@@ -305,7 +323,11 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags, sds=sds_findings)
 
-                return Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings)
+                evaluation = Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings)
+                if is_sanitized:
+                    evaluation["sanitized_messages"] = sanitized_messages
+                    evaluation["removed_segments"] = removed_segments
+                return evaluation
 
             except AIGuardAbortError:
                 raise

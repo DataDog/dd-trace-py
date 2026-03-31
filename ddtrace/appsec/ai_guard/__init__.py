@@ -17,6 +17,7 @@ from ._api_client import Function
 from ._api_client import ImageURL
 from ._api_client import Message
 from ._api_client import Options
+from ._api_client import RemovedSegment
 from ._api_client import ToolCall
 from ._api_client import new_ai_guard_client
 
@@ -97,5 +98,6 @@ __all__ = [
     "ImageURL",
     "Message",
     "Options",
+    "RemovedSegment",
     "ToolCall",
 ]
