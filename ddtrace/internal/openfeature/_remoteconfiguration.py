@@ -31,13 +31,18 @@ class FFECapabilities(enum.IntFlag):
 class FeatureFlagCallback(RCCallback):
     """Remote Configuration callback for Feature Flagging and Experimentation (FFE)."""
 
+    def __init__(self):
+        self._config_state: dict[str, dict] = {}
+
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
         """
         Process FFE configuration payloads from Remote Configuration.
 
-        Args:
-            payloads: Sequence of configuration payloads
+        Maintains per-path state and merges all UFC configs into a single
+        unified configuration after each delta, so multiple configs (e.g.
+        from different FFE environments) coexist correctly.
         """
+        changed = False
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("Ignoring invalid FFE payload with no metadata, path: %s", payload.path)
@@ -51,15 +56,42 @@ class FeatureFlagCallback(RCCallback):
                     payload.metadata.product_name,
                     payload.path,
                 )
-                # Handle deletion/removal of configuration by clearing the stored config
-                _set_ffe_config(None)
+                if payload.path in self._config_state:
+                    del self._config_state[payload.path]
+                    changed = True
                 continue
 
+            self._config_state[payload.path] = payload.content
+            changed = True
+
+        if not changed:
+            return
+
+        merged = self._merge_configurations()
+        if merged is not None:
             try:
-                process_ffe_configuration(payload.content)
-                log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(payload.content))
+                process_ffe_configuration(merged)
+                log.debug(
+                    "Processed merged FFE config, %d flags from %d sources",
+                    len(merged["flags"]),
+                    len(self._config_state),
+                )
             except Exception as e:
-                log.debug("Error processing FFE config payload: %s", e, exc_info=True)
+                log.debug("Error processing merged FFE config: %s", e, exc_info=True)
+        else:
+            _set_ffe_config(None)
+
+    def _merge_configurations(self) -> t.Optional[dict]:
+        if not self._config_state:
+            return None
+        configs = list(self._config_state.values())
+        merged = dict(configs[0])
+        merged_flags: dict = {}
+        for config in configs:
+            if "flags" in config:
+                merged_flags.update(config["flags"])
+        merged["flags"] = merged_flags
+        return merged
 
 
 # Global callback instance
