@@ -121,7 +121,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: brettlangdon/ddtrace.remove.ci_visibility
   needs:
     - job: "upload manylinux2014"
   rules:
