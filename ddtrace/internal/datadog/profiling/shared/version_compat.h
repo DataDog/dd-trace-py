@@ -1,6 +1,6 @@
 #pragma once
 
-/* Shared Python version compatibility for dd-trace-py profiling C++ code.
+/* Shared Python version compatibility for profiling code.
  *
  * This header centralizes:
  *   - CPython internal header includes (version-conditional)
