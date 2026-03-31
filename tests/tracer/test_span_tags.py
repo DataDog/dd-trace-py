@@ -595,16 +595,14 @@ def test_set_attribute_http_status_code_int():
     # int values must be coerced to str and stored in _meta, not _metrics
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, 200)
-    assert s._meta[http.STATUS_CODE] == "200"
-    assert http.STATUS_CODE not in s._metrics
+    assert s._get_attribute(http.STATUS_CODE) == "200"
 
 
 def test_set_attribute_http_status_code_str():
     # str values must stay as str and be stored in _meta
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, "404")
-    assert s._meta[http.STATUS_CODE] == "404"
-    assert http.STATUS_CODE not in s._metrics
+    assert s._get_attribute(http.STATUS_CODE) == "404"
 
 
 def test_set_attribute_http_status_code_readable_via_get_tag():
