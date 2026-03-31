@@ -68,6 +68,23 @@ log = get_logger(__name__)
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _default_wrap_span_name(f: Callable) -> str:
+    qualname_parts = f.__qualname__.split(".")
+
+    # Functions defined in local scopes should not include <locals> in the name.
+    if len(qualname_parts) <= 1 or qualname_parts[-2] == "<locals>":
+        return f"{f.__module__}.{f.__name__}"
+
+    try:
+        local_scope_index = len(qualname_parts) - 1 - qualname_parts[::-1].index("<locals>")
+    except ValueError:
+        scoped_qualname = f.__qualname__
+    else:
+        scoped_qualname = ".".join(qualname_parts[local_scope_index + 1 :])
+
+    return f"{f.__module__}.{scoped_qualname}"
+
+
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> list[SpanProcessor]:
@@ -820,8 +837,7 @@ class Tracer(object):
         """
 
         def wrap_decorator(f: AnyCallable) -> AnyCallable:
-            # FIXME[matt] include the class name for methods.
-            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+            span_name = name if name else _default_wrap_span_name(f)
 
             # detect if the the given function is a coroutine and/or a generator
             # to use the right decorator; this initial check ensures that the
