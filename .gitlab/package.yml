@@ -232,6 +232,7 @@ variables:
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
+
 "build windows":
   stage: package
   tags: ["windows-v2:2022"]
