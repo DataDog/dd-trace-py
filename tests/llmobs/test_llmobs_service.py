@@ -17,7 +17,6 @@ from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -53,7 +52,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 def run_llmobs_trace_filter(tracer, test_spans):
     with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
-        span._set_attribute(SPAN_KIND, "llm")
+        _annotate_llmobs_span_data(span, kind="llm")
     return test_spans.pop()
 
 

@@ -1,10 +1,7 @@
 from typing import Final
 
 
-SPAN_KIND = "_ml_obs.meta.span.kind"
 SESSION_ID = "_ml_obs.session_id"
-METADATA = "_ml_obs.meta.metadata"
-METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
@@ -12,27 +9,11 @@ PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 # All ragas traces have this context item set so we can differentiate
 # spans generated from the ragas integration vs user application spans.
 IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
-PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
-LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
-TAGS = "_ml_obs.tags"
-AGENT_MANIFEST = "_ml_obs.meta.agent_manifest"
 
-MODEL_NAME = "_ml_obs.meta.model_name"
-MODEL_PROVIDER = "_ml_obs.meta.model_provider"
 UNKNOWN_MODEL_PROVIDER = "unknown"
 
-INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
-INPUT_MESSAGES = "_ml_obs.meta.input.messages"
-INPUT_VALUE = "_ml_obs.meta.input.value"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
-TOOL_DEFINITIONS = "_ml_obs.meta.tool_definitions"
-
-OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
-OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
-OUTPUT_VALUE = "_ml_obs.meta.output.value"
-
-MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."
@@ -65,7 +46,6 @@ TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
 TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
 # TIME_E2E_METRIC_KEY = "time_e2e"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
@@ -97,9 +77,6 @@ INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
 FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
 EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
 EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
-
-SPAN_LINKS = "_ml_obs.span_links"
-NAME = "_ml_obs.name"
 
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
@@ -136,11 +113,6 @@ EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
-EXPERIMENT_CONFIG = "_ml_obs.config"
-EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
-EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
-EXPERIMENTS_INPUT = "_ml_obs.meta.input"
-EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
 
 # Fallback markers for prompt tracking when OpenAI strips values

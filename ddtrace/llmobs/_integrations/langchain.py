@@ -16,7 +16,6 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -734,7 +733,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
-        metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
+        metadata = {}
         formatted_input = ""
         if tool_inputs is not None:
             tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
