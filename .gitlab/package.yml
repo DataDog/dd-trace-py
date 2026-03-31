@@ -384,7 +384,7 @@ download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
-  script:
+  before_script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
   artifacts:
     paths:
@@ -400,7 +400,6 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
-    - !reference [.package_base, script]
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
@@ -409,5 +408,4 @@ download_dependency_wheels:
     - "build linux serverless"
     - "package version"
   script:
-    - !reference [.package_base, script]
     - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless
