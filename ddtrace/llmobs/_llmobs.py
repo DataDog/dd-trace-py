@@ -542,8 +542,7 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
-        raw_parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
-        parent_id = str(raw_parent_id) if raw_parent_id is not None else ROOT_PARENT_ID
+        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -572,7 +571,7 @@ class LLMObs(Service):
             _dd_attrs["scope"] = "experiments"
 
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -1834,7 +1833,7 @@ class LLMObs(Service):
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(get_llmobs_trace_id(span) or span.trace_id),
+                trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -1857,7 +1856,7 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(get_llmobs_trace_id(active) or active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = get_llmobs_trace_id(active) or format_trace_id(active.trace_id)
             return context
         return None
 
@@ -1868,7 +1867,7 @@ class LLMObs(Service):
         """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
-            parent_id = llmobs_parent.span_id
+            parent_id = str(llmobs_parent.span_id)
             parent_llmobs_trace_id = (
                 get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
@@ -1876,7 +1875,9 @@ class LLMObs(Service):
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
-                int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
+                parent_llmobs_trace_id
+                if parent_llmobs_trace_id is not None
+                else format_trace_id(llmobs_parent.trace_id)
             )
             if isinstance(llmobs_parent, Span):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
@@ -1885,7 +1886,7 @@ class LLMObs(Service):
                 ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
                 session_id = None
         else:
-            llmobs_trace_id = generate_128bit_trace_id()
+            llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
             parent_id, ml_app, session_id = None, None, None
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         _annotate_llmobs_span_data(
@@ -1894,7 +1895,7 @@ class LLMObs(Service):
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:
-            span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
+            span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
 
@@ -2725,14 +2726,14 @@ class LLMObs(Service):
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
             llmobs_trace_id = (
-                int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
+                _propagated_trace_id if _propagated_trace_id is not None else format_trace_id(generate_128bit_trace_id())
             )
         else:
             ml_app = resolve_ml_app()
-            llmobs_trace_id = generate_128bit_trace_id()
+            llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
-        span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(llmobs_trace_id)
+        span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = llmobs_trace_id
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app

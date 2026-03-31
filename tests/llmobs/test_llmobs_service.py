@@ -9,7 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -984,7 +984,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(get_llmobs_trace_id(span))
+        assert span_context["trace_id"] == get_llmobs_trace_id(span)
 
 
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
@@ -1013,7 +1013,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(get_llmobs_trace_id(span))
+        assert span_context["trace_id"] == get_llmobs_trace_id(span)
 
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
@@ -1950,7 +1950,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
             _expected_llmobs_eval_metric_event(
                 ml_app="dummy",
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(get_llmobs_trace_id(span)),
+                trace_id=get_llmobs_trace_id(span),
                 label="toxicity",
                 metric_type="categorical",
                 categorical_value="high",
@@ -1979,7 +1979,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(get_llmobs_trace_id(span)),
+                trace_id=get_llmobs_trace_id(span),
                 label="sentiment",
                 metric_type="score",
                 score_value=0.9,
@@ -2204,7 +2204,7 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(get_llmobs_trace_id(span)),
+                trace_id=get_llmobs_trace_id(span),
                 label="is_toxic",
                 metric_type="boolean",
                 boolean_value=False,

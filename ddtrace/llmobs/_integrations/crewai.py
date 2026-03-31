@@ -513,6 +513,6 @@ def _get_crew_id(span, operation):
         return f"crew_{span.trace_id}_{span.span_id}"
     if operation == "task":
         parent_id = get_llmobs_parent_id(span)
-        parent_id = str(parent_id) if parent_id is not None else span.parent_id
+        parent_id = parent_id if parent_id is not None else span.parent_id
         return f"crew_{span.trace_id}_{parent_id}"
     return f"{span.trace_id}"

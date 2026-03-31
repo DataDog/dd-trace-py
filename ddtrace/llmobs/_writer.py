@@ -63,8 +63,8 @@ class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
 
     name: str
-    parent_id: Optional[int]
-    trace_id: int
+    parent_id: Optional[str]
+    trace_id: str
     ml_app: str
     session_id: str
     tags: dict[str, str]
