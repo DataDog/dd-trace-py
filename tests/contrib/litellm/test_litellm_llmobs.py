@@ -611,6 +611,35 @@ class TestLLMObsLiteLLM:
         assert event_metrics["reasoning_output_tokens"] == 15
 
 
+@pytest.mark.parametrize(
+    "model,stream,openai_enabled,expected",
+    [
+        # litellm_proxy/ prefix always suppresses downstream check regardless of model name or OpenAI enabled
+        ("litellm_proxy/azure-gpt-5-nano", False, True, False),
+        ("litellm_proxy/gpt-4o", False, True, False),
+        ("litellm_proxy/openai/gpt-4", False, True, False),
+        # normal OpenAI/Azure models with OpenAI integration enabled (non-streamed) should return True
+        ("gpt-4o", False, True, True),
+        ("azure/gpt-4", False, True, True),
+        ("openai/gpt-4", False, True, True),
+        # streaming disables downstream check
+        ("gpt-4o", True, True, False),
+        # OpenAI integration disabled disables downstream check
+        ("gpt-4o", False, False, False),
+        # non-OpenAI models are unaffected
+        ("anthropic/claude-3", False, True, False),
+    ],
+)
+def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": stream}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=openai_enabled):
+        assert integration._has_downstream_openai_span(kwargs, model) is expected
+
+
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
     """
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.

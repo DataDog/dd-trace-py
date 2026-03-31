@@ -146,6 +146,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
+        # litellm_proxy/ requests route through a proxy — the OpenAI integration never fires for these
+        if model_lower.startswith("litellm_proxy/"):
+            return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
