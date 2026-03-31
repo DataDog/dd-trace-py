@@ -25,7 +25,7 @@ def _on_lambda_start_request(
     method: str,
     parsed_query: dict[str, Any],
     request_path_parameters: Optional[dict[str, Any]],
-):
+) -> None:
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
 
@@ -56,7 +56,7 @@ def _on_lambda_start_response(
     span: Span,
     status_code: str,
     response_headers: dict[str, str],
-):
+) -> None:
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
 
@@ -84,12 +84,12 @@ def _on_lambda_start_response(
 
 def _on_lambda_parse_body(
     response_body: Optional[Union[str, dict[str, Any]]],
-):
+) -> None:
     if asm_config._api_security_feature_active and response_body:
         set_body_response(response_body)
 
 
-def listen():
+def listen() -> None:
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)

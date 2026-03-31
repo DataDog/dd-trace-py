@@ -292,10 +292,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
-                ),
-                Venv(
-                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
@@ -1894,10 +1890,6 @@ venv = Venv(
                 Venv(
                     pys="3.9",
                     pkgs={
-                        "pytest": [
-                            ">=6.0,<7.0",
-                            latest,
-                        ],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
@@ -2023,11 +2015,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
-                "pytest-bdd": [
-                    ">=4.0,<5.0",
-                    # FIXME: add support for v6.1
-                    ">=6.0,<6.1",
-                ],
             },
             env={
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
@@ -2322,10 +2309,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-randomly": latest,
-                "aiohttp": [
-                    "~=3.7",
-                    latest,
-                ],
                 "yarl": "~=1.0",
             },
             venvs=[
@@ -2345,6 +2328,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                         "pytest-aiohttp": ["==1.0.5"],
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
                 Venv(
@@ -2352,6 +2336,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": [">=1.0.0"],
                         "pytest-aiohttp": latest,
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
             ],
@@ -2964,8 +2949,9 @@ venv = Venv(
             pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(
+                    # mysqlclient ~=2.0 only tested on 3.9
                     pys="3.9",
-                    pkgs={"mysqlclient": ["~=2.0", "~=2.1", latest]},
+                    pkgs={"mysqlclient": ["~=2.0"]},
                 ),
                 Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
@@ -3448,7 +3434,8 @@ venv = Venv(
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                "pydantic-evals": latest,
+                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
+                                "pydantic-evals": "<1.31",
                             },
                         ),
                     ],
@@ -3747,20 +3734,20 @@ venv = Venv(
                 ),
             ],
         ),
+        # In-process tests (fast): test_iast_flask.py, test_appsec_flask_telemetry.py, and class-based
+        # tests in test_appsec_flask.py. No subprocess/gunicorn overhead.
         Venv(
             name="appsec_integrations_flask",
-            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
+            command="pytest -vvv {cmdargs}"
+            " tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
-                "requests": latest,
-                "gunicorn": latest,
-                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
@@ -3783,13 +3770,46 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
-                        "flask": "~=3.0",
+                        "flask": "~=3.1",
+                        "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        # Subprocess/testagent tests (slow): gunicorn, remoteconfig, patching, entrypoint tests.
+        # Reduced Flask version matrix since these test IAST/AppSec internals, not Flask-specific behavior.
+        Venv(
+            name="appsec_integrations_flask_testagent",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/"
+            " --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11"),
+                    pys="3.13",
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",

@@ -742,6 +742,30 @@ def test_extract_128bit_trace_ids_datadog():
 
 
 @pytest.mark.subprocess(
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
+    check_logs=False,
+)
+def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import tracer  # noqa:F811
+
+    low_64_bits = 13088165645273925489
+    uppercase_tid = "AABBCCDD00112233"
+    headers = {
+        "x-datadog-trace-id": str(low_64_bits),
+        "x-datadog-parent-id": "1",
+        "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, uppercase_tid]),
+    }
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == low_64_bits
+        assert span.context._meta.get("_dd.propagation_error") == "malformed_tid {}".format(uppercase_tid)
+        assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
+
+
+@pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
 def test_extract_128bit_trace_ids_b3multi():
