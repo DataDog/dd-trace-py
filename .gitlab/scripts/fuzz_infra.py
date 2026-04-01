@@ -92,12 +92,12 @@ def get_package_name(binary_name: str, py_version_compact: str) -> str:
     return f"{prefix}-{suffix}"
 
 
-def run_command(cmd, capture_output=True, input=None):
+def run_command(cmd, capture_output=True, inp=None):
     """Run *cmd* and raise on non-zero exit."""
     print(f"+ {' '.join(cmd)}")
     if capture_output:
-        return subprocess.run(cmd, check=True, capture_output=True, text=True, input=input)
-    return subprocess.run(cmd, check=True, text=True, input=input)
+        return subprocess.run(cmd, check=True, capture_output=True, text=True, input=inp)
+    return subprocess.run(cmd, check=True, text=True, input=inp)
 
 
 def get_fuzzydog_token() -> str:
@@ -175,7 +175,7 @@ def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
             "-",
         ],
         capture_output=False,
-        input=dockerfile_content,
+        inp=dockerfile_content,
     )
     return metadata_file
 
