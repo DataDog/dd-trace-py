@@ -1,8 +1,8 @@
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._core import DDConfig
-from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
 
