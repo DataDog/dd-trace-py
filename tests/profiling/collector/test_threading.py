@@ -622,6 +622,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
 
     import mock
 
+    import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
 
@@ -631,7 +632,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
 
     before: int = time.monotonic_ns()
     with (
-        mock.patch("ddtrace.profiling.collector._lock.ddup") as mock_ddup,
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
         ThreadingLockCollector(capture_pct=100),
     ):
         mock_ddup.SampleHandle.return_value = mock_handle
@@ -660,6 +661,7 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
 
     import mock
 
+    import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
 
@@ -668,8 +670,8 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
     mock_handle: mock.MagicMock = mock.MagicMock()
 
     with (
-        mock.patch("ddtrace.profiling.collector._lock.ddup") as mock_ddup,
-        mock.patch("ddtrace.profiling.collector._lock.time") as mock_time,
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
+        mock.patch.object(_lock_module, "time") as mock_time,
         ThreadingLockCollector(capture_pct=100),
     ):
         mock_ddup.SampleHandle.return_value = mock_handle
