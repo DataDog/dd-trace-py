@@ -448,7 +448,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="scripts/run-script-doctests.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
