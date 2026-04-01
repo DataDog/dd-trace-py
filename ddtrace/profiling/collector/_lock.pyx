@@ -496,6 +496,15 @@ class LockCollector(collector.CaptureSamplerCollector):
 
             internal_module_file = threading_module.__file__
 
+        # Precompute the resolved internal module path once — avoids repeated filesystem syscalls
+        # on every lock allocation. The caller filename still needs to be resolved per-call.
+        precomputed_internal_file: Optional[str] = None
+        if internal_module_file:
+            try:
+                precomputed_internal_file = os.path.normpath(os.path.realpath(internal_module_file))
+            except OSError:
+                pass
+
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
             """Simple wrapper that returns profiled locks.
 
@@ -504,15 +513,13 @@ class LockCollector(collector.CaptureSamplerCollector):
             """
             cdef bint is_internal = False
             cdef str caller_filename
-            cdef str internal_file
             try:
                 # In Cython, intermediate frames are invisible; caller is at index 0
                 caller_filename = sys._getframe(0).f_code.co_filename
-                if internal_module_file and caller_filename:
+                if precomputed_internal_file and caller_filename:
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
-                    internal_file = os.path.normpath(os.path.realpath(internal_module_file))
-                    is_internal = caller_filename == internal_file
-            except (ValueError, AttributeError, OSError):
+                    is_internal = caller_filename == precomputed_internal_file
+            except OSError:
                 pass
 
             return self.PROFILED_LOCK_CLASS(
