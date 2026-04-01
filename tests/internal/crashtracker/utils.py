@@ -1,7 +1,9 @@
 # Utility functions for testing crashtracker in subprocesses
 from contextlib import contextmanager
+import fcntl
 import os
 import random
+import tempfile
 import time
 from typing import Callable
 from typing import Generator
@@ -183,12 +185,19 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
-    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
-    client = TestAgentClient(base_url=base_url, token=None)
-    try:
-        # Reset state before starting the test
-        client.clear()
-        yield client
-    finally:
-        # Always reset state at the end of the test
-        client.clear()
+    # Use a file lock so that concurrent xdist workers (including ATR retries, which
+    # bypass xdist_group) do not race on the shared test-agent state.  clear() is a
+    # global operation with no session-token isolation, so only one crashtracker test
+    # may hold this lock at a time.
+    lock_path = os.path.join(tempfile.gettempdir(), "dd_crashtracker_test_agent.lock")
+    with open(lock_path, "w") as _lock_file:
+        fcntl.flock(_lock_file.fileno(), fcntl.LOCK_EX)
+        base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
+        client = TestAgentClient(base_url=base_url, token=None)
+        try:
+            # Reset state before starting the test
+            client.clear()
+            yield client
+        finally:
+            # Always reset state at the end of the test
+            client.clear()
