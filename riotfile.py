@@ -3424,7 +3424,6 @@ venv = Venv(
                         "google-cloud-aiplatform": ">=1.0,<2",
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": latest,
                         "langchain": latest,
                         "pandas": latest,
                     },
