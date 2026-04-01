@@ -1,6 +1,8 @@
 #include "ddup_interface.hpp"
 #include "test_utils.hpp"
+#include <chrono>
 #include <gtest/gtest.h>
+#include <thread>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
 //       "workaround" in the following link
@@ -21,6 +23,11 @@ single_sample_noframe()
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
 
     std::exit(0);
 }
@@ -45,6 +52,11 @@ single_oneframe_sample()
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
 
     std::exit(0);
 }
@@ -78,6 +90,11 @@ single_manyframes_sample()
     // Upload.  It'll fail, but whatever
     ddup_upload();
 
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
+
     std::exit(0);
 }
 
@@ -109,6 +126,11 @@ single_toomanyframes_sample()
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
 
     std::exit(0);
 }
@@ -153,6 +175,11 @@ lotsa_frames_lotsa_samples()
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
 
     std::exit(0);
 }
