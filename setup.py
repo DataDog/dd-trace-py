@@ -459,9 +459,15 @@ class LibraryDownload:
         download_dir = Path(cls.download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
 
-        # If the directory is nonempty, assume we're done
+        # If the directory is nonempty, check the version stamp before assuming we're done.
+        # Without this, bumping cls.version would silently keep the stale download in place.
+        version_file = download_dir / ".version"
         if any(download_dir.iterdir()):
-            return
+            if cls.version is not None and version_file.exists() and version_file.read_text().strip() == cls.version:
+                return
+            # Version changed or no stamp — wipe and re-fetch
+            shutil.rmtree(download_dir)
+            download_dir.mkdir(parents=True, exist_ok=True)
 
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
@@ -552,6 +558,9 @@ class LibraryDownload:
 
             if not cls.USE_CACHE:
                 Path(filename).unlink()
+
+        if cls.version is not None:
+            version_file.write_text(cls.version)
 
     @classmethod
     def run(cls):
