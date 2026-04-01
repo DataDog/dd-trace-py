@@ -98,6 +98,8 @@ setup(
             "tests*",
             "benchmarks*",
             "scripts*",
+            # build-time tooling — must not be shipped in the wheel
+            "_build*",
             # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
             "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
             # C++ test helpers, not needed at runtime
