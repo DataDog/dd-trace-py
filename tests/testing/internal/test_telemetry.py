@@ -26,9 +26,9 @@ def telemetry_api() -> t.Generator[TelemetryAPI, None, None]:
     api = TelemetryAPI(connector_setup=Mock())
 
     mock_writer = Mock()
-    api.writer = mock_writer
+    api.writer = mock_writer  # type: ignore[assignment]
 
-    yield api
+    yield api  # type: ignore[misc]
 
 
 class TestTelemetry:
@@ -89,6 +89,32 @@ class TestTelemetry:
 
         assert telemetry_api.writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request_ms", 1.41, ()),
+        ]
+
+    def test_record_request_rate_limited_maps_to_4xx(self, telemetry_api: TelemetryAPI) -> None:
+        """RATE_LIMITED is emitted as status_code_4xx_response for cross-language consistency."""
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.41,
+            response_bytes=42,
+            compressed_response=False,
+            error=ErrorType.RATE_LIMITED,
+        )
+
+        assert telemetry_api.writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request", 1, ()),
+            call(
+                CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value),),
+            ),
         ]
 
     def test_record_request_without_error(self, telemetry_api: TelemetryAPI) -> None:
@@ -315,6 +341,7 @@ class TestTelemetry:
             (ErrorType.NETWORK, "network"),
             (ErrorType.CODE_4XX, "status_code"),
             (ErrorType.CODE_5XX, "status_code"),
+            (ErrorType.RATE_LIMITED, "status_code"),
             (ErrorType.BAD_JSON, "network"),
             (ErrorType.UNKNOWN, "network"),
         ],

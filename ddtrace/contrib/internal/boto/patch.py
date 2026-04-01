@@ -135,7 +135,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
+        span._set_attribute(http.STATUS_CODE, result.status)
         span._set_attribute(http.METHOD, result._method)
 
         return result
@@ -203,7 +203,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
+        span._set_attribute(http.STATUS_CODE, result.status)
         span._set_attribute(http.METHOD, result._method)
 
         span._set_attribute(COMPONENT, config.boto.integration_name)
