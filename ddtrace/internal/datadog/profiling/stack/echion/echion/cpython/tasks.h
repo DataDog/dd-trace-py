@@ -224,8 +224,53 @@ extern "C"
 #define RESUME_QUICK INSTRUMENTED_RESUME
 #endif
 
-#if PY_VERSION_HEX >= 0x030e0000
-    // Python 3.14+: Use stackpointer and _PyStackRef
+#if PY_VERSION_HEX >= 0x030f0000
+    // Python 3.15+: FRAME_SUSPENDED_YIELD_FROM_LOCKED added; a generator locked
+    // during a yield-from is also awaitable and must be followed.
+    // All other logic is identical to 3.14 (stackpointer/_PyStackRef).
+
+    inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
+    {
+        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM &&
+            gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED) {
+            return nullptr;
+        }
+
+        _PyInterpreterFrame frame;
+        if (copy_type(frame_addr, frame)) {
+            return nullptr;
+        }
+
+        PyCodeObject code;
+        auto code_addr = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame.f_executable));
+        if (copy_type(code_addr, code)) {
+            return nullptr;
+        }
+
+        uintptr_t frame_addr_uint = reinterpret_cast<uintptr_t>(frame_addr);
+        uintptr_t localsplus_addr = frame_addr_uint + offsetof(_PyInterpreterFrame, localsplus);
+        uintptr_t stackbase_addr = localsplus_addr + code.co_nlocalsplus * sizeof(_PyStackRef);
+
+        uintptr_t stackpointer_addr = reinterpret_cast<uintptr_t>(frame.stackpointer);
+        if (stackpointer_addr <= stackbase_addr) {
+            return nullptr;
+        }
+
+        int stacktop = (int)((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
+        if (stacktop < 1 || stacktop > MAX_STACK_SIZE) {
+            return nullptr;
+        }
+
+        _PyStackRef top_ref;
+        if (copy_type(reinterpret_cast<void*>(stackpointer_addr - sizeof(_PyStackRef)), top_ref)) {
+            return nullptr;
+        }
+
+        return BITS_TO_PTR_MASKED(top_ref);
+    }
+
+#elif PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14: Use stackpointer and _PyStackRef
 
     inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
     {

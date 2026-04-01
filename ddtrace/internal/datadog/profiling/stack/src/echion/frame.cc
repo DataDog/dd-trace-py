@@ -99,7 +99,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
-#if PY_VERSION_HEX >= 0x030e0000
+#if PY_VERSION_HEX >= 0x030f0000
+    // Python 3.15: FRAME_OWNED_BY_CSTACK was removed; only FRAME_OWNED_BY_INTERPRETER remains.
+    if (frame_addr->owner == FRAME_OWNED_BY_INTERPRETER) {
+#elif PY_VERSION_HEX >= 0x030e0000
     // Python 3.14 introduced FRAME_OWNED_BY_INTERPRETER, and frames of this
     // type are also ignored by the upstream profiler.
     // See
