@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Iterable
 
@@ -29,20 +28,19 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
-
 config._add(
     "pymemcache",
     {
-        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+        "command_enabled": asbool(env.get("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
     },
 )
-
 
 # keep a reference to the original unpatched clients
 _Client = Client
