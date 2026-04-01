@@ -119,7 +119,6 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
 
             return result
         except azure_cosmos.exceptions.CosmosHttpResponseError as e:
-            
             _tag_cosmos_exceptions(e, span)
             raise e
 
