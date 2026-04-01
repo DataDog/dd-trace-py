@@ -32,9 +32,9 @@ Current status
      - Merged (`PR #15546`__)
      - Echion frame/task/asyncio, ``setup.py`` un-gating, Riot venv splits, tests done.
    * - 3.15
-     - **In progress**
-     - Current migration target. Use ``0x030f0000`` guards. Only split from 3.14 where
-       layout or behavior diverges.
+     - **In progress** (this PR)
+     - ``FRAME_OWNED_BY_CSTACK`` removed; ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` added;
+       ``PyStackRef`` tag scheme unified. Use ``0x030f0000`` guards.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
 
