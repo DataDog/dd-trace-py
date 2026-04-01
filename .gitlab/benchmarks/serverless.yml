@@ -5,7 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: emmett.butler/serveless-wheels
+    branch: emmett.butler/serverless-wheels
     strategy: depend
   needs:
     - job: "upload serverless"
