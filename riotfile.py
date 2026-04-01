@@ -3425,8 +3425,7 @@ venv = Venv(
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
                         "ragas": "==0.1.21",
-                        # langchain is pinned per Python below — bare "latest" makes pip-compile hit
-                        # ResolutionTooDeepError on wide transitive graphs (openai 2.x, deepeval, etc.).
+                        "langchain": "latest"
                         "pandas": latest,
                     },
                     venvs=[
@@ -3437,19 +3436,15 @@ venv = Venv(
                                 # Explicit pydantic v2 so pydantic-core wheels resolve with langchain; avoids
                                 # broken transitive-only installs (missing pydantic_core._pydantic_core).
                                 "pydantic": latest,
-                                # "langchain": ">=0.2.0,<0.3",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
-                                "deepeval": ">=3.9.0,<4",  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # ReportEvaluator lives in pydantic-evals 1.31+; that stack needs openai>=2.0.
+                                "deepeval": "latest",
                                 "openai": ">=2.0",
                                 "pydantic-evals": ">=1.31",
-                                # 1.x aligns with openai>=2; 0.2.x does not — narrow bounds avoid pip backtracking explosion.
-                                # "langchain": ">=1.0.0,<2",
                             },
                         ),
                     ],
