@@ -107,6 +107,8 @@ PATCH_MODULES = {
     "pydantic_ai": True,
     "vllm": True,
     "mlflow": config._model_lab_enabled,
+    "builtins": True,
+    "pathlib": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
