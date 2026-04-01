@@ -27,6 +27,7 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 CLAUDE_OPTIONS_KEYS = ("max_turns", "max_thinking_tokens", "max_budget_usd")
+_CONTEXT_EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
 
 
 class ClaudeAgentSdkIntegration(BaseLLMIntegration):
@@ -111,140 +112,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if "max_turns" in metadata:
             manifest["max_iterations"] = metadata["max_turns"]
         return manifest
-
-    def _extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        metadata = {}
-        options = kwargs.get("options")
-        for key in CLAUDE_OPTIONS_KEYS:
-            if hasattr(options, key) and getattr(options, key):
-                metadata[key] = getattr(options, key)
-        self._format_context(metadata, kwargs)
-        return metadata
-
-    def _parse_context_delta(
-        self,
-        before_context: Optional[list[Any]],
-        after_context: Optional[list[Any]],
-    ) -> Optional[dict[str, Any]]:
-        """Parse before/after /context message lists into a context_delta dict.
-
-        Returns None if no token data could be extracted from either snapshot.
-        """
-
-        def _parse_snapshot(messages: Any) -> dict[str, Any]:
-            snapshot: dict[str, Any] = {"sections": [], "used_tokens": None, "total_tokens": None}
-            if not messages or not isinstance(messages, list):
-                return snapshot
-            try:
-                for msg in messages:
-                    msg_type = type(msg).__name__
-                    if msg_type == "AssistantMessage":
-                        blocks = _get_attr(msg, "content", []) or []
-                        content = "\n".join(
-                            _get_attr(b, "text", "")
-                            for b in blocks
-                            if type(b).__name__ == "TextBlock"
-                        )
-                    elif msg_type == "UserMessage":
-                        content = _get_attr(msg, "content", "")
-                        if isinstance(content, list):
-                            content = "\n".join(
-                                b.get("text", "") for b in content
-                                if isinstance(b, dict) and b.get("type") == "text"
-                            )
-                    else:
-                        continue
-                    if not content or not isinstance(content, str):
-                        continue
-
-                    _EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
-                    in_table = False
-                    for line in content.split("\n"):
-                        if "**Tokens:**" in line:
-                            try:
-                                tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
-                                if "/" in tokens_part:
-                                    _, total_str = [t.strip() for t in tokens_part.split("/")]
-                                    s = total_str.strip()
-                                    snapshot["total_tokens"] = (
-                                        round(float(s[:-1]) * 1000) if s.lower().endswith("k") else int(float(s))
-                                    )
-                            except (IndexError, ValueError, TypeError):
-                                pass
-
-                        if "### Estimated usage by category" in line:
-                            in_table = True
-                            continue
-                        if in_table and line.startswith("###"):
-                            break
-                        if in_table and "|" in line:
-                            if not line.strip().replace("|", "").replace("-", "").strip():
-                                continue
-                            parts = [p.strip() for p in line.split("|")]
-                            if len(parts) >= 4 and parts[1] and parts[3]:
-                                name, token_str, pct_str = parts[1], parts[2], parts[3]
-                                if name == "Category" or pct_str == "Percentage":
-                                    continue
-                                try:
-                                    pct = float(pct_str.rstrip("%"))
-                                except (ValueError, TypeError):
-                                    pct = 0.0
-                                try:
-                                    ts = token_str.strip()
-                                    tokens = (
-                                        round(float(ts[:-1]) * 1000) if ts.lower().endswith("k") else int(float(ts))
-                                    )
-                                except (ValueError, TypeError):
-                                    tokens = 0
-                                if name not in _EXCLUDED_SECTIONS and "(deferred)" not in name:
-                                    snapshot["sections"].append({"name": name, "tokens": tokens, "pct": pct})
-                    snapshot["used_tokens"] = sum(s["tokens"] for s in snapshot["sections"]) or None
-                    # recompute pct as % of used tokens to match expected data format
-                    if snapshot["used_tokens"]:
-                        for s in snapshot["sections"]:
-                            s["pct"] = round(s["tokens"] / snapshot["used_tokens"] * 100, 1)
-                    break  # only process the first AssistantMessage/UserMessage
-            except Exception:
-                log.warning("Error parsing context snapshot", exc_info=True)
-            return snapshot
-
-        before = _parse_snapshot(before_context)
-        after = _parse_snapshot(after_context)
-
-        first_tokens = before.get("used_tokens")
-        last_tokens = after.get("used_tokens")
-        if first_tokens is None and last_tokens is None:
-            return None
-
-        first_tokens = first_tokens or 0
-        last_tokens = last_tokens or 0
-        context_window = after.get("total_tokens") or before.get("total_tokens") or 0
-        first_pct = round(first_tokens / context_window * 100, 1) if context_window > 0 else 0.0
-        last_pct = round(last_tokens / context_window * 100, 1) if context_window > 0 else 0.0
-
-        delta: dict[str, Any] = {
-            "first_input_tokens": first_tokens,
-            "last_input_tokens": last_tokens,
-            "delta_tokens": last_tokens - first_tokens,
-            "context_window_size": context_window,
-            "first_usage_pct": first_pct,
-            "last_usage_pct": last_pct,
-        }
-        if before["sections"]:
-            delta["first_sections"] = before["sections"]
-        if after["sections"]:
-            delta["last_sections"] = after["sections"]
-        return delta
-
-    def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
-        after_context = kwargs.get("_dd_context")
-        before_context = kwargs.get("_dd_before_context")
-
-        context_delta = self._parse_context_delta(before_context, after_context)
-        if context_delta is not None:
-            if "_dd" not in metadata or not isinstance(metadata["_dd"], dict):
-                metadata["_dd"] = {}
-            metadata["_dd"]["context_delta"] = context_delta
 
     def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
         prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
@@ -376,3 +243,150 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if cache_read:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read
         return metrics
+
+    def _extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        metadata = {}
+        options = kwargs.get("options")
+        for key in CLAUDE_OPTIONS_KEYS:
+            if hasattr(options, key) and getattr(options, key):
+                metadata[key] = getattr(options, key)
+        self._format_context(metadata, kwargs)
+        return metadata
+
+    def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
+        after_context = kwargs.get("_dd_context")
+        before_context = kwargs.get("_dd_before_context")
+
+        context_delta = self._parse_context_delta(before_context, after_context)
+        if context_delta is not None:
+            metadata.setdefault("_dd", {})["context_delta"] = context_delta
+
+    def _parse_context_delta(
+        self,
+        before_context: Optional[list[Any]],
+        after_context: Optional[list[Any]],
+    ) -> Optional[dict[str, Any]]:
+        """Parse before/after /context message lists into a context_delta dict.
+
+        Returns None if no token data could be extracted from either snapshot.
+        """
+        before = self._parse_snapshot(before_context)
+        after = self._parse_snapshot(after_context)
+
+        first_tokens = before.get("used_tokens")
+        last_tokens = after.get("used_tokens")
+        if first_tokens is None and last_tokens is None:
+            return None
+
+        first_tokens = first_tokens or 0
+        last_tokens = last_tokens or 0
+        context_window = after.get("total_tokens") or before.get("total_tokens") or 0
+        first_pct = round(first_tokens / context_window * 100, 1) if context_window > 0 else 0.0
+        last_pct = round(last_tokens / context_window * 100, 1) if context_window > 0 else 0.0
+
+        delta: dict[str, Any] = {
+            "first_input_tokens": first_tokens,
+            "last_input_tokens": last_tokens,
+            "delta_tokens": last_tokens - first_tokens,
+            "context_window_size": context_window,
+            "first_usage_pct": first_pct,
+            "last_usage_pct": last_pct,
+        }
+        if before["sections"]:
+            delta["first_sections"] = before["sections"]
+        if after["sections"]:
+            delta["last_sections"] = after["sections"]
+        return delta
+    
+    def _parse_snapshot(self, messages: Any) -> dict[str, Any]:
+        """Parse a list of /context messages into a snapshot dict with sections and token counts."""
+        snapshot: dict[str, Any] = {"sections": [], "used_tokens": None, "total_tokens": None}
+        if not messages or not isinstance(messages, list):
+            return snapshot
+        try:
+            content = self._extract_context_text(messages)
+            if not content:
+                return snapshot
+            snapshot["total_tokens"] = self._parse_context_window_size(content)
+            snapshot["sections"] = self._parse_context_sections(content)
+            snapshot["used_tokens"] = sum(s["tokens"] for s in snapshot["sections"]) or None
+            # pct is stored as % of used tokens
+            for s in snapshot["sections"]:
+                s["pct"] = round(s["tokens"] / snapshot["used_tokens"] * 100, 1) if snapshot["used_tokens"] else 0.0
+        except Exception:
+            log.warning("Error parsing context snapshot", exc_info=True)
+        return snapshot
+
+    @staticmethod
+    def _extract_context_text(messages: list[Any]) -> Optional[str]:
+        """Return the text content of the first AssistantMessage in messages, or None."""
+        for msg in messages:
+            if type(msg).__name__ != "AssistantMessage":
+                continue
+            blocks = _get_attr(msg, "content", []) or []
+            content = "\n".join(
+                _get_attr(b, "text", "")
+                for b in blocks
+                if type(b).__name__ == "TextBlock"
+            )
+            if content:
+                return content
+        return None
+
+    @staticmethod
+    def _parse_context_window_size(content: str) -> Optional[int]:
+        """Parse the context window size from the **Tokens:** X / Y (Z%) headline."""
+        for line in content.split("\n"):
+            if "**Tokens:**" not in line:
+                continue
+            try:
+                tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
+                if "/" in tokens_part:
+                    _, total_str = [t.strip() for t in tokens_part.split("/")]
+                    return ClaudeAgentSdkIntegration._parse_tok(total_str)
+            except (IndexError, ValueError, TypeError):
+                pass
+        return None
+
+    @staticmethod
+    def _parse_context_sections(content: str) -> list[dict[str, Any]]:
+        """Parse the ### Estimated usage by category table into a list of {name, tokens} dicts.
+
+        Excludes overhead rows (Free space, Autocompact buffer) and deferred sections.
+        """
+        sections = []
+        in_table = False
+        for line in content.split("\n"):
+            if "### Estimated usage by category" in line:
+                in_table = True
+                continue
+            if in_table and line.startswith("###"):
+                break
+            if not in_table or "|" not in line:
+                continue
+            if not line.strip().replace("|", "").replace("-", "").strip():
+                continue  # separator row
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 4 or not parts[1] or not parts[3]:
+                continue
+            name, token_str, pct_str = parts[1], parts[2], parts[3]
+            if name == "Category" or pct_str == "Percentage":
+                continue  # header row
+            if name in _CONTEXT_EXCLUDED_SECTIONS or "(deferred)" in name:
+                continue
+            try:
+                tokens = ClaudeAgentSdkIntegration._parse_tok(token_str)
+            except (ValueError, TypeError):
+                tokens = 0
+            sections.append({"name": name, "tokens": tokens})
+        return sections
+
+    @staticmethod
+    def _parse_tok(s: str) -> int:
+        """Parse a token count string with optional k/m suffix (e.g. '14.8k', '1.0M', '200000')."""
+        s = s.strip()
+        if s.lower().endswith("k"):
+            return round(float(s[:-1]) * 1_000)
+        if s.lower().endswith("m"):
+            return round(float(s[:-1]) * 1_000_000)
+        return int(float(s))
