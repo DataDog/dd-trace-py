@@ -454,8 +454,13 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 }
 
 // ----------------------------------------------------------------------------
+// Internal helper: launches the thread after ensuring preconditions.
+// If reset_next_call_time is true (normal start), _next_call_time is initialised
+// to now + interval before starting; otherwise it is left untouched (important
+// for cases where the thread is being restarted after a fork to preserve the
+// existing next trigger time).
 static PyObject*
-PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
 {
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
@@ -465,10 +470,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
     if (self->_stopping)
         Py_RETURN_NONE;
 
-    // Initialize the next call time to the current time plus the interval.
-    // This ensures that the first call happens after the specified interval.
-    self->_next_call_time =
-      std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
+    if (reset_next_call_time)
+        self->_next_call_time =
+          std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self]() {
@@ -570,6 +574,13 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
     }
 
     Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    return _PeriodicThread_do_start(self, true);
 }
 
 // ----------------------------------------------------------------------------
@@ -713,7 +724,11 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         self->_stopped->clear();
         self->_served->clear();
 
-        PeriodicThread_start(self, NULL);
+        // Use _PeriodicThread_do_start instead of PeriodicThread_start to
+        // preserve _next_call_time from before the fork. This ensures that
+        // a restarted thread fires at the same time it would have without
+        // the fork, rather than being pushed back by a full interval.
+        _PeriodicThread_do_start(self);
     } else {
         // No restart: the common cleanup above is sufficient for fork-specific
         // state. Two additional invariants are preserved intentionally:
