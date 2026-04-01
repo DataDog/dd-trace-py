@@ -20,6 +20,8 @@ from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -847,6 +849,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Mark stats as computed, without computing them, skipping trace exporter stats computation.
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -904,6 +907,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
+        self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
@@ -936,6 +940,25 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if hasattr(self, "_fork_hook") and self._fork_hook:
             forksafe.unregister_before_fork(self._fork_hook)
 
+    @staticmethod
+    def _parse_otlp_headers() -> list:
+        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs.
+
+        TODO: This parsing will move into libdatadog once header handling is supported natively.
+        The current split-on-comma approach does not handle percent-encoded commas (%2C) in header
+        values per the OTEL spec; that edge case will be handled correctly on the libdatadog side.
+        """
+        raw = otel_config.exporter.TRACES_HEADERS
+        if not raw:
+            return []
+        headers = []
+        for item in raw.split(","):
+            item = item.strip()
+            if "=" in item:
+                key, _, value = item.partition("=")
+                headers.append((key.strip(), value.strip()))
+        return headers
+
     def _create_exporter(self) -> native.TraceExporter:
         """
         Create a new TraceExporter with the current configuration.
@@ -962,6 +985,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_env(config.env)
         if config.version:
             builder.set_app_version(config.version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+            otlp_headers = self._parse_otlp_headers()
+            if otlp_headers:
+                builder.set_otlp_headers(otlp_headers)
+            builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
         if self._test_session_token is not None:
@@ -1017,6 +1046,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -1307,6 +1337,10 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
 
     verify_url(agent_config.trace_agent_url)
 
+    otlp_endpoint = (
+        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    )
+
     if config._trace_writer_native:
         return NativeWriter(
             intake_url=agent_config.trace_agent_url,
@@ -1316,6 +1350,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             report_metrics=not asm_config._apm_opt_out,
             response_callback=response_callback,
             stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
         )
     else:
         headers: dict[str, str] = {}
