@@ -506,18 +506,30 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  cache:
+    key: "v2-lib-injection-pyenv-v2.6.17-${PYTHON}-${CURRENT_YEAR}-${CURRENT_MONTH}"
+    paths:
+      - .cache/pyenv/
+    when: always
   parallel:
     matrix:
       - PYTHON: [ "2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev" ]
   script:
-    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PYENV_ROOT="${CI_PROJECT_DIR}/.cache/pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
     - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
+    - |
+      if [ ! -x "${PYENV_ROOT}/bin/pyenv" ]; then
+        for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
+      fi
     - pyenv --version
-    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
-    - python --version
-    - python lib-injection/sources/sitecustomize.py
+    - |
+      if ! pyenv prefix ${PYTHON} &>/dev/null; then
+        pyenv install ${PYTHON}
+      fi
+    - pyenv global ${PYTHON}
+    - pyenv exec python${PYTHON%%.*} --version
+    - pyenv exec python${PYTHON%%.*} lib-injection/sources/sitecustomize.py
 
 # Profiling native tests with sanitizers
 # Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
