@@ -614,24 +614,26 @@ class TestPydanticReportSummaryEvaluatorInExperiment:
         summary_name = summary_eval.get_serialization_name()
 
         exp = llmobs.experiment(
-                "test_exp_table_report_summary",
-                task,
-                dataset,
-                [row_eval],
-                summary_evaluators=[summary_eval],
-            )
+            "test_exp_table_report_summary",
+            task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
 
         run_info = _ExperimentRunInfo(0)
         task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
         eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
         summary_results = asyncio.run(
-        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
         )
         summary_name = summary_eval.get_serialization_name()
         summary_entry = summary_results[0]["evaluations"][summary_name]
         assert summary_entry["error"] is not None
-        assert summary_entry["error"]["message"] == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
-
+        assert (
+            summary_entry["error"]["message"]
+            == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+        )
 
     def test_sync_experiment_rejects_report_analysis_union_annotation(self, llmobs):
         def task(input_data, config):
@@ -652,13 +654,12 @@ class TestPydanticReportSummaryEvaluatorInExperiment:
         task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
         eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
         summary_results = asyncio.run(
-        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
         )
         assert len(summary_results) == 1
         summary_entry = summary_results[0]["evaluations"][summary_name]
         assert summary_entry["error"] is None
         assert summary_entry["value"] == 1.0
-
 
     @pytest.mark.asyncio
     async def test_async_experiment_scalar_report_summary_runs(self, llmobs):
@@ -711,7 +712,10 @@ class TestPydanticReportSummaryEvaluatorInExperiment:
         summary_name = summary_eval.get_serialization_name()
         summary_entry = summary_results[0]["evaluations"][summary_name]
         assert summary_entry["error"] is not None
-        assert summary_entry["error"]["message"] == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+        assert (
+            summary_entry["error"]["message"]
+            == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+        )
 
     async def test_async_experiment_rejects_report_analysis_union_annotation(self, llmobs):
         async def async_task(input_data, config):

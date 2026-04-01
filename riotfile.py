@@ -3427,16 +3427,12 @@ venv = Venv(
                         Venv(
                             pys=["3.9"],
                             command="pytest {cmdargs} tests/llmobs",
-                            pkgs={
-                                "pydantic": latest,
-                            },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,
-                                "openai": ">=2.0",
                                 "pydantic-evals": ">=1.31",
                             },
                         ),
