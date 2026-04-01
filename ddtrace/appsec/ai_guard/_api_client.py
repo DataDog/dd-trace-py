@@ -58,6 +58,13 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
 
 
+class Tool(TypedDict, total=False):
+    type: str
+    name: Optional[str]
+    parameters: Optional[str]
+    description: Optional[str]
+
+
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
@@ -71,9 +78,11 @@ class Options(TypedDict, total=False):
     Attributes:
         block: Controls whether non-ALLOW decisions raise ``AIGuardAbortError``. Defaults to
             following the AI Guard response ``is_blocking_enabled`` setting when omitted.
+        tools: list of tools made available to the model
     """
 
     block: bool
+    tools: Optional[list[Tool]]
 
 
 class Error(TypedDict, total=False):
@@ -235,9 +244,13 @@ class AIGuardClient:
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+        with (tracer.trace(AI_GUARD.RESOURCE_TYPE) as span):
             try:
-                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
+                attributes: dict[str, Any] = {"messages": messages, "meta": self._meta}
+                tools = options.get("tools", None) if options else None
+                if tools:
+                    attributes["tools"] = tools
+                payload: dict[str, Any] = {"data": {"attributes": attributes}}
                 last = messages[-1]
                 tool_name = self._get_tool_name(last, messages)
                 if tool_name:

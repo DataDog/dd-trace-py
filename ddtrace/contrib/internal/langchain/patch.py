@@ -68,7 +68,7 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        _raising_dispatch("langchain.llm.generate.before", (prompts,))
+        _raising_dispatch("langchain.llm.generate.before", (prompts, kwargs))
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
@@ -100,7 +100,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
     completions = None
     try:
-        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+        _raising_dispatch("langchain.llm.agenerate.before", (prompts, kwargs))
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
@@ -131,7 +131,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages, kwargs))
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
@@ -162,7 +162,7 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages, kwargs))
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
@@ -360,7 +360,7 @@ def traced_llm_stream(func, instance, args, kwargs):
     )
 
 
-def traced_base_tool_invoke(func, instance, args, kwargs):
+def traced_base_tool_run(func, instance, args, kwargs):
     integration = langchain_core._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
@@ -388,7 +388,9 @@ def traced_base_tool_invoke(func, instance, args, kwargs):
         if tags:
             tool_info["tags"] = tags
 
+        _raising_dispatch("langchain.base_tool.run.before", (span, tool_info, tool_input))
         tool_output = func(*args, **kwargs)
+        _raising_dispatch("langchain.base_tool.run.after", (span, tool_info, tool_input, tool_output,))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -399,7 +401,7 @@ def traced_base_tool_invoke(func, instance, args, kwargs):
     return tool_output
 
 
-async def traced_base_tool_ainvoke(func, instance, args, kwargs):
+async def traced_base_tool_arun(func, instance, args, kwargs):
     integration = langchain_core._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
@@ -427,7 +429,9 @@ async def traced_base_tool_ainvoke(func, instance, args, kwargs):
         if tags:
             tool_info["tags"] = tags
 
+        _raising_dispatch("langchain.base_tool.run.before", (span, tool_info, config,))
         tool_output = await func(*args, **kwargs)
+        _raising_dispatch("langchain.base_tool.run.after", (span, tool_info, config, tool_output))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -692,8 +696,8 @@ def patch():
     wrap(BasePromptTemplate, "invoke", patched_base_prompt_template_invoke)
     wrap(BasePromptTemplate, "ainvoke", patched_base_prompt_template_ainvoke)
 
-    wrap(BaseTool, "invoke", traced_base_tool_invoke)
-    wrap(BaseTool, "ainvoke", traced_base_tool_ainvoke)
+    wrap(BaseTool, "run", traced_base_tool_run)
+    wrap(BaseTool, "arun", traced_base_tool_arun)
 
     wrap(Embeddings, "__init_subclass__", patched_embeddings_init_subclass)
     wrap(VectorStore, "__init_subclass__", patched_vectorstore_init_subclass)
@@ -729,8 +733,8 @@ def unpatch():
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "astream")
     unwrap(langchain_core.language_models.llms.BaseLLM, "stream")
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
-    unwrap(langchain_core.tools.BaseTool, "invoke")
-    unwrap(langchain_core.tools.BaseTool, "ainvoke")
+    unwrap(langchain_core.tools.BaseTool, "run")
+    unwrap(langchain_core.tools.BaseTool, "arun")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")

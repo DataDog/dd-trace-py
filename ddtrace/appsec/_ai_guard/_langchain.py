@@ -1,15 +1,17 @@
 import json
-from typing import Any
+from typing import Any, Optional
 from typing import Sequence
 import uuid
 
 from ddtrace.appsec._ai_guard.messages import try_format_json
+from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard._api_client import Tool
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
@@ -61,12 +63,12 @@ def _langchain_unpatch():
 
 def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
     action = func(*args, **kwargs)
-    return _handle_agent_action_result(client, action, args, kwargs)
+    return _handle_agent_action_result(client, action, instance, args, kwargs)
 
 
 async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kwargs):
     action = await func(*args, **kwargs)
-    return _handle_agent_action_result(client, action, args, kwargs)
+    return _handle_agent_action_result(client, action, instance, args, kwargs)
 
 
 def _try_parse_json(value: dict, attribute: str) -> Any:
@@ -89,6 +91,31 @@ def _get_message_text(msg: Any) -> str:
         if isinstance(block, str) or (block.get("type") == "text" and isinstance(block.get("text"), str))
     ]
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
+
+
+def _convert_function(function):
+    return Tool(type="function", name=function.get("name", ""),
+                description=function.get("description", ""),
+                parameters=try_format_json(function.get("parameters", {})))
+
+
+def _extract_tools(kwargs) -> Optional[list[Tool]]:
+    result = []
+    tools = kwargs.get("tools", None)
+    functions = kwargs.get("functions", None)
+    if tools:
+        for tool in tools:
+            tool_type = tool.get("type", None)
+            if tool_type == "function" and tool.get("function", None):
+                result.append(_convert_function(tool.get("function")))
+            else:
+                result.append(Tool(type=tool_type))
+        return None
+    elif functions:
+        for fn in functions:
+            result.append(_convert_function(fn))
+
+    return result if len(result) > 0 else None
 
 
 def _convert_messages(messages: list[Any]) -> list[Message]:
@@ -141,7 +168,7 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     return result
 
 
-def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
+def _handle_agent_action_result(client: AIGuardClient, result, instance, args, kwargs):
     try:
         from langchain_core.agents import AgentAction
         from langchain_core.agents import AgentActionMessageLog
@@ -186,7 +213,8 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
                         ],
                     )
                 )
-                client.evaluate(messages, Options(block=True))
+                tools = _extract_tools(kwargs)
+                client.evaluate(messages, Options(block=True, tools=tools))
             except AIGuardAbortError:
                 raise
             except Exception:
@@ -195,19 +223,20 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
     return result
 
 
-def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
+def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists, kwargs):
+    tools = _extract_tools(kwargs)
     for messages in message_lists:
-        result = _evaluate_langchain_messages(client, messages)
+        result = _evaluate_langchain_messages(client, messages, tools)
         if result:
             return result
     return None
 
 
-def _langchain_llm_generate_before(client: AIGuardClient, prompts):
+def _langchain_llm_generate_before(client: AIGuardClient, prompts, kwargs):
     from langchain_core.messages import HumanMessage
-
+    tools = _extract_tools(kwargs)
     for prompt in prompts:
-        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)], tools)
         if result:
             return result
     return None
@@ -216,7 +245,8 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts):
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
     input_arg = get_argument_value(args, kwargs, 0, "input")
     messages = instance._convert_input(input_arg).to_messages()
-    return _evaluate_langchain_messages(client, messages)
+    tools = _extract_tools(kwargs)
+    return _evaluate_langchain_messages(client, messages, tools)
 
 
 def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
@@ -224,16 +254,23 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
 
     input_arg = get_argument_value(args, kwargs, 0, "input")
     prompt = instance._convert_input(input_arg).to_string()
-    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+    tools = _extract_tools(kwargs)
+    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)], tools)
 
 
-def _evaluate_langchain_messages(client: AIGuardClient, messages):
+def _langchain_base_tool_run_before(span, tool_info, tool_input):
+    span.set_tag(AI_GUARD.TARGET_TAG, "tool_invocation")
+    span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_info.get("name", ""))
+    meta_struct = { "tool_input": try_format_json(tool_input) }
+    span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
+
+def _evaluate_langchain_messages(client: AIGuardClient, messages, tools):
     from langchain_core.messages import HumanMessage
 
     # only call evaluator when the last message is an actual user prompt
     if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
         try:
-            client.evaluate(_convert_messages(messages), Options(block=True))
+            client.evaluate(_convert_messages(messages), Options(block=True, tools=tools))
         except AIGuardAbortError as e:
             return e
         except Exception:

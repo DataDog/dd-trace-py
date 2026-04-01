@@ -1,5 +1,6 @@
 from functools import partial
 
+from ddtrace.appsec._ai_guard._langchain import _langchain_base_tool_run_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
@@ -27,3 +28,6 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
+
+    core.on("langchain.base_tool.run.before", _langchain_base_tool_run_before)
+    core.on("langchain.base_tool.arun.before", _langchain_base_tool_run_before)
