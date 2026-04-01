@@ -25,8 +25,7 @@ get_monotonic_ns()
 #ifdef __APPLE__
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
-    return static_cast<int64_t>(
-        static_cast<__uint128_t>(mach_absolute_time()) * timebase.numer / timebase.denom);
+    return static_cast<int64_t>(static_cast<__uint128_t>(mach_absolute_time()) * timebase.numer / timebase.denom);
 #else
     timespec ts{ 0, 0 };
     clock_gettime(CLOCK_MONOTONIC, &ts);
