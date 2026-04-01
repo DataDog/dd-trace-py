@@ -5,6 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+
     branch: onzia/check-performance-gate-increases
     strategy: depend
   needs:
