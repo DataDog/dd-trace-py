@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: Adds support for capturing tool results from ``ToolMessage`` inputs and tool
+    definitions from ``bind_tools()`` calls in the LangChain integration.

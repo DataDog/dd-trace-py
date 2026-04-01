@@ -725,10 +725,12 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_e
                         "name": "add",
                         "arguments": {"a": 1, "b": 2},
                         "tool_id": mock.ANY,
+                        "type": "tool_call",
                     }
                 ],
             }
         ],
+        tool_definitions=[{"name": "add", "description": mock.ANY, "schema": mock.ANY}],
         metadata={"temperature": 0.7},
         token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
@@ -765,6 +767,77 @@ def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer, test_spa
                 "description": mock.ANY,
             },
         },
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_chat_model_tool_results_in_input(langchain_core, langchain_openai, llmobs_events, tracer, test_spans):
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import ToolMessage
+
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o")
+    messages = [
+        HumanMessage(content="What is 1 + 2?"),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "add", "args": {"a": 1, "b": 2}, "id": "call_abc123", "type": "tool_call"}],
+        ),
+        ToolMessage(content="3", tool_call_id="call_abc123", name="add"),
+    ]
+
+    with mock.patch.object(type(llm), "_generate", return_value=mock_langchain_chat_generate_response):
+        llm.invoke(messages)
+
+    span = test_spans.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        span,
+        model_name=mock.ANY,
+        model_provider=mock.ANY,
+        input_messages=[
+            {"role": "user", "content": "What is 1 + 2?"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"name": "add", "arguments": {"a": 1, "b": 2}, "tool_id": "call_abc123", "type": "tool_call"}
+                ],
+            },
+            {
+                "role": "tool",
+                "content": "",
+                "tool_results": [{"name": "add", "result": "3", "tool_id": "call_abc123", "type": "tool_result"}],
+            },
+        ],
+        output_messages=[{"role": mock.ANY, "content": "The capital of France is Paris."}],
+        token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_chat_model_tool_definitions_mock(langchain_core, langchain_openai, llmobs_events, tracer, test_spans):
+    @langchain_core.tools.tool
+    def multiply(a: int, b: int) -> int:
+        """Multiplies a and b."""
+        return a * b
+
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o")
+    llm_with_tools = llm.bind_tools([multiply])
+
+    with mock.patch.object(type(llm), "_generate", return_value=mock_langchain_chat_generate_response):
+        llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is 3 * 4?")])
+
+    span = test_spans.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        span,
+        model_name=mock.ANY,
+        model_provider=mock.ANY,
+        input_messages=[{"role": "user", "content": "What is 3 * 4?"}],
+        output_messages=[{"role": mock.ANY, "content": mock.ANY}],
+        tool_definitions=[{"name": "multiply", "description": mock.ANY, "schema": mock.ANY}],
+        token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
 

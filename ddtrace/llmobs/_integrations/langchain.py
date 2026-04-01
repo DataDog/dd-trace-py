@@ -30,9 +30,11 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
+from ddtrace.llmobs._integrations.utils import _openai_get_tool_definitions
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
@@ -44,6 +46,8 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import ToolResult
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
@@ -67,6 +71,7 @@ ROLE_MAPPING = {
     "human": "user",
     "ai": "assistant",
     "system": "system",
+    "tool": "tool",
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
@@ -488,6 +493,12 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._llmobs_set_metadata(span, kwargs)
 
+        if not is_workflow:
+            tools = kwargs.get("tools") or []
+            tool_definitions = self._extract_tool_definitions(tools)
+            if tool_definitions:
+                span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
+
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
@@ -506,7 +517,15 @@ class LangChainIntegration(BaseLLMIntegration):
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
-                    input_messages.append(Message(content=str(content), role=str(role)))
+                    msg = Message(content=str(content), role=str(role))
+                    tool_calls_in_input = self._extract_tool_calls(message)
+                    if tool_calls_in_input:
+                        msg["tool_calls"] = tool_calls_in_input
+                    tool_results_info = self._extract_tool_results(message)
+                    if tool_results_info:
+                        msg["content"] = ""
+                        msg["tool_results"] = tool_results_info
+                    input_messages.append(msg)
                     tool_call_id = _get_attr(message, "tool_call_id", "")
                     if not is_workflow and tool_call_id:
                         core.dispatch(
@@ -559,6 +578,9 @@ class LangChainIntegration(BaseLLMIntegration):
                         )
                     if tool_calls_info:
                         output_message["tool_calls"] = tool_calls_info
+                    tool_results_info = self._extract_tool_results(chat_completion_msg)
+                    if tool_results_info:
+                        output_message["tool_results"] = tool_results_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
@@ -590,19 +612,40 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> list[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
-        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
+        tool_calls = _get_attr(chat_completion_msg, "tool_calls", None)
         tool_calls_info: list[ToolCall] = []
         if tool_calls:
             if not isinstance(tool_calls, list):
                 tool_calls = [tool_calls]
             for tool_call in tool_calls:
+                args = _get_attr(tool_call, "args", {})
                 tool_call_info = ToolCall(
-                    name=tool_call.get("name", ""),
-                    arguments=tool_call.get("args", {}),  # this is already a dict
-                    tool_id=tool_call.get("id", ""),
+                    name=str(_get_attr(tool_call, "name", "")),
+                    arguments=args if isinstance(args, dict) else {},
+                    tool_id=str(_get_attr(tool_call, "id", "")),
+                    type=str(_get_attr(tool_call, "type", "tool_call")),
                 )
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
+
+    def _extract_tool_results(self, chat_completion_msg: Any) -> list[ToolResult]:
+        """Extracts tool results from a LangChain ToolMessage."""
+        content = _get_attr(chat_completion_msg, "content", "") or ""
+        tool_call_id = _get_attr(chat_completion_msg, "tool_call_id", "") or ""
+        if not (content and tool_call_id):
+            return []
+        return [
+            ToolResult(
+                name=str(_get_attr(chat_completion_msg, "name", "") or ""),
+                result=str(content),
+                tool_id=str(tool_call_id),
+                type="tool_result",
+            )
+        ]
+
+    def _extract_tool_definitions(self, tools: list[Any]) -> list[ToolDefinition]:
+        """Extracts tool definitions from a list of LangChain generate kwargs tools."""
+        return _openai_get_tool_definitions(tools)
 
     def _handle_stream_input_messages(self, inputs) -> list[Message]:
         input_messages: list[Message] = []
