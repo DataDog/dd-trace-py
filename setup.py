@@ -983,13 +983,6 @@ class CustomBuildExt(build_ext):
             else:
                 dependencies = []
 
-            # Force rebuild when build configuration changes (e.g. DD_COMPILE_MODE, DD_FAST_BUILD).
-            # Mtime alone can't detect flag-only changes — sources are unchanged but the binary is wrong.
-            build_flags = f"build_type={ext.build_type or COMPILE_MODE};fast_build={FAST_BUILD};build_testing={BUILD_PROFILING_NATIVE_TESTS}"
-            flags_file = ext_path.with_suffix(ext_path.suffix + ".buildflags")
-            if not flags_file.exists() or flags_file.read_text().strip() != build_flags:
-                force = True
-
             if not (
                 force
                 or newer_group(
@@ -1085,12 +1078,6 @@ class CustomBuildExt(build_ext):
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
-
-        if IS_EDITABLE and self.INCREMENTAL:
-            # Update sidecar so the next incremental check knows what flags this binary was built with
-            _ext_path = Path(ext.source_dir, Path(self.get_ext_fullpath(ext.name)).name)
-            _flags = f"build_type={ext.build_type or COMPILE_MODE};fast_build={FAST_BUILD};build_testing={BUILD_PROFILING_NATIVE_TESTS}"
-            _ext_path.with_suffix(_ext_path.suffix + ".buildflags").write_text(_flags)
 
 
 class DebugMetadata:
