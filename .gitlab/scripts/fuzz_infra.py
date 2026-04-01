@@ -92,12 +92,12 @@ def get_package_name(binary_name: str, py_version_compact: str) -> str:
     return f"{prefix}-{suffix}"
 
 
-def run_command(cmd, capture_output=True):
+def run_command(cmd, capture_output=True, input=None):
     """Run *cmd* and raise on non-zero exit."""
     print(f"+ {' '.join(cmd)}")
     if capture_output:
-        return subprocess.run(cmd, check=True, capture_output=True, text=True)
-    return subprocess.run(cmd, check=True)
+        return subprocess.run(cmd, check=True, capture_output=True, text=True, input=input)
+    return subprocess.run(cmd, check=True, text=True, input=input)
 
 
 def get_fuzzydog_token() -> str:
@@ -151,7 +151,8 @@ def build_and_push_compiled_image(config: Config) -> str:
 def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
     """Build a per-binary image on top of the compiled base.
 
-    This is a trivial single-layer image that just overrides FUZZ_TARGET.
+    Adds a thin layer that sets FUZZ_APP/FUZZ_BUILD_ID and symlinks the binary
+    so fuzzydog can find it at /fuzzer/builds/<git_sha>.
     Returns the metadata file path for signing.
     """
     metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
@@ -159,20 +160,23 @@ def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
         f"FROM {config.compiled_image_ref}\n"
         f"ENV FUZZ_APP={binary.pkgname}\n"
         f"ENV FUZZ_BUILD_ID={config.git_sha}\n"
+        f"RUN ln -sf /fuzzer/builds/{binary.binary_name} /fuzzer/builds/{config.git_sha}\n"
     )
-    cmd = [
-        "docker",
-        "buildx",
-        "build",
-        "-t",
-        config.binary_image_ref(binary.binary_name),
-        "--push",
-        "--metadata-file",
-        metadata_file,
-        "-",
-    ]
-    print(f"+ {' '.join(cmd)}")
-    subprocess.run(cmd, input=dockerfile_content, check=True, text=True)
+    run_command(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "-t",
+            config.binary_image_ref(binary.binary_name),
+            "--push",
+            "--metadata-file",
+            metadata_file,
+            "-",
+        ],
+        capture_output=False,
+        input=dockerfile_content,
+    )
     return metadata_file
 
 
@@ -281,14 +285,15 @@ def main() -> None:
 
     # 2. Build and push the compiled base image (once, expensive).
     print(f"\n=== Building compiled base image: {config.compiled_image_ref} ===")
-    compiled_metadata = build_and_push_compiled_image(config)
+    build_and_push_compiled_image(config)
 
     # 3. Build, sign, and replicate per-binary images (trivial — one ENV layer each).
     for binary in binaries:
         print(f"\n=== Building per-binary image for {binary.binary_name} ===")
+        image_ref = config.binary_image_ref(binary.binary_name)
         metadata_file = build_and_push_binary_image(config, binary)
-        sign_image(config.binary_image_ref(binary.binary_name), metadata_file)
-        replicate_image(config.binary_image_ref(binary.binary_name), metadata_file)
+        sign_image(image_ref, metadata_file)
+        replicate_image(image_ref, metadata_file)
 
     # 4. Single wait for all replications to settle.
     wait_for_replication()
