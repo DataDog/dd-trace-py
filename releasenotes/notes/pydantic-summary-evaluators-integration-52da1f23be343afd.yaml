@@ -20,19 +20,19 @@ features:
             records=[RECORD_1, RECORD_2, RECORD_3, ...]
         )
 
-        class AccuracyEvaluator(ReportEvaluator):
+        class TotalCasesEvaluator(ReportEvaluator):
             def evaluate(self, ctx: ReportEvaluatorContext) -> ScalarResult:
                 return ScalarResult(
-                    title='Accuracy',
-                    value=100,
-                    unit='%',
+                    title='Total Cases',
+                    value=len(ctx.report.cases),
+                    unit='cases',
                 )
 
         def my_task(input_data, config):
             return input_data["output"]
 
         equals_expected = EqualsExpected()
-        summary_evaluator = AccuracyEvaluator()
+        summary_evaluator = TotalCasesEvaluator()
 
         experiment = LLMObs.experiment(
             name="<EXPERIMENT_NAME>",
