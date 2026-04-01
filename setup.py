@@ -459,15 +459,9 @@ class LibraryDownload:
         download_dir = Path(cls.download_dir)
         download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
 
-        # If the directory is nonempty, check the version stamp before assuming we're done.
-        # Without this, bumping cls.version would silently keep the stale download in place.
-        version_file = download_dir / ".version"
+        # If the directory is nonempty, assume we're done
         if any(download_dir.iterdir()):
-            if cls.version is not None and version_file.exists() and version_file.read_text().strip() == cls.version:
-                return
-            # Version changed or no stamp — wipe and re-fetch
-            shutil.rmtree(download_dir)
-            download_dir.mkdir(parents=True, exist_ok=True)
+            return
 
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
@@ -559,9 +553,6 @@ class LibraryDownload:
             if not cls.USE_CACHE:
                 Path(filename).unlink()
 
-        if cls.version is not None:
-            version_file.write_text(cls.version)
-
     @classmethod
     def run(cls):
         cls.download_artifacts()
@@ -635,9 +626,11 @@ class LibraryDownloader(BuildPyCommand):
             IS_EDITABLE = True
 
         if not self.editable_mode:
-            # Skip for editable installs: remove_artifacts() deletes .so files that
-            # ext_cache restorations and incremental build checks depend on.
             CleanLibraries.remove_artifacts()
+        else:
+            # For editable installs: preserve .so files so ext_cache restorations survive,
+            # but still wipe the WAF download dir so version bumps are picked up.
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
