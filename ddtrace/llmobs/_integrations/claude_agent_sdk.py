@@ -297,7 +297,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if after["sections"]:
             delta["last_sections"] = after["sections"]
         return delta
-    
+
     def _parse_snapshot(self, messages: Any) -> dict[str, Any]:
         """Parse a list of /context messages into a snapshot dict with sections and token counts."""
         snapshot: dict[str, Any] = {"sections": [], "used_tokens": None, "total_tokens": None}
@@ -323,11 +323,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if type(msg).__name__ != "AssistantMessage":
                 continue
             blocks = _get_attr(msg, "content", []) or []
-            content = "\n".join(
-                _get_attr(b, "text", "")
-                for b in blocks
-                if type(b).__name__ == "TextBlock"
-            )
+            content = "\n".join(_get_attr(b, "text", "") for b in blocks if type(b).__name__ == "TextBlock")
             if content:
                 return content
         return None
