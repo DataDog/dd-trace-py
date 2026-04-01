@@ -625,7 +625,10 @@ class LibraryDownloader(BuildPyCommand):
         if self.editable_mode:
             IS_EDITABLE = True
 
-        CleanLibraries.remove_artifacts()
+        if not self.editable_mode:
+            # Skip for editable installs: remove_artifacts() deletes .so files that
+            # ext_cache restorations and incremental build checks depend on.
+            CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
