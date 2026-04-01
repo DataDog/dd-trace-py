@@ -155,7 +155,11 @@ def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
     Returns the metadata file path for signing.
     """
     metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
-    dockerfile_content = f"FROM {config.compiled_image_ref}\nENV FUZZ_TARGET={binary.binary_name}\n"
+    dockerfile_content = (
+        f"FROM {config.compiled_image_ref}\n"
+        f"ENV FUZZ_APP={binary.pkgname}\n"
+        f"ENV FUZZ_BUILD_ID={config.git_sha}\n"
+    )
     cmd = [
         "docker",
         "buildx",
