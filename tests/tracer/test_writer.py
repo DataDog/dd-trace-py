@@ -28,6 +28,8 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.internal.settings._opentelemetry import ExporterConfig
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -1673,33 +1675,21 @@ def test_agentless_writer_no_api_key():
 
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
-    from ddtrace.internal.settings._opentelemetry import ExporterConfig
-    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
         assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
-    from ddtrace.internal.settings._opentelemetry import ExporterConfig
-    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
         assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
-    from ddtrace.internal.settings._opentelemetry import ExporterConfig
-    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
         assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
-    from ddtrace.internal.settings._opentelemetry import ExporterConfig
-    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
         assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
