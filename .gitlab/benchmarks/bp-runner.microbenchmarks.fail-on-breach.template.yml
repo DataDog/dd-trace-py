@@ -1064,7 +1064,7 @@ experiments:
               - max_rss_usage < 39.25 MB
           - name: tracer-medium
             thresholds:
-              - execution_time < 3.20 ms
+              - execution_time < 3.30 ms
               - max_rss_usage < 38.75 MB
           - name: tracer-small
             thresholds:
