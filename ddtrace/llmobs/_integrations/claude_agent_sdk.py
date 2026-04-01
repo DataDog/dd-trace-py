@@ -121,88 +121,130 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         self._format_context(metadata, kwargs)
         return metadata
 
-    def _parse_context_categories(self, context_messages: list[Any]) -> dict[str, Any]:
-        """Parse category percentages and token counts from context UserMessage.
+    def _parse_context_delta(
+        self,
+        before_context: Optional[list[Any]],
+        after_context: Optional[list[Any]],
+    ) -> Optional[dict[str, Any]]:
+        """Parse before/after /context message lists into a context_delta dict.
 
-        Args:
-            context_messages: List of messages from /context query
-
-        Returns:
-            Dictionary with:
-                - "categories": Dict mapping category names to percentage strings
-                - "used_tokens": Token count string (e.g., "16.3k") or None
-                - "total_tokens": Token count string (e.g., "200.0k") or None
+        Returns None if no token data could be extracted from either snapshot.
         """
-        result: dict[str, Any] = {"categories": {}, "used_tokens": None, "total_tokens": None}
 
-        if not context_messages or not isinstance(context_messages, list):
-            return result
-
-        try:
-            # Find the UserMessage containing the context table
-            for msg in context_messages:
-                msg_type = type(msg).__name__
-                if msg_type == "UserMessage":
-                    content = _get_attr(msg, "content", "")
+        def _parse_snapshot(messages: Any) -> dict[str, Any]:
+            snapshot: dict[str, Any] = {"sections": [], "used_tokens": None, "total_tokens": None}
+            if not messages or not isinstance(messages, list):
+                return snapshot
+            try:
+                for msg in messages:
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage":
+                        blocks = _get_attr(msg, "content", []) or []
+                        content = "\n".join(
+                            _get_attr(b, "text", "")
+                            for b in blocks
+                            if type(b).__name__ == "TextBlock"
+                        )
+                    elif msg_type == "UserMessage":
+                        content = _get_attr(msg, "content", "")
+                        if isinstance(content, list):
+                            content = "\n".join(
+                                b.get("text", "") for b in content
+                                if isinstance(b, dict) and b.get("type") == "text"
+                            )
+                    else:
+                        continue
                     if not content or not isinstance(content, str):
                         continue
 
-                    lines = content.split("\n")
-                    in_category_table = False
-
-                    for i, line in enumerate(lines):
-                        # Parse token usage line: "**Tokens:** 16.3k / 200.0k (8%)"
+                    _EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
+                    in_table = False
+                    for line in content.split("\n"):
                         if "**Tokens:**" in line:
                             try:
-                                # Extract the token counts from format: "16.3k / 200.0k"
                                 tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
                                 if "/" in tokens_part:
-                                    used_str, total_str = [t.strip() for t in tokens_part.split("/")]
-                                    result["used_tokens"] = used_str
-                                    result["total_tokens"] = total_str
-                            except (IndexError, ValueError):
+                                    _, total_str = [t.strip() for t in tokens_part.split("/")]
+                                    s = total_str.strip()
+                                    snapshot["total_tokens"] = (
+                                        round(float(s[:-1]) * 1000) if s.lower().endswith("k") else int(float(s))
+                                    )
+                            except (IndexError, ValueError, TypeError):
                                 pass
 
-                        # Start parsing when we find the category section
                         if "### Estimated usage by category" in line:
-                            in_category_table = True
+                            in_table = True
                             continue
-
-                        # Stop when we hit the next section
-                        if in_category_table and line.startswith("###"):
+                        if in_table and line.startswith("###"):
                             break
-
-                        # Parse table rows only in the category section
-                        if in_category_table and "|" in line:
-                            # Skip separator lines (contain only dashes and pipes)
-                            if line.strip().replace("|", "").replace("-", "").strip() == "":
+                        if in_table and "|" in line:
+                            if not line.strip().replace("|", "").replace("-", "").strip():
                                 continue
-
                             parts = [p.strip() for p in line.split("|")]
-                            # parts[0] is empty (before first |), parts[1] is category, parts[3] is percentage
                             if len(parts) >= 4 and parts[1] and parts[3]:
-                                category = parts[1]
-                                percentage = parts[3]
-                                # Skip header row
-                                if category != "Category" and percentage != "Percentage":
-                                    result["categories"][category] = percentage
+                                name, token_str, pct_str = parts[1], parts[2], parts[3]
+                                if name == "Category" or pct_str == "Percentage":
+                                    continue
+                                try:
+                                    pct = float(pct_str.rstrip("%"))
+                                except (ValueError, TypeError):
+                                    pct = 0.0
+                                try:
+                                    ts = token_str.strip()
+                                    tokens = (
+                                        round(float(ts[:-1]) * 1000) if ts.lower().endswith("k") else int(float(ts))
+                                    )
+                                except (ValueError, TypeError):
+                                    tokens = 0
+                                if name not in _EXCLUDED_SECTIONS and "(deferred)" not in name:
+                                    snapshot["sections"].append({"name": name, "tokens": tokens, "pct": pct})
+                    snapshot["used_tokens"] = sum(s["tokens"] for s in snapshot["sections"]) or None
+                    # recompute pct as % of used tokens to match expected data format
+                    if snapshot["used_tokens"]:
+                        for s in snapshot["sections"]:
+                            s["pct"] = round(s["tokens"] / snapshot["used_tokens"] * 100, 1)
+                    break  # only process the first AssistantMessage/UserMessage
+            except Exception:
+                log.warning("Error parsing context snapshot", exc_info=True)
+            return snapshot
 
-                    break  # Only process the first UserMessage
-        except Exception:
-            log.warning("Error parsing context categories", exc_info=True)
+        before = _parse_snapshot(before_context)
+        after = _parse_snapshot(after_context)
 
-        return result
+        first_tokens = before.get("used_tokens")
+        last_tokens = after.get("used_tokens")
+        if first_tokens is None and last_tokens is None:
+            return None
+
+        first_tokens = first_tokens or 0
+        last_tokens = last_tokens or 0
+        context_window = after.get("total_tokens") or before.get("total_tokens") or 0
+        first_pct = round(first_tokens / context_window * 100, 1) if context_window > 0 else 0.0
+        last_pct = round(last_tokens / context_window * 100, 1) if context_window > 0 else 0.0
+
+        delta: dict[str, Any] = {
+            "first_input_tokens": first_tokens,
+            "last_input_tokens": last_tokens,
+            "delta_tokens": last_tokens - first_tokens,
+            "context_window_size": context_window,
+            "first_usage_pct": first_pct,
+            "last_usage_pct": last_pct,
+        }
+        if before["sections"]:
+            delta["first_sections"] = before["sections"]
+        if after["sections"]:
+            delta["last_sections"] = after["sections"]
+        return delta
 
     def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
 
-        if "_dd" not in metadata or not isinstance(metadata["_dd"], dict):
-            metadata["_dd"] = {}
-        if after_context:
-            metadata["_dd"]["after_context"] = self._parse_context_categories(after_context)
-        if before_context:
-            metadata["_dd"]["before_context"] = self._parse_context_categories(before_context)
+        context_delta = self._parse_context_delta(before_context, after_context)
+        if context_delta is not None:
+            if "_dd" not in metadata or not isinstance(metadata["_dd"], dict):
+                metadata["_dd"] = {}
+            metadata["_dd"]["context_delta"] = context_delta
 
     def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
         prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
