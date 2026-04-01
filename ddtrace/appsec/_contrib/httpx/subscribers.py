@@ -93,6 +93,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
                 addresses["DOWN_REQ_BODY"] = json.loads(body())
         call_waf_callback(
             addresses,
+            crop_trace="_on_context_started",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         asm_context.downstream_requests += 1

@@ -1,4 +1,4 @@
-import os
+from ddtrace.internal.settings import env
 
 
 def in_ray_job():
@@ -7,4 +7,4 @@ def in_ray_job():
     This is accomplished by checking if the _RAY_SUBMISSION_ID environment variable is defined
     which means a job has been submitted and is traced
     """
-    return bool(os.environ.get("_RAY_SUBMISSION_ID", False))
+    return bool(env.get("_RAY_SUBMISSION_ID", False))

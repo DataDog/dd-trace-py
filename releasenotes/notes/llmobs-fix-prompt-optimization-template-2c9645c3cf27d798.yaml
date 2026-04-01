@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a ``FileNotFoundError`` in prompt optimization where the system prompt
+    template was stored as a ``.md`` file that was excluded from release wheels. The template is now
+    embedded in a Python module to ensure it is always available at runtime.

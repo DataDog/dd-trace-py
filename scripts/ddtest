@@ -2,17 +2,17 @@
 
 set -e
 
-CMD=$*
-
-if [ -z "$CMD" ]
-then
-    CMD=bash
-fi
-
 BUILD_FLAG=""
 if [ "${1:-}" = "--build" ]; then
     BUILD_FLAG="--build"
     shift
+fi
+
+if [ "$#" -eq 0 ]; then
+    CMD=bash
+else
+    CMD=$(printf '%q ' "$@")
+    CMD="${CMD% }"
 fi
 # Ensure cache directories exist and are writable by the current user
 # These are mounted into the Docker container at /home/bits/.cache
