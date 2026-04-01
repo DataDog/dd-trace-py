@@ -31,6 +31,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL)
 else()
     message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
+
     # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
     # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
     # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
@@ -121,23 +122,23 @@ elseif(UNIX)
                                                             INSTALL_RPATH "$ORIGIN/../../internal/datadog/profiling")
 endif()
 
-# Link with libdd_wrapper if NATIVE_EXTENSION_LOCATION is defined
-if(DEFINED NATIVE_EXTENSION_LOCATION)
-    # Find the libdd_wrapper shared library NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so
-    # ../datadog/profiling gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
+# Link with libdd_wrapper
+if(DEFINED DD_WRAPPER_DIR)
+    set(_dd_wrapper_search_paths ${DD_WRAPPER_DIR})
     find_library(
         DD_WRAPPER_LIB
         NAMES libdd_wrapper${EXTENSION_SUFFIX}
-        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
-              ${NATIVE_EXTENSION_LOCATION}/../datadog/profiling
+        PATHS ${_dd_wrapper_search_paths}
         NO_DEFAULT_PATH)
 
     if(DD_WRAPPER_LIB)
         message(STATUS "Found libdd_wrapper: ${DD_WRAPPER_LIB}")
         target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE ${DD_WRAPPER_LIB})
     else()
-        message(WARNING "libdd_wrapper not found, extension may not link correctly")
+        message(FATAL_ERROR "libdd_wrapper not found in ${_dd_wrapper_search_paths}")
     endif()
+else()
+    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
 endif()
 
 # Enable allocator-hook reentry assertions in test builds. setup.py turns this on when
