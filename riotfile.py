@@ -3432,7 +3432,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
-                                "deepeval": latest,
+                                "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
                                 "pydantic-evals": ">=1.31",
                             },
                         ),
