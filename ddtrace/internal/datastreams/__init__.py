@@ -1,6 +1,4 @@
-from ddtrace import config
-from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.trace import tracer
+from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
 
@@ -26,6 +24,5 @@ def data_streams_processor(reset=False):
         from . import processor
 
         _processor = processor.DataStreamsProcessor()
-        register_on_exit_signal(tracer._atexit)
 
     return _processor

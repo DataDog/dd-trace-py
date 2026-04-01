@@ -1,5 +1,3 @@
-import os
-
 import wrapt
 import yaaredis
 
@@ -9,6 +7,7 @@ from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
@@ -21,8 +20,8 @@ config._add(
     "yaaredis",
     dict(
         _default_service=schematize_service_name("redis"),
-        cmd_max_length=int(os.getenv("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        cmd_max_length=int(env.get("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(env.get("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 

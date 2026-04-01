@@ -257,6 +257,12 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
+        """
+        Set the process tags to be included in the stats payload.
+        :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
+        """
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -339,6 +345,27 @@ class TraceExporterBuilder:
     def enable_health_metrics(self) -> TraceExporterBuilder:
         """
         Enable health metrics in the TraceExporter
+        """
+        ...
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
         """
         ...
     def build(self) -> TraceExporter:

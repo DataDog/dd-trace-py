@@ -1,0 +1,129 @@
+[[
+  {
+    "name": "run",
+    "service": "tests.contrib.mlflow",
+    "resource": "run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b28e7300000000",
+      "component": "mlflow",
+      "language": "python",
+      "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+      "runtime-id": "7e80c119e9684d5a8c3c4f226b7de1aa",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 5159286294,
+    "start": 1773309555567803751
+  },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "mlflow.metrics.loss_0": 0.0
+       },
+       "duration": 5131708,
+       "start": 1773309556607818335
+     },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+         "mlflow.step": "1",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "mlflow.metrics.loss_0": 1.0
+       },
+       "duration": 915041542,
+       "start": 1773309556613254876
+     },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+         "mlflow.step": "2",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "mlflow.metrics.loss_1": 1.0
+       },
+       "duration": 689356292,
+       "start": 1773309557528650085
+     },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+         "mlflow.step": "3",
+         "span.kind": "internal"
+       },
+       "metrics": {
+         "mlflow.metrics.loss_1": 2.0
+       },
+       "duration": 2452234585,
+       "start": 1773309558218246502
+     },
+     {
+       "name": "run.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "tail",
+       "trace_id": 0,
+       "span_id": 6,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "dc45706cd5ea49128c216b24f1d42280",
+         "span.kind": "internal"
+       },
+       "duration": 55848084,
+       "start": 1773309560671165128
+     }]]

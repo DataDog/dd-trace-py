@@ -16,6 +16,7 @@ AGENT_MANIFEST = "_ml_obs.meta.agent_manifest"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
 MODEL_PROVIDER = "_ml_obs.meta.model_provider"
+UNKNOWN_MODEL_PROVIDER = "unknown"
 
 INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
@@ -77,7 +78,7 @@ DD_SITE_STAGING = "datad0g.com"
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
-DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
+DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 5MB size limit.]"
 
 ROOT_PARENT_ID = "undefined"
 

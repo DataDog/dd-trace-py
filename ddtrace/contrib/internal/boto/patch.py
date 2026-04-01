@@ -1,5 +1,4 @@
 import inspect
-import os
 
 from boto import __version__
 import boto.connection
@@ -18,6 +17,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
@@ -40,11 +40,10 @@ AWS_AUTH_ARGS_NAME = (
 AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
 AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 
-
 config._add(
     "boto",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 
@@ -134,7 +133,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
+        span._set_attribute(http.STATUS_CODE, result.status)
         span._set_attribute(http.METHOD, result._method)
 
         return result
@@ -202,7 +201,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
+        span._set_attribute(http.STATUS_CODE, result.status)
         span._set_attribute(http.METHOD, result._method)
 
         span._set_attribute(COMPONENT, config.boto.integration_name)
