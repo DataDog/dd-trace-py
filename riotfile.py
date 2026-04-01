@@ -3412,16 +3412,12 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            # riot -s skips editable install; envier is required to import ddtrace (see pyproject dependencies).
-            pkgs={
-                "envier": "~=0.6.1",
-            },
             venvs=[
                 Venv(
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
-                        "google-cloud-aiplatform": ">=1.0,<2",
+                        "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
                         "langchain": latest,
@@ -3432,8 +3428,6 @@ venv = Venv(
                             pys=["3.9"],
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
-                                # Explicit pydantic v2 so pydantic-core wheels resolve with langchain; avoids
-                                # broken transitive-only installs (missing pydantic_core._pydantic_core).
                                 "pydantic": latest,
                             },
                         ),
