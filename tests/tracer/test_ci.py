@@ -294,7 +294,7 @@ def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
-    extracted_tags = ci.tags(env=ci_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "https://github.com/user-repo-name.git"
     assert extracted_tags["git.commit.sha"] == "1234"
@@ -335,7 +335,7 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
 
-    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
     assert extracted_tags["git.commit.message"] == "this is the correct commit message"
@@ -358,7 +358,7 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR": "",
     }
 
-    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
@@ -604,7 +604,7 @@ def test_github_pull_request_head_sha():
         "GITHUB_WORKSPACE": "/workspace",
     }
 
-    tags = ci.extract_github_actions(env=env)
+    tags = ci.extract_github_actions(environ=env)
 
     os.remove(event_file_path)
 

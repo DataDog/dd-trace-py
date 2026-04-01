@@ -1,4 +1,3 @@
-import os
 from urllib import parse
 
 import urllib3
@@ -16,6 +15,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -33,9 +33,9 @@ config._add(
     "urllib3",
     {
         "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(env.get("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
+        "split_by_domain": asbool(env.get("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 
@@ -57,7 +57,7 @@ def patch():
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request as _make_request
+        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request_6D4E8B2A1F095C73 as _make_request
 
         _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
         if hasattr(urllib3, "_request_methods"):
