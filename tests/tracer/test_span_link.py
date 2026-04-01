@@ -61,13 +61,15 @@ def test_mapping_attributes_accepted():
 
 
 def test_validation_trace_id_zero():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc_info:
         SpanLink(trace_id=0, span_id=1)
+    assert str(exc_info.value) == "trace_id must be > 0. Value is 0"
 
 
 def test_validation_span_id_zero():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc_info:
         SpanLink(trace_id=1, span_id=0)
+    assert str(exc_info.value) == "span_id must be > 0. Value is 0"
 
 
 def test_skip_validation():
