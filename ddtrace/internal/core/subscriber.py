@@ -29,7 +29,7 @@ from .events import EventType
 log = logging.getLogger(__name__)
 
 
-class Subscriber:
+class Subscriber(Generic[EventType]):
     """Base class for event subscribers.
 
     Subclasses that define ``event_names`` automatically register themselves to handle those events.
@@ -56,7 +56,7 @@ class Subscriber:
         core.dispatch_event(MyEvent(data="hello"))
     """
 
-    event_names: Sequence[str]
+    event_names: ClassVar[Sequence[str]]
     _event_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs):
@@ -86,7 +86,7 @@ class Subscriber:
             )
 
     @classmethod
-    def on_event(cls, event_instance):
+    def on_event(cls, event_instance: EventType):
         """Override this method in child classes to handle the event.
 
         Args:
@@ -95,7 +95,7 @@ class Subscriber:
         pass
 
     @classmethod
-    def _on_event(cls, event_instance):
+    def _on_event(cls, event_instance: EventType):
         """Internal handler that calls all _on_event methods from parent to children"""
         for handler in cls._event_handlers:
             handler(event_instance)
