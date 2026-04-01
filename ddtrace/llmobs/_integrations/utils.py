@@ -321,13 +321,31 @@ def openai_set_meta_tags_from_completion(
     )
 
 
+def _extract_content_parts(parts: list) -> str:
+    """Extract readable text from multimodal content parts (e.g., text + image)."""
+    extracted = []
+    for part in parts:
+        part_type = _get_attr(part, "type", "")
+        if part_type == "text":
+            extracted.append(str(_get_attr(part, "text", "")))
+        elif part_type == "image_url":
+            extracted.append("[image]")
+        elif part_type == "input_audio":
+            extracted.append("[audio]")
+    return "\n".join(extracted)
+
+
 def openai_set_meta_tags_from_chat(
     span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
-        content = str(_get_attr(m, "content", ""))
+        raw_content = _get_attr(m, "content", "")
+        if isinstance(raw_content, list):
+            content = _extract_content_parts(raw_content)
+        else:
+            content = str(raw_content)
         role = str(_get_attr(m, "role", ""))
         processed_message: Message = Message(content=content, role=role)
         tool_call_id = _get_attr(m, "tool_call_id", None)
