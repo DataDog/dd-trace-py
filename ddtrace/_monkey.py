@@ -281,6 +281,7 @@ def _on_import_factory(
                 "failed to enable ddtrace support for %s: %s",
                 module,
                 str(e),
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(
                 module, False, PATCH_MODULES.get(module) is True, str(e), version=e.installed_version
@@ -293,6 +294,7 @@ def _on_import_factory(
                 module,
                 str(e),
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
