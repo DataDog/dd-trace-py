@@ -567,11 +567,12 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
