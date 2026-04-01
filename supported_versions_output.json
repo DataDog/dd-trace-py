@@ -195,7 +195,7 @@
         "integration": "claude_agent_sdk",
         "minimum_tracer_supported": "0.0.23",
         "max_tracer_supported": "0.1.29",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "python-consul",
