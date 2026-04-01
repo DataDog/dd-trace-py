@@ -13,6 +13,7 @@ from ddtrace.internal.process_tags import normalize_tag_value
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
+from tests.utils import snapshot
 
 
 TEST_SCRIPT_PATH = "/path/to/test_script.py"
@@ -102,8 +103,8 @@ class TestProcessTags(TracerTestCase):
                 with self.tracer.trace("child"):
                     pass
 
-    @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="foobar"))
+    @snapshot()
     def test_process_tags_user_defined_service(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             process_tag_reload()
