@@ -1,7 +1,5 @@
 ---
 fixes:
   - |
-    profiling: Fixes lock profiling events not appearing in the Thread Timeline
-    view on macOS due to a monotonic clock mismatch between Python and C++ that
-    caused lock sample timestamps to drift by the machine's accumulated sleep
-    time.
+    profiling: Fixes lock profiling samples not appearing in the Thread Timeline
+    view for events collected on macOS.
