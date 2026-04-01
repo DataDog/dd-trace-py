@@ -82,7 +82,9 @@ class SessionManager:
         self.override_settings_with_env_vars()
         self.show_settings()
 
-        self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+        self.known_tests = (
+            frozenset(self.api_client.get_known_tests()) if self.settings.known_tests_enabled else frozenset()
+        )
         self.test_properties = (
             self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
         )

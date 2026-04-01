@@ -343,6 +343,55 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
+    def test_get_known_tests_dict_entries_and_legacy_strings(self, mock_telemetry: Mock) -> None:
+        """Both legacy string entries and object entries with name/test_name keys are parsed."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/libraries/tests",
+                response_data={
+                    "data": {
+                        "attributes": {
+                            "tests": {
+                                "mod": {
+                                    "s.py": [
+                                        "plain",
+                                        {"name": "by_name"},
+                                        {"test_name": "by_test_name"},
+                                    ],
+                                }
+                            }
+                        },
+                        "id": "F4Go_FYpcB0",
+                        "type": "ci_app_libraries_tests",
+                    }
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            known_tests = api_client.get_known_tests()
+        ref = SuiteRef(ModuleRef("mod"), "s.py")
+        assert known_tests == {
+            TestRef(ref, "plain"),
+            TestRef(ref, "by_name"),
+            TestRef(ref, "by_test_name"),
+        }
+
     def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
         """First page sends empty page_info; second page sends only page_state."""
         page1_response = {
@@ -405,7 +454,7 @@ class TestAPIClientGetKnownTests:
     ) -> None:
         """
         When _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES=2, only 2 requests are made;
-        we log and return empty set (disable known tests).
+        we log and return empty mapping (disable known tests).
         """
         monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", "2")
 
@@ -507,12 +556,13 @@ class TestAPIClientGetKnownTests:
             with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
                 known_tests = api_client.get_known_tests()
         assert "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive" in caplog.text
-        assert known_tests == {TestRef(SuiteRef(ModuleRef("m"), "s.py"), "t")}
+        _tr = TestRef(SuiteRef(ModuleRef("m"), "s.py"), "t")
+        assert known_tests == {_tr}
 
     def test_get_known_tests_page_info_non_dict_returns_empty_and_records_error(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Malformed page_info (non-dict) is handled: we return empty set and record BAD_JSON."""
+        """Malformed page_info (non-dict) is handled: we return empty mapping and record BAD_JSON."""
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/libraries/tests",
@@ -1267,7 +1317,7 @@ class TestAPIClientGetSkippableTests:
 
 
 @pytest.fixture
-def packfile(tmpdir: t.Any) -> Path:
+def packfile(tmpdir: t.Any) -> t.Iterator[Path]:
     path = Path(str(tmpdir)) / "file.pack"
     path.write_text("twelve bytes")
     yield path

@@ -144,7 +144,7 @@ class SessionManagerMockBuilder:
 
     def with_known_tests(self, tests: set[TestRef]) -> "SessionManagerMockBuilder":
         """Set known tests."""
-        self._known_tests = tests
+        self._known_tests = set(tests)
         return self
 
     def with_workspace_path(self, path: str) -> "SessionManagerMockBuilder":
@@ -173,6 +173,7 @@ class SessionManagerMockBuilder:
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
+        mock_manager.known_tests = frozenset(self._known_tests)
 
         return mock_manager
 
@@ -190,7 +191,7 @@ class SessionManagerMockBuilder:
             # Configure API client mock
             mock_client = Mock()
             mock_client.get_settings.return_value = self._settings
-            mock_client.get_known_tests.return_value = self._known_tests
+            mock_client.get_known_tests.return_value = set(self._known_tests)
             mock_client.get_test_management_properties.return_value = self._test_properties
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
@@ -353,6 +354,7 @@ class APIClientMockBuilder:
         self._coverage_report_upload_enabled = False
         self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
         self._known_tests: set[TestRef] = set()
+        self._test_properties: dict[TestRef, TestProperties] = {}
 
     def with_skipping_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable test skipping."""
@@ -384,11 +386,20 @@ class APIClientMockBuilder:
         self._coverage_report_upload_enabled = enabled
         return self
 
-    def with_known_tests(self, enabled: bool = True, tests: t.Optional[set[TestRef]] = None) -> "APIClientMockBuilder":
+    def with_known_tests(
+        self,
+        enabled: bool = True,
+        tests: t.Optional[set[TestRef]] = None,
+    ) -> "APIClientMockBuilder":
         """Configure known tests."""
         self._known_tests_enabled = enabled
         if tests is not None:
-            self._known_tests = tests
+            self._known_tests = set(tests)
+        return self
+
+    def with_test_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
+        """Configure test management properties."""
+        self._test_properties = properties
         return self
 
     def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "APIClientMockBuilder":
@@ -415,8 +426,8 @@ class APIClientMockBuilder:
             itr_enabled=self._skipping_enabled,
         )
 
-        mock_client.get_known_tests.return_value = self._known_tests
-        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_tests.return_value = set(self._known_tests)
+        mock_client.get_test_management_properties.return_value = self._test_properties
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
         mock_client.get_skippable_tests.return_value = (
@@ -544,6 +555,7 @@ def mock_api_client_settings(
     coverage_report_upload_enabled: bool = False,
     skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
     known_tests: t.Optional[set[TestRef]] = None,
+    test_properties: t.Optional[dict[TestRef, TestProperties]] = None,
     coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
@@ -563,6 +575,8 @@ def mock_api_client_settings(
         builder = builder.with_coverage_report_upload_enabled()
     if known_tests_enabled:
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
+    if test_properties is not None:
+        builder = builder.with_test_properties(test_properties)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
 
