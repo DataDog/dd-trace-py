@@ -5,14 +5,14 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
-from ddtrace.appsec._common_module_patches import unpatch_common_modules
+from ddtrace.appsec._patch_utils import try_unwrap
+from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
+from ddtrace.contrib.internal.builtins.patch import patch as patch_builtins
+from ddtrace.contrib.internal.builtins.patch import unpatch as unpatch_builtins
 
 
 def test_patch_read():
-    unpatch_common_modules()
+    unpatch_builtins()
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
@@ -23,10 +23,10 @@ def test_patch_read():
 
 
 def test_patch_read_enabled():
-    unpatch_common_modules()
+    unpatch_builtins()
     original_open = open
     try:
-        patch_common_modules()
+        patch_builtins()
         copy_open = copy.deepcopy(open)
 
         assert type(open) == FunctionWrapper
@@ -35,7 +35,7 @@ def test_patch_read_enabled():
         assert hasattr(open, "__wrapped__")
         assert open.__wrapped__ is original_open
     finally:
-        unpatch_common_modules()
+        unpatch_builtins()
 
 
 @pytest.mark.parametrize(
