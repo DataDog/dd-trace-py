@@ -21,7 +21,7 @@ from pydantic_evals.reporting import TableResult  # noqa: E402
 from ddtrace.llmobs._experiment import Dataset  # noqa: E402
 from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator  # noqa: E402
-from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator_with_scalar_result  # noqa: E402
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator  # noqa: E402
 
 
 def _make_simple_pydantic_evaluator():
@@ -565,15 +565,15 @@ class TestPydanticReportSummaryEvaluatorDetection:
 
     def test_scalar_return_annotation_is_accepted(self):
         ev = _make_scalar_report_evaluator()
-        assert _is_pydantic_report_evaluator_with_scalar_result(ev) is True
+        assert _is_pydantic_report_evaluator(ev) is True
 
     def test_table_return_annotation_is_rejected(self):
         ev = _make_table_report_evaluator()
-        assert _is_pydantic_report_evaluator_with_scalar_result(ev) is False
+        assert _is_pydantic_report_evaluator(ev) is False
 
     def test_full_report_analysis_union_annotation_is_rejected(self):
         ev = _make_report_evaluator_with_analysis_union_annotation()
-        assert _is_pydantic_report_evaluator_with_scalar_result(ev) is False
+        assert _is_pydantic_report_evaluator(ev) is False
 
 
 class TestPydanticReportSummaryEvaluatorInExperiment:
