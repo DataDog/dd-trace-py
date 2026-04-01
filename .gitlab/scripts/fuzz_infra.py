@@ -2,9 +2,10 @@
 
 # CI script for the fuzzing pipeline.
 #
-# Builds and pushes a Docker image for each Python version matrix entry,
-# signs the image, extracts the manifest of fuzz binaries, and starts
-# each fuzzer with the fuzzydog CLI.
+# Builds and pushes a single compiled Docker image (all fuzz binaries), then
+# creates a thin per-binary image for each target (just overrides FUZZ_TARGET).
+# This way the expensive compilation happens once and per-binary images are
+# trivial single-layer additions.
 #
 # Expected environment variables (set by .gitlab/fuzz.yml):
 #   FUZZ_IMAGE          – registry path, e.g. registry.ddbuild.io/dd-trace-py-fuzz
@@ -55,13 +56,22 @@ class Config:
     def py_version_compact(self) -> str:
         return self.python_version.replace(".", "")
 
-    def fuzz_tag(self, binary_name: str) -> str:
+    @property
+    def compiled_tag(self) -> str:
+        """Tag for the compiled base image (contains all binaries, no specific target)."""
+        return f"py{self.py_version_compact}-{self.commit_short_sha}-compiled"
+
+    @property
+    def compiled_image_ref(self) -> str:
+        return f"{self.fuzz_image}:{self.compiled_tag}"
+
+    def binary_tag(self, binary_name: str) -> str:
         """Per-binary image tag, e.g. py310-abc1234-fuzz-echion-strings."""
         safe_name = binary_name.replace("_", "-")
         return f"py{self.py_version_compact}-{self.commit_short_sha}-{safe_name}"
 
-    def image_ref(self, binary_name: str) -> str:
-        return f"{self.fuzz_image}:{self.fuzz_tag(binary_name)}"
+    def binary_image_ref(self, binary_name: str) -> str:
+        return f"{self.fuzz_image}:{self.binary_tag(binary_name)}"
 
 
 @dataclass(frozen=True)
@@ -107,11 +117,10 @@ def get_fuzzydog_token() -> str:
     return token
 
 
-def build_and_push_image(config: Config, binary: FuzzBinary) -> str:
-    """Build the fuzz Docker image for a single target, push it, and return the metadata file path.
+def build_and_push_compiled_image(config: Config) -> str:
+    """Build the compiled base image (all fuzz binaries) and push it.
 
-    The heavy compile layers are shared across targets via Docker cache; only the
-    FUZZ_TARGET ARG (and thus the CMD layer) differs per binary.
+    Returns the metadata file path for signing.
     """
     metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
     run_command(
@@ -127,10 +136,8 @@ def build_and_push_image(config: Config, binary: FuzzBinary) -> str:
             f"FUZZ_BASE_IMAGE={config.fuzz_base_image}",
             "--build-arg",
             f"PYTHON_VERSION={config.python_version}",
-            "--build-arg",
-            f"FUZZ_TARGET={binary.binary_name}",
             "-t",
-            config.image_ref(binary.binary_name),
+            config.compiled_image_ref,
             "--push",
             "--metadata-file",
             metadata_file,
@@ -141,19 +148,42 @@ def build_and_push_image(config: Config, binary: FuzzBinary) -> str:
     return metadata_file
 
 
-def sign_image(config: Config, metadata_file: str, binary: FuzzBinary) -> None:
+def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
+    """Build a per-binary image on top of the compiled base.
+
+    This is a trivial single-layer image that just overrides FUZZ_TARGET.
+    Returns the metadata file path for signing.
+    """
+    metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
+    dockerfile_content = f"FROM {config.compiled_image_ref}\nENV FUZZ_TARGET={binary.binary_name}\n"
+    cmd = [
+        "docker",
+        "buildx",
+        "build",
+        "-t",
+        config.binary_image_ref(binary.binary_name),
+        "--push",
+        "--metadata-file",
+        metadata_file,
+        "-",
+    ]
+    print(f"+ {' '.join(cmd)}")
+    subprocess.run(cmd, input=dockerfile_content, check=True, text=True)
+    return metadata_file
+
+
+def sign_image(image_ref: str, metadata_file: str) -> None:
     """Sign the pushed image via ddsign."""
     run_command(
-        ["ddsign", "sign", config.image_ref(binary.binary_name), "--docker-metadata-file", metadata_file],
+        ["ddsign", "sign", image_ref, "--docker-metadata-file", metadata_file],
     )
 
 
-def replicate_image(config: Config, metadata_file: str, binary: FuzzBinary) -> None:
+def replicate_image(image_ref: str, metadata_file: str) -> None:
     """Replicate the signed image to us1.ddbuild.io."""
     with open(metadata_file) as f:
         metadata = json.load(f)
     digest = metadata["containerimage.digest"]
-    image_ref = config.image_ref(binary.binary_name)
     image_with_digest = f"{image_ref}@{digest}"
     run_command(
         ["ddsign", "replicate", "--to", "us1.ddbuild.io", image_with_digest],
@@ -164,8 +194,6 @@ def replicate_image(config: Config, metadata_file: str, binary: FuzzBinary) -> N
 def wait_for_replication(image_with_digest: str) -> None:
     """Wait for replication to complete."""
     # TODO: remove this fixed sleep once our backend infra has fixed retries on this failure.
-    # If it's not enough, it's not a huge deal, our automatic scheduler will run that automatically in the next 24hours
-    # but it won't be "now".
     print("Waiting 30s for replication to complete...")
     time.sleep(30)
 
@@ -173,8 +201,8 @@ def wait_for_replication(image_with_digest: str) -> None:
 def extract_manifest(config: Config) -> list[FuzzBinary]:
     """Extract the fuzz-binary manifest via a cached buildx export.
 
-    This also primes the Docker layer cache for the compile-heavy layers,
-    so subsequent per-binary builds only rebuild the CMD layer.
+    This also primes the Docker layer cache so the subsequent compiled-image
+    push reuses the same layers.
     """
     output_dir = tempfile.mkdtemp()
     run_command(
@@ -221,7 +249,7 @@ def start_fuzzers(config: Config, binaries: list[FuzzBinary]) -> None:
                 "create",
                 binary.pkgname,
                 "--image",
-                config.image_ref(binary.binary_name),
+                config.binary_image_ref(binary.binary_name),
                 "--version",
                 config.git_sha,
                 "--type",
@@ -241,20 +269,24 @@ def main() -> None:
     os.environ["FUZZYDOG_AUTH_TOKEN"] = get_fuzzydog_token()
     print("FUZZYDOG_AUTH_TOKEN acquired from vault")
 
-    # 1. Extract the manifest (also primes the Docker build cache).
+    # 1. Extract the manifest (primes Docker build cache).
     binaries = extract_manifest(config)
     if not binaries:
         print("No fuzz binaries found in manifest")
         sys.exit(1)
 
-    # 2. Build, sign, and replicate one image per fuzz target.
-    for binary in binaries:
-        print(f"\n=== Building image for {binary.binary_name} ===")
-        metadata_file = build_and_push_image(config, binary)
-        sign_image(config, metadata_file, binary)
-        replicate_image(config, metadata_file, binary)
+    # 2. Build and push the compiled base image (once, expensive).
+    print(f"\n=== Building compiled base image: {config.compiled_image_ref} ===")
+    compiled_metadata = build_and_push_compiled_image(config)
 
-    # 3. Start all fuzzers (each pointing at its own image).
+    # 3. Build per-binary images (trivial — one ENV layer each).
+    for binary in binaries:
+        print(f"\n=== Building per-binary image for {binary.binary_name} ===")
+        metadata_file = build_and_push_binary_image(config, binary)
+        sign_image(config.binary_image_ref(binary.binary_name), metadata_file)
+        replicate_image(config.binary_image_ref(binary.binary_name), metadata_file)
+
+    # 4. Start all fuzzers (each pointing at its per-binary image).
     start_fuzzers(config, binaries)
     print(f"Started {len(binaries)} fuzzer(s)")
 
