@@ -188,12 +188,12 @@ def replicate_image(image_ref: str, metadata_file: str) -> None:
     run_command(
         ["ddsign", "replicate", "--to", "us1.ddbuild.io", image_with_digest],
     )
-    wait_for_replication(image_with_digest)
 
 
-def wait_for_replication(image_with_digest: str) -> None:
-    """Wait for replication to complete."""
+def wait_for_replication() -> None:
+    """Wait for replication to complete (once, after all images are submitted)."""
     # TODO: remove this fixed sleep once our backend infra has fixed retries on this failure.
+    # If it's not enough, the automatic scheduler will pick them up within 24 hours.
     print("Waiting 30s for replication to complete...")
     time.sleep(30)
 
@@ -279,14 +279,17 @@ def main() -> None:
     print(f"\n=== Building compiled base image: {config.compiled_image_ref} ===")
     compiled_metadata = build_and_push_compiled_image(config)
 
-    # 3. Build per-binary images (trivial — one ENV layer each).
+    # 3. Build, sign, and replicate per-binary images (trivial — one ENV layer each).
     for binary in binaries:
         print(f"\n=== Building per-binary image for {binary.binary_name} ===")
         metadata_file = build_and_push_binary_image(config, binary)
         sign_image(config.binary_image_ref(binary.binary_name), metadata_file)
         replicate_image(config.binary_image_ref(binary.binary_name), metadata_file)
 
-    # 4. Start all fuzzers (each pointing at its per-binary image).
+    # 4. Single wait for all replications to settle.
+    wait_for_replication()
+
+    # 5. Start all fuzzers (each pointing at its per-binary image).
     start_fuzzers(config, binaries)
     print(f"Started {len(binaries)} fuzzer(s)")
 
