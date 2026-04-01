@@ -45,15 +45,15 @@ def patch_common_modules():
         return
 
     try_wrap_function_wrapper(
-        "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request
+        "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request_6D4E8B2A1F095C73
     )
     try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("pathlib", "Path.open", wrapped_path_open_rasp_lfi)
+    try_wrap_function_wrapper("pathlib", "Path.open", wrapped_path_open_B91CA5063FE27D84)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
+    try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request_A7F2C6E4D3B10958)
     try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
 
     patch_stripe_for_appsec()
@@ -158,7 +158,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         )
 
 
-def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs):
+def wrapped_path_open_B91CA5063FE27D84(original_method_callable, instance, args, kwargs):
     """
     wrapper for pathlib.Path.open() method
     """
@@ -178,7 +178,7 @@ def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs)
             if in_asm_context():
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
-                    crop_trace="wrapped_path_open_rasp_lfi",
+                    crop_trace="wrapped_path_open_B91CA5063FE27D84",
                     rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
                 )
                 if res and _must_block(res.actions):
@@ -210,7 +210,7 @@ def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[
     return res
 
 
-def wrapped_request(original_request_callable, instance, args, kwargs):
+def wrapped_request_A7F2C6E4D3B10958(original_request_callable, instance, args, kwargs):
     full_url = core.find_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
@@ -227,7 +227,7 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
                 pass  # nosec
         res = call_waf_callback(
             addresses,
-            crop_trace="wrapped_open_ED4CF71136E15EBF",
+            crop_trace="wrapped_request_A7F2C6E4D3B10958",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         env.downstream_requests += 1
@@ -331,7 +331,7 @@ def _parse_headers_urllib3(headers):
         return {}
 
 
-def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
+def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, instance, args, kwargs):
     full_url = core.find_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
@@ -349,7 +349,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
                 pass  # nosec
         res = call_waf_callback(
             addresses,
-            crop_trace="wrapped_request_D8CB81E472AF98A2",
+            crop_trace="wrapped_urllib3_make_request_6D4E8B2A1F095C73",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         env.downstream_requests += 1
