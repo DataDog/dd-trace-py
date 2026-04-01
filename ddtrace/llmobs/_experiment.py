@@ -896,14 +896,13 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
-    def _pydantic_report_evaluator_wrapper(
-        evaluator: Any, duration: Optional[float] = None, total_duration: int = 0
-    ) -> Any:
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
         :param evaluator: The pydantic report evaluator to run
         :return: A callable function that can be used as an evaluator
         """
 
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
         def wrapped_evaluator(
             eval_context: SummaryEvaluatorContext,
         ) -> JSONType:
@@ -933,8 +932,8 @@ if PydanticEvaluator is not None:
                         assertions=assertions,
                         scores=scores,
                         labels=labels,
-                        task_duration=duration,
-                        total_duration=total_duration,
+                        task_duration=0,
+                        total_duration=0,
                         attributes={},
                         metrics={},
                     )
@@ -993,14 +992,13 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
-    def _pydantic_async_report_evaluator_wrapper(
-        evaluator: Any, duration: Optional[float] = None, total_duration: int = 0
-    ) -> Any:
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
         :param evaluator: The pydantic report evaluator to run
         :return: A callable function that can be used as an evaluator
         """
 
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
         async def wrapped_evaluator(
             eval_context: SummaryEvaluatorContext,
         ) -> JSONType:
@@ -1030,8 +1028,8 @@ if PydanticEvaluator is not None:
                         assertions=assertions,
                         scores=scores,
                         labels=labels,
-                        task_duration=duration,
-                        total_duration=total_duration,
+                        task_duration=0,
+                        total_duration=0,
                         attributes={},
                         metrics={},
                     )
@@ -1064,15 +1062,11 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
-    def _pydantic_report_evaluator_wrapper(
-        evaluator: Any, duration: Optional[float] = None, total_duration: int = 1
-    ) -> Any:
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
-    def _pydantic_async_report_evaluator_wrapper(
-        evaluator: Any, duration: Optional[float] = None, total_duration: int = 1
-    ) -> Any:
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
