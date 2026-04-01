@@ -118,7 +118,8 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
                 span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
-        except Exception as e:
+        except azure_cosmos.exceptions.CosmosHttpResponseError as e:
+            
             _tag_cosmos_exceptions(e, span)
             raise e
 
