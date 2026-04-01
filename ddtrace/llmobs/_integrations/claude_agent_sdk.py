@@ -317,8 +317,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             log.warning("Error parsing context snapshot", exc_info=True)
         return snapshot
 
-    @staticmethod
-    def _extract_context_text(messages: list[Any]) -> Optional[str]:
+    def _extract_context_text(self, messages: list[Any]) -> Optional[str]:
         """Return the text content of the first AssistantMessage in messages, or None."""
         for msg in messages:
             if type(msg).__name__ != "AssistantMessage":
@@ -333,8 +332,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 return content
         return None
 
-    @staticmethod
-    def _parse_context_window_size(content: str) -> Optional[int]:
+    def _parse_context_window_size(self, content: str) -> Optional[int]:
         """Parse the context window size from the **Tokens:** X / Y (Z%) headline."""
         for line in content.split("\n"):
             if "**Tokens:**" not in line:
@@ -343,13 +341,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
                 if "/" in tokens_part:
                     _, total_str = [t.strip() for t in tokens_part.split("/")]
-                    return ClaudeAgentSdkIntegration._parse_tok(total_str)
+                    return self._parse_tok(total_str)
             except (IndexError, ValueError, TypeError):
                 pass
         return None
 
-    @staticmethod
-    def _parse_context_sections(content: str) -> list[dict[str, Any]]:
+    def _parse_context_sections(self, content: str) -> list[dict[str, Any]]:
         """Parse the ### Estimated usage by category table into a list of {name, tokens} dicts.
 
         Excludes overhead rows (Free space, Autocompact buffer) and deferred sections.
@@ -375,14 +372,13 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if name in _CONTEXT_EXCLUDED_SECTIONS or "(deferred)" in name:
                 continue
             try:
-                tokens = ClaudeAgentSdkIntegration._parse_tok(token_str)
+                tokens = self._parse_tok(token_str)
             except (ValueError, TypeError):
                 tokens = 0
             sections.append({"name": name, "tokens": tokens})
         return sections
 
-    @staticmethod
-    def _parse_tok(s: str) -> int:
+    def _parse_tok(self, s: str) -> int:
         """Parse a token count string with optional k/m suffix (e.g. '14.8k', '1.0M', '200000')."""
         s = s.strip()
         if s.lower().endswith("k"):
