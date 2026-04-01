@@ -1642,16 +1642,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
-                    ("urlopen_string", "urlopen"),
-                    ("urlopen_request", "urlopen"),
-                    ("requests", "request"),
-                    ("httpx", "get"),
-                    ("httpx_async", "get"),
+                    ("urlopen_string", "do_open"),
+                    ("urlopen_request", "do_open"),
+                    ("requests", "urlopen"),
+                    ("httpx", "send"),
+                    ("httpx_async", "send"),
                 ],
                 repeat=2,
             )
         ]
-        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("dispatch",))]
+        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("rasp",))]
         + [
             (
                 "shell_injection",
@@ -1703,14 +1703,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         def validate_top_function(trace):
             # Validate that the stack trace contains an expected function near the top.
-            # Several cases to handle:
-            # - Properly cropped stacks: expected function at frame 0 (endswith match)
-            # - Qualified names (Python 3.11+): e.g. "RaspHandler._handle" contains "rasp"
-            # - Intermediate ddtrace frames: search first 6 frames
-            # - Untrimmed httpx stacks: report_stack at frame 0 — skip validation
-            if trace["frames"][0]["function"] == "report_stack":
-                return True
-            for frame in trace["frames"][:6]:
+            # The crop mechanism removes most ddtrace frames, but some integration
+            # wrappers (e.g. with_traced_module) may remain. Check first 3 frames:
+            # - frame 0: the caller right above the crop point
+            # - frame 1-2: allow for integration wrappers or qualified names
+            for frame in trace["frames"][:3]:
                 fname = frame["function"]
                 fname_lower = fname.lower()
                 if any(fname.endswith(tf) or tf.lower() in fname_lower for tf in top_functions) or (
