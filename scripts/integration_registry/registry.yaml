@@ -16,7 +16,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.2
+      max: 3.13.4
 - integration_name: aiohttp_jinja2
   is_external_package: true
   is_tested: true
@@ -139,10 +139,10 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
     azure-functions-durable:
       min: 1.2.1
-      max: 1.4.0
+      max: 1.5.0
 - integration_name: azure_eventhubs
   is_external_package: true
   is_tested: true
@@ -160,7 +160,7 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
 - integration_name: azure_servicebus
   is_external_package: true
   is_tested: true
@@ -790,7 +790,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 24.6.0
+      max: 23.12.2
 - integration_name: selenium
   is_external_package: true
   is_tested: false

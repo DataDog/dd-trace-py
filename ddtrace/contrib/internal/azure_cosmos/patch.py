@@ -6,6 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -20,9 +21,7 @@ from ddtrace.trace import tracer
 
 config._add(
     "azure_cosmos",
-    {
-        "distributed_tracing": True,
-    },
+    dict(),
 )
 
 
@@ -52,7 +51,7 @@ def _patch(azure_cosmos_module):
 
 
 def _patched_synchronized_request(wrapped, instance, args, kwargs):
-    if not tracer or not tracer.enabled:
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     try:
@@ -82,13 +81,13 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
                 span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
-        except Exception as e:
+        except azure_cosmos.exceptions.CosmosHttpResponseError as e:
             _tag_cosmos_exceptions(e, span)
             raise e
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
-    if not tracer or not tracer.enabled:
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     try:
@@ -167,15 +166,9 @@ def _tag_cosmos_exceptions(e, span):
     sub_status = getattr(e, "sub_status", None)
     if sub_status:
         span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
-    if isinstance(e, azure_cosmos.exceptions.CosmosResourceExistsError):
-        span._set_attribute(http.STATUS_CODE, 409)
-    elif isinstance(e, azure_cosmos.exceptions.CosmosResourceNotFoundError):
-        span._set_attribute(http.STATUS_CODE, 404)
-    elif isinstance(e, azure_cosmos.exceptions.CosmosAccessConditionFailedError):
-        span._set_attribute(http.STATUS_CODE, 412)
-    elif isinstance(e, azure_cosmos.exceptions.CosmosHttpResponseError):
-        if e.status_code:
-            span._set_attribute(http.STATUS_CODE, e.status_code)
+    status_code = getattr(e, "status_code", None)
+    if status_code:
+        span._set_attribute(http.STATUS_CODE, status_code)
 
 
 def unpatch():
