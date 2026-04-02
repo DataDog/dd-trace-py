@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Iterable
 from typing import Optional
@@ -18,6 +17,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -116,22 +116,23 @@ class AnthropicIntegration(BaseLLMIntegration):
 
             elif isinstance(content, list):
                 for block in content:
-                    if _get_attr(block, "type", None) == "text":
+                    content_type = _get_attr(block, "type", None)
+                    if content_type == "text":
                         input_messages.append(Message(content=str(_get_attr(block, "text", "")), role=str(role)))
 
-                    elif _get_attr(block, "type", None) == "image":
+                    elif content_type == "image":
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
 
-                    elif _get_attr(block, "type", None) == "thinking":
+                    elif content_type == "thinking":
                         thinking_text = _get_attr(block, "thinking", "")
                         input_messages.append(Message(content=str(thinking_text), role="reasoning"))
 
-                    elif "tool_use" in _get_attr(block, "type", None):
+                    elif "tool_use" in (content_type or ""):
                         text = _get_attr(block, "text", None)
-                        input_data = _get_attr(block, "input", "")
+                        input_data = _get_attr(block, "input", {})
                         if isinstance(input_data, str):
-                            input_data = json.loads(input_data)
+                            input_data = safe_load_json(input_data)
                         tool_call_info = ToolCall(
                             name=str(_get_attr(block, "name", "")),
                             arguments=input_data,
@@ -142,7 +143,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                             text = ""
                         input_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
 
-                    elif "tool_result" in _get_attr(block, "type", None):
+                    elif "tool_result" in (content_type or ""):
                         content = _get_attr(block, "content", None)
                         formatted_content = self._format_tool_result_content(content)
                         tool_result_info = ToolResult(
@@ -183,24 +184,25 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
-                if _get_attr(completion, "type", None) == "thinking":
+                completion_type = _get_attr(completion, "type", "") or ""
+                if completion_type == "thinking":
                     thinking_text = _get_attr(completion, "thinking", "")
                     output_messages.append(Message(content=str(thinking_text), role="reasoning"))
                     continue
                 text = _get_attr(completion, "text", None)
                 output_message = Message(content=str(text) if text else "", role=str(role))
-                if "tool_use" in _get_attr(completion, "type", None):
-                    input_data = _get_attr(completion, "input", "")
+                if "tool_use" in completion_type:
+                    input_data = _get_attr(completion, "input", {})
                     if isinstance(input_data, str):
-                        input_data = json.loads(input_data)
+                        input_data = safe_load_json(input_data)
                     tool_call_info = ToolCall(
                         name=str(_get_attr(completion, "name", "")),
                         arguments=input_data,
                         tool_id=str(_get_attr(completion, "id", "")),
-                        type=str(_get_attr(completion, "type", "")),
+                        type=str(completion_type),
                     )
                     output_message["tool_calls"] = [tool_call_info]
-                if "tool_result" in _get_attr(completion, "type", None):
+                if "tool_result" in completion_type:
                     result = _get_attr(completion, "content", {})
                     if hasattr(result, "model_dump") and callable(result.model_dump):
                         result = result.model_dump()
