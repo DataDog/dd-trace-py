@@ -640,6 +640,43 @@ def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
         assert integration._has_downstream_openai_span(kwargs, model) is expected
 
 
+def test_has_downstream_openai_span_use_litellm_proxy_kwarg():
+    """use_litellm_proxy=True in kwargs suppresses downstream check regardless of model name."""
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False, "use_litellm_proxy": True}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_has_downstream_openai_span_use_litellm_proxy_module_flag():
+    """litellm.use_litellm_proxy = True suppresses downstream check regardless of model name."""
+    import litellm
+
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
+            assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
+    """USE_LITELLM_PROXY=true env var suppresses downstream check regardless of model name."""
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    monkeypatch.setenv("USE_LITELLM_PROXY", "true")
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
     """
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.

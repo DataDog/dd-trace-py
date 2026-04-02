@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Optional
 
@@ -146,8 +147,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
-        # litellm_proxy/ requests route through a proxy — the OpenAI integration never fires for these
+        # Detect litellm proxy routing — the OpenAI integration never fires when requests go through a proxy.
+        # Three mechanisms exist (v1.72.1+ for use_litellm_proxy):
+        #   1. model prefix:        model="litellm_proxy/<model>"
+        #   2. per-call kwarg:      use_litellm_proxy=True
+        #   3. module-level flag:   litellm.use_litellm_proxy = True  /  USE_LITELLM_PROXY env var
         if model_lower.startswith("litellm_proxy/"):
+            return False
+        if kwargs.get("use_litellm_proxy"):
+            return False
+        import litellm as _litellm
+
+        if getattr(_litellm, "use_litellm_proxy", False) or os.environ.get("USE_LITELLM_PROXY", "").lower() == "true":
             return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
