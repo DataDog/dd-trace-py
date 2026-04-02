@@ -129,9 +129,16 @@ scripts/run-benchmarks --scenario span --configs start-finish --profile --artifa
 ```
 Note: `--profile` uses viztracer and generates ~700MB files per config variant. Use with `--configs` to limit scope.
 
-**Run multiple scenarios in one invocation:**
+**`--configs` with multiple scenarios**: `--configs` applies the same filter to every scenario. Only pass configs that are valid for all scenarios you're running; mismatches are silently skipped. When running scenarios with different config names, run them in separate invocations.
+
+**Run multiple scenarios under the same run ID:**
 ```bash
-scripts/run-benchmarks --scenario span,tracer --artifacts ./benchmark-artifacts/
+scripts/run-benchmarks --scenario span --scenario tracer --artifacts ./benchmark-artifacts/
+```
+
+**Add a scenario to a previous run (reuse its artifact directory):**
+```bash
+scripts/run-benchmarks --scenario tracer --run-id <previous-run-id> --artifacts ./benchmark-artifacts/
 ```
 
 **Specify an explicit baseline version:**
@@ -228,10 +235,11 @@ scripts/run-benchmarks --dry-run --scenario span --artifacts ./benchmark-artifac
 
 # Quick iteration (2 configs)
 scripts/run-benchmarks --scenario span --configs start,start-finish --artifacts ./benchmark-artifacts/
+# Run ID printed to stderr — note it for reuse
 scripts/perf-analyze benchmark-artifacts/
 
-# Once satisfied, full run for PR
-scripts/run-benchmarks --scenario span --artifacts ./benchmark-artifacts/
+# Once satisfied, full run for PR (add tracer to the same run)
+scripts/run-benchmarks --scenario span --scenario tracer --artifacts ./benchmark-artifacts/
 scripts/perf-analyze benchmark-artifacts/ --json
 ```
 

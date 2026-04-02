@@ -42,6 +42,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,6 +165,7 @@ class BenchmarkRunner:
         scenario: str,
         baseline: str,
         candidate: str,
+        run_id: str,
         configs: str = "",
         artifacts: str = "",
         dry_run: bool = False,
@@ -178,6 +180,8 @@ class BenchmarkRunner:
         if artifacts:
             cmd += ["--artifacts", artifacts]
 
+        cmd += ["--run-id", run_id]
+
         env = os.environ.copy()
         if profile:
             env["PROFILE_BENCHMARKS"] = "1"
@@ -185,6 +189,7 @@ class BenchmarkRunner:
         print(f"\nRunning benchmark: {scenario}")
         print(f"  Baseline:  {baseline}")
         print(f"  Candidate: {candidate}")
+        print(f"  Run ID:    {run_id}")
         if configs:
             print(f"  Configs:   {configs}")
         if profile:
@@ -220,11 +225,18 @@ Examples:
   # Run span benchmark (latest PyPI vs local)
   scripts/run-benchmarks --scenario span
 
-  # Run span benchmark with only two configs (faster)
+  # Run multiple scenarios under the same run ID (single artifacts directory)
+  scripts/run-benchmarks --scenario span --scenario tracer
+
+  # Run span benchmark with only two configs (faster iteration)
+  # Note: --configs applies to all scenarios; pick configs valid for each scenario you're running
   scripts/run-benchmarks --scenario span --configs start,start-finish
 
   # Run with an explicit baseline version
   scripts/run-benchmarks --scenario span --baseline ddtrace==2.8.4
+
+  # Add a scenario to a previous run (reuse its run ID)
+  scripts/run-benchmarks --scenario tracer --run-id <previous-run-id>
 
   # Run flask benchmark with artifacts saved
   scripts/run-benchmarks --scenario flask_simple --artifacts ./my-results/
@@ -237,7 +249,19 @@ Examples:
     )
     parser.add_argument("--list", action="store_true", help="Output JSON with matching suites (for AI agents)")
     parser.add_argument("--all-suites", action="store_true", help="Show all benchmark suites regardless of file changes")
-    parser.add_argument("--scenario", help="Run one or more benchmark scenarios by name (comma-separated, e.g. span,tracer)")
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        dest="scenarios",
+        metavar="SCENARIO",
+        help="Benchmark scenario to run (repeatable: --scenario span --scenario tracer)",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Reuse an existing run ID to add scenarios to a previous run's artifact directory. "
+             "Defaults to a new UUID per invocation.",
+    )
     parser.add_argument(
         "--baseline",
         default="ddtrace",
@@ -267,16 +291,18 @@ Examples:
         matching_suites = runner.get_all_benchmark_suites()
         if not args.list:
             print(f"Showing all {len(matching_suites)} benchmark suites")
-    elif args.scenario and not args.list:
+    elif args.scenarios and not args.list:
         # Direct scenario execution — skip suite discovery
         runner.check_docker()
-        scenarios = [s.strip() for s in args.scenario.split(",")]
+        run_id = args.run_id or str(uuid.uuid4())
+        print(f"Run ID: {run_id}", file=sys.stderr)
         all_ok = True
-        for scenario in scenarios:
+        for scenario in args.scenarios:
             success = runner.run_scenario(
                 scenario=scenario,
                 baseline=args.baseline,
                 candidate=args.candidate,
+                run_id=run_id,
                 configs=args.configs,
                 artifacts=args.artifacts,
                 dry_run=args.dry_run,
@@ -324,7 +350,8 @@ Examples:
         print("Use --scenario <name> to run a specific one, or --list for JSON output.")
     else:
         print("\nUse --scenario <name> to run one of these, or --list for JSON output.")
-        print(f"Example: scripts/run-benchmarks --scenario {next(iter(sorted(matching_suites)))}")
+        first = next(iter(sorted(matching_suites)))
+        print(f"Example: scripts/run-benchmarks --scenario {first}")
 
     return 0
 

@@ -47,6 +47,7 @@ shift
 
 ARTIFACTS=""
 CONFIGS=""
+RUN_ID=""
 
 # Parse remaining arguments
 while [[ $# -gt 0 ]]; do
@@ -58,6 +59,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --artifacts)
             ARTIFACTS="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        --run-id)
+            RUN_ID="$2"
             shift # past argument
             shift # past value
             ;;
@@ -90,6 +96,7 @@ CMD+=" -v $(pwd):/src/ \
   -e DDTRACE_INSTALL_V1=$(expand_git_version $DDTRACE_V1) \
   -e DDTRACE_INSTALL_V2=$(expand_git_version $DDTRACE_V2) \
   -e BENCHMARK_CONFIGS=${CONFIGS} \
+  -e RUN_ID=${RUN_ID} \
   ${TAG}"
 
 $CMD
