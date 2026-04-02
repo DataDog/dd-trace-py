@@ -89,4 +89,4 @@ def test__unpatch_unwraps_technical_500_response_from_django_views_debug():
     ):
         _unpatch(fake_django)
 
-    unwrap_mock.assert_any_call(fake_django.views.debug.technical_500_response, "technical_500_response")
+    unwrap_mock.assert_any_call(fake_django.views.debug, "technical_500_response")
