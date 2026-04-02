@@ -210,7 +210,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            pys=["3.11", "3.12", "3.13", "3.14"],
+            pys=["3.11", "3.12", "3.13", "3.14", "3.15"],
             command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
@@ -2127,7 +2127,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={
                         "grpcio": ">=1.75.0",
                     },
@@ -3692,9 +3692,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                # Python 3.14+ - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
@@ -4277,7 +4277,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
@@ -4312,7 +4312,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
@@ -4336,7 +4336,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
