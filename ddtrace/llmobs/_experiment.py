@@ -1706,10 +1706,10 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -1720,7 +1720,9 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
+        self._task_accepts_metadata = (
+            "metadata" in inspect.signature(task).parameters if task is not None else False
+        )
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._remote_evaluator_names: set[str] = {
@@ -1733,11 +1735,11 @@ class Experiment:
         self._tags: dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
-        self._tags["dataset_name"] = dataset.name
+        self._tags["dataset_name"] = dataset.name if dataset is not None else ""
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
-        if dataset.filter_tags:
+        if dataset is not None and dataset.filter_tags:
             self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
@@ -2089,6 +2091,12 @@ class Experiment:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
+        if self._task is None or self._dataset is None:
+            raise ValueError(
+                "task and dataset are required to run an experiment from scratch. "
+                "Either provide them when creating the experiment, or call `pull()` first "
+                "and use `rerun_evaluators()` to re-score the stored results."
+            )
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -2811,10 +2819,10 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,

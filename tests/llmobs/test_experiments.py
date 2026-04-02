@@ -2446,6 +2446,51 @@ def test_experiment_rerun_preserves_experiment_id(llmobs, test_dataset_one_recor
     assert exp._experiment._id == original_id
 
 
+def test_experiment_init_without_task_and_dataset(llmobs):
+    """Creating an experiment without task or dataset must not raise — supports pull() workflow."""
+    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    assert exp._experiment._task is None
+    assert exp._experiment._dataset is None
+
+
+def test_experiment_run_without_task_raises(llmobs):
+    """Calling run() on an experiment without task/dataset must raise ValueError."""
+    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
+        exp.run()
+
+
+def test_experiment_rerun_without_task_succeeds(llmobs, test_dataset_one_record):
+    """rerun_evaluators() works even when the experiment was created without task/dataset."""
+    from ddtrace.llmobs._experiment import ExperimentRowResult, ExperimentRun
+
+    row: ExperimentRowResult = {
+        "record_id": "r1",
+        "idx": 0,
+        "span_id": "abc",
+        "trace_id": "def",
+        "timestamp": MOCK_TIMESTAMP_NS,
+        "input": {"question": "What is the capital of France?"},
+        "expected_output": {"answer": "Paris"},
+        "output": {"answer": "Paris"},
+        "metadata": {},
+        "evaluations": {},
+        "error": {"message": None, "type": None, "stack": None},
+    }
+    prior_run = ExperimentRun(run_name="test_experiment-run-1", run_iteration=0, rows=[row])
+    prior_result = {"runs": [prior_run], "rows": [row], "summary_evaluations": {}}
+
+    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    # Simulate result from pull() — no run() needed
+    exp.result = prior_result
+    # Manually set _id so rerun guard passes (normally set by _setup_experiment in run())
+    exp._experiment._id = "mock-experiment-id"
+
+    new_result = exp.rerun_evaluators()
+    assert new_result is not prior_result
+    assert new_result["runs"][0].rows[0]["span_id"] == "abc"
+
+
 @pytest.mark.parametrize(
     "dd_site,expected_base",
     [
