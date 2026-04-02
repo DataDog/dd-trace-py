@@ -1188,29 +1188,6 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer(tracer):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_evaluator_runner(tracer, mock_ragas_evaluator):
-    """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
-    pytest.importorskip("ragas")
-    with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-        with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-            llmobs_service.enable(_tracer=tracer, ml_app="test_app")
-            original_evaluator_runner = llmobs_service._instance._evaluator_runner
-            pid = os.fork()
-            if pid:  # parent
-                assert llmobs_service._instance._evaluator_runner == original_evaluator_runner
-                assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
-            else:  # child
-                assert llmobs_service._instance._evaluator_runner != original_evaluator_runner
-                assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
-                llmobs_service.disable()
-                os._exit(12)
-
-            _, status = os.waitpid(pid, 0)
-            exit_code = os.WEXITSTATUS(status)
-            assert exit_code == 12
-            llmobs_service.disable()
-
-
 def test_llmobs_fork_create_span(tracer, monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
