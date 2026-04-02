@@ -397,7 +397,7 @@ async def test_asgi_500(scope, test_spans):
 @pytest.mark.asyncio
 async def test_asgi_error_custom(scope, test_spans):
     def custom_handle_exception_span(exc, span):
-        span.set_tag("http.status_code", 501)
+        span._set_attribute("http.status_code", 501)
 
     app = TraceMiddleware(error_app, handle_exception_span=custom_handle_exception_span)
     instance = ApplicationCommunicator(app, scope)

@@ -474,6 +474,21 @@ import opentelemetry
             "value": 10000,
         },
         {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
             "name": "OTEL_METRIC_EXPORT_INTERVAL",
             "origin": "default",
             "value": 10000,
