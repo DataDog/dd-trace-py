@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    litellm: Fix missing LLMObs spans when routing through a litellm proxy.
-    Models with the ``litellm_proxy/`` prefix were incorrectly suppressed by
-    the OpenAI downstream span check, resulting in empty or missing LLMObs
-    spans. Proxy requests are now always handled by the litellm integration.
+    litellm: Fix missing LLMObs spans when routing requests through a litellm
+    proxy. Proxy requests were incorrectly suppressed by the OpenAI downstream
+    span check, resulting in empty or missing LLMObs spans. Proxy requests are
+    now always handled by the litellm integration.
