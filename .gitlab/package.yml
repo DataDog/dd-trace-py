@@ -302,6 +302,7 @@ download_dependency_wheels:
     - .gitlab/download-dependency-wheels.sh
   cache:
     - key: v0-download-dep-wheels-cache
+      unknown_cache_attr: "string"
       paths:
         - ${CI_PROJECT_DIR}/.cache/
   artifacts:
@@ -310,7 +311,7 @@ download_dependency_wheels:
 
 "upload all":
   extends: .upload_wheels_base
-  needs: [ "ddtrace package", "package version" ]
+  needs: [ "ddtrace package", "package version", "unknown job" ]
   script:
     - !reference [.upload_wheels_base, script]
     - |
