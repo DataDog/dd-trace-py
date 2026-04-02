@@ -5,6 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: emmett.butler/back-compat-testing
     strategy: depend
   needs:
     - job: "upload serverless"
