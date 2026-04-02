@@ -216,8 +216,6 @@ def init_cursor_from_connection_factory(psycopg_module):
         else:
             cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 
-        traced_cursor = traced_cursor_cls(cursor=cursor, cfg=cfg)
-        traced_cursor._self_db_tags = connection._self_db_tags.copy()
-        return traced_cursor
+        return traced_cursor_cls(cursor=cursor, cfg=cfg, db_tags=connection._self_db_tags)
 
     return init_cursor_from_connection

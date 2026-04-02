@@ -166,11 +166,11 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
 
 
 class TracedAsyncConnection(TracedConnection):
-    def __init__(self, conn, cfg=config.dbapi2, cursor_cls=None, db_tags=None):
+    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
-        super(TracedAsyncConnection, self).__init__(conn, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
+        super(TracedAsyncConnection, self).__init__(conn, pin=pin, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     async def __aenter__(self):
         """Context management is not defined by the dbapi spec.
@@ -208,9 +208,7 @@ class TracedAsyncConnection(TracedConnection):
             # r is Cursor-like.
             if iswrapped(r):
                 return r
-            wrapped_cursor = self._self_cursor_cls(r, self._self_config)
-            wrapped_cursor._self_db_tags = self._self_db_tags.copy()
-            return wrapped_cursor
+            return self._self_cursor_cls(r, cfg=self._self_config, db_tags=self._self_db_tags)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.

@@ -523,6 +523,8 @@ def _unpatch(django):
     trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
+        if hasattr(conn, "get_new_connection"):
+            trace_utils.unwrap(conn, "get_new_connection")
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
     if config.django.instrument_templates:

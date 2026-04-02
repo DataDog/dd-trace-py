@@ -95,18 +95,21 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     cfg = get_conn_config(vendor, service)
 
     traced_cursor_cls = get_traced_cursor_cls(type(cursor.cursor))
-    traced_cursor = traced_cursor_cls(cursor, cfg)
-    traced_cursor._self_db_tags = {
-        **pin.tags,
-        "django.db.vendor": vendor,
-        "django.db.alias": alias,
-    }
+    traced_cursor = traced_cursor_cls(
+        cursor,
+        cfg=cfg,
+        db_tags={
+            **pin.tags,
+            "django.db.vendor": vendor,
+            "django.db.alias": alias,
+        },
+    )
 
     return traced_cursor
 
 
 def get_new_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
-    """Db tags now pass through _self_db_tags and not through pin so we have ton instrument
+    """Db tags now pass through _self_db_tags and not through pin so we have to instrument
     the creation of the connection.
     """
     instance = args[0]

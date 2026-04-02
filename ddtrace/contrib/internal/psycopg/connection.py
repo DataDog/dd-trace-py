@@ -51,7 +51,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
         super(Psycopg2TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
 
-def patch_conn(conn, traced_conn_cls, pin=None):
+def patch_conn(conn, traced_conn_cls):
     """Wrap will patch the instance so that its queries are traced."""
 
     # Return the plain connection if it has already been closed
@@ -60,10 +60,9 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
-    if pin:
-        extensions_to_patch = pin._config.get("_extensions_to_patch", None)
-        if extensions_to_patch:
-            _patch_extensions(extensions_to_patch)
+    extensions_to_patch = config.psycopg.get("_extensions_to_patch", None)
+    if extensions_to_patch:
+        _patch_extensions(extensions_to_patch)
 
     tags = {
         db.SYSTEM: "postgresql",
@@ -120,6 +119,6 @@ def patched_connect_factory(psycopg_module):
             ):
                 conn = connect_func(*args, **kwargs)
 
-        return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+        return patch_conn(conn, traced_conn_cls=traced_conn_cls)
 
     return patched_connect

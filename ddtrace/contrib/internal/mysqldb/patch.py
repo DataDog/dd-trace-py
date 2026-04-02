@@ -36,6 +36,13 @@ config._add(
     ),
 )
 
+KWPOS_BY_TAG = {
+    net.TARGET_HOST: ("host", 0),
+    net.SERVER_ADDRESS: ("host", 0),
+    db.USER: ("user", 1),
+    db.NAME: ("db", 3),
+}
+
 
 def get_version() -> str:
     return ".".join(map(str, MySQLdb.version_info[0:3]))
@@ -43,14 +50,6 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"MySQLdb": ">=2.0"}
-
-
-KWPOS_BY_TAG = {
-    net.TARGET_HOST: ("host", 0),
-    net.SERVER_ADDRESS: ("host", 0),
-    db.USER: ("user", 1),
-    db.NAME: ("db", 3),
-}
 
 
 def patch():

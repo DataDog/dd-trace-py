@@ -4,7 +4,7 @@ from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 
 class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCursor):
     def __init__(self, cursor, cfg, *args, **kwargs):
-        super(Psycopg3TracedAsyncCursor, self).__init__(cursor, cfg)
+        super(Psycopg3TracedAsyncCursor, self).__init__(cursor, cfg=cfg, *args, **kwargs)
 
 
 class Psycopg3FetchTracedAsyncCursor(Psycopg3TracedAsyncCursor, dbapi_async.FetchTracedAsyncCursor):

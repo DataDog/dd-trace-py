@@ -13,7 +13,9 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.trace import tracer
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
@@ -47,7 +49,22 @@ def get_version():
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
-    def __init__(self, cursor, cfg):
+    def __init__(self, cursor, pin=None, cfg=None, db_tags: Optional[Mapping[str, str]] = None):
+        # Backward compatibility:
+        # - New style: TracedCursor(cursor, cfg)
+        # - Deprecated style: TracedCursor(cursor, pin, cfg)
+        if cfg is None:
+            cfg = pin
+            pin = None
+
+        if pin is not None:
+            deprecate(
+                "The pin parameter is deprecated",
+                message="This parameter has no effect and will be removed in a future version.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
+
         super(TracedCursor, self).__init__(cursor)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -64,7 +81,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
-        self._self_db_tags = {}
+        self._self_db_tags = dict(db_tags) if db_tags else {}
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -231,7 +248,14 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, cfg=None, cursor_cls=None, db_tags: Optional[Mapping[str, str]] = None):
+    def __init__(self, conn, pin=None, cfg=None, cursor_cls=None, db_tags: Optional[Mapping[str, str]] = None):
+        if pin is not None:
+            deprecate(
+                "The pin parameter is deprecated",
+                message="This parameter has no effect and will be removed in a future version.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         if not cfg:
             cfg = config.dbapi2
         # Set default cursor class if one was not provided
@@ -280,9 +304,7 @@ class TracedConnection(wrapt.ObjectProxy):
             # r is Cursor-like.
             if iswrapped(r):
                 return r
-            wrapped_cursor = self._self_cursor_cls(r, self._self_config)
-            wrapped_cursor._self_db_tags = self._self_db_tags.copy()
-            return wrapped_cursor
+            return self._self_cursor_cls(r, cfg=self._self_config, db_tags=self._self_db_tags)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -304,9 +326,7 @@ class TracedConnection(wrapt.ObjectProxy):
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
-        wrapped_cursor = self._self_cursor_cls(cursor=cursor, cfg=self._self_config)
-        wrapped_cursor._self_db_tags = self._self_db_tags.copy()
-        return wrapped_cursor
+        return self._self_cursor_cls(cursor=cursor, cfg=self._self_config, db_tags=self._self_db_tags)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
