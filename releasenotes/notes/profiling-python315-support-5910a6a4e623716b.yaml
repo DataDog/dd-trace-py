@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    profiling: Adds support for Python 3.15. The Continuous Profiler now correctly builds
+    and runs on CPython 3.15, including the native stack profiler (Echion), lock profiler,
+    memory profiler, and asyncio task tracking.
+
+    Key changes to handle CPython 3.15 ABI differences (guarded with
+    ``PY_VERSION_HEX >= 0x030f0000``):
+
+    - ``FRAME_OWNED_BY_CSTACK`` was removed from the ``_frameowner`` enum; the native
+      stack profiler now uses the ``FRAME_OWNED_BY_INTERPRETER``-only check on 3.15.
+    - The new ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` frame state is now recognized by
+      the generator yield-from tracker (``PyGen_yf``), ensuring coroutine await-chains
+      are correctly unwound on 3.15.
