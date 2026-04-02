@@ -453,7 +453,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        self._export_llmobs = os.getenv("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
