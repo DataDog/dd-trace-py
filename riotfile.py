@@ -567,11 +567,12 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
@@ -3445,7 +3446,6 @@ venv = Venv(
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": "==0.1.21",
                         "langchain": latest,
                         "pandas": latest,
                     },
@@ -3459,8 +3459,7 @@ venv = Venv(
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
-                                "pydantic-evals": "<1.31",
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
