@@ -369,6 +369,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "xyz", "name": "abc"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -383,6 +384,7 @@ def test_sampling_rule_init_via_env():
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
                 [],
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -400,6 +402,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "my-service", "name": "my-name"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
