@@ -2127,6 +2127,325 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
 
 
+# ---------------------------------------------------------------------------
+# ExperimentRun.as_dataframe() tests
+# ---------------------------------------------------------------------------
+
+
+def _make_experiment_run(rows):
+    """Helper to create an ExperimentRun from a list of ExperimentRowResult dicts."""
+    from ddtrace.llmobs._experiment import ExperimentRun
+
+    run_info = run_info_with_stable_id(0)
+    return ExperimentRun(run_info, {}, rows)
+
+
+def test_experiment_run_as_dataframe_basic():
+    pytest.importorskip("pandas")
+    run = _make_experiment_run(
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"question": "What is 2+2?"},
+                "output": "4",
+                "expected_output": {"answer": "4"},
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+        ]
+    )
+    df = run.as_dataframe()
+    assert ("input", "question") in df.columns
+    assert ("output", "") in df.columns
+    assert ("expected_output", "answer") in df.columns
+    assert ("span_id", "") in df.columns
+    assert ("trace_id", "") in df.columns
+    assert ("error", "") in df.columns
+    assert df[("input", "question")].iloc[0] == "What is 2+2?"
+    assert df[("output", "")].iloc[0] == "4"
+    assert df[("expected_output", "answer")].iloc[0] == "4"
+
+
+def test_experiment_run_as_dataframe_with_evaluations():
+    pytest.importorskip("pandas")
+    eval_data = {"value": 1.0, "type": "score", "reasoning": "correct", "assessment": "pass"}
+    run = _make_experiment_run(
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"q": "hi"},
+                "output": "hello",
+                "expected_output": "hello",
+                "evaluations": {"correctness": eval_data},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+        ]
+    )
+    df = run.as_dataframe()
+    assert ("evaluations", "correctness") in df.columns
+    assert df[("evaluations", "correctness")].iloc[0] == eval_data
+
+
+def test_experiment_run_as_dataframe_scalar_expected_output():
+    pytest.importorskip("pandas")
+    run = _make_experiment_run(
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"q": "hi"},
+                "output": "hello",
+                "expected_output": "hello",
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+        ]
+    )
+    df = run.as_dataframe()
+    assert ("expected_output", "") in df.columns
+    assert df[("expected_output", "")].iloc[0] == "hello"
+
+
+def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "pandas", None)
+    run = _make_experiment_run([])
+    with pytest.raises(ImportError, match="pandas"):
+        run.as_dataframe()
+
+
+# ---------------------------------------------------------------------------
+# Eval-only re-run tests
+# ---------------------------------------------------------------------------
+
+
+def test_experiment_run_stores_result(llmobs, test_dataset_one_record):
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "123",
+            "trace_id": "456",
+            "timestamp": MOCK_TIMESTAMP_NS,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        result = exp.run()
+
+    assert exp.result is result
+
+
+def test_experiment_rerun_evaluators_skips_task(llmobs, test_dataset_one_record):
+    """rerun_evaluators() must not call _process_record again."""
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "abc",
+            "trace_id": "def",
+            "timestamp": MOCK_TIMESTAMP_NS,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        first_result = exp.run()
+
+        # Re-run evaluators only — reads from exp.result
+        new_result = exp.rerun_evaluators()
+
+    # _process_record called exactly once (first run), not again on re-run
+    assert mock_process_record.call_count == 1
+    # Output is preserved from first run
+    assert new_result["runs"][0].rows[0]["output"] == first_result["runs"][0].rows[0]["output"]
+    # Original span IDs are reused
+    assert new_result["runs"][0].rows[0]["span_id"] == "abc"
+    assert new_result["runs"][0].rows[0]["trace_id"] == "def"
+    # Result is a new object
+    assert new_result is not first_result
+    assert exp.result is new_result
+
+
+def test_experiment_rerun_raises_on_task_errors(llmobs, test_dataset_one_record):
+    """missing_task_strategy='raise' (default) should raise if a prior row has an error."""
+    from ddtrace.llmobs._experiment import ExperimentResult
+    from ddtrace.llmobs._experiment import ExperimentRun
+
+    run_info = run_info_with_stable_id(0)
+    error_run = ExperimentRun(
+        run_info,
+        {},
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"prompt": "What is the capital of France?"},
+                "output": None,
+                "expected_output": {"answer": "Paris"},
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": "task failed", "type": "ValueError", "stack": None},
+            }
+        ],
+    )
+    previous: ExperimentResult = {"summary_evaluations": {}, "rows": error_run.rows, "runs": [error_run]}
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    exp.result = previous
+
+    with pytest.raises(ValueError, match="task error"):
+        exp.rerun_evaluators()
+
+
+def test_experiment_rerun_skip_strategy(llmobs, test_dataset_one_record):
+    """missing_task_strategy='skip' drops failed rows and evaluates only successful ones."""
+    from ddtrace.llmobs._experiment import ExperimentResult
+    from ddtrace.llmobs._experiment import ExperimentRun
+
+    run_info = run_info_with_stable_id(0)
+    mixed_run = ExperimentRun(
+        run_info,
+        {},
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"prompt": "What is the capital of France?"},
+                "output": {"prompt": "What is the capital of France?"},
+                "expected_output": {"answer": "Paris"},
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            },
+            {
+                "idx": 1,
+                "record_id": "r1",
+                "span_id": "s2",
+                "trace_id": "t2",
+                "timestamp": 1001,
+                "input": {"prompt": "What is the capital of Germany?"},
+                "output": None,
+                "expected_output": {"answer": "Berlin"},
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": "task failed", "type": "ValueError", "stack": None},
+            },
+        ],
+    )
+    previous: ExperimentResult = {"summary_evaluations": {}, "rows": mixed_run.rows, "runs": [mixed_run]}
+
+    # Need a two-record dataset
+    from ddtrace.llmobs._experiment import DatasetRecord
+
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+        ),
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of Germany?"},
+            expected_output={"answer": "Berlin"},
+        ),
+    ]
+    dataset = llmobs.create_dataset(dataset_name="test-dataset-skip", description="skip test", records=records)
+    try:
+        exp = llmobs.experiment("test_experiment", dummy_task, dataset, [dummy_evaluator])
+        exp.result = previous
+        new_result = exp.rerun_evaluators(missing_task_strategy="skip")
+
+        assert len(new_result["runs"][0].rows) == 1
+        assert new_result["runs"][0].rows[0]["idx"] == 0
+    finally:
+        llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_experiment_rerun_invalid_strategy(llmobs, test_dataset_one_record):
+    """An unrecognised missing_task_strategy should raise immediately."""
+    from ddtrace.llmobs._experiment import ExperimentResult
+    from ddtrace.llmobs._experiment import ExperimentRun
+
+    run_info = run_info_with_stable_id(0)
+    good_run = ExperimentRun(
+        run_info,
+        {},
+        [
+            {
+                "idx": 0,
+                "record_id": "r0",
+                "span_id": "s1",
+                "trace_id": "t1",
+                "timestamp": 1000,
+                "input": {"prompt": "What is the capital of France?"},
+                "output": {"prompt": "What is the capital of France?"},
+                "expected_output": {"answer": "Paris"},
+                "evaluations": {},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+        ],
+    )
+    previous: ExperimentResult = {"summary_evaluations": {}, "rows": good_run.rows, "runs": [good_run]}
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    exp.result = previous
+
+    with pytest.raises(ValueError, match="missing_task_strategy"):
+        exp.rerun_evaluators(missing_task_strategy="unknown")
+
+
+def test_experiment_rerun_no_prior_result(llmobs, test_dataset_one_record):
+    """rerun_evaluators() raises ValueError when called before run() or pull()."""
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(ValueError, match="No previous result"):
+        exp.rerun_evaluators()
+
+
+def test_experiment_rerun_preserves_experiment_id(llmobs, test_dataset_one_record):
+    """rerun_evaluators() must not create a new experiment — it reuses the original ID."""
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "abc",
+            "trace_id": "def",
+            "timestamp": MOCK_TIMESTAMP_NS,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        exp.run()
+        original_id = exp._experiment._id
+
+    with mock.patch.object(
+        llmobs._dne_client, "experiment_create", wraps=llmobs._dne_client.experiment_create
+    ) as mock_create:
+        exp.rerun_evaluators()
+
+    # experiment_create must NOT be called during a rerun
+    mock_create.assert_not_called()
+    # The experiment ID is unchanged
+    assert exp._experiment._id == original_id
+
+
 @pytest.mark.parametrize(
     "dd_site,expected_base",
     [
