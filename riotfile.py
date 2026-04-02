@@ -3492,6 +3492,7 @@ venv = Venv(
                     command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
