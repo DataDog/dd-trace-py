@@ -22,6 +22,10 @@ variables:
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
+  # One pipeline injection package size ratchet
+  OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+
 default:
   interruptible: true
 

@@ -132,8 +132,9 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // In Python 3.13+, instr_ptr points to the current instruction (not past it),
     // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
-    int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    const int lasti = static_cast<int>(frame_addr->instr_ptr - code_units) - code_offset;
+    const int lasti =
+      static_cast<int>((frame_addr->instr_ptr - code_units) -
+                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
     auto maybe_frame = Frame::get(echion, code_obj, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
@@ -146,8 +147,8 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
     const int lasti =
-      static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code)))) -
-      static_cast<int>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT));
+      static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>(frame_addr->f_code)) -
+                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
     auto maybe_frame = Frame::get(echion, frame_addr->f_code, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
@@ -196,8 +197,9 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
     // We read only the single int field to keep the cost of cache hits low.
     int firstlineno;
     {
-        auto* firstlineno_addr = reinterpret_cast<decltype(PyCodeObject::co_firstlineno)*>(
-          reinterpret_cast<char*>(code_addr) + offsetof(PyCodeObject, co_firstlineno));
+        auto* firstlineno_addr =
+          reinterpret_cast<decltype(PyCodeObject::co_firstlineno)*>( // NOLINT(performance-no-int-to-ptr)
+            reinterpret_cast<uintptr_t>(code_addr) + offsetof(PyCodeObject, co_firstlineno));
         if (copy_type(firstlineno_addr, firstlineno)) {
             return std::ref(INVALID_FRAME);
         }
