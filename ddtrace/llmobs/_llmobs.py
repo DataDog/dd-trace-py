@@ -126,8 +126,11 @@ from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -1543,14 +1546,21 @@ class LLMObs(Service):
 
                 continue
         if summary_evaluators and not all(
-            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            callable(summary_evaluator)
+            or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            or _is_pydantic_report_evaluator(summary_evaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
                 "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
             )
-        if summary_evaluators:
-            for summary_evaluator in summary_evaluators:
+        summary_evaluators_list: Optional[list[SummaryEvaluatorType]] = None
+        if summary_evaluators is not None:
+            summary_evaluators_list = list(summary_evaluators)
+            for idx, summary_evaluator in enumerate(summary_evaluators_list):
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    summary_evaluators_list[idx] = _pydantic_report_evaluator_wrapper(summary_evaluator)
+                    continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
         return SyncExperiment(
             name,
@@ -1562,7 +1572,7 @@ class LLMObs(Service):
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
-            summary_evaluators=summary_evaluators,
+            summary_evaluators=summary_evaluators_list,
             runs=runs,
         )
 
@@ -1633,8 +1643,22 @@ class LLMObs(Service):
                 evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration, eval_name_count)
                 eval_names[eval_name] = eval_name_count + 1
                 continue
-        if summary_evaluators:
-            for summary_evaluator in summary_evaluators:
+        if summary_evaluators and not all(
+            callable(summary_evaluator)
+            or isinstance(summary_evaluator, (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator))
+            or _is_pydantic_report_evaluator(summary_evaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
+        summary_evaluators_list: Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None
+        if summary_evaluators is not None:
+            summary_evaluators_list = list(summary_evaluators)
+            for idx, summary_evaluator in enumerate(summary_evaluators_list):
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    summary_evaluators_list[idx] = _pydantic_async_report_evaluator_wrapper(summary_evaluator)
+                    continue
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
         return Experiment(
             name,
@@ -1646,7 +1670,7 @@ class LLMObs(Service):
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
-            summary_evaluators=summary_evaluators,
+            summary_evaluators=summary_evaluators_list,
             runs=runs,
         )
 
