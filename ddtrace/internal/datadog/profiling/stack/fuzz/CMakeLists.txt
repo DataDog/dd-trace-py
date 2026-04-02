@@ -36,13 +36,19 @@ function(add_fuzz_target TARGET_NAME)
     # Ensure echion headers take the fuzz hook in vm.h
     target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)
 
-    # C++20 and common warnings (subset of add_ddup_config without the flags
-    # that break ASAN: --exclude-libs,ALL hides ASAN symbols from the dynamic
-    # table so shared libraries fall back to glibc's allocator, and LTO can
-    # internalize sanitizer symbols).
+    # C++20 and common warnings (subset of add_ddup_config without the flags that break ASAN: --exclude-libs,ALL hides
+    # ASAN symbols from the dynamic table so shared libraries fall back to glibc's allocator, and LTO can internalize
+    # sanitizer symbols).
     target_compile_features(${TARGET_NAME} PUBLIC cxx_std_20)
-    target_compile_options(${TARGET_NAME} PRIVATE -ffunction-sections -Wall -Werror -Wextra -Wshadow
-                                                  -Wnon-virtual-dtor -Wold-style-cast)
+    target_compile_options(
+        ${TARGET_NAME}
+        PRIVATE -ffunction-sections
+                -Wall
+                -Werror
+                -Wextra
+                -Wshadow
+                -Wnon-virtual-dtor
+                -Wold-style-cast)
     set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
     # When building with libFuzzer, add the fuzzer runtime and sanitizers.
