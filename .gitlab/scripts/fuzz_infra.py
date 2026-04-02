@@ -158,9 +158,9 @@ def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
     metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
     dockerfile_content = (
         f"FROM {config.compiled_image_ref}\n"
+        f"ENV FUZZ_TARGET={binary.binary_name}\n"
         f"ENV FUZZ_APP={binary.pkgname}\n"
         f"ENV FUZZ_BUILD_ID={config.git_sha}\n"
-        f"RUN ln -sf /fuzzer/builds/{binary.binary_name} /fuzzer/builds/{config.git_sha}\n"
     )
     run_command(
         [
