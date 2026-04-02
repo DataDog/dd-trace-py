@@ -354,7 +354,7 @@ class ProfilingConfigLock(DDConfig):
     name_inspect_dir = DDConfig.v(
         bool,
         "name_inspect_dir",
-        default=True,
+        default=False,
         help_type="Boolean",
         help=(
             "Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
