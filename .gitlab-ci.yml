@@ -121,7 +121,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: emmett.butler/serverless-wheels-2
   needs:
     - job: "upload serverless"
   variables:
