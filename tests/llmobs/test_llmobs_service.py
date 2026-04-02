@@ -8,7 +8,6 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -1132,6 +1131,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
     import mock
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
@@ -1161,6 +1161,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     import mock
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
@@ -1192,6 +1193,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     import mock
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
@@ -1222,6 +1224,7 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner():
     import mock
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     try:
@@ -1325,6 +1328,7 @@ def test_llmobs_fork_disabled():
     import os
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     svc = llmobs_service(tracer=ddtrace.tracer)
@@ -1348,6 +1352,7 @@ def test_llmobs_fork_disabled_then_enabled():
     import os
 
     import ddtrace
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
     from tests.utils import override_global_config
 
