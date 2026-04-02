@@ -1128,9 +1128,10 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
+
     import mock
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
@@ -1156,13 +1157,16 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
+
     import mock
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=True, api_key="<not-a-real-key>")
+        llmobs_service.enable(
+            _tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=True, api_key="<not-a-real-key>"
+        )
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
@@ -1184,9 +1188,10 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     import os
+
     import mock
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
@@ -1213,9 +1218,10 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner():
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
     import os
     import sys
+
     import mock
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     try:
@@ -1249,7 +1255,9 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner():
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
+
     import mock
+
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
 
@@ -1279,7 +1287,9 @@ def test_llmobs_fork_evaluator_runner_run():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
     import sys
+
     import mock
+
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
 
@@ -1313,8 +1323,8 @@ def test_llmobs_fork_evaluator_runner_run():
 def test_llmobs_fork_disabled():
     """Test that after being disabled the service remains disabled when forking"""
     import os
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     svc = llmobs_service(tracer=ddtrace.tracer)
@@ -1336,8 +1346,8 @@ def test_llmobs_fork_disabled():
 def test_llmobs_fork_disabled_then_enabled():
     """Test that after being initially disabled, the service can be enabled in a fork"""
     import os
+
     import ddtrace
-    from ddtrace.internal.service import ServiceStatus
     from ddtrace.llmobs import LLMObs as llmobs_service
     from tests.utils import override_global_config
 
