@@ -46,7 +46,7 @@ class TestLLMObsBedrock:
             output_messages=expected_output,
             metadata=expected_parameters,
             token_metrics=expected_token_metrics,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
         # If parameters were not explicitly provided, use mock.ANY to match anything
@@ -260,7 +260,7 @@ class TestLLMObsBedrock:
             error=span.get_tag("error.type"),
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -305,7 +305,7 @@ class TestLLMObsBedrock:
                 "total_tokens": response["usage"]["totalTokens"],
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -335,7 +335,7 @@ class TestLLMObsBedrock:
             error=span.get_tag("error.type"),
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -384,7 +384,7 @@ class TestLLMObsBedrock:
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -438,7 +438,7 @@ class TestLLMObsBedrock:
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -491,7 +491,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
             assert llmobs_events[1] == _expected_llmobs_llm_span_event(
                 span2,
@@ -515,7 +515,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -571,7 +571,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
             assert llmobs_events[1] == _expected_llmobs_llm_span_event(
                 span2,
@@ -594,7 +594,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -701,7 +701,7 @@ class TestLLMObsBedrockProxy:
             input_value=mock.ANY,
             output_value=mock.ANY,
             metadata=expected_parameters,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @classmethod
@@ -1051,7 +1051,7 @@ class TestLLMObsBedrockProxy:
                 input_value=mock.ANY,
                 output_value=mock.ANY,
                 metadata={"temperature": 0.9, "max_tokens": 60},
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
                 error="botocore.exceptions.ClientError",
                 error_message=mock.ANY,
                 error_stack=mock.ANY,
