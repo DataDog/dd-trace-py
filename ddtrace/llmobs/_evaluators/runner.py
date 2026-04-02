@@ -7,22 +7,12 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import RLock
-from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
-from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
-
-
-SUPPORTED_EVALUATORS = {
-    RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
-    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
-    RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
-}
 
 
 class EvaluatorRunner(PeriodicService):
@@ -48,31 +38,6 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
-        if evaluator_str is None:
-            return
-
-        evaluators = evaluator_str.split(",")
-        for evaluator in evaluators:
-            if evaluator in SUPPORTED_EVALUATORS:
-                evaluator_init_state = "ok"
-                try:
-                    self.evaluators.append(SUPPORTED_EVALUATORS[evaluator](llmobs_service=llmobs_service))
-                except NotImplementedError as e:
-                    evaluator_init_state = "error"
-                    raise e
-                finally:
-                    telemetry_writer.add_count_metric(
-                        namespace=TELEMETRY_NAMESPACE.MLOBS,
-                        name="evaluators.init",
-                        value=1,
-                        tags=(
-                            ("evaluator_label", evaluator),
-                            ("state", evaluator_init_state),
-                        ),
-                    )
-            else:
-                raise ValueError("Parsed unsupported evaluator: {}".format(evaluator))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
