@@ -59,6 +59,8 @@ from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -989,6 +991,74 @@ class ExperimentRun:
         self.run_iteration = run._run_iteration
         self.summary_evaluations = summary_evaluations or {}
         self.rows = rows or []
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        """Convert experiment run rows to a pandas DataFrame with MultiIndex columns.
+
+        Each top-level group (``input``, ``output``, ``expected_output``,
+        ``evaluations``, ``metadata``, ``error``, ``span_id``, ``trace_id``) becomes
+        the first level of the column MultiIndex.  Dict-valued fields are flattened
+        one level deep; scalar fields use an empty string as the sub-column name.
+
+        Evaluation cells contain the full evaluation dict
+        (``value``, ``type``, ``reasoning``, ``assessment``).
+
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        column_tuples: set = set()
+        data_rows = []
+        for row in self.rows:
+            flat: dict = {}
+
+            input_data = row.get("input", {})
+            if isinstance(input_data, dict):
+                for k, v in input_data.items():
+                    flat[("input", k)] = v
+                    column_tuples.add(("input", k))
+            else:
+                flat[("input", "")] = input_data
+                column_tuples.add(("input", ""))
+
+            flat[("output", "")] = row.get("output")
+            column_tuples.add(("output", ""))
+
+            expected = row.get("expected_output", {})
+            if isinstance(expected, dict):
+                for k, v in expected.items():
+                    flat[("expected_output", k)] = v
+                    column_tuples.add(("expected_output", k))
+            else:
+                flat[("expected_output", "")] = expected
+                column_tuples.add(("expected_output", ""))
+
+            metadata = row.get("metadata", {})
+            if isinstance(metadata, dict):
+                for k, v in metadata.items():
+                    flat[("metadata", k)] = v
+                    column_tuples.add(("metadata", k))
+
+            for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                flat[("evaluations", eval_name)] = eval_data
+                column_tuples.add(("evaluations", eval_name))
+
+            flat[("error", "")] = row.get("error")
+            flat[("span_id", "")] = row.get("span_id")
+            flat[("trace_id", "")] = row.get("trace_id")
+            column_tuples.update([("error", ""), ("span_id", ""), ("trace_id", "")])
+
+            data_rows.append(flat)
+
+        records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
+        return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
 class ExperimentResult(TypedDict):
