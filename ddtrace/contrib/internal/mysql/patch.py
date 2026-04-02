@@ -87,10 +87,10 @@ def patch():
     if getattr(mysql, "_datadog_patch", False):
         return
 
-    setattr(mysql, "_datadog_patch", True)
+    mysql._datadog_patch = True
     _w("mysql.connector", "connect", _connect)
-    connector_aio = getattr(mysql.connector, "aio", None)
-    if connector_aio is not None and hasattr(connector_aio, "connect"):
+
+    if getattr(mysql.connector, "aio", None):
         _w("mysql.connector.aio", "connect", _connect_async)
 
     if asm_config._iast_enabled:
@@ -104,8 +104,8 @@ def unpatch():
     if not getattr(mysql, "_datadog_patch", False):
         return
 
-    setattr(mysql, "_datadog_patch", False)
+    mysql._datadog_patch = False
     _u(mysql.connector, "connect")
-    connector_aio = getattr(mysql.connector, "aio", None)
-    if connector_aio is not None and hasattr(connector_aio, "connect"):
-        _u(connector_aio, "connect")
+
+    if getattr(mysql.connector, "aio", None):
+        _u(mysql.connector.aio, "connect")
