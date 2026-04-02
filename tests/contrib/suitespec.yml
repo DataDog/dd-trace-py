@@ -21,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_cosmos:
+    - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
     - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:
@@ -370,6 +372,20 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+  azure_cosmos:
+    venvs_per_job: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_cosmos'
+      - tests/contrib/azure_cosmos/*
+      - tests/snapshots/tests.contrib.azure_cosmos.*
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_eventhubs:
     parallelism: 4
     paths:
@@ -411,6 +427,22 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:cosmos:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_cosmos'
+      - tests/contrib/azure_functions_cosmos/*
+      - tests/snapshots/tests.contrib.azure_functions_cosmos.*
+    pattern: azure_functions:cosmos
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_functions:eventhubs:
     parallelism: 4
     paths:
