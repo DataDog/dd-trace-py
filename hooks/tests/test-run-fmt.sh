@@ -73,21 +73,22 @@ check() {
 
 setup_hatch_mock
 
-# .py files: ruff + cython-lint both run
+# .py files: ruff runs, cython-lint does NOT (ruff already covers pycodestyle for .py)
 mock_staged "foo.py"
 : > "$HATCH_CALLS"
 run_hook > /dev/null
-check ".py: ruff format runs"    "hatch_was_called_with 'lint:ruff format'"
-check ".py: ruff check runs"     "hatch_was_called_with 'lint:ruff check'"
-check ".py: cython-lint runs"    "hatch_was_called_with 'lint:cython-lint'"
+check ".py: ruff format runs"        "hatch_was_called_with 'lint:ruff format'"
+check ".py: ruff check runs"         "hatch_was_called_with 'lint:ruff check'"
+check ".py: cython-lint skipped"     "! hatch_was_called_with 'lint:cython-lint'"
 
-# .pyx files: ruff + cython-lint both run (regression: old hook excluded .pyx)
+# .pyx files: cython-lint runs, ruff does NOT (ruff doesn't support Cython syntax)
+# See https://github.com/astral-sh/ruff/issues/10250
 mock_staged "_lock.pyx"
 : > "$HATCH_CALLS"
 run_hook > /dev/null
-check ".pyx: ruff format runs"   "hatch_was_called_with 'lint:ruff format'"
-check ".pyx: ruff check runs"    "hatch_was_called_with 'lint:ruff check'"
-check ".pyx: cython-lint runs"   "hatch_was_called_with 'lint:cython-lint'"
+check ".pyx: ruff format skipped" "! hatch_was_called_with 'lint:ruff format'"
+check ".pyx: ruff check skipped"  "! hatch_was_called_with 'lint:ruff check'"
+check ".pyx: cython-lint runs"    "hatch_was_called_with 'lint:cython-lint'"
 
 # .pyi stubs: ruff runs, cython-lint does NOT (compact stub format conflicts)
 mock_staged "_ddup.pyi"
@@ -107,13 +108,16 @@ check ".cpp: no hatch calls"     "! [ -s '$HATCH_CALLS' ]"
 mock_staged "foo.py bar.pyx stub.pyi sample.cpp"
 : > "$HATCH_CALLS"
 run_hook > /dev/null
-check "mixed: ruff format runs"         "hatch_was_called_with 'lint:ruff format'"
-check "mixed: ruff check runs"          "hatch_was_called_with 'lint:ruff check'"
-check "mixed: cython-lint runs"         "hatch_was_called_with 'lint:cython-lint'"
-check "mixed: cython-lint sees .py"     "hatch_was_called_with 'foo.py'"
-check "mixed: cython-lint sees .pyx"    "hatch_was_called_with 'bar.pyx'"
-check "mixed: cython-lint skips .pyi"   "! grep 'cython-lint' '$HATCH_CALLS' | grep -q 'stub.pyi'"
-check "mixed: .cpp not passed to hatch" "! hatch_was_called_with 'sample.cpp'"
+check "mixed: ruff format runs"             "hatch_was_called_with 'lint:ruff format'"
+check "mixed: ruff check runs"              "hatch_was_called_with 'lint:ruff check'"
+check "mixed: ruff sees .py"                "grep 'ruff format' '$HATCH_CALLS' | grep -q 'foo.py'"
+check "mixed: ruff sees .pyi"               "grep 'ruff format' '$HATCH_CALLS' | grep -q 'stub.pyi'"
+check "mixed: ruff skips .pyx"              "! grep 'ruff' '$HATCH_CALLS' | grep -q 'bar.pyx'"
+check "mixed: cython-lint runs"             "hatch_was_called_with 'lint:cython-lint'"
+check "mixed: cython-lint sees .pyx"        "grep 'cython-lint' '$HATCH_CALLS' | grep -q 'bar.pyx'"
+check "mixed: cython-lint skips .py"        "! grep 'cython-lint' '$HATCH_CALLS' | grep -q 'foo.py'"
+check "mixed: cython-lint skips .pyi"       "! grep 'cython-lint' '$HATCH_CALLS' | grep -q 'stub.pyi'"
+check "mixed: .cpp not passed to hatch"     "! hatch_was_called_with 'sample.cpp'"
 
 # No staged files: hook prints skip message and does not invoke hatch
 mock_staged ""

@@ -6,13 +6,17 @@ if [ -n "$staged_files" ]; then
     # Capture files with unstaged changes before ruff; we skip re-adding these to preserve partial staging
     unstaged_before=$(git diff --name-only)
 
-    # ruff runs on .py, .pyi, and .pyx files
-    hatch -v run lint:ruff format --no-cache $staged_files || exit $?
-    hatch -v run lint:ruff check --fix --show-fixes --no-cache $staged_files || exit $?
+    # ruff runs on .py and .pyi files only — ruff does not support Cython syntax in .pyx files
+    # (see https://github.com/astral-sh/ruff/issues/10250)
+    staged_ruff=$(echo "$staged_files" | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
+    if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
+        hatch -v run lint:ruff format --no-cache $staged_ruff || exit $?
+        hatch -v run lint:ruff check --fix --show-fixes --no-cache $staged_ruff || exit $?
+    fi
 
-    # cython-lint runs on .py and .pyx files; .pyi stubs use ruff's compact stub formatting
-    # which conflicts with cython-lint's PEP 8 E301/E302 blank line rules
-    staged_cython_lint=$(echo "$staged_files" | tr ' ' '\n' | grep -v '\.pyi$' | grep -v '^$' | tr '\n' ' ')
+    # cython-lint runs on .pyx files only; ruff covers .py/.pyi, and cython-lint's
+    # pycodestyle checks would be redundant on .py files
+    staged_cython_lint=$(echo "$staged_files" | tr ' ' '\n' | grep '\.pyx$' | grep -v '^$' | tr '\n' ' ')
     if [ -n "$(printf '%s' "$staged_cython_lint" | tr -d ' \t\n')" ]; then
         hatch -v run lint:cython-lint $staged_cython_lint || exit $?
     fi
