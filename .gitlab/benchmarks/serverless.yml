@@ -5,7 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: emmett.butler/serverless-wheels
+    branch: onzia/check-performance-gate-increases
     strategy: depend
   needs:
     - job: "upload serverless"
