@@ -10,15 +10,15 @@
 namespace Datadog {
 
 // Returns the current monotonic time in nanoseconds using the same clock as
-// Python's time.monotonic_ns():
-//   - Linux:  clock_gettime(CLOCK_MONOTONIC)
-//   - macOS:  mach_absolute_time() (excludes sleep time)
+// Python's `time.monotonic_ns`:
+//   - Linux:  `clock_gettime`
+//   - macOS:  `mach_absolute_time`, which excludes sleep time
 //
-// These must agree because push_monotonic_ns() computes a static offset between
+// These must agree because `push_monotonic_ns` computes a static offset between
 // this clock and the wall epoch, then applies it to values passed in by Python.
-// Using clock_gettime(CLOCK_MONOTONIC) on macOS would be wrong: it maps to
-// mach_continuous_time() which includes sleep time and diverges from
-// mach_absolute_time() after system sleep.
+// Using `clock_gettime` on macOS would be wrong: it maps to
+// `mach_continuous_time`, which includes sleep time and diverges from
+// `mach_absolute_time` after system sleep.
 inline int64_t
 get_monotonic_ns()
 {
