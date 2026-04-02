@@ -13,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -65,12 +66,15 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     if request_params.resource_type == "databaseaccount":
         return wrapped(*args, **kwargs)
 
-    with tracer.trace(
-        "cosmosdb.query",
-        service=None,
+    with core.context_with_data(
+        "azure_cosmos._synchronized_request",
+        span_name="cosmosdb.query",
         span_type=SpanTypes.COSMOS,
-    ) as span:
-        _build_span_tags(span, client, request_params, request, request_data)
+        service=None,
+        integration_config=config.azure_cosmos,
+    ) as ctx:
+        #span = ctx.span
+        _build_span_tags(ctx.span, client, request_params, request, request_data)
 
         try:
             result = wrapped(*args, **kwargs)
@@ -78,12 +82,13 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:
-                span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+                ctx.span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
         except azure_cosmos.exceptions.CosmosHttpResponseError as e:
-            _tag_cosmos_exceptions(e, span)
+            _tag_cosmos_exceptions(e, ctx.span)
             raise e
+
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
@@ -101,12 +106,15 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
     if request_params.resource_type == "databaseaccount":
         return await wrapped(*args, **kwargs)
 
-    with tracer.trace(
-        "cosmosdb.query",
-        service=None,
+    with core.context_with_data(
+        "azure_cosmos._asynchronous_request",
+        span_name="cosmosdb.query",
         span_type=SpanTypes.COSMOS,
-    ) as span:
-        _build_span_tags(span, client, request_params, request, request_data)
+        service=None,
+        integration_config=config.azure_cosmos,
+    ) as ctx:
+        #span = ctx.span
+        _build_span_tags(ctx.span, client, request_params, request, request_data)
 
         try:
             result = await wrapped(*args, **kwargs)
@@ -114,11 +122,11 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:
-                span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+                ctx.span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
         except azure_cosmos.exceptions.CosmosHttpResponseError as e:
-            _tag_cosmos_exceptions(e, span)
+            _tag_cosmos_exceptions(e, ctx.span)
             raise e
 
 
