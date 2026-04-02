@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.13.2",
+        "max_tracer_supported": "3.13.4",
         "auto-instrumented": true
     },
     {
@@ -105,6 +105,14 @@
         "integration": "aws_lambda",
         "minimum_tracer_supported": "6.105.0",
         "max_tracer_supported": "6.105.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-cosmos",
+        "integration": "azure_cosmos",
+        "minimum_tracer_supported": "4.9.0",
+        "max_tracer_supported": "4.15.0",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
