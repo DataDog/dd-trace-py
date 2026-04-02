@@ -17,6 +17,14 @@ allowed-tools:
 
 This skill measures the performance impact of code changes by running the appropriate benchmark scenarios. It uses `scripts/run-benchmarks` to discover relevant scenarios from changed files and wraps `scripts/perf-run-scenario` for execution. Use `scripts/perf-analyze` to analyze saved artifacts after a run.
 
+## When NOT to Use This Skill
+
+Skip benchmarks when:
+- The change is documentation-only, comment-only, or test-only
+- The change is limited to CI config, linting rules, or dev tooling
+- `scripts/run-benchmarks --list` returns no matching suites
+- You already ran benchmarks for this change and the code hasn't changed since
+
 ## When to Use This Skill
 
 Use this skill when:
@@ -35,7 +43,7 @@ Use this skill when:
 5. **Start with 1-2 scenarios** — benchmarks take minutes; target the most relevant ones
 6. **Use `--configs` to filter** — run 1-2 configs during iteration; run all configs for final results
 7. **Benchmarks require Docker** — confirm Docker is running before executing
-8. **Artifacts auto-resolve to latest run** — `scripts/perf-analyze artifacts/` always analyzes the most recent run
+8. **Artifacts auto-resolve to latest run** — `scripts/perf-analyze artifacts/` always analyzes the most recent run. If you run multiple scenarios sequentially, each gets its own run ID; pass `artifacts/<run-id>/` to target a specific one
 
 ## How This Skill Works
 
@@ -121,6 +129,11 @@ scripts/run-benchmarks --scenario span --configs start-finish --profile --artifa
 ```
 Note: `--profile` uses viztracer and generates ~700MB files per config variant. Use with `--configs` to limit scope.
 
+**Run multiple scenarios in one invocation:**
+```bash
+scripts/run-benchmarks --scenario span,tracer --artifacts ./benchmark-artifacts/
+```
+
 **Specify an explicit baseline version:**
 ```bash
 scripts/run-benchmarks --scenario span --baseline ddtrace==2.8.4 --artifacts ./benchmark-artifacts/
@@ -164,6 +177,19 @@ scripts/perf-analyze benchmark-artifacts/ --profile-compare --save-pstats
 python -m pstats benchmark-artifacts/<run-id>/span/baseline/viztracer/start-finish.prof
 ```
 
+**Markdown table for PR comments:**
+```bash
+scripts/perf-analyze benchmark-artifacts/ --markdown
+```
+
+**Understanding `--profile-compare` output columns:**
+- **B/C calls**: Invocation count in baseline/candidate. Large differences mean a code path changed, not just got slower.
+- **B/C tottime/call**: Exclusive time per call (not counting subcalls). The primary metric — this is where the regression lives.
+- **Delta**: Absolute change in per-call time. Positive = regression, negative = improvement.
+- **%**: Relative change. Ignore large % with small absolute delta (low-call-count noise).
+
+Focus on functions with **both large absolute delta AND high call count** — those dominate wall time.
+
 ### Step 6: Interpret Results
 
 The summary table shows:
@@ -202,7 +228,7 @@ scripts/run-benchmarks --dry-run --scenario span --artifacts ./benchmark-artifac
 
 # Quick iteration (2 configs)
 scripts/run-benchmarks --scenario span --configs start,start-finish --artifacts ./benchmark-artifacts/
-scripts/perf-analyze benchmark-artifacts/ --detail
+scripts/perf-analyze benchmark-artifacts/
 
 # Once satisfied, full run for PR
 scripts/run-benchmarks --scenario span --artifacts ./benchmark-artifacts/

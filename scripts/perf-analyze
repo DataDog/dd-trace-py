@@ -30,6 +30,9 @@ Usage:
 
   # Output JSON for AI agent consumption
   scripts/perf-analyze artifacts/ --json
+
+  # Output Markdown table for PR comments
+  scripts/perf-analyze artifacts/ --markdown
 """
 
 import argparse
@@ -42,7 +45,7 @@ import statistics
 import sys
 
 
-_SITE_PACKAGES_PREFIX = "/app/.venv/lib/python3.9/site-packages/"
+_SITE_PACKAGES_RE = re.compile(r"/app/\.venv/lib/python\d+\.\d+/site-packages/")
 _VENV_RE_PATTERN = r"/app/\.venv_ddtrace_v[12]/"
 _NAME_RE = re.compile(r"^(.*?) \((.+):(\d+)\)$")
 
@@ -225,6 +228,15 @@ def print_summary(results: dict) -> None:
                 print(f"    candidate: {format_time(candidate['mean'])} +/- {format_time(candidate['stdev'])}")
 
 
+def _stddev_overlaps(b_mean: float, b_std: float, c_mean: float, c_std: float) -> bool:
+    """True if the 1-sigma bands of baseline and candidate overlap.
+
+    When True, the measured difference may not be reproducible even if the
+    change_percent exceeds the 2% significance threshold.
+    """
+    return (b_mean - b_std) <= (c_mean + c_std) and (c_mean - c_std) <= (b_mean + b_std)
+
+
 def output_json(results: dict) -> None:
     """Output results as JSON for AI agent consumption."""
     output = {}
@@ -241,18 +253,47 @@ def output_json(results: dict) -> None:
                     "max_seconds": stats["max"],
                     "n_samples": stats["n_samples"],
                     "mean_human": format_time(stats["mean"]),
+                    "stdev_human": format_time(stats["stdev"]),
                 }
             if "baseline" in entry and "candidate" in entry:
                 b = entry["baseline"]["mean_seconds"]
                 c = entry["candidate"]["mean_seconds"]
                 change_pct = (c - b) / b * 100 if b else 0
+                ratio = c / b if b else 0
                 entry["comparison"] = {
                     "change_percent": round(change_pct, 2),
+                    "ratio": round(ratio, 4),
                     "significant": abs(change_pct) >= 2,
                     "regression": change_pct > 2,
+                    "overlapping_stddev": _stddev_overlaps(
+                        entry["baseline"]["mean_seconds"], entry["baseline"]["stdev_seconds"],
+                        entry["candidate"]["mean_seconds"], entry["candidate"]["stdev_seconds"],
+                    ),
                 }
             output[scenario][config] = entry
     print(json.dumps(output, indent=2))
+
+
+def output_markdown(results: dict) -> None:
+    """Output results as a Markdown table for copy-paste into PR comments."""
+    print("| Benchmark | Baseline | Candidate | Change |")
+    print("|-----------|----------|-----------|--------|")
+    for scenario, configs in results.items():
+        for config, versions in sorted(configs.items()):
+            baseline = versions.get("baseline")
+            candidate = versions.get("candidate")
+            if baseline and candidate:
+                change = (candidate["mean"] - baseline["mean"]) / baseline["mean"] * 100
+                print(
+                    f"| {scenario}/{config}"
+                    f" | {format_time(baseline['mean'])} ± {format_time(baseline['stdev'])}"
+                    f" | {format_time(candidate['mean'])} ± {format_time(candidate['stdev'])}"
+                    f" | {change:+.2f}% |"
+                )
+            elif baseline:
+                print(f"| {scenario}/{config} | {format_time(baseline['mean'])} | — | — |")
+            elif candidate:
+                print(f"| {scenario}/{config} | — | {format_time(candidate['mean'])} | — |")
 
 
 def discover_viztracer_files(run_dir: Path) -> dict:
@@ -295,7 +336,7 @@ def _comparison_key(name: str) -> str:
 
 def _display_name(filename: str) -> str:
     """Shorten a filename by stripping the site-packages prefix."""
-    return filename.replace(_SITE_PACKAGES_PREFIX, "")
+    return _SITE_PACKAGES_RE.sub("", filename)
 
 
 def _parse_viz_name(name: str) -> tuple:
@@ -368,9 +409,12 @@ def viztracer_to_pstats(
 
             # Direct parent: subtract this event's inclusive dur from parent's tottime.
             # This progressively turns cumtime into exclusive tottime for each ancestor.
+            # Clamp at zero: overlapping events from instrumentation overhead can
+            # cause children's cumtime to exceed the parent's, and letting tottime
+            # go negative here would cascade incorrect subtractions to later siblings.
             if stack:
                 parent_key = stack[-1][1]
-                agg[parent_key][1] -= dur
+                agg[parent_key][1] = max(0, agg[parent_key][1] - dur)
 
                 # Record caller relationship: this key was called by parent_key
                 callee_callers = callers_agg.setdefault(key, {})
@@ -409,7 +453,7 @@ def viztracer_to_pstats(
     # pstats dict format: {(filename, lineno, func_name): (cc, nc, tt, ct, callers)}
     # cc = primitive calls, nc = total calls, tt = tottime (s), ct = cumtime (s)
     stats_dict = {
-        key: (v[0], v[0], max(0.0, v[1]) / 1e6, v[2] / 1e6, _build_callers(key))
+        key: (v[0], v[0], v[1] / 1e6, v[2] / 1e6, _build_callers(key))
         for key, v in agg.items()
     }
 
@@ -536,6 +580,8 @@ def print_profile_comparison(
     for scenario, configs in profiles.items():
         for config, versions in sorted(configs.items()):
             if "baseline" not in versions or "candidate" not in versions:
+                missing = "candidate" if "baseline" in versions else "baseline"
+                print(f"  Skipping {scenario}/{config}: {missing} profile not found", file=sys.stderr)
                 continue
 
             notes = []
@@ -643,6 +689,9 @@ Examples:
   # JSON output for AI agents
   scripts/perf-analyze artifacts/ --json
 
+  # Markdown table for PR comments
+  scripts/perf-analyze artifacts/ --markdown
+
   # Show top 20 functions from viztracer profiling (ddtrace hot paths only)
   scripts/perf-analyze artifacts/ --profile-top 20 --filter ddtrace --min-calls 1000
 
@@ -660,6 +709,7 @@ Examples:
 
     parser.add_argument("artifacts_dir", help="Path to artifacts directory (or a specific run-id dir)")
     parser.add_argument("--json", action="store_true", help="Output JSON for AI agent consumption")
+    parser.add_argument("--markdown", action="store_true", help="Output Markdown table for copy-paste into PR comments")
     parser.add_argument(
         "--profile-top",
         type=int,
@@ -719,6 +769,8 @@ Examples:
 
     if args.json:
         output_json(results)
+    elif args.markdown:
+        output_markdown(results)
     else:
         print_summary(results)
 

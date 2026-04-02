@@ -58,9 +58,18 @@ class BenchmarkRunner:
     def __init__(self):
         self.root = ROOT
 
+    @staticmethod
+    def check_docker():
+        """Exit early with a clear message if Docker is not available."""
+        try:
+            subprocess.run(["docker", "info"], capture_output=True, check=True, timeout=10)
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            print("Error: Docker is not running or not installed. Start Docker Desktop and retry.", file=sys.stderr)
+            sys.exit(1)
+
     def _run_git_command(self, cmd: list) -> set:
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
-        return set(result.stdout.strip().split()) if result.stdout.strip() else set()
+        return set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
 
     def get_git_changed_files(self, base_ref: str = "HEAD") -> set:
         """Get files changed in git since base_ref."""
@@ -228,7 +237,7 @@ Examples:
     )
     parser.add_argument("--list", action="store_true", help="Output JSON with matching suites (for AI agents)")
     parser.add_argument("--all-suites", action="store_true", help="Show all benchmark suites regardless of file changes")
-    parser.add_argument("--scenario", help="Run a specific benchmark scenario by name")
+    parser.add_argument("--scenario", help="Run one or more benchmark scenarios by name (comma-separated, e.g. span,tracer)")
     parser.add_argument(
         "--baseline",
         default="ddtrace",
@@ -260,16 +269,22 @@ Examples:
             print(f"Showing all {len(matching_suites)} benchmark suites")
     elif args.scenario and not args.list:
         # Direct scenario execution — skip suite discovery
-        success = runner.run_scenario(
-            scenario=args.scenario,
-            baseline=args.baseline,
-            candidate=args.candidate,
-            configs=args.configs,
-            artifacts=args.artifacts,
-            dry_run=args.dry_run,
-            profile=args.profile,
-        )
-        return 0 if success else 1
+        runner.check_docker()
+        scenarios = [s.strip() for s in args.scenario.split(",")]
+        all_ok = True
+        for scenario in scenarios:
+            success = runner.run_scenario(
+                scenario=scenario,
+                baseline=args.baseline,
+                candidate=args.candidate,
+                configs=args.configs,
+                artifacts=args.artifacts,
+                dry_run=args.dry_run,
+                profile=args.profile,
+            )
+            if not success:
+                all_ok = False
+        return 0 if all_ok else 1
     elif args.files:
         files = set(args.files)
         print(f"Checking {len(files)} file(s): {', '.join(sorted(files)[:5])}", file=sys.stderr)
