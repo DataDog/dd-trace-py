@@ -17,7 +17,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import tracer
 
 
 config._add(
@@ -73,7 +72,6 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         service=None,
         integration_config=config.azure_cosmos,
     ) as ctx:
-        #span = ctx.span
         _build_span_tags(ctx.span, client, request_params, request, request_data)
 
         try:
@@ -88,7 +86,6 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         except azure_cosmos.exceptions.CosmosHttpResponseError as e:
             _tag_cosmos_exceptions(e, ctx.span)
             raise e
-
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
@@ -113,7 +110,6 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
         service=None,
         integration_config=config.azure_cosmos,
     ) as ctx:
-        #span = ctx.span
         _build_span_tags(ctx.span, client, request_params, request, request_data)
 
         try:
