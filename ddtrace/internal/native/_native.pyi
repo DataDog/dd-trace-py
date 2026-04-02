@@ -6,6 +6,8 @@ from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 
+from ddtrace._trace._span_link import SpanLink
+
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
@@ -572,7 +574,7 @@ class SpanData:
         context: Optional[Any] = None,  # placeholder for Span.__init__
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
-        links: Optional[Any] = None,  # placeholder for Span.__init__
+        links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1

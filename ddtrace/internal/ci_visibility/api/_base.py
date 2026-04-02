@@ -330,7 +330,7 @@ class TestVisibilityItemBase(abc.ABC):
         return self.__source_file_info
 
     @_source_file_info.setter
-    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None):
+    def _set_source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None):
         """This checks that filepaths are absolute when setting source file info"""
         self.__source_file_info = None  # Default value until source_file_info is validated
 

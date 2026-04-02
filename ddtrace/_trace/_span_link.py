@@ -26,6 +26,7 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 
 import dataclasses
 from enum import Enum
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.native._native import SpanLinkData
@@ -40,7 +41,7 @@ class SpanLinkKind(Enum):
     SPAN_POINTER = "span-pointer"  # Should not be used on normal SpanLinks.
 
 
-def _id_not_zero(self, attribute_name, value):
+def _id_not_zero(self, attribute_name: str, value: int) -> None:
     if not value > 0:
         raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
 
@@ -64,19 +65,19 @@ class SpanLink(SpanLinkData):
     span_id: int
     tracestate: Optional[str] = None
     flags: Optional[int] = None
-    attributes: dict = dataclasses.field(default_factory=dict)
+    attributes: dict[str, Any] = dataclasses.field(default_factory=dict)
     _dropped_attributes: int = 0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         _id_not_zero(self, "trace_id", self.trace_id)
         _id_not_zero(self, "span_id", self.span_id)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.attributes["link.name"]
 
     @name.setter
-    def name(self, value):
+    def name(self, value: str) -> None:
         self.attributes["link.name"] = value
 
     @property
@@ -87,11 +88,12 @@ class SpanLink(SpanLinkData):
     def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
-    def to_dict(self):
-        d = {
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
             "trace_id": f"{self.trace_id:032x}",
             "span_id": f"{self.span_id:016x}",
         }
+
         if self.attributes:
             d["attributes"] = {}
             for k, v in self.attributes.items():
@@ -115,11 +117,11 @@ class SpanLink(SpanLinkData):
 
         return d
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
-    def __setstate__(self, state):
-        self.__init__(**state)
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__init__(**state)  # type: ignore[misc]
 
     def __repr__(self) -> str:
         return (
