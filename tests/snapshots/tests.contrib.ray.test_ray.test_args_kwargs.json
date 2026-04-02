@@ -11,18 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c67f3300000000",
+      "_dd.p.tid": "69ce655d00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "f0b2ec1695e04fd0926ac303a5178c1bfb891c4697972865d9fed287",
+      "ray.node_id": "7882e88935446b02263abbc56103e5bfb5b0f9965626c2a2783b9dce",
       "ray.task.args": "(1,)",
       "ray.task.kwargs": "{'y': 2}",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "00e13d521c704b95bd3bc5d5d13a2a36",
+      "runtime-id": "212eff5336e045c0b7bf729e3e998e2e",
       "span.kind": "producer"
     },
     "metrics": {
@@ -33,10 +33,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 604.0
+      "process_id": 605.0
     },
-    "duration": 3684875,
-    "start": 1774616371926330379
+    "duration": 4921334,
+    "start": 1775134045181649506
   },
      {
        "name": "task.execute",
@@ -52,9 +52,9 @@
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "f0b2ec1695e04fd0926ac303a5178c1bfb891c4697972865d9fed287",
+         "ray.node_id": "7882e88935446b02263abbc56103e5bfb5b0f9965626c2a2783b9dce",
          "ray.task.args": "(1,)",
-         "ray.task.kwargs": "{'y': 2, '_dd_ray_trace_ctx': {'traceparent': '00-69c67f33000000007f3d497a6689d65b-563fcdb8f310ab66-00', 'tracestate': 'dd=p:563fcdb8f310ab66'}}",
+         "ray.task.kwargs": "{'y': 2}",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -65,8 +65,8 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 310042,
-       "start": 1774616371929439462
+       "duration": 525958,
+       "start": 1775134045185517923
      }],
 [
   {
@@ -81,7 +81,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c67f3300000000",
+      "_dd.p.tid": "69ce655d00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
@@ -90,9 +90,9 @@
       "ray.actor_method.submit_status": "success",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "f0b2ec1695e04fd0926ac303a5178c1bfb891c4697972865d9fed287",
+      "ray.node_id": "7882e88935446b02263abbc56103e5bfb5b0f9965626c2a2783b9dce",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "00e13d521c704b95bd3bc5d5d13a2a36",
+      "runtime-id": "212eff5336e045c0b7bf729e3e998e2e",
       "span.kind": "producer"
     },
     "metrics": {
@@ -103,10 +103,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 604.0
+      "process_id": 605.0
     },
-    "duration": 1246250,
-    "start": 1774616371944959087
+    "duration": 1489875,
+    "start": 1775134045202318256
   },
      {
        "name": "actor_method.execute",
@@ -124,7 +124,7 @@
          "ray.actor_method.kwargs": "{'y': 2}",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "f0b2ec1695e04fd0926ac303a5178c1bfb891c4697972865d9fed287",
+         "ray.node_id": "7882e88935446b02263abbc56103e5bfb5b0f9965626c2a2783b9dce",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -135,6 +135,6 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 348542,
-       "start": 1774616371945597254
+       "duration": 366375,
+       "start": 1775134045203200715
      }]]
