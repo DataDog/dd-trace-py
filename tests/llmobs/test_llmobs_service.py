@@ -8,7 +8,6 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import ML_APP
@@ -1159,10 +1158,19 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
     assert status == 0, err
 
 
-def test_llmobs_fork_recreates_and_restarts_span_writer(tracer):
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    import os
+
+    import mock
+
+    import ddtrace
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app", agentless_enabled=False)
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=False)
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
@@ -1180,32 +1188,51 @@ def test_llmobs_fork_recreates_and_restarts_span_writer(tracer):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_agentless_span_writer(tracer):
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
-        with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-            llmobs_service.enable(_tracer=tracer, ml_app="test_app", agentless_enabled=True)
-            original_span_writer = llmobs_service._instance._llmobs_span_writer
-            pid = os.fork()
-            if pid:  # parent
-                assert llmobs_service._instance._llmobs_span_writer == original_span_writer
-                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
-            else:  # child
-                assert llmobs_service._instance._llmobs_span_writer != original_span_writer
-                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
-                llmobs_service.disable()
-                os._exit(12)
+    import os
 
-            _, status = os.waitpid(pid, 0)
-            exit_code = os.WEXITSTATUS(status)
-            assert exit_code == 12
+    import mock
+
+    import ddtrace
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
+        llmobs_service.enable(
+            _tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=True, api_key="<not-a-real-key>"
+        )
+        original_span_writer = llmobs_service._instance._llmobs_span_writer
+        pid = os.fork()
+        if pid:  # parent
+            assert llmobs_service._instance._llmobs_span_writer == original_span_writer
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+        else:  # child
+            assert llmobs_service._instance._llmobs_span_writer != original_span_writer
+            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
             llmobs_service.disable()
+            os._exit(12)
+
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 12
+        llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_eval_metric_writer(tracer):
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
+    import os
+
+    import mock
+
+    import ddtrace
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app")
         original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
         pid = os.fork()
         if pid:  # parent
@@ -1223,11 +1250,18 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer(tracer):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_create_span(tracer, monkeypatch):
+@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
-    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
+    import os
+
+    import mock
+
+    import ddtrace
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app")
         pid = os.fork()
         if pid:  # parent
             with llmobs_service.task():
@@ -1247,13 +1281,27 @@ def test_llmobs_fork_create_span(tracer, monkeypatch):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_evaluator_runner_run(tracer, monkeypatch):
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_evaluator_runner_run():
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
-    pytest.importorskip("ragas")
-    monkeypatch.setenv("DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
+    import os
+    import sys
+
+    import mock
+
+    import ddtrace
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    try:
+        import ragas  # noqa
+    except ImportError:
+        sys.exit(0)
+
+    os.environ["DD_LLMOBS_EVALUATOR_INTERVAL"] = "5.0"
+    os.environ["DD_LLMOBS_EVALUATORS"] = "ragas_faithfulness"
+    os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-        llmobs_service.enable(_tracer=tracer, ml_app="test_app", api_key="test_api_key")
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
         if pid:  # parent
             llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"}, None)
@@ -1270,10 +1318,16 @@ def test_llmobs_fork_evaluator_runner_run(tracer, monkeypatch):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_disabled(tracer, monkeypatch):
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_disabled():
     """Test that after being disabled the service remains disabled when forking"""
-    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
-    svc = llmobs_service(tracer=tracer)
+    import os
+
+    import ddtrace
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    svc = llmobs_service(tracer=ddtrace.tracer)
     pid = os.fork()
     assert not svc.enabled, "both the parent and child should be disabled"
     assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
@@ -1288,9 +1342,16 @@ def test_llmobs_fork_disabled(tracer, monkeypatch):
     svc.disable()
 
 
-def test_llmobs_fork_disabled_then_enabled(tracer, monkeypatch):
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_llmobs_fork_disabled_then_enabled():
     """Test that after being initially disabled, the service can be enabled in a fork"""
-    monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
+    import os
+
+    import ddtrace
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from tests.utils import override_global_config
+
     svc = llmobs_service._instance
     pid = os.fork()
     assert not svc.enabled, "both the parent and child should be disabled"
@@ -1298,9 +1359,9 @@ def test_llmobs_fork_disabled_then_enabled(tracer, monkeypatch):
     assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
     if not pid:
         # Enable the service in the child
+        os.environ["DD_LLMOBS_ENABLED"] = "1"
         with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-            monkeypatch.setenv("DD_LLMOBS_ENABLED", "1")
-            llmobs_service.enable(_tracer=tracer)
+            llmobs_service.enable(_tracer=ddtrace.tracer)
         svc = llmobs_service._instance
         assert svc._llmobs_span_writer.status == ServiceStatus.RUNNING
         assert svc._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
