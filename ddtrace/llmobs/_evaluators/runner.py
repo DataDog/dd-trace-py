@@ -1,11 +1,8 @@
 from concurrent import futures
-import os
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
@@ -37,7 +34,6 @@ class EvaluatorRunner(PeriodicService):
 
         if len(self.evaluators) > 0:
             return
-
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
