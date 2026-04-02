@@ -118,7 +118,7 @@
         "dependency": "azure-functions-durable",
         "integration": "azure_durable_functions",
         "minimum_tracer_supported": "1.2.1",
-        "max_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.5.0",
         "auto-instrumented": true
     },
     {
@@ -474,21 +474,21 @@
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
         "minimum_tracer_supported": "3.9.0",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
         "minimum_tracer_supported": "3.9.0",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
@@ -660,7 +660,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "24.6.0",
+        "max_tracer_supported": "25.12.0",
         "auto-instrumented": true
     },
     {
