@@ -3446,7 +3446,6 @@ venv = Venv(
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": "==0.1.21",
                         "langchain": latest,
                         "pandas": latest,
                     },
@@ -3460,8 +3459,7 @@ venv = Venv(
                             command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
-                                "pydantic-evals": "<1.31",
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
