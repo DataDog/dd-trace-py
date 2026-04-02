@@ -289,7 +289,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", service="my_service")
-        traced_cursor = FetchTracedCursor(cursor, cfg)
+        traced_cursor = FetchTracedCursor(cursor, cfg, db_tags={"tag": "value_tag"})
 
         def method():
             pass
@@ -305,6 +305,7 @@ class TestFetchTracedCursor(TracerTestCase):
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
         assert span.get_tag("component") == traced_cursor._self_config.integration_name
         assert span.get_tag("span.kind") == "client"
+        assert span.get_tag("tag") == "value_tag"
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
