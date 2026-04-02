@@ -92,7 +92,7 @@ def get_package_name(binary_name: str, py_version_compact: str) -> str:
     return f"{prefix}-{suffix}"
 
 
-def run_command(cmd, capture_output=True, inp=None):
+def run_command(cmd: list[str], capture_output: bool = True, inp: str | None = None):
     """Run *cmd* and raise on non-zero exit."""
     print(f"+ {' '.join(cmd)}")
     if capture_output:
