@@ -45,7 +45,6 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -123,7 +122,6 @@ from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
@@ -512,7 +510,7 @@ class LLMObs(Service):
             )
         finally:
             span_kind = get_llmobs_span_kind(span)
-            if span_event and span_kind == "llm" and not _is_evaluation_span(span) and self._evaluator_runner:
+            if span_event and span_kind == "llm" and self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -629,8 +627,6 @@ class LLMObs(Service):
 
         existing_tags = get_llmobs_tags(span)
 
-        if _is_evaluation_span(span):
-            tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         if existing_tags is not None:
             tags.update(existing_tags)
 
