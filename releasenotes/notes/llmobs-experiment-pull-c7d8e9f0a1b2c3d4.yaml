@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    LLM Observability: Add ``SyncExperiment.pull()`` to fetch prior experiment results from the
+    Datadog backend and store them on ``experiment.result``, enabling a cross-session
+    ``pull()`` → ``rerun_evaluators()`` workflow without re-executing the task or providing a
+    dataset.
+    Pass ``include_eval_metrics=False`` to fetch task outputs only (without the original
+    evaluator scores). If the experiment has been run in the current session its UUID is used
+    for a direct lookup; otherwise the latest run is resolved by experiment name and project.
+    After a successful ``pull()``, calling ``rerun_evaluators()`` emits duplicate experiment
+    span events (identical to the originals but with an updated timestamp) and posts new
+    evaluator scores linked back to the original span and trace IDs.
