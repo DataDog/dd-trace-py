@@ -1878,7 +1878,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = (
                 get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
-                else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)  # ast-grep-ignore: span-meta-access
             )
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
@@ -1887,7 +1887,7 @@ class LLMObs(Service):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
                 session_id = None
         else:
             llmobs_trace_id = generate_128bit_trace_id()
