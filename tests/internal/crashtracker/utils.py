@@ -3,10 +3,10 @@ from contextlib import contextmanager
 import os
 import random
 import time
-import uuid
 from typing import Callable
 from typing import Generator
 from typing import Optional
+import uuid
 
 import ddtrace
 from tests.utils import TestAgentClient
