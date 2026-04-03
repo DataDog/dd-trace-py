@@ -40,9 +40,10 @@ except ImportError:
 
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+    from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
 except ImportError:
     PydanticEvaluator = None
-
+    PydanticReportEvaluator = None
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -50,9 +51,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
-from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
@@ -541,30 +540,58 @@ if PydanticEvaluator is not None:
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
-SummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+if PydanticReportEvaluator is not None:
+    SummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
         ],
-        JSONType,
-    ],
-    BaseSummaryEvaluator,
-]
-AsyncSummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+        BaseSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
         ],
-        Awaitable[JSONType],
-    ],
-    BaseAsyncSummaryEvaluator,
-]
+        BaseAsyncSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+else:
+    SummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
+        ],
+        BaseSummaryEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
+        ],
+        BaseAsyncSummaryEvaluator,
+    ]
 
 
 def _is_class_evaluator(evaluator: Any) -> bool:
@@ -596,6 +623,16 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
     if PydanticEvaluator is None:
         return False
     return isinstance(evaluator, PydanticEvaluator)
+
+
+def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator).
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
+    """
+    if PydanticReportEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticReportEvaluator)
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -715,8 +752,12 @@ if PydanticEvaluator is not None:
 
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+    from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
+    from pydantic_evals.reporting import ReportCase as PydanticReportCase
+    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
@@ -853,6 +894,67 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = evaluator.evaluate(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
+        return wrapped_evaluator
+
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
@@ -888,6 +990,66 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        async def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = await evaluator.evaluate_async(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
+        return wrapped_evaluator
 else:
 
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -895,6 +1057,14 @@ else:
         return evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
@@ -2018,12 +2188,12 @@ class Experiment:
                     self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-
-                span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
-                if "metadata" in record:
-                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                if self._config:
-                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
+                _annotate_llmobs_span_data(
+                    span,
+                    expected_output=record.get("expected_output"),
+                    metadata=record.get("metadata"),
+                    config=self._config or None,
+                )
 
                 return {
                     "idx": idx,
@@ -2354,7 +2524,20 @@ class Experiment:
                         eval_result = await summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = await summary_evaluator(context)
+                        else:
+                            eval_result = await summary_evaluator(
+                                inputs, outputs, expected_outputs, eval_results_by_name
+                            )
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
@@ -2367,13 +2550,24 @@ class Experiment:
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await asyncio.to_thread(
-                            summary_evaluator,
-                            inputs,
-                            outputs,
-                            expected_outputs,
-                            eval_results_by_name,
-                        )
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = summary_evaluator(context)
+                        else:
+                            eval_result = await asyncio.to_thread(
+                                summary_evaluator,
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                            )
                     eval_result_value = eval_result
                 except Exception as e:
                     self._has_errors = True
