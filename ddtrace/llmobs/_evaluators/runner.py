@@ -19,8 +19,6 @@ class EvaluatorRunner(PeriodicService):
     2. triggers evaluator runs over buffered finished spans on each `periodic` call
     """
 
-    EVALUATORS_ENV_VAR = "DD_LLMOBS_EVALUATORS"
-
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = RLock()
