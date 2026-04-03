@@ -73,7 +73,7 @@ class APMTracingCallback(RCCallback):
         Args:
             payloads: Sequence of configuration payloads to process
         """
-        self._config_map = set()
+        self._config_map: dict[str, Payload] = {}
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
