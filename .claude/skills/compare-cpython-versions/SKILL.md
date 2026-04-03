@@ -94,6 +94,45 @@ For each header/struct, look for:
 - Headers split or merged
 - New headers introduced
 
+**Enum Value Changes (easy to miss, high impact):**
+
+Enum renumbering is particularly dangerous because the code compiles cleanly but silently
+misclassifies values at runtime. Always explicitly check every enum echion uses:
+
+- `PyFrameState` (in `pycore_frame.h`) — renumbered completely between 3.14 and 3.15:
+  `FRAME_EXECUTING` changed from `0` to `4`, `FRAME_CREATED` from `-3` to `0`. Code
+  that compared against the old constants compiled fine but returned wrong results.
+- `_frameowner` (in `pycore_interpframe_structs.h`) — `FRAME_OWNED_BY_CSTACK` was
+  removed in 3.15.
+
+For every enum echion touches, run:
+
+```bash
+git diff OLD_VERSION NEW_VERSION -- Include/internal/pycore_frame.h | grep -A 30 "enum "
+git diff OLD_VERSION NEW_VERSION -- Include/internal/pycore_interpframe_structs.h | grep -A 30 "enum "
+```
+
+**Lock in compile-time contracts with `static_assert`:**
+
+After confirming enum values, add or update `static_assert` checks in
+`ddtrace/internal/datadog/profiling/stack/test/test_cpython_layout_contracts.cpp`.
+These fire at *build time* against the actual CPython headers — if CPython renumbers
+an enum value, the build breaks immediately before any test runner runs. Example:
+
+```cpp
+// Add a versioned block for the new CPython version:
+#if PY_VERSION_HEX >= 0x030f0000
+static_assert(FRAME_CREATED == 0,
+              "AIDEV-NOTE: PyFrameState::FRAME_CREATED changed — update tasks.h and tasks.cc");
+static_assert(FRAME_EXECUTING == 4,
+              "AIDEV-NOTE: PyFrameState::FRAME_EXECUTING changed — update tasks.cc gen_is_running check");
+// ... one assert per enum value echion depends on
+#endif
+```
+
+Also add a `-Wswitch`-enabled exhaustive `switch` (no `default:` case) for any enum
+used in a dispatch — the compiler will warn if CPython adds a new value.
+
 ### Step 4: Analyze Impact
 
 For each change identified:
