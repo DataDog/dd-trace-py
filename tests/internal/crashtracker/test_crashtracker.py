@@ -12,12 +12,6 @@ import tests.internal.crashtracker.utils as utils
 # keep stderr assertions stable (mirrors telemetry tests)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# with_test_agent() uses per-test session tokens so concurrent xdist workers are
-# isolated from each other.  The xdist_group is kept as a belt-and-suspenders
-# measure for ATR retries, which bypass xdist_group and could otherwise interleave
-# with the original test if session-token propagation ever regresses.
-pytestmark = pytest.mark.xdist_group("crashtracker")
-
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
