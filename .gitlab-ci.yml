@@ -603,17 +603,17 @@ profiling_native:
         - pyproject.toml
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
         MEMCPY_MODE: ["default"]
         SANITIZER: ["safety", "thread", ""]
       # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
       # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
       # which is worth checking on a few versions without the slowdown on all runs.
       # If needed, please add more versions to the list.
-      - PYTHON_VERSION: ["3.12", "3.14"]
+      - PYTHON_VERSION: ["3.12", "3.14", "3.15"]
         MEMCPY_MODE: ["default"]
         SANITIZER: ["valgrind"]
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
         MEMCPY_MODE: ["fast"]
         SANITIZER: ["safety", "thread"]
 

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: Adds support for Python 3.15 (GIL-enabled builds). The Continuous Profiler
+    now correctly builds and runs on CPython 3.15, including the native stack profiler
+    (Echion), lock profiler, memory profiler, and asyncio task tracking. Free-threaded
+    (``--disable-gil``) Python 3.15 builds are not yet validated.
