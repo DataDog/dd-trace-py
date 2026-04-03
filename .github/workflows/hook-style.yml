@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - mq-working-branch-*
   merge_group:
   pull_request:
     types: [opened, reopened, synchronize]
@@ -17,12 +16,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: '3.10'
-
-      - name: Install hatch
-        run: pip install hatch
 
       - name: Run shellcheck
         run: hatch run lint:hook-style
