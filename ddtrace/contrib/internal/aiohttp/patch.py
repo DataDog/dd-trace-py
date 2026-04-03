@@ -4,17 +4,14 @@ import aiohttp
 import wrapt
 from yarl import URL
 
-from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.internal.settings._config import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module as with_traced_module_sync
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -61,9 +58,8 @@ def _supported_versions() -> dict[str, str]:
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):
-    def __init__(self, obj, pin):
+    def __init__(self, obj):
         super().__init__(obj)
-        pin.onto(self)
 
     async def connect(self, req, *args, **kwargs):
         with tracer.trace("%s.connect" % self.__class__.__name__) as span:
@@ -80,8 +76,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
-@with_traced_module
-async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
+async def _traced_clientsession_request(func, instance, args, kwargs):
     method: str = get_argument_value(args, kwargs, 0, "method")
     raw_url: URL = URL(str(get_argument_value(args, kwargs, 1, "url")))
     # Resolve against base_url if present, mirroring aiohttp's internal behaviour.
@@ -93,14 +88,14 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     with tracer.trace(
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
-        service=ext_service(pin, config.aiohttp_client),
+        service=ext_service(None, config.aiohttp_client),
     ) as span:
         if config.aiohttp_client.split_by_domain:
             span.service = url.host
 
         maybe_set_service_source_tag(span, config.aiohttp)
 
-        if pin._config["distributed_tracing"]:
+        if config.aiohttp.distributed_tracing:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
@@ -129,28 +124,17 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         return resp
 
 
-@with_traced_module_sync
-def _traced_clientsession_init(aiohttp, pin, func, instance, args, kwargs):
+def _traced_clientsession_init(func, instance, args, kwargs):
     func(*args, **kwargs)
-    instance._connector = _WrappedConnectorClass(instance._connector, pin)
-
-
-def _patch_client(aiohttp):
-    Pin().onto(aiohttp)
-    pin = Pin(_config=config.aiohttp_client.copy())
-    pin.onto(aiohttp.ClientSession)
-
-    wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init(aiohttp))
-    wrap("aiohttp", "ClientSession._request", _traced_clientsession_request(aiohttp))
-
+    instance._connector = _WrappedConnectorClass(instance._connector)
 
 def patch():
-    import aiohttp
-
     if getattr(aiohttp, "_datadog_patch", False):
         return
 
-    _patch_client(aiohttp)
+    wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init)
+    wrap("aiohttp", "ClientSession._request", _traced_clientsession_request)
+
 
     aiohttp._datadog_patch = True
 
