@@ -18,6 +18,7 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
+  - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v85383414-751efc0-manylinux2014_aarch64"
