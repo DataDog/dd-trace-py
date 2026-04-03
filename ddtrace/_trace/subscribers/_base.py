@@ -1,11 +1,14 @@
 from types import TracebackType
 from typing import Any
+from typing import ClassVar
 from typing import Generic
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar
 
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
+from ddtrace._trace.events import TracingEvents
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -122,6 +125,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
                 if exc_info[1]:
                     ctx.span.set_tag("error", True)
     """
+
+    # Register here events that just create / finish spans
+    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:

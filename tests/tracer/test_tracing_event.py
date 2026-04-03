@@ -70,3 +70,28 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
     assert span._meta[COMPONENT] == "comp"
     assert span.resource == "test.resource"
     assert span.service == "svc"
+
+    def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
+        event = TracingEvent.create(
+            component="comp",
+            integration_config={},
+            operation_name="test.create.event",
+            span_type="custom",
+            span_kind="client",
+            service="svc",
+            resource="test.resource",
+            tags={"my-tag": "my-value"},
+        )
+
+        with core.context_with_event(event):
+            pass
+
+        test_spans.assert_span_count(1)
+        span = test_spans.spans[0]
+        assert span.name == "test.create.event"
+        assert span.span_type == "custom"
+        assert span.resource == "test.resource"
+        assert span.service == "svc"
+        assert span._meta[COMPONENT] == "comp"
+        assert span._meta["span.kind"] == "client"
+        assert span._meta["my-tag"] == "my-value"
