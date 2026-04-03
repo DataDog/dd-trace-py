@@ -846,3 +846,111 @@ def test_apm_sampling_rules_override():
                 lib_config = call_args[1][0]
                 # After removing configs, we should get an empty dict
                 assert isinstance(lib_config, dict)
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_rc_handlers_dispatched_from_products():
+    """APMTracingCallback.dispatch routes lib_config to handlers registered via on()."""
+    from ddtrace.internal.core.event_hub import on
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
+
+    received: list = []
+
+    def fake_handler(lib_config, dd_config):
+        received.append(dict(lib_config))
+
+    on("apm-tracing.rc", fake_handler, "test-product")
+    callback = APMTracingCallback()
+    payload = Payload(
+        metadata=ConfigMetadata(
+            id="cfg1",
+            product_name="APM_TRACING",
+            sha256_hash="abc123",
+            length=10,
+            tuf_version=1,
+        ),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content={
+            "service_target": {"service": "*", "env": "*"},
+            "lib_config": {"llmobs": {"enabled": True, "ml_app_name": "my-app"}},
+        },
+    )
+    callback([payload])
+
+    assert len(received) == 1
+    assert received[0]["llmobs"] == {"enabled": True, "ml_app_name": "my-app"}
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_same_config_id_delete_is_not_skipped():
+    """A content=None payload with the same config_id as a prior content payload deletes it.
+
+    Verifies via the dispatch→handler chain: the deletion payload must not be skipped,
+    so the lib_config reaching downstream handlers is empty (not the content from the
+    first payload).
+    """
+    import ddtrace
+    from ddtrace._trace.product import apm_tracing_rc as tracer_rc
+    from ddtrace.internal.core.event_hub import on
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
+
+    # Register the real tracer handler so config changes are applied to ddtrace.config
+    on("apm-tracing.rc", tracer_rc, "tracer")
+
+    shared_metadata = dict(
+        product_name="APM_TRACING",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=1,
+    )
+
+    payload_with_content = Payload(
+        metadata=ConfigMetadata(id="cfg1", **shared_metadata),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content={
+            "service_target": {"service": "*", "env": "*"},
+            "lib_config": {"tracing_enabled": False},
+        },
+    )
+    payload_deleted = Payload(
+        metadata=ConfigMetadata(id="cfg1", **shared_metadata),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content=None,
+    )
+
+    APMTracingCallback()([payload_with_content, payload_deleted])
+
+    # deletion was processed — tracer handler received empty lib_config,
+    # so tracing_enabled=False from the first payload must not have been applied
+    assert ddtrace.config._tracing_enabled is True, (
+        "content=None payload was skipped — tracing_enabled=False from the first payload leaked through"
+    )
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_start_collects_product_apm_capabilities():
+    """start() aggregates APMCapabilities from all registered products into RC registration."""
+    import enum
+    import types
+
+    import mock
+
+    from ddtrace.internal.remoteconfig.products import apm_tracing
+
+    class FakeCapabilities(enum.IntFlag):
+        MY_CAP = 1 << 10
+
+    fake_product = types.SimpleNamespace(APMCapabilities=FakeCapabilities, apm_tracing_rc=None)
+
+    with mock.patch("ddtrace.internal.products.manager") as mock_manager:
+        mock_manager.__products__ = {"fake": fake_product}
+        with mock.patch("ddtrace.internal.remoteconfig.worker.remoteconfig_poller") as mock_poller:
+            apm_tracing.start()
+
+            mock_poller.register_callback.assert_called_once()
+            _, kwargs = mock_poller.register_callback.call_args
+            assert FakeCapabilities.MY_CAP in kwargs["capabilities"]

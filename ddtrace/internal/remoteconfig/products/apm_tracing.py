@@ -82,15 +82,18 @@ class APMTracingCallback(RCCallback):
             log.debug("Received APM tracing config payload: %s", payload)
 
             config_id = payload.metadata.id
-            seen_config_ids.add(config_id)
 
             if (content := payload.content) is None:
                 log.debug(
-                    "ignoring invalid APM Tracing remote config payload with no content, product: %s, path: %s",
+                    "Removing APM tracing config %s (deleted by agent), product: %s, path: %s",
+                    config_id,
                     payload.metadata.product_name,
                     payload.path,
                 )
+                self._config_map.pop(config_id, None)
                 continue
+
+            seen_config_ids.add(config_id)
 
             service_target = t.cast(t.Optional[dict], content.get("service_target"))
 
