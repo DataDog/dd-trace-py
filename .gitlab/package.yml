@@ -239,6 +239,7 @@ variables:
     matrix:
       - PYTHON_VERSIONS: ["3.9 3.10", "3.11 3.12", "3.13 3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
+  retry: 2
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "6"
     CARGO_BUILD_JOBS: "6"
