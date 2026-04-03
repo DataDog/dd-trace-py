@@ -16,7 +16,7 @@ license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
 # change over versions, .e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.9,<3.16"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -31,6 +31,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "bytecode>=0.17.0,<1; python_version>='3.14.0'",
