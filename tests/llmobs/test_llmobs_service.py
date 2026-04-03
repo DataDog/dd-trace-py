@@ -36,7 +36,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.llmobs._utils import mark_as_evaluation_span
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
