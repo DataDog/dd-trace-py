@@ -1,5 +1,4 @@
 from functools import wraps
-import os
 import sys
 from typing import Any
 from typing import Callable
@@ -23,6 +22,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
@@ -35,7 +35,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 log = get_logger(__name__)
 
-if os.getenv("DD_ASGI_TRACE_WEBSOCKET") is not None:
+if env.get("DD_ASGI_TRACE_WEBSOCKET") is not None:
     log.warning(
         "DD_ASGI_TRACE_WEBSOCKET is deprecated and will be removed in a future version. "
         "Use DD_TRACE_WEBSOCKET_MESSAGES_ENABLED instead."
@@ -96,7 +96,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
     return tags
 
 
-def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_headers(scope: Mapping[str, Any]) -> dict[str, str]:
     """
     Extract and decode headers from ASGI scope.
 
@@ -255,20 +255,30 @@ class TraceMiddleware:
 
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
+            # Use raw_path for WAF evaluation — scope["path"] may have path
+            # traversal sequences resolved (e.g. /waf/../ becomes /) which
+            # prevents LFI detection. raw_path preserves the original URI.
+            raw_path = scope.get("raw_path")
+            raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
+                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
                 url = "{}://{}{}".format(scheme, server_host, full_path)
+                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
             else:
                 url = None
+                raw_url = None
             query_string = scope.get("query_string")
             if query_string:
                 query_string = bytes_to_str(query_string)
                 if url:
                     url = f"{url}?{query_string}"
+                if raw_url:
+                    raw_url = f"{raw_url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
@@ -290,7 +300,7 @@ class TraceMiddleware:
                 url=url,
                 query=query_string,
                 request_headers=headers,
-                raw_uri=url,
+                raw_uri=raw_url,
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
@@ -454,7 +464,7 @@ class TraceMiddleware:
                     return await send(message)
                 finally:
                     trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status, response_headers=headers
+                        span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
@@ -541,7 +551,7 @@ class TraceMiddleware:
         message: Mapping[str, Any],
         span: Span,
         method: str,
-        response_headers: Optional[Mapping[str, Any]],
+        response_headers: Optional[Mapping[str, str]],
     ):
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)

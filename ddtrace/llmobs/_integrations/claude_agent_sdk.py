@@ -3,19 +3,13 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -50,13 +44,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         tool_output = kwargs.get("tool_output", "")
         tool_id = kwargs.get("tool_id", "")
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "tool",
-                INPUT_VALUE: tool_input,
-                OUTPUT_VALUE: tool_output,
-                METADATA: {"tool_id": tool_id},
-            }
+        _annotate_llmobs_span_data(
+            span, kind="tool", input_value=tool_input, output_value=tool_output, metadata={"tool_id": tool_id}
         )
 
     def _llmobs_set_agent_tags(
@@ -77,20 +66,21 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         if not span.error and response is not None:
-            output_messages, metrics, init_system_message = self._extract_output_data(response)
+            output_messages, metrics, init_system_message, stop_reason = self._extract_output_data(response)
+            if stop_reason:
+                metadata["stop_reason"] = stop_reason
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "agent",
-                MODEL_NAME: model or "",
-                INPUT_VALUE: input_messages,
-                METADATA: metadata,
-                OUTPUT_VALUE: output_messages,
-                METRICS: metrics,
-                AGENT_MANIFEST: agent_manifest,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="agent",
+            model_name=model,
+            input_value=input_messages,
+            metadata=metadata,
+            output_value=output_messages,
+            metrics=metrics,
+            agent_manifest=agent_manifest,
         )
 
     def _build_agent_manifest(
@@ -270,14 +260,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any]]:
-        """Extract output data from response, including output messages, usage metrics, and init system message."""
+    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str]:
+        """Extract output data from response, including output messages, usage metrics, init system message,
+        and stop reason.
+        """
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
+        stop_reason: str = ""
 
         if not response or not isinstance(response, list):
-            return [Message(content="")], metrics, init_system_message
+            return [Message(content="")], metrics, init_system_message, stop_reason
 
         for msg in response:
             msg_type = type(msg).__name__
@@ -294,13 +287,20 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 content = _get_attr(msg, "content", "") or ""
                 output_messages.extend(self._parse_content_blocks(content, "user"))
             elif msg_type == "ResultMessage":
+                if not stop_reason:
+                    stop_reason = _get_attr(msg, "stop_reason", "") or ""
                 if not metrics:
                     metrics = self._extract_result_message(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
-                    output_messages.append(Message(content=str(result), role="system"))
+                    output_messages.append(Message(content=str(result), role="assistant"))
+                structured_output = _get_attr(msg, "structured_output", None)
+                if structured_output is not None:
+                    output_messages.append(
+                        Message(content=safe_json(structured_output) or str(structured_output), role="assistant")
+                    )
 
-        return output_messages or [Message(content="")], metrics, init_system_message
+        return output_messages or [Message(content="")], metrics, init_system_message, stop_reason
 
     def _extract_result_message(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}

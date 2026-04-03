@@ -9,65 +9,24 @@ ignores:
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
   - "ddtrace/testing/**"
-  # --- Pre-existing os.environ usage (to be migrated in follow-up PRs) ---
-  - "ddtrace/__init__.py"
-  - "ddtrace/_monkey.py"
-  - "ddtrace/_trace/**"
-  - "ddtrace/appsec/**"
-  - "ddtrace/bootstrap/**"
-  - "ddtrace/commands/**"
-  - "ddtrace/contrib/internal/**"
-  - "ddtrace/ext/**"
-  - "ddtrace/internal/ci_visibility/**"
-  - "ddtrace/internal/core/**"
-  - "ddtrace/internal/coverage/**"
-  - "ddtrace/internal/datadog/**"
-  - "ddtrace/internal/datastreams/**"
-  - "ddtrace/internal/debug.py"
-  - "ddtrace/internal/dist_computing/**"
-  - "ddtrace/internal/hostname.py"
-  - "ddtrace/internal/logger.py"
-  - "ddtrace/internal/native/**"
-  - "ddtrace/internal/opentelemetry/**"
-  - "ddtrace/internal/processor/**"
-  - "ddtrace/internal/remoteconfig/**"
-  - "ddtrace/internal/runtime/**"
-  - "ddtrace/internal/schema/**"
-  - "ddtrace/internal/serverless/**"
-  - "ddtrace/internal/settings/**"
-  - "ddtrace/internal/telemetry/**"
-  - "ddtrace/internal/utils/**"
-  - "ddtrace/internal/writer/**"
-  - "ddtrace/llmobs/**"
-  - "ddtrace/opentelemetry/**"
-  - "ddtrace/profiling/**"
-  - "ddtrace/sourcecode/**"
 rule:
   any:
-    # os.environ matches subscript, method calls, and bare references via subtree matching
-    - pattern: os.environ
-    # os.getenv, os.putenv, os.unsetenv are separate os attributes, not caught by os.environ
-    - pattern: os.getenv($$$ARGS)
-    - pattern: os.putenv($$$ARGS)
-    - pattern: os.unsetenv($$$ARGS)
-    # Direct imports of environ or getenv from os
-    - pattern: from os import environ
+    # Aliased imports — cannot auto-fix because the alias is used throughout the file
     - pattern: from os import environ as $ALIAS
-    - pattern: from os import getenv
     - pattern: from os import getenv as $ALIAS
-    # Comma-separated imports containing environ
+    # Comma-separated imports containing environ — cannot auto-fix (need to split the import)
     - pattern: from os import $$$IMPORTS, environ
     - pattern: from os import $$$IMPORTS, environ as $ALIAS
     - pattern: from os import environ, $$$IMPORTS
     - pattern: from os import environ as $ALIAS, $$$IMPORTS
-    # Comma-separated imports containing getenv
+    # Comma-separated imports containing getenv — cannot auto-fix (need to split the import)
     - pattern: from os import $$$IMPORTS, getenv
     - pattern: from os import $$$IMPORTS, getenv as $ALIAS
     - pattern: from os import getenv, $$$IMPORTS
     - pattern: from os import getenv as $ALIAS, $$$IMPORTS
 note: |
   Direct access to `os.environ` or `os.getenv` is not allowed in `ddtrace/`.
-  Use the `ddtrace.internal.settings.env` module instead:
+  Use `env` from `ddtrace.internal.settings` instead:
 
   Before:
     import os
@@ -76,5 +35,4 @@ note: |
 
   After:
     from ddtrace.internal.settings import env
-    value = env.dd_environ.get("DD_TRACE_DEBUG", "false")
-    value = env.getenv("DD_TRACE_DEBUG", "false")
+    value = env.get("DD_TRACE_DEBUG", "false")

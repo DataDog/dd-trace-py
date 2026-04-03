@@ -20,13 +20,14 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import datetime
+import hashlib
 import os
 import re
 import subprocess
 import typing as t
 
 
-MAX_BENCHMARKS_PER_GROUP = 6
+MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
@@ -116,7 +117,7 @@ class JobSpec:
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
         lines.append("  cache:")
-        lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
+        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
         lines.append("    paths:")
         lines.append("      - .cache")
 
@@ -447,7 +448,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="scripts/run-script-doctests.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
@@ -516,7 +517,13 @@ prechecks:
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
     with TESTS_GEN.open("a") as f:
-        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
+        f.write(
+            template(
+                "cached-testrunner",
+                current_month=datetime.datetime.now().month,
+                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
+            )
+        )
 
 
 def gen_build_base_venvs() -> None:
@@ -533,29 +540,6 @@ def gen_build_base_venvs() -> None:
                 nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
             )
         )
-
-
-def gen_debugger_exploration() -> None:
-    """Generate the cached testrunner job.
-
-    We need to generate this dynamically from a template because it depends
-    on the cached testrunner job, which is also generated dynamically.
-    """
-    from needs_testrun import pr_matches_patterns
-
-    if not pr_matches_patterns(
-        {
-            ".gitlab/templates/debugging/exploration.yml",
-            "ddtrace/debugging/*",
-            "ddtrace/internal/bytecode_injection/__init__.py",
-            "ddtrace/internal/wrapping/context.py",
-            "tests/debugging/exploration/*",
-        }
-    ):
-        return
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("debugging/exploration"))
 
 
 # -----------------------------------------------------------------------------
@@ -589,6 +573,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+
+# Compute a short hash of the testrunner image so cache keys are automatically
+# invalidated whenever the image changes (e.g. Python patch version bumps).
+import ruamel.yaml as _ruamel_yaml  # noqa: E402
+
+
+_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))

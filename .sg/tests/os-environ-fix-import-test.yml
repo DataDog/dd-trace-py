@@ -1,0 +1,8 @@
+id: os-environ-fix-import
+valid:
+  - from ddtrace.internal.settings import env
+  - import os
+
+invalid:
+  - from os import environ
+  - from os import getenv

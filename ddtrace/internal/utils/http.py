@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from email.encoders import encode_noop
 from json import loads
 import logging
-import os
 import re
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
 from typing import Generator  # noqa:F401
+from typing import Mapping
 from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Union  # noqa:F401
@@ -24,6 +24,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
@@ -334,9 +335,9 @@ def _get_blocked_template(accept_header_value: str, security_response_id: str) -
         return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
     if need_html_template:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
+        template_path = env.get("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
     else:
-        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
+        template_path = env.get("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
     if template_path:
         try:
@@ -379,7 +380,7 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json

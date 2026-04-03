@@ -292,10 +292,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"django": "==4.0.10", "legacy-cgi": latest},
-                ),
-                Venv(
-                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
@@ -365,6 +361,10 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                # pip 25+ changed dist-info registration, causing pip to not appear in
+                # packages_distributions(), which breaks IAST first-party detection tests.
+                # TODO: fix the first-party detection logic in iastpatch.c
+                "pip": "<25",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -567,11 +567,12 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
@@ -583,13 +584,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                         "zope-event": "==5.0",
                         "zope-interface": "==7.2",
                     },
@@ -1346,14 +1350,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.11"),
                     pkgs={
                         "mlflow": ["~=2.11.0"],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
                     pkgs={
                         "mlflow": [latest],
-                        "setuptools": latest,
+                        # pkg_resources was removed in v82.0.0
+                        "setuptools": "<82",
                     },
                 ),
             ],
@@ -1483,6 +1489,8 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "pyyaml": "==6.0.1",
+                # pip==25.0.0 removed the --global-option install arg
+                "pip": "<25",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "false",
@@ -1894,10 +1902,6 @@ venv = Venv(
                 Venv(
                     pys="3.9",
                     pkgs={
-                        "pytest": [
-                            ">=6.0,<7.0",
-                            latest,
-                        ],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
@@ -2023,11 +2027,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
-                "pytest-bdd": [
-                    ">=4.0,<5.0",
-                    # FIXME: add support for v6.1
-                    ">=6.0,<6.1",
-                ],
             },
             env={
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
@@ -2322,10 +2321,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-randomly": latest,
-                "aiohttp": [
-                    "~=3.7",
-                    latest,
-                ],
                 "yarl": "~=1.0",
             },
             venvs=[
@@ -2345,6 +2340,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
                         "pytest-aiohttp": ["==1.0.5"],
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
                 Venv(
@@ -2352,6 +2348,7 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": [">=1.0.0"],
                         "pytest-aiohttp": latest,
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
             ],
@@ -2506,7 +2503,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2525,9 +2526,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                # pytest-asyncio 0.21.x uses FixtureDef.unittest which was removed in pytest 8.0
+                "pytest": "<8",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2567,15 +2572,15 @@ venv = Venv(
                     # sanic added support for Python 3.11 in 22.12.0
                     pys="3.11",
                     pkgs={
-                        "sanic": ["~=22.12.0", latest],
+                        "sanic": ["~=22.12.0", "~=23.12"],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
                 Venv(
                     pys="3.12",
                     pkgs={
-                        "sanic": [latest],
-                        "sanic-testing": "~=22.3.0",
+                        "sanic": ["~=23.12"],
+                        "sanic-testing": "~=23.12.0",
                     },
                 ),
             ],
@@ -2784,8 +2789,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # Test against different versions of openfeature-sdk (0.5.0+ for submodule imports)
-                    pkgs={"openfeature-sdk": ["~=0.6.0", "~=0.7.0", latest]},
+                    # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
+                    pkgs={"openfeature-sdk": ["~=0.8.0", latest]},
                 ),
             ],
         ),
@@ -2964,8 +2969,9 @@ venv = Venv(
             pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(
+                    # mysqlclient ~=2.0 only tested on 3.9
                     pys="3.9",
-                    pkgs={"mysqlclient": ["~=2.0", "~=2.1", latest]},
+                    pkgs={"mysqlclient": ["~=2.0"]},
                 ),
                 Venv(
                     # mysqlclient added support for Python 3.9/3.10 in 2.1
@@ -3193,6 +3199,8 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "mlflow[default]": ["~=3.9.0", latest],
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
         ),
         Venv(
@@ -3289,6 +3297,10 @@ venv = Venv(
         Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
+            pkgs={
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.11"),
@@ -3309,6 +3321,17 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="azure_cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_cosmos",
+            pys=select_pys(),
+            pkgs={
+                "azure.cosmos": ["~=4.9.0", latest],
+                "pytest-asyncio": "==0.23.7",
+                "aiohttp": latest,
+                "six": latest,
+            },
         ),
         Venv(
             name="azure_eventhubs",
@@ -3334,6 +3357,17 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
+            },
+        ),
+        Venv(
+            name="azure_functions:cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.cosmos": ["~=4.9.0", latest],
+                "azure.storage.blob": latest,
+                "aiohttp": latest,
             },
         ),
         Venv(
@@ -3428,27 +3462,26 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
+                    command="pytest -n auto {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": "==0.1.21",
+                        "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
                     },
                     venvs=[
                         Venv(
                             pys=["3.9"],
-                            command="pytest {cmdargs} tests/llmobs",
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
-                            command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                "pydantic-evals": latest,
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
@@ -3456,9 +3489,10 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
@@ -3747,20 +3781,20 @@ venv = Venv(
                 ),
             ],
         ),
+        # In-process tests (fast): test_iast_flask.py, test_appsec_flask_telemetry.py, and class-based
+        # tests in test_appsec_flask.py. No subprocess/gunicorn overhead.
         Venv(
             name="appsec_integrations_flask",
-            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
+            command="pytest -vvv {cmdargs}"
+            " tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
-                "requests": latest,
-                "gunicorn": latest,
-                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
@@ -3783,13 +3817,46 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
-                        "flask": "~=3.0",
+                        "flask": "~=3.1",
+                        "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        # Subprocess/testagent tests (slow): gunicorn, remoteconfig, patching, entrypoint tests.
+        # Reduced Flask version matrix since these test IAST/AppSec internals, not Flask-specific behavior.
+        Venv(
+            name="appsec_integrations_flask_testagent",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/"
+            " --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py"
+            " --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "gevent": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11"),
+                    pys="3.13",
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
