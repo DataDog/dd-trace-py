@@ -9,6 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
@@ -697,7 +698,7 @@ def test_llmobs_submitted_tag_set_on_apm_span(llmobs, llmobs_events):
     with llmobs.workflow("my-workflow") as span:
         pass
 
-    assert span.get_tag("_dd.llmobs.submitted") == "1"
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
 
 
 def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
@@ -705,7 +706,7 @@ def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
     with llmobs._instance.tracer.trace("regular_span") as span:
         pass
 
-    assert span.get_tag("_dd.llmobs.submitted") is None
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):

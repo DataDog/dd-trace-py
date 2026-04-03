@@ -98,6 +98,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
@@ -498,7 +499,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
-            span.set_tag("_dd.llmobs.submitted", "1")
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
