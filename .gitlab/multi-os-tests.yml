@@ -13,7 +13,7 @@ os tests ubuntu:
   tags: ["arch:amd64"]
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14", "3.15"]
   needs:
     - job: "build linux"
       parallel:
@@ -26,6 +26,9 @@ os tests ubuntu:
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp315-cp315"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
@@ -43,7 +46,7 @@ os tests macos:
     PLATFORM: "macOS"
   script:
     - |
-      for PYTHON_VERSION in 3.10 3.12 3.14; do
+      for PYTHON_VERSION in 3.10 3.12 3.14 3.15; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
       done
@@ -56,10 +59,10 @@ os tests windows:
       artifacts: true
       parallel:
         matrix:
-          - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+          - PYTHON_VERSION: ["3.10", "3.12", "3.14", "3.15"]
             WINDOWS_ARCH: "amd64"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14", "3.15"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1
