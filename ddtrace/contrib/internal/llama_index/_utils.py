@@ -22,7 +22,7 @@ def get_model_provider(instance: Any) -> str:
         parts = module.split(".")
         if len(parts) >= 3 and parts[0] == "llama_index" and parts[1] in ("llms", "embeddings"):
             return parts[2]
-    return "llama_index"
+    return "unknown"
 
 
 def get_model_name(instance: Any) -> str:
@@ -43,9 +43,9 @@ def get_model_name(instance: Any) -> str:
                 return str(model_name)
     except Exception:
         log.warning("Failed to extract model name from %s", type(instance).__name__, exc_info=True)
-        return ""
+        return "unknown"
     log.warning("Could not extract model name from %s", type(instance).__name__)
-    return ""
+    return "unknown"
 
 
 def build_chat_request_kwargs(

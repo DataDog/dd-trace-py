@@ -1,6 +1,5 @@
 import os
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.llama_index.patch import patch
@@ -33,18 +32,6 @@ def test_spans(ddtrace_global_config, test_spans):
         yield test_spans
     finally:
         LLMObs.disable()
-
-
-@pytest.fixture
-def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
 
 
 def default_global_config():

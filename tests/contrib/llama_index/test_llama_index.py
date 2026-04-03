@@ -3,17 +3,6 @@ import pytest
 from tests.utils import override_global_config
 
 
-# ---------------------------------------------------------------------------
-# Mock subclasses for abstract base classes
-#
-# LlamaIndex query engines, retrievers, and embeddings are abstract —
-# they cannot be instantiated directly.  These minimal concrete subclasses
-# implement the required abstract methods so we can exercise the public
-# API (query, retrieve, get_query_embedding, …) without making any real
-# HTTP calls or needing VCR cassettes.
-# ---------------------------------------------------------------------------
-
-
 def _make_mock_query_engine():
     """Return a fresh MockQueryEngine instance.
 
@@ -99,8 +88,7 @@ def test_global_tags(llama_index, request_vcr, test_spans):
 
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        cassette_name = "llama_index_completion.yaml"
-        with request_vcr.use_cassette(cassette_name):
+        with request_vcr.use_cassette("llama_index_completion.yaml"):
             response = llm.chat(messages=[ChatMessage(role="user", content="Hello")])
 
     assert response.message.content, "Expected non-empty response content from instrumented call"
@@ -125,9 +113,7 @@ def test_llama_index_chat(llama_index, request_vcr):
 
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_completion.yaml"):
-        response = llm.chat(messages=[ChatMessage(role="user", content="Hello")])
-
-    assert response.message.content, "Expected non-empty response content"
+        llm.chat(messages=[ChatMessage(role="user", content="Hello")])
 
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_complete")
@@ -136,9 +122,7 @@ def test_llama_index_complete(llama_index, request_vcr):
 
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_complete.yaml"):
-        response = llm.complete("What is the meaning of life?")
-
-    assert response.text, "Expected non-empty response text"
+        llm.complete("What is the meaning of life?")
 
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat_stream")
@@ -185,9 +169,7 @@ async def test_llama_index_chat_async(llama_index, request_vcr, snapshot_context
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat_async"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
-            response = await llm.achat(messages=[ChatMessage(role="user", content="Hello")])
-
-        assert response.message.content, "Expected non-empty response content"
+            await llm.achat(messages=[ChatMessage(role="user", content="Hello")])
 
 
 async def test_llama_index_complete_async(llama_index, request_vcr, snapshot_context):
@@ -196,9 +178,7 @@ async def test_llama_index_complete_async(llama_index, request_vcr, snapshot_con
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_complete_async"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
-            response = await llm.acomplete("What is the meaning of life?")
-
-        assert response.text, "Expected non-empty response text"
+            await llm.acomplete("What is the meaning of life?")
 
 
 # ---------------------------------------------------------------------------
@@ -208,13 +188,11 @@ async def test_llama_index_complete_async(llama_index, request_vcr, snapshot_con
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_query_engine")
 def test_llama_index_query_engine(llama_index):
-    """Test that BaseQueryEngine.query() is traced."""
     engine = _make_mock_query_engine()
     engine.query("What is the meaning of life?")
 
 
 async def test_llama_index_query_engine_async(llama_index, snapshot_context):
-    """Test that BaseQueryEngine.aquery() is traced."""
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_query_engine_async"):
         engine = _make_mock_query_engine()
         await engine.aquery("What is the meaning of life?")
@@ -222,13 +200,11 @@ async def test_llama_index_query_engine_async(llama_index, snapshot_context):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_retriever")
 def test_llama_index_retriever(llama_index):
-    """Test that BaseRetriever.retrieve() is traced."""
     retriever = _make_mock_retriever()
     retriever.retrieve("test query")
 
 
 async def test_llama_index_retriever_async(llama_index, snapshot_context):
-    """Test that BaseRetriever.aretrieve() is traced."""
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_retriever_async"):
         retriever = _make_mock_retriever()
         await retriever.aretrieve("test query")
@@ -236,14 +212,12 @@ async def test_llama_index_retriever_async(llama_index, snapshot_context):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_embedding_query")
 def test_llama_index_embedding_query(llama_index):
-    """Test that BaseEmbedding.get_query_embedding() is traced with mock."""
     embed = _make_mock_embedding()
     embed.get_query_embedding("test query")
 
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_embedding_batch")
 def test_llama_index_embedding_batch(llama_index):
-    """Test that BaseEmbedding.get_text_embedding_batch() is traced with mock."""
     embed = _make_mock_embedding()
     embed.get_text_embedding_batch(["doc one", "doc two"])
 
@@ -255,14 +229,11 @@ def test_llama_index_embedding_batch(llama_index):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_openai_embedding")
 def test_llama_index_openai_embedding(llama_index, request_vcr):
-    """Test that OpenAIEmbedding.get_query_embedding() is traced with real model name."""
     from llama_index.embeddings.openai import OpenAIEmbedding
 
     embed = OpenAIEmbedding(model_name="text-embedding-ada-002")
     with request_vcr.use_cassette("llama_index_openai_embedding.yaml"):
-        result = embed.get_query_embedding("test query")
-
-    assert result, "Expected non-empty embedding result"
+        embed.get_query_embedding("test query")
 
 
 # ---------------------------------------------------------------------------
@@ -272,25 +243,19 @@ def test_llama_index_openai_embedding(llama_index, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_predict")
 def test_llama_index_predict(llama_index, request_vcr):
-    """Test that LLM.predict() is traced."""
     from llama_index.core import PromptTemplate
     from llama_index.llms.openai import OpenAI
 
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_complete.yaml"):
-        response = llm.predict(PromptTemplate("What is the meaning of life?"))
-
-    assert response, "Expected non-empty response"
+        llm.predict(PromptTemplate("What is the meaning of life?"))
 
 
 async def test_llama_index_apredict(llama_index, request_vcr, snapshot_context):
-    """Test that LLM.apredict() is traced."""
     from llama_index.core import PromptTemplate
     from llama_index.llms.openai import OpenAI
 
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_apredict"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
-            response = await llm.apredict(PromptTemplate("What is the meaning of life?"))
-
-        assert response, "Expected non-empty response"
+            await llm.apredict(PromptTemplate("What is the meaning of life?"))

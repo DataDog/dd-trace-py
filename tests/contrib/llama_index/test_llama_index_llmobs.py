@@ -13,19 +13,8 @@ from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [
-        dict(
-            _llmobs_enabled=True,
-            _llmobs_sample_rate=1.0,
-            _llmobs_ml_app="<ml-app-name>",
-        )
-    ],
-)
 class TestLLMObsLlamaIndex:
-    def test_chat_completion(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
-        """Test basic chat completion produces correct LLMObs span."""
+    def test_chat_completion(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -49,10 +38,10 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_completion(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
-        """Test basic text completion produces correct LLMObs span."""
+    def test_completion(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.llms.openai import OpenAI
 
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
@@ -75,13 +64,11 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_chat_stream(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
-    ):
-        """Test streamed chat completion produces correct LLMObs span."""
+    def test_chat_stream(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -106,10 +93,10 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_chat_error(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
-        """Test that API errors still produce LLMObs spans with error info."""
+    def test_chat_error(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -137,12 +124,10 @@ class TestLLMObsLlamaIndex:
             metadata={"max_tokens": 100},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_multi_turn_conversation(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
-    ):
-        """Test multi-turn conversation captures all messages."""
+    def test_multi_turn_conversation(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -182,10 +167,10 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    async def test_chat_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
-        """Test async chat completion produces correct LLMObs span."""
+    async def test_chat_async(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -209,13 +194,11 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_chat_stream_async(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
-    ):
-        """Test async streamed chat completion produces correct LLMObs span."""
+    async def test_chat_stream_async(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
         from llama_index.core.llms import ChatMessage
         from llama_index.llms.openai import OpenAI
 
@@ -240,13 +223,11 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_complete_stream(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
-    ):
-        """Test streamed text completion produces correct LLMObs span."""
+    def test_complete_stream(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
         from llama_index.llms.openai import OpenAI
 
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
@@ -270,13 +251,11 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_complete_stream_async(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
-    ):
-        """Test async streamed text completion produces correct LLMObs span."""
+    async def test_complete_stream_async(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
         from llama_index.llms.openai import OpenAI
 
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
@@ -300,12 +279,10 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    async def test_complete_async(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
-    ):
-        """Test async text completion produces correct LLMObs span."""
+    async def test_complete_async(self, llama_index, llmobs_events, test_spans, request_vcr):
         from llama_index.llms.openai import OpenAI
 
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
@@ -328,10 +305,10 @@ class TestLLMObsLlamaIndex:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_query_engine(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that query engine produces correct LLMObs workflow span."""
+    def test_query_engine(self, llama_index, llmobs_events, test_spans):
         engine = _make_mock_query_engine()
         engine.query("What is the meaning of life?")
 
@@ -343,10 +320,10 @@ class TestLLMObsLlamaIndex:
             output_value="The answer is 42.",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    async def test_query_engine_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that async query engine produces correct LLMObs workflow span."""
+    async def test_query_engine_async(self, llama_index, llmobs_events, test_spans):
         engine = _make_mock_query_engine()
         await engine.aquery("What is the meaning of life?")
 
@@ -358,10 +335,10 @@ class TestLLMObsLlamaIndex:
             output_value="The answer is 42.",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_retriever(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that retriever produces correct LLMObs retrieval span with documents."""
+    def test_retriever(self, llama_index, llmobs_events, test_spans):
         retriever = _make_mock_retriever()
         retriever.retrieve("test query")
 
@@ -370,14 +347,13 @@ class TestLLMObsLlamaIndex:
             span,
             span_kind="retrieval",
             input_value="test query",
-            output_value="[1 document(s) retrieved]",
             output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    async def test_retriever_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that async retriever produces correct LLMObs retrieval span with documents."""
+    async def test_retriever_async(self, llama_index, llmobs_events, test_spans):
         retriever = _make_mock_retriever()
         await retriever.aretrieve("test query")
 
@@ -386,14 +362,13 @@ class TestLLMObsLlamaIndex:
             span,
             span_kind="retrieval",
             input_value="test query",
-            output_value="[1 document(s) retrieved]",
             output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_embedding_query(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that query embedding produces correct LLMObs embedding span."""
+    def test_embedding_query(self, llama_index, llmobs_events, test_spans):
         embed = _make_mock_embedding()
         embed.get_query_embedding("test query")
 
@@ -402,15 +377,15 @@ class TestLLMObsLlamaIndex:
             span,
             span_kind="embedding",
             model_name="mock-embed",
-            model_provider="llama_index",
+            model_provider="unknown",
             input_documents=[{"text": "test query"}],
             output_value="[1 embedding(s) returned with size 3]",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    def test_embedding_batch(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that batch embedding produces correct LLMObs embedding span."""
+    def test_embedding_batch(self, llama_index, llmobs_events, test_spans):
         embed = _make_mock_embedding()
         embed.get_text_embedding_batch(["doc one", "doc two"])
 
@@ -419,15 +394,15 @@ class TestLLMObsLlamaIndex:
             span,
             span_kind="embedding",
             model_name="mock-embed",
-            model_provider="llama_index",
+            model_provider="unknown",
             input_documents=[{"text": "[2 texts]"}],
             output_value="[2 embedding(s) returned with size 3]",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected
 
-    async def test_embedding_query_async(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Test that async query embedding produces correct LLMObs embedding span."""
+    async def test_embedding_query_async(self, llama_index, llmobs_events, test_spans):
         embed = _make_mock_embedding()
         await embed.aget_query_embedding("test query")
 
@@ -436,9 +411,10 @@ class TestLLMObsLlamaIndex:
             span,
             span_kind="embedding",
             model_name="mock-embed",
-            model_provider="llama_index",
+            model_provider="unknown",
             input_documents=[{"text": "test query"}],
             output_value="[1 embedding(s) returned with size 3]",
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected)
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected

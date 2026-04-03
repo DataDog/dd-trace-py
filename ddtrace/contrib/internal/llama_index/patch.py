@@ -98,15 +98,15 @@ def _create_event(
     )
 
 
-def _llm_wrapper(build_kwargs_fn, always_stream, operation=""):
+def _llm_wrapper(build_kwargs_fn, always_stream, operation):
     """Create a sync wrapper for an LLM or embedding method.
 
     ``build_kwargs_fn`` extracts request metadata from the call arguments.
     ``always_stream`` is True for methods like ``stream_chat`` whose return
     value is always a generator even though ``isinstance(..., Generator)``
     may not detect custom LlamaIndex stream wrappers.
-    ``operation`` is non-empty for embedding calls to distinguish them from
-    chat/complete LLM calls in LLMObs.
+    ``operation`` distinguishes embedding calls from chat/complete LLM calls
+    in LLMObs.  Pass ``""`` for standard LLM calls.
     """
 
     def wrapper(func, instance, args, kwargs):
@@ -129,7 +129,7 @@ def _llm_wrapper(build_kwargs_fn, always_stream, operation=""):
     return wrapper
 
 
-def _llm_wrapper_async(build_kwargs_fn, always_stream, operation=""):
+def _llm_wrapper_async(build_kwargs_fn, always_stream, operation):
     """Create an async wrapper for an LLM or embedding method.
 
     See ``_llm_wrapper`` for parameter descriptions.
@@ -198,14 +198,14 @@ def _operation_wrapper_async(build_kwargs_fn, operation):
 
 
 _LLM_WRAPPERS = {
-    "chat": _llm_wrapper(build_chat_request_kwargs, always_stream=False),
-    "complete": _llm_wrapper(build_complete_request_kwargs, always_stream=False),
-    "stream_chat": _llm_wrapper(build_chat_request_kwargs, always_stream=True),
-    "stream_complete": _llm_wrapper(build_complete_request_kwargs, always_stream=True),
-    "achat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=False),
-    "acomplete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=False),
-    "astream_chat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=True),
-    "astream_complete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=True),
+    "chat": _llm_wrapper(build_chat_request_kwargs, always_stream=False, operation=""),
+    "complete": _llm_wrapper(build_complete_request_kwargs, always_stream=False, operation=""),
+    "stream_chat": _llm_wrapper(build_chat_request_kwargs, always_stream=True, operation=""),
+    "stream_complete": _llm_wrapper(build_complete_request_kwargs, always_stream=True, operation=""),
+    "achat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=False, operation=""),
+    "acomplete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=False, operation=""),
+    "astream_chat": _llm_wrapper_async(build_chat_request_kwargs, always_stream=True, operation=""),
+    "astream_complete": _llm_wrapper_async(build_complete_request_kwargs, always_stream=True, operation=""),
 }
 
 _QUERY_ENGINE_WRAPPERS = {
