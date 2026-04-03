@@ -1,0 +1,3 @@
+deprecations:
+  - |
+    LLM Observability: Removes support for the RAGAS integration. As an alternative, if you have RAGAS evaluations, you can manually submit these evaluation results. See LLM Observability `external evaluation documentation <https://docs.datadoghq.com/llm_observability/evaluations/external_evaluations>` for more information.

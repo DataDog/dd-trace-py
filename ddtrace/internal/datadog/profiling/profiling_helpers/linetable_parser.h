@@ -109,6 +109,13 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
     /* Python 3.10: PEP 626 line table in co_linetable.
      * Pairs of (sdelta, ldelta) bytes.  lasti is in codeunit units;
      * the table bytecode deltas are in byte units, so convert. */
+
+    /* Check for even-ness as we expect pairs of (sdelta, ldelta) bytes.
+     * This precondition is not guaranteed when using data copied from
+     * the process and not "actual" code objects. */
+    if (len % 2 != 0)
+        return 0;
+
     lasti *= static_cast<int>(sizeof(_Py_CODEUNIT));
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         int sdelta = table[i++];
@@ -128,6 +135,13 @@ parse_linetable(const unsigned char* table, Py_ssize_t len, int lasti, int first
 #else
     /* Python 3.9: co_lnotab format — pairs of (bytecode_delta, line_delta)
      * unsigned bytes.  lasti is a byte offset. */
+
+    /* Check for even-ness as we expect pairs of (bytecode_delta, line_delta) bytes.
+     * This precondition is not guaranteed when using data copied from
+     * the process and not "actual" code objects. */
+    if (len % 2 != 0)
+        return 0;
+
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         bc += table[i++];
         if (bc > lasti)
