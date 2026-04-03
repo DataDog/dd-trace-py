@@ -62,7 +62,7 @@ class CrashtrackingConfig(DDConfig):
         "This is generally useful only for dd-trace-py development.",
     )
 
-    test_token = DDConfig.v(
+    _test_token = DDConfig.v(
         t.Optional[str],
         "test_token",
         default=None,
