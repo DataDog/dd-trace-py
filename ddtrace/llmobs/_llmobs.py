@@ -142,6 +142,7 @@ from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
@@ -396,17 +397,23 @@ def _build_span_meta(
         span=_SpanField(kind=span_kind),
         input=llmobs_input,
         output=llmobs_output,
-        model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or "",
-        model_provider=(llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower(),
         metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
-        tool_definitions=llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS) or [],
-        intent=str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or ""),
-        error=_ErrorField(
+    )
+    if span_kind in ("llm", "embedding"):
+        meta["model_name"] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
+        meta["model_provider"] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
+    tool_defs = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
+    if tool_defs:
+        meta["tool_definitions"] = tool_defs
+    intent = llmobs_meta.get(LLMOBS_STRUCT.INTENT)
+    if intent:
+        meta["intent"] = str(intent)
+    if span.error:
+        meta["error"] = _ErrorField(
             message=span.get_tag(ERROR_MSG) or "",
             stack=span.get_tag(ERROR_STACK) or "",
             type=span.get_tag(ERROR_TYPE) or "",
-        ),
-    )
+        )
 
     input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT)
     if input_prompt is not None and span_kind != "llm":
@@ -555,8 +562,12 @@ class LLMObs(Service):
             )
         span._set_ctx_item(ML_APP, ml_app)
 
-        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
+        parent_id = _get_llmobs_parent_id(span) or ROOT_PARENT_ID
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+        if llmobs_trace_id is None:
+            raw_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+            if raw_trace_id is not None:
+                llmobs_trace_id = format_trace_id(raw_trace_id)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
@@ -593,11 +604,13 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "session_id": session_id or "",
             "tags": tags,
-            "span_links": span_links,
             "_dd": _dd_attrs,
         }
+        if session_id:
+            llmobs_span_event["session_id"] = session_id
+        if span_links:
+            llmobs_span_event["span_links"] = span_links
 
         experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if experiment_config:
@@ -831,6 +844,8 @@ class LLMObs(Service):
             llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
             if llmobs_tags.get("integration"):
                 tags["integration"] = llmobs_tags.get("integration")
+            elif span._get_ctx_item(INTEGRATION):
+                tags["integration"] = span._get_ctx_item(INTEGRATION)
             existing_tags = llmobs_tags
         else:
             if span._get_ctx_item(INTEGRATION):

@@ -696,6 +696,7 @@ class TelemetryTestSession(object):
                 time.sleep(pow(exp_time, try_nb))
             finally:
                 conn.close()
+        raise RuntimeError("unreachable")
 
     def clear(self):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)

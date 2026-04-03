@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -321,7 +321,7 @@ def _get_llmobs_parent_id(span: Span):
     while parent is not None:
         if parent.span_type == SpanTypes.LLM:
             return str(parent.span_id)
-        parent = parent._parent
+        parent = parent._parent  # type: ignore[assignment]
 
 
 def _expected_llmobs_eval_metric_event(

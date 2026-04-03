@@ -1151,7 +1151,7 @@ class TestAgentClient:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
-        return cast(list[dict[str, Any]], data)
+        return cast(list[dict[str, Any]], data)  # type: ignore[return-value]
 
     def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
@@ -1197,10 +1197,10 @@ class SnapshotTest:
     _client: TestAgentClient
 
     def __init__(self, token: str):
-        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)
+        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)  # type: ignore[arg-type]
 
     def requests(self) -> list[dict[str, Any]]:
-        return self._client.requests()
+        return self._client.requests()  # type: ignore[return-value]
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
@@ -1549,17 +1549,18 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
 @contextmanager
 def override_third_party_packages(packages: list[str]):
     try:
-        original_callonce = _third_party_packages.__wrapped__.__callonce_result__
+        original_callonce = _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
     except AttributeError:
         original_callonce = None
 
     try:
-        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__
+        mapping_wrapped = _package_for_root_module_mapping.__wrapped__  # type: ignore[attr-defined]
+        original_mapping = mapping_wrapped.__callonce_result__
     except AttributeError:
         original_mapping = None
 
-    _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)
-    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (
+    _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)  # type: ignore[attr-defined]
+    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (  # type: ignore[attr-defined]
         {p: Distribution(p, "0.0.0") for p in packages},
         None,
     )
@@ -1570,14 +1571,15 @@ def override_third_party_packages(packages: list[str]):
         yield
     finally:
         if original_callonce is not None:
-            _third_party_packages.__wrapped__.__callonce_result__ = original_callonce
+            _third_party_packages.__wrapped__.__callonce_result__ = original_callonce  # type: ignore[attr-defined]
         else:
-            del _third_party_packages.__wrapped__.__callonce_result__
+            del _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
         if original_mapping is not None:
-            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping
+            pkg_wrapped = _package_for_root_module_mapping.__wrapped__  # type: ignore[attr-defined]
+            pkg_wrapped.__callonce_result__ = original_mapping
         else:
-            del _package_for_root_module_mapping.__wrapped__.__callonce_result__
+            del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()
