@@ -297,6 +297,14 @@ class AIGuardClient:
 
                     is_sanitized = action == SANITIZE
                     span.set_tag(AI_GUARD.SANITIZED_TAG, str(is_sanitized).lower())
+                    if is_sanitized and sanitized_messages:
+                        # Replace only the last message in the span with the sanitized version
+                        span_messages = self._messages_for_meta_struct(messages)
+                        if span_messages and sanitized_messages:
+                            sanitized_last = sanitized_messages[-1]
+                            span_messages[-1] = sanitized_last
+                            meta_struct["messages"] = span_messages
+                    span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
                 else:
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
