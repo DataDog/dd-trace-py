@@ -99,7 +99,7 @@ class ThreadRestartTimer(PeriodicThread):
             if monotonic_ns() >= self._timestamp:  # 100ms
                 for thread in _threads_to_restart_after_fork.copy():
                     if isinstance(thread, ThreadRestartTimer):
-                        # Skip any ThreadRestartTimer instance, not just self,
+                        # Skip any ThreadRestartTimer instance,
                         # to avoid restarting orphaned timer instances that were
                         # caught in periodic_threads during a fork.
                         continue
