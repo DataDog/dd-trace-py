@@ -1,0 +1,18 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# dependencies = ["shellcheck-py==0.11.0.1"]
+# ///
+"""Run shellcheck on hook shell scripts."""
+
+import subprocess
+import sys
+from glob import glob
+
+scripts = glob("hooks/scripts/*.sh")
+if not scripts:
+    print("No shell scripts found in hooks/scripts/")
+    sys.exit(0)
+
+result = subprocess.run(["shellcheck"] + scripts)
+sys.exit(result.returncode)
