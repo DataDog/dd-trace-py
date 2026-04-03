@@ -66,6 +66,7 @@ class CrashtrackingConfig(DDConfig):
         t.Optional[str],
         "test_token",
         default=None,
+        private=True,
         help_type="String",
         help="Sets the X-Datadog-Test-Session-Token header on crashtracker telemetry requests. "
         "This is generally useful only for dd-trace-py development.",

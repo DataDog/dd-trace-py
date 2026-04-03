@@ -198,7 +198,7 @@ def with_test_agent() -> Generator[TestAgentClient, None, None]:
     # Also propagate via env var so that tests which launch subprocesses with
     # ddtrace.auto (e.g. test_crashtracker_preload_*) pick up the token automatically
     # without any changes to the subprocess code.
-    os.environ["DD_CRASHTRACKING_TEST_TOKEN"] = token
+    os.environ["_DD_CRASHTRACKING_TEST_TOKEN"] = token
     crashtracker_config._test_token = token
 
     base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"
@@ -215,5 +215,5 @@ def with_test_agent() -> Generator[TestAgentClient, None, None]:
         yield client
     finally:
         client.clear()
-        del os.environ["DD_CRASHTRACKING_TEST_TOKEN"]
+        del os.environ["_DD_CRASHTRACKING_TEST_TOKEN"]
         crashtracker_config._test_token = None
