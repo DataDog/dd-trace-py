@@ -611,6 +611,88 @@ class TestLLMObsLiteLLM:
         assert event_metrics["reasoning_output_tokens"] == 15
 
 
+_OPENAI_ENABLED = "ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled"
+
+
+def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: model='litellm_proxy/<gpt-model>' with OpenAI integration enabled must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="litellm_proxy/gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: use_litellm_proxy=True with an OpenAI model name must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+                use_litellm_proxy=True,
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: litellm.use_litellm_proxy = True with an OpenAI model name must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
+            with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+                litellm.completion(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    api_base="http://localhost:4000",
+                    api_key="<not-a-real-key>",
+                )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans, monkeypatch
+):
+    """Regression: USE_LITELLM_PROXY=true env var with an OpenAI model name must still produce LLMObs spans."""
+    monkeypatch.setenv("USE_LITELLM_PROXY", "true")
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
 @pytest.mark.parametrize(
     "model,stream,openai_enabled,expected",
     [
