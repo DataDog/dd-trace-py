@@ -73,7 +73,7 @@ class APMTracingCallback(RCCallback):
         Args:
             payloads: Sequence of configuration payloads to process
         """
-        seen_config_ids = set()
+        self._config_map = {}
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -81,22 +81,11 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
-            config_id = payload.metadata.id
-
-            if (content := payload.content) is None:
-                log.debug(
-                    "Removing APM tracing config %s (deleted by agent), product: %s, path: %s",
-                    config_id,
-                    payload.metadata.product_name,
-                    payload.path,
-                )
-                self._config_map.pop(config_id, None)
+            if payload.content is None:
+                log.debug("Skipping deleted config %s", payload.metadata.id)
                 continue
 
-            seen_config_ids.add(config_id)
-
-            service_target = t.cast(t.Optional[dict], content.get("service_target"))
-
+            service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
             service = t.cast(str, service_target.get("service")) if service_target is not None else None
             env = t.cast(str, service_target.get("env")) if service_target is not None else None
 
@@ -108,12 +97,7 @@ class APMTracingCallback(RCCallback):
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
-            self._config_map[config_id] = payload
-
-        # Remove configurations that are no longer present
-        for config_id in set(self._config_map.keys()) - seen_config_ids:
-            log.debug("Removing APM tracing config %s", config_id)
-            self._config_map.pop(config_id, None)
+            self._config_map[payload.metadata.id] = payload
 
         dispatch("apm-tracing.rc", (dict(self._get_chained_lib_config()), config))
 
