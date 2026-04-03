@@ -82,7 +82,6 @@ def test_compute_process_tag_excluded_values(excluded_value):
     assert result is None
 
 
-@pytest.mark.xdist_group("process_tags")
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()

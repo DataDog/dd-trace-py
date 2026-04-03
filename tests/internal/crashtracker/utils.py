@@ -1,6 +1,5 @@
 # Utility functions for testing crashtracker in subprocesses
 from contextlib import contextmanager
-import fcntl
 import os
 import random
 import tempfile
@@ -185,10 +184,19 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
+    # fcntl is Linux/macOS only; import it here rather than at module level so that
+    # collecting this module on Windows does not raise ModuleNotFoundError before
+    # platform-specific skip decorators can take effect.
+    import fcntl
+
     # Use a file lock so that concurrent xdist workers (including ATR retries, which
-    # bypass xdist_group) do not race on the shared test-agent state.  clear() is a
-    # global operation with no session-token isolation, so only one crashtracker test
-    # may hold this lock at a time.
+    # bypass xdist_group) do not race on the shared test-agent state.
+    #
+    # Session-token isolation would be the cleaner solution, but the crashtracker Rust
+    # binary sends telemetry without any X-Datadog-Test-Session-Token header, and
+    # CrashtrackerConfiguration does not currently expose an additional_headers field.
+    # Until the native layer gains that capability, a process-level file lock is the
+    # only reliable way to serialise clear() calls across workers.
     lock_path = os.path.join(tempfile.gettempdir(), "dd_crashtracker_test_agent.lock")
     with open(lock_path, "w") as _lock_file:
         fcntl.flock(_lock_file.fileno(), fcntl.LOCK_EX)

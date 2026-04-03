@@ -1317,18 +1317,17 @@ def snapshot_context(
         result = r.read().decode("utf-8", errors="ignore")
         if r.status != 200:
             lowered = result.lower()
+            if "received unmatched traces" not in lowered:
+                pytest.fail(result, pytrace=False)
             # we don't know why the test agent occasionally receives a different number of traces than it expects
             # during snapshot tests, but that does sometimes in an unpredictable manner
             # it seems to have to do with using the same test agent across many tests - maybe the test agent
             # occasionally mixes up traces between sessions. regardless of why they happen, we have been treating
             # these test failures as unactionable in the vast majority of cases and thus ignore them here to reduce
             # the toil involved in getting CI to green. revisit this approach once we understand why
-            # "received unmatched traces" or "no session found" can sometimes happen (the latter is also a test
-            # agent race condition that can occur when many sessions are active concurrently, e.g. with xdist)
-            if "received unmatched traces" in lowered or "no session found" in lowered:
-                pytest.xfail(result)
+            # "received unmatched traces" can sometimes happen
             else:
-                pytest.fail(result, pytrace=False)
+                pytest.xfail(result)
     finally:
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
