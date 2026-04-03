@@ -6,9 +6,6 @@ ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -65,10 +62,6 @@ DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 5MB size limit.]"
 
 ROOT_PARENT_ID = "undefined"
-
-# Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
-# Used to differentiate traces of Datadog-run operations vs user-application operations.
-RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"

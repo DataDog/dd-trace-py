@@ -1381,15 +1381,6 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
     assert llmobs._instance._evaluator_runner.enqueue.call_count == 1
 
 
-def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, llmobs):
-    with llmobs.agent(name="test") as agent:
-        mark_as_evaluation_span(agent)
-        with llmobs.llm(model_name="test_model"):
-            pass
-    time.sleep(0.1)
-    assert llmobs._instance._evaluator_runner.enqueue.call_count == 0
-
-
 def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, llmobs):
     with llmobs.workflow(name="test"):
         pass
