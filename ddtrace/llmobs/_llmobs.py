@@ -46,7 +46,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
