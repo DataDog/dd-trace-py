@@ -719,6 +719,9 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     // joinable() is always false here. No OS call needed on the inherited handle.
 
     if (should_restart) {
+        if (self->_thread != nullptr && self->_thread->joinable())
+            self->_thread->detach();
+
         self->_thread = nullptr;
 
         self->_started->clear();
