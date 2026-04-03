@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    aio-pika: Adds APM and Data Streams Monitoring instrumentation support for
+    ``aio-pika>=9.0.0``. Publish, consume, and message acknowledgement
+    operations are automatically traced, with distributed tracing context
+    propagated via AMQP message headers.

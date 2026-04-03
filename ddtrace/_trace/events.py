@@ -26,6 +26,7 @@ class TracingEvent(Event):
     component: str = field()
 
     tags: dict[str, str] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
     _end_span: bool = field(default=True, init=False)
 
