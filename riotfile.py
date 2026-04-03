@@ -3282,6 +3282,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aio_pika",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
+            command="pytest {cmdargs} tests/contrib/aio_pika/",
+            pys=select_pys(),
+            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aio-pika": ["~=9.0.0", latest]},
+        ),
+        Venv(
             name="aiokafka",
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
