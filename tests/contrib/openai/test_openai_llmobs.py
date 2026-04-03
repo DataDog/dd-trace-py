@@ -380,8 +380,7 @@ class TestLLMObsOpenaiV1:
         )
 
     def test_chat_completion_multimodal_content(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
-        """Regression test: multimodal content (text + image_url) must be rendered as readable text,
-        not as raw Pydantic ValidatorIterator repr strings. See MLOB-6910 / MLOS-543."""
+        """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
             ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
@@ -419,9 +418,8 @@ class TestLLMObsOpenaiV1:
     def test_chat_completion_multimodal_lazy_iterator(
         self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
-        """Regression test for MLOB-6910: when message content is a lazy iterator (as produced by
-        Pydantic ValidatorIterator), _materialize_message_content must convert it to a list before
-        the SDK consumes it, so post-call tag extraction still sees the content."""
+        """Test that iterable message content is materialized to a list before the SDK
+        consumes it, so post-call tag extraction still sees the content."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
             ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"

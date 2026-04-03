@@ -199,7 +199,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     @staticmethod
     def _materialize_message_content(kwargs):
-        """Materialize any lazy iterators in message content fields before the OpenAI SDK
+        """Materialize any iterable message content fields to lists before the OpenAI SDK
         consumes them, so that our post-call tag extraction can still read the content.
         """
         for message in kwargs.get("messages", []):
