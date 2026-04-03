@@ -223,12 +223,9 @@ def test_process_tags_base_hash_populated_when_remote_config_disabled():
     assert process_tags.base_hash is not None
 
 
-@run_in_subprocess(
-    env_overrides=dict(
-        AWS_LAMBDA_FUNCTION_NAME="system-tests-function",
-    )
-)
-def test_process_tags_info_not_called_in_aws_lambda_runtime():
+@run_in_subprocess()
+def test_process_tags_info_not_called_when_remote_config_enabled():
+    """Check that /info is not called even when RC is turned on."""
     from ddtrace.internal import process_tags
 
     # Force lazy path so __getattr__ and _retrieve_container_tags_hash() are executed.

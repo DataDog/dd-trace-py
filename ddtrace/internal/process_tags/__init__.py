@@ -9,7 +9,6 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.fnv import fnv1_64
@@ -131,12 +130,9 @@ def compute_base_hash(container_tags_hash):
 
 @callonce
 def _retrieve_container_tags_hash() -> None:
-    if not process_tags_config.enabled:
-        return
+    from ddtrace import config as ddtrace_config
 
-    # Lambda traces are sent through the extension/proxy path where /info probing can
-    # interfere with intake behavior; skip background probe in that runtime.
-    if in_aws_lambda():
+    if not process_tags_config.enabled or ddtrace_config._remote_config_enabled:
         return
 
     def _fetch():
