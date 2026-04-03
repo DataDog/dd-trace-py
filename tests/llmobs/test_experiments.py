@@ -2436,7 +2436,7 @@ def test_experiment_rerun_preserves_experiment_id(llmobs, test_dataset_one_recor
         original_id = exp._experiment._id
 
     with mock.patch.object(
-        llmobs._dne_client, "experiment_create", wraps=llmobs._dne_client.experiment_create
+        llmobs._instance._dne_client, "experiment_create", wraps=llmobs._instance._dne_client.experiment_create
     ) as mock_create:
         exp.rerun_evaluators()
 
@@ -2460,11 +2460,9 @@ def test_experiment_run_without_task_raises(llmobs):
         exp.run()
 
 
-def test_experiment_rerun_without_task_succeeds(llmobs, test_dataset_one_record):
-    """rerun_evaluators() works even when the experiment was created without task/dataset."""
-    from ddtrace.llmobs._experiment import ExperimentRowResult, ExperimentRun
-
-    row: ExperimentRowResult = {
+def test_experiment_rerun_without_task_succeeds(llmobs):
+    """rerun_evaluators() after pull() emits a new replay span and links eval metrics to the original span."""
+    row = {
         "record_id": "r1",
         "idx": 0,
         "span_id": "abc",
@@ -2477,7 +2475,8 @@ def test_experiment_rerun_without_task_succeeds(llmobs, test_dataset_one_record)
         "evaluations": {},
         "error": {"message": None, "type": None, "stack": None},
     }
-    prior_run = ExperimentRun(run_name="test_experiment-run-1", run_iteration=0, rows=[row])
+    run_info = _ExperimentRunInfo(run_interation=0)
+    prior_run = ExperimentRun(run_info, summary_evaluations={}, rows=[row])
     prior_result = {"runs": [prior_run], "rows": [row], "summary_evaluations": {}}
 
     exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
@@ -2486,9 +2485,202 @@ def test_experiment_rerun_without_task_succeeds(llmobs, test_dataset_one_record)
     # Manually set _id so rerun guard passes (normally set by _setup_experiment in run())
     exp._experiment._id = "mock-experiment-id"
 
-    new_result = exp.rerun_evaluators()
+    posted_metrics = []
+
+    def capture_metrics(experiment_id, events, tags):
+        posted_metrics.extend(events)
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_metrics
+    ):
+        new_result = exp.rerun_evaluators()
+
     assert new_result is not prior_result
-    assert new_result["runs"][0].rows[0]["span_id"] == "abc"
+    result_row = new_result["runs"][0].rows[0]
+    # A new replay span was created — span_id is different from the original "abc"
+    assert result_row["span_id"] != "abc"
+    # Output is preserved from the pulled data
+    assert result_row["output"] == {"answer": "Paris"}
+    # Eval metrics must reference the ORIGINAL span/trace IDs
+    assert len(posted_metrics) > 0
+    for metric in posted_metrics:
+        assert metric["span_id"] == "abc"
+        assert metric["trace_id"] == "def"
+
+
+MOCK_PULL_RESPONSE = {
+    "data": {
+        "id": "mock-experiment-id",
+        "attributes": {
+            "spans": [
+                {
+                    "span_id": "abc123",
+                    "trace_id": "def456",
+                    "start_ns": MOCK_TIMESTAMP_NS,
+                    "tags": ["dataset_record_id:rec-uuid-1", "experiment_id:mock-experiment-id"],
+                    "meta": {
+                        "input": {"question": "What is the capital of France?"},
+                        "output": {"answer": "Paris"},
+                        "expected_output": {"answer": "Paris"},
+                        "metadata": {"dataset_record_index": 0, "experiment_name": "test-exp"},
+                        "error": {"type": None, "message": None, "stack": None},
+                    },
+                    "eval_metrics": [
+                        {
+                            "label": "correctness",
+                            "metric_type": "score",
+                            "score_value": 0.9,
+                            "assessment": "pass",
+                            "reasoning": "Correct",
+                        }
+                    ],
+                }
+            ],
+            "summary_metrics": [],
+        },
+    },
+    "meta": {"after": ""},
+}
+
+
+def test_experiment_pull_by_id(llmobs):
+    """pull() with known _id calls by-UUID endpoint and populates self.result."""
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+    exp._experiment._id = "mock-experiment-id"
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+    ) as mock_get:
+        exp.pull()
+
+    mock_get.assert_called_once_with(experiment_id="mock-experiment-id", include_eval_metrics=True)
+    assert exp.result is not None
+    rows = exp.result["runs"][0].rows
+    assert len(rows) == 1
+    assert rows[0]["span_id"] == "abc123"
+    assert rows[0]["trace_id"] == "def456"
+    assert rows[0]["input"] == {"question": "What is the capital of France?"}
+    assert rows[0]["output"] == {"answer": "Paris"}
+
+
+def test_experiment_pull_by_name(llmobs):
+    """pull() without _id calls by-name endpoint using experiment name + project_name."""
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+    assert exp._experiment._id is None
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+    ) as mock_get:
+        exp.pull()
+
+    mock_get.assert_called_once_with(
+        project_name="my-project",
+        experiment_name="test-exp",
+        include_eval_metrics=True,
+    )
+    assert exp.result is not None
+
+
+def test_experiment_pull_sets_id_from_response(llmobs):
+    """pull() sets _experiment._id from the response so rerun_evaluators() can post metrics."""
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+    assert exp._experiment._id is None
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+    ):
+        exp.pull()
+
+    assert exp._experiment._id == "mock-experiment-id"
+
+
+def test_experiment_pull_parses_eval_metrics(llmobs):
+    """pull() with eval metrics populates evaluations dict on rows."""
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+    exp._experiment._id = "mock-experiment-id"
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+    ):
+        exp.pull()
+
+    evals = exp.result["runs"][0].rows[0]["evaluations"]
+    assert "correctness" in evals
+    assert evals["correctness"]["value"] == 0.9
+    assert evals["correctness"]["type"] == "score"
+    assert evals["correctness"]["assessment"] == "pass"
+
+
+def test_experiment_pull_no_eval_metrics(llmobs):
+    """pull(include_eval_metrics=False) omits evaluations but still parses spans."""
+    response_no_evals = {
+        "data": {
+            "id": "mock-experiment-id",
+            "attributes": {
+                "spans": [
+                    {
+                        "span_id": "abc123",
+                        "trace_id": "def456",
+                        "start_ns": MOCK_TIMESTAMP_NS,
+                        "tags": [],
+                        "meta": {
+                            "input": {"question": "Q"},
+                            "output": {"answer": "A"},
+                            "expected_output": None,
+                            "metadata": {"dataset_record_index": 0},
+                            "error": {"type": None, "message": None, "stack": None},
+                        },
+                    }
+                ],
+                "summary_metrics": [],
+            },
+        },
+        "meta": {"after": ""},
+    }
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+    exp._experiment._id = "mock-experiment-id"
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=response_no_evals
+    ) as mock_get:
+        exp.pull(include_eval_metrics=False)
+
+    mock_get.assert_called_once_with(experiment_id="mock-experiment-id", include_eval_metrics=False)
+    assert exp.result["runs"][0].rows[0]["evaluations"] == {}
+
+
+def test_experiment_pull_then_rerun(llmobs):
+    """pull() + rerun_evaluators(): replay spans are emitted, eval metrics reference original IDs."""
+    exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+    ):
+        exp.pull()
+
+    assert exp.result is not None
+    assert exp._experiment._id == "mock-experiment-id"
+
+    posted_metrics = []
+
+    def capture_metrics(experiment_id, events, tags):
+        posted_metrics.extend(events)
+
+    with mock.patch.object(
+        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_metrics
+    ):
+        new_result = exp.rerun_evaluators()
+
+    result_row = new_result["runs"][0].rows[0]
+    # A replay span was created — span_id is different from the pulled "abc123"
+    assert result_row["span_id"] != "abc123"
+    # Output is preserved from pulled data
+    assert result_row["output"] == {"answer": "Paris"}
+    # Eval metrics must reference the ORIGINAL pulled span_id and trace_id
+    assert len(posted_metrics) > 0
+    for metric in posted_metrics:
+        assert metric["span_id"] == "abc123"
+        assert metric["trace_id"] == "def456"
 
 
 @pytest.mark.parametrize(
