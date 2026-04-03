@@ -1,8 +1,11 @@
 from types import TracebackType
+from typing import ClassVar
 from typing import Optional
+from typing import Sequence
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -25,7 +28,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
     to the integration object carried by the event.
     """
 
-    event_names = (LlmRequestEvent.event_name,)
+    event_names: ClassVar[Sequence[str]] = LlmEvents.LLM_REQUEST
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:

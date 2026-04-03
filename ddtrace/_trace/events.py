@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ddtrace._trace.provider import ActiveTrace
 
 
-class TracingEvents(Enum):
+class TracingEvents(str, Enum):
     SPAN_LIFECYCLE = "span.lifecycle"
 
 
@@ -25,7 +25,7 @@ class TracingEvent(Event):
     on any TracingEvent. Its purpose is to be used with core.context_with_event.
     """
 
-    event_name = TracingEvents.SPAN_LIFECYCLE.value
+    event_name = TracingEvents.SPAN_LIFECYCLE
 
     span_type: ClassVar[str]
     span_kind: ClassVar[str]

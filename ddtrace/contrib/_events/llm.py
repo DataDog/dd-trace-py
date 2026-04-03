@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -14,6 +15,10 @@ if TYPE_CHECKING:
     from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
+class LlmEvents(str, Enum):
+    LLM_REQUEST = "llm.request"
+
+
 @dataclass
 class LlmRequestEvent(TracingEvent):
     """LLM request event for all LLM integrations.
@@ -23,7 +28,7 @@ class LlmRequestEvent(TracingEvent):
     (_set_base_span_tags, llmobs_set_tags).
     """
 
-    event_name = "llm.request"
+    event_name = LlmEvents.LLM_REQUEST
     span_kind = SpanKind.CLIENT
 
     provider: str = event_field()

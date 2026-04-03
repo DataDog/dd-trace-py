@@ -74,7 +74,7 @@ def _wrapped_sync_send_single_request(
             request_headers=req.headers,
             request_body=lambda: req.content,
         ),
-        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST,
     ) as ctx:
         resp = None
         try:
@@ -99,7 +99,7 @@ async def _wrapped_async_send_single_request(
             request_headers=req.headers,
             request_body=lambda: req.content,
         ),
-        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
+        context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST,
     ) as ctx:
         resp = None
         try:
@@ -130,7 +130,7 @@ async def _wrapped_async_send(
             query=ensure_text(req.url.query),
             target_host=req.url.host,
         ),
-        context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
+        context_name_override=HttpClientEvents.HTTPX_REQUEST,
     ) as ctx:
         resp = None
         try:
@@ -161,7 +161,7 @@ def _wrapped_sync_send(
             query=ensure_text(req.url.query),
             target_host=req.url.host,
         ),
-        context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
+        context_name_override=HttpClientEvents.HTTPX_REQUEST,
     ) as ctx:
         resp = None
         try:
