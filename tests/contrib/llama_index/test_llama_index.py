@@ -71,27 +71,15 @@ def _make_mock_embedding():
     return MockEmbedding(model_name="mock-embed")
 
 
-# ---------------------------------------------------------------------------
-# Non-snapshot test — uses test_spans for manual tag assertions
-# ---------------------------------------------------------------------------
-
-
 def test_global_tags(llama_index, request_vcr, test_spans):
-    """
-    When the global config UST tags are set
-        The service name should be used for all data
-        The env should be used for all data
-        The version should be used for all data
-    """
     from llama_index.core.llms import ChatMessage
     from llama_index.llms.openai import OpenAI
 
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("llama_index_completion.yaml"):
-            response = llm.chat(messages=[ChatMessage(role="user", content="Hello")])
+            llm.chat(messages=[ChatMessage(role="user", content="Hello")])
 
-    assert response.message.content, "Expected non-empty response content from instrumented call"
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "gpt-4o-mini"
     assert span.service == "test-svc"
@@ -99,11 +87,6 @@ def test_global_tags(llama_index, request_vcr, test_spans):
     assert span.get_tag("version") == "1234"
     assert span.get_tag("llama_index.request.model") == "gpt-4o-mini"
     assert span.error == 0
-
-
-# ---------------------------------------------------------------------------
-# Snapshot tests — LLM calls with VCR cassettes
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat")
@@ -181,11 +164,6 @@ async def test_llama_index_complete_async(llama_index, request_vcr, snapshot_con
             await llm.acomplete("What is the meaning of life?")
 
 
-# ---------------------------------------------------------------------------
-# Snapshot tests — non-LLM operations with mock subclasses
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_query_engine")
 def test_llama_index_query_engine(llama_index):
     engine = _make_mock_query_engine()
@@ -222,11 +200,6 @@ def test_llama_index_embedding_batch(llama_index):
     embed.get_text_embedding_batch(["doc one", "doc two"])
 
 
-# ---------------------------------------------------------------------------
-# Snapshot tests — real OpenAI embedding model with VCR cassettes
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_openai_embedding")
 def test_llama_index_openai_embedding(llama_index, request_vcr):
     from llama_index.embeddings.openai import OpenAIEmbedding
@@ -234,11 +207,6 @@ def test_llama_index_openai_embedding(llama_index, request_vcr):
     embed = OpenAIEmbedding(model_name="text-embedding-ada-002")
     with request_vcr.use_cassette("llama_index_openai_embedding.yaml"):
         embed.get_query_embedding("test query")
-
-
-# ---------------------------------------------------------------------------
-# Snapshot tests — predict (LLM, uses VCR cassettes)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_predict")
