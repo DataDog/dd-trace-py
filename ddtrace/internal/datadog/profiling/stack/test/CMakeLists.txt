@@ -78,3 +78,5 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+dd_wrapper_add_test(test_cpython_layout_contracts test_cpython_layout_contracts.cpp)
