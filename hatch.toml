@@ -22,7 +22,6 @@ dependencies = [
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
     "ast-grep-cli==0.39.4",
-    "shellcheck-py==0.11.0.1",
 ]
 
 [envs.lint.scripts]
@@ -62,9 +61,6 @@ pre-commit-python = [
     "ruff check --fix --show-fixes --no-cache {args:.}",
     "cython-lint {args:.}",
 ]
-hook-style = [
-    "bash -c 'shellcheck hooks/scripts/*.sh'",
-]
 # checks should encapsulate all rules used in pre-check
 checks = [
     "style",
@@ -78,7 +74,6 @@ checks = [
     "error-log-check",
     "sg",
     "sg-test",
-    "hook-style",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",

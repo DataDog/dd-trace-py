@@ -10,7 +10,7 @@ SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
-    suitespec = {"components": {}, "suites": {}}
+    suitespec: dict = {"components": {}, "suites": {}}
 
     specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
