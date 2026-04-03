@@ -212,11 +212,9 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_messages(kwargs, is_chat)
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
-            output_messages = self._extract_output_messages(response, is_chat)
-
         metrics = {}
         if not span.error and response is not None:
+            output_messages = self._extract_output_messages(response, is_chat)
             metrics = self._extract_usage(response)
 
         _annotate_llmobs_span_data(
