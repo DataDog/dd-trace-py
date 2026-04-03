@@ -110,7 +110,6 @@ def _extract_tools(kwargs) -> Optional[list[Tool]]:
                 result.append(_convert_function(tool.get("function")))
             else:
                 result.append(Tool(type=tool_type))
-        return None
     elif functions:
         for fn in functions:
             result.append(_convert_function(fn))
