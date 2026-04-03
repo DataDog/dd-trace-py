@@ -1686,5 +1686,3 @@ class TestLLMObsAnthropic:
                 "schema": {},
             },
         ]
-
-
