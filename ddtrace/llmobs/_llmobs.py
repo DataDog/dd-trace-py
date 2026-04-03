@@ -1925,6 +1925,9 @@ class LLMObs(Service):
             ffe_config.experimental_flagging_provider_enabled = True
             from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 
+            # The openfeature product.start() already calls this when the env var is set,
+            # but LLMObs.enable() runs after product init, so we must register manually.
+            # Cleanup is handled automatically by product.stop() since we set the config above.
             enable_featureflags_rc()
 
             from openfeature import api as of_api
