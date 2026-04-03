@@ -1,0 +1,9 @@
+#!/bin/sh
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$' | grep -v '^tests/' | tr '\n' ' ')
+if [ -n "$staged_files" ]; then
+    file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
+    echo "Checking constant log messages in $file_count staged Python file(s)..."
+    hatch -v run lint:error-log-check $staged_files
+else
+    echo 'Error-log check skipped: No production Python files were found in `git diff --staged`'
+fi
