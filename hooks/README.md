@@ -21,11 +21,11 @@ Runs before each commit. A non-zero exit code **aborts the commit**. Contains:
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
-- **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and alerts you to rebuild
+- **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and Python dependency files, and alerts you to rebuild or reinstall
 
 ### post-checkout (non-blocking)
 Runs after `git checkout` or `git switch`. Non-zero exit codes are logged but **do not block** the operation. Contains:
-- **check-native-changes**: Detects changes to native code files and alerts you to rebuild
+- **check-native-changes**: Detects changes to native code files and Python dependency files, and alerts you to rebuild or reinstall
 
 ## Native Code Change Detection
 
@@ -45,6 +45,7 @@ The `check-native-changes` hook automatically detects when native code files hav
 - `*.pyx`, `*.pxd` - Cython files
 - `Cargo.toml`, `Cargo.lock` - Rust dependencies
 - `setup.py`, `pyproject.toml` - Build configuration
+- `requirements*.txt` - Python dependency files
 
 ### Example Output
 ```
@@ -199,11 +200,11 @@ hooks/
 ├── pre-commit/              # Pre-commit hooks
 │   └── ...
 ├── post-merge/              # Post-merge hooks
-│   └── check-native-changes # Detects native code changes
+│   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
-│   └── check-native-changes # Detects native code changes
+│   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
-    └── check-native-changes # Native change detection logic
+    └── check-native-changes # Native change and dependency detection logic
 ```
 
 ## For Contributors
