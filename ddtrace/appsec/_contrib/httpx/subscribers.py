@@ -22,7 +22,7 @@ APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"
 
 
 class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEvent]):
-    event_names = (HttpClientEvents.HTTPX_REQUEST.value,)
+    event_names = (HttpClientEvents.HTTPX_REQUEST,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
@@ -69,7 +69,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
 
 
 class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSendEvent]):
-    event_names = (HttpClientEvents.HTTPX_SEND_REQUEST.value,)
+    event_names = (HttpClientEvents.HTTPX_SEND_REQUEST,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[HttpClientSendEvent]) -> None:

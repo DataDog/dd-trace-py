@@ -127,7 +127,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """
 
     # Register here events that just create / finish spans
-    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
+    event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE,)
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:

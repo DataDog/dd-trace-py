@@ -33,7 +33,7 @@ class _HttpClientResponse(Protocol):
     def json(self) -> JsonType: ...
 
 
-class HttpClientEvents(Enum):
+class HttpClientEvents(str, Enum):
     HTTP_REQUEST = "http.client.request"
     HTTPX_REQUEST = "httpx.request"
     HTTP_SEND_REQUEST = "http.client.send_request"
@@ -57,7 +57,7 @@ class HttpClientBaseEvent(Event):
 class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
     """HTTP client request event"""
 
-    event_name = HttpClientEvents.HTTP_REQUEST.value
+    event_name = HttpClientEvents.HTTP_REQUEST
 
     span_kind = SpanKind.CLIENT
     span_type = SpanTypes.HTTP
@@ -86,5 +86,5 @@ class HttpClientSendEvent(HttpClientBaseEvent):
     Examples are managed auth flows and redirect requests.
     """
 
-    event_name = HttpClientEvents.HTTP_SEND_REQUEST.value
+    event_name = HttpClientEvents.HTTP_SEND_REQUEST
     request_body: Callable[[], Union[str, bytes]] = event_field()

@@ -1,5 +1,7 @@
 from types import TracebackType
+from typing import ClassVar
 from typing import Optional
+from typing import Sequence
 from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
@@ -21,7 +23,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     Adding a feature here applies to every HTTP client integration.
     """
 
-    event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
+    event_names: ClassVar[Sequence[str]] = (HttpClientEvents.HTTP_REQUEST, HttpClientEvents.HTTPX_REQUEST)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
