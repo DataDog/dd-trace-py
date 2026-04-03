@@ -225,14 +225,18 @@ extern "C"
 #endif
 
 #if PY_VERSION_HEX >= 0x030f0000
-    // Python 3.15+: FRAME_SUSPENDED_YIELD_FROM_LOCKED added; a generator locked
-    // during a yield-from is also awaitable and must be followed.
-    // All other logic is identical to 3.14 (stackpointer/_PyStackRef).
+    // Python 3.15+: FRAME_SUSPENDED_YIELD_FROM_LOCKED is a new frame state for
+    // generators that are locked during a yield-from in free-threaded builds.
+    // In GIL builds this state is unreachable, so we only check it under
+    // Py_GIL_DISABLED. All other logic is identical to 3.14 (stackpointer/_PyStackRef).
 
     inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
     {
-        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM &&
-            gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED) {
+        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM
+#ifdef Py_GIL_DISABLED
+            && gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED
+#endif
+        ) {
             return nullptr;
         }
 

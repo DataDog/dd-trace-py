@@ -21,11 +21,11 @@
 #include <gtest/gtest.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
-#    include <internal/pycore_frame.h>
-#    include <internal/pycore_interpframe.h>
-#    include <internal/pycore_interpframe_structs.h>
+#include <internal/pycore_frame.h>
+#include <internal/pycore_interpframe.h>
+#include <internal/pycore_interpframe_structs.h>
 #elif PY_VERSION_HEX >= 0x030b0000
-#    include <internal/pycore_frame.h>
+#include <internal/pycore_frame.h>
 #endif
 
 // Stub: echion's remote-memory callback is referenced at link time via vm.h.
@@ -93,8 +93,7 @@ TEST(FrameOwnerEnum_315, ValuesMatchExpected)
 #if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030f0000
 static_assert(FRAME_CREATED == -3,
               "AIDEV-NOTE: PyFrameState::FRAME_CREATED changed value — update tasks.h PyGen_yf and tasks.cc");
-static_assert(FRAME_SUSPENDED == -2,
-              "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
+static_assert(FRAME_SUSPENDED == -2, "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
 static_assert(FRAME_SUSPENDED_YIELD_FROM == -1,
               "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED_YIELD_FROM changed value — update tasks.h PyGen_yf");
 static_assert(FRAME_EXECUTING == 0,
@@ -117,8 +116,7 @@ TEST(PyFrameStateEnum_311_314, ValuesMatchExpected)
 #if PY_VERSION_HEX >= 0x030f0000
 static_assert(FRAME_CREATED == 0,
               "AIDEV-NOTE: PyFrameState::FRAME_CREATED changed value — update tasks.h PyGen_yf and tasks.cc");
-static_assert(FRAME_SUSPENDED == 1,
-              "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
+static_assert(FRAME_SUSPENDED == 1, "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
 static_assert(FRAME_SUSPENDED_YIELD_FROM == 2,
               "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED_YIELD_FROM changed value — update tasks.h PyGen_yf");
 // value 3 is FRAME_SUSPENDED_YIELD_FROM_LOCKED in free-threaded builds (see below)
@@ -128,10 +126,11 @@ static_assert(FRAME_CLEARED == 5,
               "AIDEV-NOTE: PyFrameState::FRAME_CLEARED changed value — update tasks.cc gi_frame_state check");
 // FRAME_COMPLETED intentionally not listed — it was removed in 3.15.
 
-#    ifdef Py_GIL_DISABLED
-static_assert(FRAME_SUSPENDED_YIELD_FROM_LOCKED == 3,
-              "AIDEV-NOTE: FRAME_SUSPENDED_YIELD_FROM_LOCKED changed value — update tasks.h PyGen_yf (Py_GIL_DISABLED)");
-#    endif
+#ifdef Py_GIL_DISABLED
+static_assert(
+  FRAME_SUSPENDED_YIELD_FROM_LOCKED == 3,
+  "AIDEV-NOTE: FRAME_SUSPENDED_YIELD_FROM_LOCKED changed value — update tasks.h PyGen_yf (Py_GIL_DISABLED)");
+#endif
 
 TEST(PyFrameStateEnum_315, ValuesMatchExpected)
 {
@@ -142,11 +141,11 @@ TEST(PyFrameStateEnum_315, ValuesMatchExpected)
     EXPECT_EQ(FRAME_CLEARED, 5);
 }
 
-#    ifdef Py_GIL_DISABLED
+#ifdef Py_GIL_DISABLED
 TEST(PyFrameStateEnum_315_NoGIL, LockedYieldFromValueMatchesExpected)
 {
     EXPECT_EQ(FRAME_SUSPENDED_YIELD_FROM_LOCKED, 3);
 }
-#    endif
+#endif
 
 #endif // 3.15+
