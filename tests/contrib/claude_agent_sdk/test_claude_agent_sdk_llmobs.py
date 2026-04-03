@@ -42,7 +42,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
@@ -77,7 +77,7 @@ class TestLLMObsClaudeAgentSdk:
                 "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)},
             },
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
@@ -108,7 +108,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
@@ -133,7 +133,7 @@ class TestLLMObsClaudeAgentSdk:
             output_value=safe_json([{"content": ""}]),
             metadata={"_dd": {"agent_manifest": {"framework": "Claude Agent SDK"}}},
             token_metrics={},
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
             error="builtins.ValueError",
             error_message="Connection failed",
             error_stack=ANY,
@@ -176,7 +176,7 @@ class TestLLMObsClaudeAgentSdk:
                 "cache_write_input_tokens": 12742,
                 "cache_read_input_tokens": 1854,
             },
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
@@ -200,7 +200,7 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json({"file_path": "/etc/hostname"}),
             output_value="",
             metadata={"tool_id": MOCK_READ_TOOL_ID},
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[0] == expected_tool_event
 
@@ -231,7 +231,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[1] == expected_agent_event
 
@@ -254,7 +254,7 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(MOCK_BASH_TOOL_INPUT),
             output_value="",
             metadata={"tool_id": MOCK_BASH_TOOL_ID},
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[0] == expected_tool_event
 
@@ -285,7 +285,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[1] == expected_agent_event
 
@@ -308,7 +308,7 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(MOCK_GREP_TOOL_INPUT),
             output_value="",
             metadata={"tool_id": MOCK_GREP_TOOL_ID},
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[0] == expected_tool_event
 
@@ -339,7 +339,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[1] == expected_agent_event
 
@@ -372,7 +372,7 @@ class TestLLMObsClaudeAgentSdk:
             ),
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
@@ -419,7 +419,7 @@ class TestLLMObsClaudeAgentSdk:
                 "cache_write_input_tokens": 12742,
                 "cache_read_input_tokens": 1854,
             },
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
 
         assert llmobs_events[0] == expected_event
