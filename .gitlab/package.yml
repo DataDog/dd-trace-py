@@ -210,6 +210,16 @@ variables:
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"
+  script:
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
+
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
+
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
