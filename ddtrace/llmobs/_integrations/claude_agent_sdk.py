@@ -318,14 +318,23 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         return snapshot
 
     def _extract_context_text(self, messages: list[Any]) -> Optional[str]:
-        """Return the text content of the first AssistantMessage in messages, or None."""
+        """Return the text content of the /context response, or None.
+
+        Handles two SDK formats:
+        - New (>= 0.1.x): AssistantMessage with list[TextBlock] content
+        - Old (0.0.x):    UserMessage with str content
+        """
         for msg in messages:
-            if type(msg).__name__ != "AssistantMessage":
-                continue
-            blocks = _get_attr(msg, "content", []) or []
-            content = "\n".join(_get_attr(b, "text", "") for b in blocks if type(b).__name__ == "TextBlock")
-            if content:
-                return content
+            msg_type = type(msg).__name__
+            if msg_type == "AssistantMessage":
+                blocks = _get_attr(msg, "content", []) or []
+                content = "\n".join(_get_attr(b, "text", "") for b in blocks if type(b).__name__ == "TextBlock")
+                if content:
+                    return content
+            elif msg_type == "UserMessage":
+                content = _get_attr(msg, "content", "")
+                if content and isinstance(content, str):
+                    return content
         return None
 
     def _parse_context_window_size(self, content: str) -> Optional[int]:
