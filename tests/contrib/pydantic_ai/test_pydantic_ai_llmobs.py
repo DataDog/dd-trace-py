@@ -202,7 +202,7 @@ class TestLLMObsPydanticAI:
             input_value="Hello, world!",
             output_value=output,
             metadata=expected_agent_metadata(),
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai", "integration": "pydantic_ai"},
             error="builtins.Exception",
             error_message="test error",
             error_stack=mock.ANY,
