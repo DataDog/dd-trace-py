@@ -71,6 +71,8 @@ fi
 
 docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
+       -e OPENAI_API_KEY \
+       -e DD_SNAPSHOT_UPDATE \
        --rm \
        -i \
        testrunner \

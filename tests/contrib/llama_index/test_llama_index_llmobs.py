@@ -29,12 +29,12 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "Hello", "role": "user"}],
-            output_messages=[{"content": "Hi there!", "role": "assistant"}],
+            output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
             token_metrics={
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
+                "input_tokens": 8,
+                "output_tokens": 9,
+                "total_tokens": 17,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
@@ -55,12 +55,17 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
-            output_messages=[{"content": "42", "role": "assistant"}],
+            output_messages=[
+                {
+                    "content": "The meaning of life is a profound and philosophical question that has been contemplated by",  # noqa: E501
+                    "role": "assistant",
+                }
+            ],
             metadata={"max_tokens": 100},
             token_metrics={
-                "input_tokens": 8,
-                "output_tokens": 3,
-                "total_tokens": 11,
+                "input_tokens": 14,
+                "output_tokens": 15,
+                "total_tokens": 29,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
@@ -84,13 +89,8 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "Hello", "role": "user"}],
-            output_messages=[{"content": "Hi there!", "role": "assistant"}],
+            output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
-            token_metrics={
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
-            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
         assert len(llmobs_events) == 1
@@ -155,15 +155,15 @@ class TestLLMObsLlamaIndex:
             ],
             output_messages=[
                 {
-                    "content": "Python is a high-level, interpreted programming language.",
+                    "content": "Certainly! Python is a high-level, interpreted programming language known for its readability and simplicity. It was created by Guido van Rossum and first released in 1991. Here are some key features and characteristics of Python:\n\n1. **Readability**: Python's syntax is designed to be clear and easy to understand, which makes it an excellent choice for beginners as well as experienced programmers.\n\n2. **Interpreted Language**: Python is an interpreted language, meaning that code is executed line by",  # noqa: E501
                     "role": "assistant",
                 }
             ],
             metadata={"max_tokens": 100},
             token_metrics={
-                "input_tokens": 30,
-                "output_tokens": 15,
-                "total_tokens": 45,
+                "input_tokens": 39,
+                "output_tokens": 100,
+                "total_tokens": 139,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
@@ -185,12 +185,12 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "Hello", "role": "user"}],
-            output_messages=[{"content": "Hi there!", "role": "assistant"}],
+            output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
             token_metrics={
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
+                "input_tokens": 8,
+                "output_tokens": 9,
+                "total_tokens": 17,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
@@ -214,13 +214,8 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "Hello", "role": "user"}],
-            output_messages=[{"content": "Hi there!", "role": "assistant"}],
+            output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
-            token_metrics={
-                "input_tokens": 10,
-                "output_tokens": 5,
-                "total_tokens": 15,
-            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
         assert len(llmobs_events) == 1
@@ -242,13 +237,13 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
-            output_messages=[{"content": "42", "role": "assistant"}],
+            output_messages=[
+                {
+                    "content": "The meaning of life is a profound and philosophical question that has been contemplated by",  # noqa: E501
+                    "role": "assistant",
+                }
+            ],
             metadata={"max_tokens": 100},
-            token_metrics={
-                "input_tokens": 8,
-                "output_tokens": 3,
-                "total_tokens": 11,
-            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
         assert len(llmobs_events) == 1
@@ -270,13 +265,13 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
-            output_messages=[{"content": "42", "role": "assistant"}],
+            output_messages=[
+                {
+                    "content": "The meaning of life is a profound and philosophical question that has been contemplated by",  # noqa: E501
+                    "role": "assistant",
+                }
+            ],
             metadata={"max_tokens": 100},
-            token_metrics={
-                "input_tokens": 8,
-                "output_tokens": 3,
-                "total_tokens": 11,
-            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
         assert len(llmobs_events) == 1
@@ -296,12 +291,17 @@ class TestLLMObsLlamaIndex:
             model_name="gpt-4o-mini",
             model_provider="openai",
             input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
-            output_messages=[{"content": "42", "role": "assistant"}],
+            output_messages=[
+                {
+                    "content": "The meaning of life is a profound and philosophical question that has been contemplated by",  # noqa: E501
+                    "role": "assistant",
+                }
+            ],
             metadata={"max_tokens": 100},
             token_metrics={
-                "input_tokens": 8,
-                "output_tokens": 3,
-                "total_tokens": 11,
+                "input_tokens": 14,
+                "output_tokens": 15,
+                "total_tokens": 29,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
         )
