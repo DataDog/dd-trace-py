@@ -12,10 +12,10 @@ import tests.internal.crashtracker.utils as utils
 # keep stderr assertions stable (mirrors telemetry tests)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# All crashtracker tests share a single test-agent endpoint (with_test_agent uses a
-# global clear() with no session token). Running them concurrently under xdist causes
-# tests on different workers to wipe each other's crash messages and steal reports.
-# Grouping them on one worker ensures sequential execution without changing behaviour.
+# with_test_agent() uses per-test session tokens so concurrent xdist workers are
+# isolated from each other.  The xdist_group is kept as a belt-and-suspenders
+# measure for ATR retries, which bypass xdist_group and could otherwise interleave
+# with the original test if session-token propagation ever regresses.
 pytestmark = pytest.mark.xdist_group("crashtracker")
 
 

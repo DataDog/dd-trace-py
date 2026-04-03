@@ -2,8 +2,8 @@
 from contextlib import contextmanager
 import os
 import random
-import tempfile
 import time
+import uuid
 from typing import Callable
 from typing import Generator
 from typing import Optional
@@ -184,28 +184,26 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
-    # fcntl is Linux/macOS only; import it here rather than at module level so that
-    # collecting this module on Windows does not raise ModuleNotFoundError before
-    # platform-specific skip decorators can take effect.
-    import fcntl
+    from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 
-    # Use a file lock so that concurrent xdist workers (including ATR retries, which
-    # bypass xdist_group) do not race on the shared test-agent state.
-    #
-    # Session-token isolation would be the cleaner solution, but the crashtracker Rust
-    # binary sends telemetry without any X-Datadog-Test-Session-Token header, and
-    # CrashtrackerConfiguration does not currently expose an additional_headers field.
-    # Until the native layer gains that capability, a process-level file lock is the
-    # only reliable way to serialise clear() calls across workers.
-    lock_path = os.path.join(tempfile.gettempdir(), "dd_crashtracker_test_agent.lock")
-    with open(lock_path, "w") as _lock_file:
-        fcntl.flock(_lock_file.fileno(), fcntl.LOCK_EX)
-        base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
-        client = TestAgentClient(base_url=base_url, token=None)
-        try:
-            # Reset state before starting the test
-            client.clear()
-            yield client
-        finally:
-            # Always reset state at the end of the test
-            client.clear()
+    # Generate a unique session token so each concurrent test gets its own isolated
+    # slice of test-agent state.  CrashtrackerConfiguration.test_token causes the Rust
+    # binary to send X-Datadog-Test-Session-Token on every telemetry request, and
+    # TestAgentClient uses the same token to scope clear() and requests() calls.
+    token = str(uuid.uuid4())
+
+    # Also propagate via env var so that tests which launch subprocesses with
+    # ddtrace.auto (e.g. test_crashtracker_preload_*) pick up the token automatically
+    # without any changes to the subprocess code.
+    os.environ["DD_CRASHTRACKING_TEST_TOKEN"] = token
+    crashtracker_config.test_token = token
+
+    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"
+    client = TestAgentClient(base_url=base_url, token=token)
+    try:
+        client.clear()
+        yield client
+    finally:
+        client.clear()
+        del os.environ["DD_CRASHTRACKING_TEST_TOKEN"]
+        crashtracker_config.test_token = None

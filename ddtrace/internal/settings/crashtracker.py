@@ -62,6 +62,15 @@ class CrashtrackingConfig(DDConfig):
         "This is generally useful only for dd-trace-py development.",
     )
 
+    test_token = DDConfig.v(
+        t.Optional[str],
+        "test_token",
+        default=None,
+        help_type="String",
+        help="Sets the X-Datadog-Test-Session-Token header on crashtracker telemetry requests. "
+        "This is generally useful only for dd-trace-py development.",
+    )
+
     stdout_filename = DDConfig.v(
         t.Optional[str],
         "stdout_filename",
