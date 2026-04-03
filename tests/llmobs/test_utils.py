@@ -355,23 +355,23 @@ class TestAnnotateLLMObsSpanData:
                 tool_definitions=tools,
                 span_links=links,
             )
-        data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-        assert data[LLMOBS_STRUCT.NAME] == "my_span"
-        assert data[LLMOBS_STRUCT.ML_APP] == "test-app"
-        assert data[LLMOBS_STRUCT.SESSION_ID] == "sess-1"
-        assert data[LLMOBS_STRUCT.PARENT_ID] == "parent-1"
-        assert data[LLMOBS_STRUCT.TRACE_ID] == 12345
-        assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10}
-        assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod"}
-        assert data[LLMOBS_STRUCT.SPAN_LINKS] == links
-        meta = data[LLMOBS_STRUCT.META]
-        assert meta[LLMOBS_STRUCT.SPAN][LLMOBS_STRUCT.KIND] == "llm"
-        assert meta[LLMOBS_STRUCT.MODEL_NAME] == "gpt-4"
-        assert meta[LLMOBS_STRUCT.MODEL_PROVIDER] == "openai"
-        assert meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] == messages_in
-        assert meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] == messages_out
-        assert meta[LLMOBS_STRUCT.METADATA] == {"temperature": 0.5}
-        assert meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] == tools
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert data[LLMOBS_STRUCT.NAME] == "my_span"
+            assert data[LLMOBS_STRUCT.ML_APP] == "test-app"
+            assert data[LLMOBS_STRUCT.SESSION_ID] == "sess-1"
+            assert data[LLMOBS_STRUCT.PARENT_ID] == "parent-1"
+            assert data[LLMOBS_STRUCT.TRACE_ID] == 12345
+            assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10}
+            assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod"}
+            assert data[LLMOBS_STRUCT.SPAN_LINKS] == links
+            meta = data[LLMOBS_STRUCT.META]
+            assert meta[LLMOBS_STRUCT.SPAN][LLMOBS_STRUCT.KIND] == "llm"
+            assert meta[LLMOBS_STRUCT.MODEL_NAME] == "gpt-4"
+            assert meta[LLMOBS_STRUCT.MODEL_PROVIDER] == "openai"
+            assert meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] == messages_in
+            assert meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] == messages_out
+            assert meta[LLMOBS_STRUCT.METADATA] == {"temperature": 0.5}
+            assert meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] == tools
 
     def test_merges_metadata_metrics_tags_across_calls(self, llmobs):
         """metadata, metrics, and tags accumulate rather than overwrite across multiple annotate calls."""
@@ -382,7 +382,7 @@ class TestAnnotateLLMObsSpanData:
             _annotate_llmobs_span_data(
                 span, metadata={"key2": "val2"}, metrics={"output_tokens": 5}, tags={"version": "1.0"}
             )
-        data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-        assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
-        assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
-        assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod", "version": "1.0"}
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
+            assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
+            assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod", "version": "1.0"}
