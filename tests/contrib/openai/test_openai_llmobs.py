@@ -396,6 +396,7 @@ class TestLLMObsOpenaiV1:
                         "content": [
                             {"type": "text", "text": "What\u2019s in this image?"},
                             {"type": "image_url", "image_url": image_url},
+                            {"type": "input_audio", "input_audio": {"data": "base64data", "format": "wav"}},
                         ],
                     }
                 ],
@@ -407,7 +408,7 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]"}],
+                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
                 output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
                 metadata={},
                 token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
@@ -428,6 +429,7 @@ class TestLLMObsOpenaiV1:
         content_parts = [
             {"type": "text", "text": "What\u2019s in this image?"},
             {"type": "image_url", "image_url": image_url},
+            {"type": "input_audio", "input_audio": {"data": "base64data", "format": "wav"}},
         ]
 
         # Simulate a Pydantic-like lazy iterator as the content value inside a normal dict message.
@@ -460,7 +462,7 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]"}],
+                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
                 output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
                 metadata={},
                 token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
