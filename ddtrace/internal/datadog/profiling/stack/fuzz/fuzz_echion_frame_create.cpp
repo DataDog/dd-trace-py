@@ -22,12 +22,12 @@
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
-    g_data = data;
-    g_size = size;
-
     if (size == 0) {
         return 0;
     }
+
+    g_data = data;
+    g_size = size;
 
     uintptr_t p2 = addr_from_u64(load_u64_le(data, size, 16));
     uintptr_t p3 = addr_from_u64(load_u64_le(data, size, 24));
