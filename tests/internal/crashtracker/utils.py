@@ -184,6 +184,9 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
+    import http.client as httplib
+    import urllib.parse
+
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 
     # Generate a unique session token so each concurrent test gets its own isolated
@@ -199,8 +202,15 @@ def with_test_agent() -> Generator[TestAgentClient, None, None]:
     crashtracker_config.test_token = token
 
     base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"
+    parsed = urllib.parse.urlparse(base_url)
     client = TestAgentClient(base_url=base_url, token=token)
     try:
+        # The test agent requires an explicit session/start before requests() will
+        # return 200 for a given token.
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/session/start?" + urllib.parse.urlencode({"test_session_token": token}))
+        conn.getresponse()
+        conn.close()
         client.clear()
         yield client
     finally:
