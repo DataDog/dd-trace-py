@@ -836,11 +836,6 @@ class LLMObs(Service):
             apm_filter = APMTracingEnabledFilter()
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
-            # Propagate llmobs_trace_id/llmobs_parent_id to every span in each batch so that
-            # partial-flush payloads (which may not include the local root) still carry the
-            # bridge tags needed by the backend trace-indexer.
-            cls._instance.tracer._span_aggregator.dd_processors.append(LLMObsBridgeTagsProcessor())
-
             cls.enabled = True
             cls._instance.start()
 

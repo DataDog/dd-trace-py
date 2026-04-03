@@ -1,9 +1,0 @@
----
-fixes:
-  - |
-    LLM Observability: Fixes an issue where OTel gen_ai spans flushed in a partial-flush
-    payload that did not include the local root span were assigned a new, disconnected LLMObs
-    trace ID by the backend trace-indexer. The ``llmobs_trace_id`` and ``llmobs_parent_id``
-    bridge tags were previously written only to the local root span. They are now propagated
-    to every span in each flushed batch, ensuring partial-flush payloads always carry the
-    correct trace context.
