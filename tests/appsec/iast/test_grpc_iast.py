@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from tests.contrib.grpc.common import GrpcBaseTestCase
+from tests.contrib.grpc.common import _GRPC_PORT
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
 from tests.utils import override_config
@@ -15,7 +16,6 @@ from tests.utils import override_env
 from .conftest import iast_context
 
 
-_GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
 

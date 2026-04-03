@@ -188,7 +188,7 @@ def test_should_not_iast_patch_if_not_in_static_allowlist():
 
 @pytest.mark.parametrize(
     "module_name",
-    {
+    sorted({
         "__future__",
         "_ast",
         "_compression",
@@ -404,7 +404,7 @@ def test_should_not_iast_patch_if_not_in_static_allowlist():
         "zipimport",
         "zlib",
         "zoneinfo",
-    },
+    }),
 )
 def test_should_not_iast_patch_if_stdlib(module_name):
     assert iastpatch.should_iast_patch(module_name) == iastpatch.DENIED_BUILTINS_DENYLIST
