@@ -4,7 +4,6 @@ import aiohttp
 import wrapt
 from yarl import URL
 
-from ddtrace.internal.settings._config import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
@@ -19,6 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -128,13 +128,13 @@ def _traced_clientsession_init(func, instance, args, kwargs):
     func(*args, **kwargs)
     instance._connector = _WrappedConnectorClass(instance._connector)
 
+
 def patch():
     if getattr(aiohttp, "_datadog_patch", False):
         return
 
     wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init)
     wrap("aiohttp", "ClientSession._request", _traced_clientsession_request)
-
 
     aiohttp._datadog_patch = True
 
