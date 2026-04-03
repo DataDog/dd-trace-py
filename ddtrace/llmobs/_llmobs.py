@@ -1938,7 +1938,7 @@ class LLMObs(Service):
 
             from ddtrace.openfeature import DataDogProvider
 
-            of_api.set_provider(DataDogProvider())
+            of_api.set_provider(DataDogProvider(), domain="ddtrace.llmobs")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)

@@ -50,6 +50,11 @@ class PromptManager:
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
         self._ff_prompt_serving = ff_prompt_serving
+        self._of_client = None
+        if ff_prompt_serving:
+            from openfeature import api as of_api
+
+            self._of_client = of_api.get_client(domain="ddtrace.llmobs")
 
         self._refresh_threads: dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
@@ -219,17 +224,15 @@ class PromptManager:
         """
         start_ns = time.time_ns()
         try:
-            from openfeature import api as of_api
             from openfeature.evaluation_context import EvaluationContext
 
-            client = of_api.get_client()
             flag_key = "llmobs.prompt.{}".format(prompt_id)
 
             context = None
             if label:
                 context = EvaluationContext(attributes={"prompt_label": label})
 
-            details = client.get_object_details(flag_key, {}, context)
+            details = self._of_client.get_object_details(flag_key, {}, context)
 
             if details.variant is None:
                 telemetry.record_prompt_ff_error("not_found")
