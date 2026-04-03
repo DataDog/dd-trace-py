@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: generate-supported-configurations
+        name: Regenerate _supported_configurations.py from JSON
+        language: python
+        entry: python scripts/supported_configurations.py
+        files: ^supported-configurations\.json$
+        pass_filenames: false

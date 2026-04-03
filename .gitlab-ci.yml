@@ -1,5 +1,6 @@
 stages:
   - package
+  - config-validation
   - tests
   - fuzz
   - shared-pipeline
@@ -61,6 +62,15 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
+
+# Config Registry CI Jobs
+check_supported_configurations_module:
+  stage: config-validation
+  extends: .testrunner
+  needs: []
+  script:
+    - python scripts/supported_configurations.py --check
+
 
 "pipeline variables":
   stage: .pre
