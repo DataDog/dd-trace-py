@@ -90,8 +90,11 @@ def _(asyncio: ModuleType) -> None:
 
     init_stack: bool = config.stack.enabled and stack.is_available
 
-    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
-    # Try both names for compatibility
+    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy.
+    # AIDEV-TODO: The entire asyncio policy system is deprecated in 3.15 (CPython #127949)
+    # and scheduled for removal in 3.16. When porting to 3.16, this block needs to be
+    # replaced — the policy hook won't exist. Use asyncio.run(loop_factory=...) instead.
+    # See docs/contributing-profiling-new-cpython.rst for migration guidance.
     events_module = sys.modules["asyncio.events"]
     if sys.hexversion >= 0x030E0000:
         # Python 3.14+: Use _BaseDefaultEventLoopPolicy
@@ -112,32 +115,41 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack:
+        # AIDEV-NOTE: _GatheringFuture and _wait are asyncio internals with no stability
+        # guarantee. Guard with hasattr so removal/rename in a future CPython release
+        # degrades gracefully (task linking skipped) rather than raising AttributeError.
+        # AIDEV-TODO: asyncio policy system deprecated in 3.15 (CPython #127949), removed
+        # in 3.16. When porting to 3.16, revisit this whole block — _GatheringFuture and
+        # _wait may also be gone. Replace with asyncio.run(loop_factory=...) pattern.
+        if hasattr(sys.modules["asyncio"].tasks, "_GatheringFuture"):
 
-        @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
-        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                children = get_argument_value(args, kwargs, 1, "children")
-                assert children is not None  # nosec: assert is used for typing
+            @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
+            def _wrap_gathering_future(
+                f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+            ) -> None:
+                try:
+                    return f(*args, **kwargs)
+                finally:
+                    children = get_argument_value(args, kwargs, 1, "children")
+                    assert children is not None  # nosec: assert is used for typing
 
-                if globals()["get_running_loop"]() is not None:
                     parent = globals()["current_task"]()
                     for child in children:
                         stack.link_tasks(parent, child)
 
-        @partial(wrap, sys.modules["asyncio"].tasks._wait)
-        def _(
-            f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
-            args: tuple[typing.Any, ...],
-            kwargs: dict[str, typing.Any],
-        ) -> typing.Any:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+        if hasattr(sys.modules["asyncio"].tasks, "_wait"):
 
-                if globals()["get_running_loop"]() is not None:
+            @partial(wrap, sys.modules["asyncio"].tasks._wait)
+            def _wrap_wait(
+                f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
+                args: tuple[typing.Any, ...],
+                kwargs: dict[str, typing.Any],
+            ) -> typing.Any:
+                try:
+                    return f(*args, **kwargs)
+                finally:
+                    futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+
                     parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
                     for future in futures:
                         stack.link_tasks(parent, future)
