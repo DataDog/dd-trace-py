@@ -11,10 +11,14 @@ if typing.TYPE_CHECKING:
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
+
+
+log = get_logger(__name__)
 
 
 ASYNCIO_IMPORTED: bool = False
@@ -116,11 +120,16 @@ def _(asyncio: ModuleType) -> None:
 
     if init_stack:
         # AIDEV-NOTE: _GatheringFuture and _wait are asyncio internals with no stability
-        # guarantee. Guard with hasattr so removal/rename in a future CPython release
-        # degrades gracefully (task linking skipped) rather than raising AttributeError.
+        # guarantee. On Python <= 3.15 (versions we've explicitly validated), we raise
+        # immediately if they're missing — that's a real bug, not a graceful degradation.
+        # On Python >= 3.16 (where the asyncio policy system is being removed and these
+        # may go too), we degrade gracefully with a warning instead of crashing.
         # AIDEV-TODO: asyncio policy system deprecated in 3.15 (CPython #127949), removed
         # in 3.16. When porting to 3.16, revisit this whole block — _GatheringFuture and
         # _wait may also be gone. Replace with asyncio.run(loop_factory=...) pattern.
+        # See docs/contributing-profiling-new-cpython.rst.
+        _on_known_version = sys.hexversion < 0x03100000  # < 3.16
+
         if hasattr(sys.modules["asyncio"].tasks, "_GatheringFuture"):
 
             @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
@@ -136,6 +145,20 @@ def _(asyncio: ModuleType) -> None:
                     parent = globals()["current_task"]()
                     for child in children:
                         stack.link_tasks(parent, child)
+
+        elif _on_known_version:
+            raise RuntimeError(
+                "ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python %s. "
+                "asyncio.gather() task-parent linking will not work. "
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+            )
+        else:
+            log.warning(
+                "ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python %s. "
+                "asyncio.gather() task-parent links will be missing from profiler data. "
+                "This may be caused by asyncio internals changing in this Python version.",
+                sys.version,
+            )
 
         if hasattr(sys.modules["asyncio"].tasks, "_wait"):
 
@@ -153,6 +176,20 @@ def _(asyncio: ModuleType) -> None:
                     parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
                     for future in futures:
                         stack.link_tasks(parent, future)
+
+        elif _on_known_version:
+            raise RuntimeError(
+                "ddtrace profiler: asyncio.tasks._wait not found on Python %s. "
+                "asyncio.wait() task-parent linking will not work. "
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+            )
+        else:
+            log.warning(
+                "ddtrace profiler: asyncio.tasks._wait not found on Python %s. "
+                "asyncio.wait() task-parent links will be missing from profiler data. "
+                "This may be caused by asyncio internals changing in this Python version.",
+                sys.version,
+            )
 
         @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
         def _(
