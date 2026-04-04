@@ -39,11 +39,44 @@ def _task_get_name(task: "asyncio.Task[typing.Any]") -> str:
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     from asyncio import tasks as asyncio_tasks
 
+    # AIDEV-NOTE: _scheduled_tasks, _eager_tasks, and _all_tasks are asyncio internals.
+    # They are confirmed present through Python 3.15. On known versions (<=3.15) a missing
+    # attribute is a real bug; on unknown future versions (>=3.16) degrade gracefully.
+    _on_known_version = sys.hexversion < 0x03100000  # < 3.16
+
     if sys.hexversion >= 0x030C0000:
-        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
-        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
+        if not hasattr(asyncio_tasks, "_scheduled_tasks"):
+            if _on_known_version:
+                raise RuntimeError(
+                    "ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
+                    "Python %s. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                )
+            else:
+                log.warning(
+                    "ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
+                    "Python %s. asyncio task tracking will be incomplete.",
+                    sys.version,
+                )
+                return
+        scheduled_tasks = getattr(asyncio_tasks, "_scheduled_tasks").data
+        eager_tasks = getattr(asyncio_tasks, "_eager_tasks", None)
     else:
-        scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
+        if not hasattr(asyncio_tasks, "_all_tasks"):
+            if _on_known_version:
+                raise RuntimeError(
+                    "ddtrace profiler: asyncio.tasks._all_tasks not found on "
+                    "Python %s. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                )
+            else:
+                log.warning(
+                    "ddtrace profiler: asyncio.tasks._all_tasks not found on "
+                    "Python %s. asyncio task tracking will be incomplete.",
+                    sys.version,
+                )
+                return
+        scheduled_tasks = getattr(asyncio_tasks, "_all_tasks").data
         eager_tasks = None
 
     stack.init_asyncio(scheduled_tasks, eager_tasks)
@@ -179,9 +212,9 @@ def _(asyncio: ModuleType) -> None:
 
         elif _on_known_version:
             raise RuntimeError(
-                "ddtrace profiler: asyncio.tasks._wait not found on Python %s. "
+                f"ddtrace profiler: asyncio.tasks._wait not found on Python {sys.version}. "
                 "asyncio.wait() task-parent linking will not work. "
-                "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues."
             )
         else:
             log.warning(
