@@ -127,6 +127,25 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
 }
 
 void
+heap_tracker_t::untrack_no_cpython(void* ptr)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    auto node = allocs_m.extract(ptr);
+    if (MEMALLOC_UNLIKELY(!node.empty())) {
+        pool_put_no_cpython(std::move(node.mapped()));
+    }
+}
+
+void
+memalloc_heap_untrack_no_cpython(void* ptr)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->untrack_no_cpython(ptr);
+    }
+}
+
+void
 heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);

@@ -47,7 +47,7 @@ class heap_tracker_t
      * function accesses the heap tracker data structures. It must be called with the
      * GIL held and must not make any C Python API calls. The traceback is deleted
      * internally if found. */
-    MEMALLOC_ALWAYS_INLINE void untrack_no_cpython(void* ptr);
+    void untrack_no_cpython(void* ptr);
 
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
@@ -108,9 +108,10 @@ class heap_tracker_t
     std::vector<std::unique_ptr<traceback_t>> pool;
 };
 
-/* Inline method definitions.
- * Both are on the critical per-allocation/per-free path and must be inlined
- * at every call site, including cross-TU callers that include this header. */
+/* Inline definition of should_sample_no_cpython.
+ * On the critical per-allocation path; inlined so the common case (counter
+ * increment + comparison → return false) compiles down to a few instructions
+ * directly in the caller, without a cross-TU call. */
 
 MEMALLOC_ALWAYS_INLINE bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
@@ -134,17 +135,6 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
     }
 
     return true;
-}
-
-MEMALLOC_ALWAYS_INLINE void
-heap_tracker_t::untrack_no_cpython(void* ptr)
-{
-    memalloc_gil_debug_guard_t guard(gil_guard);
-
-    auto node = allocs_m.extract(ptr);
-    if (MEMALLOC_UNLIKELY(!node.empty())) {
-        pool_put_no_cpython(std::move(node.mapped()));
-    }
 }
 
 /* Public API */
@@ -184,16 +174,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     memalloc_heap_track_slow_path_invokes_cpython(max_nframe, ptr, size, allocated_memory_val, domain);
 }
 
-/* Inline fast path for untracking a freed pointer.
- * For most frees the pointer is not tracked; inlining lets the compiler keep
- * the common path (hash-miss → return) entirely in the caller's code. */
-MEMALLOC_ALWAYS_INLINE void
-memalloc_heap_untrack_no_cpython(void* ptr)
-{
-    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
-        heap_tracker_t::instance->untrack_no_cpython(ptr);
-    }
-}
+void
+memalloc_heap_untrack_no_cpython(void* ptr);
 
 void
 memalloc_heap_postfork_child(void);
