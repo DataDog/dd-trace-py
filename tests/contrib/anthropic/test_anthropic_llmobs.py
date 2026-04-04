@@ -169,8 +169,8 @@ class TestLLMObsAnthropic:
                     {"name": "tool_search_tool_regex", "description": "", "schema": {}},
                     {
                         "name": "get_weather",
-                        "description": "Get the weather for a specific location",
-                        "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+                        "description": "",
+                        "schema": {},
                     },
                 ],
             )
@@ -276,8 +276,8 @@ class TestLLMObsAnthropic:
                     {"name": "tool_search_tool_regex", "description": "", "schema": {}},
                     {
                         "name": "get_weather",
-                        "description": "Get the weather for a specific location",
-                        "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+                        "description": "",
+                        "schema": {},
                     },
                 ],
             )
@@ -1637,3 +1637,52 @@ class TestLLMObsAnthropic:
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
+
+    def test_deferred_tool_schema_stripped_in_span(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Regression test: deferred tools (defer_loading=True) should have description and schema
+        stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
+        full definitions.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_deferred.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                    },
+                    {
+                        "name": "search_logs",
+                        "description": "Search Datadog logs",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
+                ],
+            )
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather for a specific location",
+                "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+            },
+            {
+                "name": "search_logs",
+                "description": "",
+                "schema": {},
+            },
+        ]
