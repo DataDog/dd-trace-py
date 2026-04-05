@@ -18,10 +18,15 @@ unicode_to_sv_no_alloc(PyObject* obj)
     if (obj == NULL || !PyUnicode_Check(obj)) {
         return "<unknown>";
     }
+    // PyUnicode_IS_COMPACT_ASCII and PyUnicode_DATA expand C-style casts from CPython headers.
+    // Suppress the warning at the expansion site since we cannot change the macros.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
     if (PyUnicode_IS_COMPACT_ASCII(obj)) {
         return std::string_view(static_cast<const char*>(PyUnicode_DATA(obj)),
                                 static_cast<size_t>(PyUnicode_GET_LENGTH(obj)));
     }
+#pragma GCC diagnostic pop
     return "<non-ascii>";
 }
 
