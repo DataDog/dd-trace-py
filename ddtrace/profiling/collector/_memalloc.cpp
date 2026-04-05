@@ -37,7 +37,7 @@ static std::once_flag memalloc_fork_handler_once_flag;
 static void
 memalloc_free(void* ctx, void* ptr)
 {
-    PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
+    PyMemAllocatorEx* alloc = static_cast<PyMemAllocatorEx*>(ctx);
 
     if (ptr == NULL)
         return;
@@ -60,7 +60,7 @@ static void*
 memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 {
     void* ptr;
-    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    memalloc_context_t* memalloc_ctx = static_cast<memalloc_context_t*>(ctx);
 
     if (use_calloc)
         ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
@@ -89,7 +89,7 @@ memalloc_calloc(void* ctx, size_t nelem, size_t elsize)
 static void*
 memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
-    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    memalloc_context_t* memalloc_ctx = static_cast<memalloc_context_t*>(ctx);
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
     // The GIL is held here since we're using PYMEM_DOMAIN_OBJ.
     // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
@@ -167,14 +167,14 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
+    global_memalloc_ctx.max_nframe = static_cast<uint16_t>(max_nframe);
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
         return nullptr;
     }
 
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+    if (!memalloc_heap_tracker_init_no_cpython(static_cast<uint32_t>(heap_sample_size))) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
         return nullptr;
     }
@@ -243,9 +243,10 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+static PyMethodDef module_methods[] = {
+    { "start", reinterpret_cast<PyCFunction>(memalloc_start), METH_VARARGS, memalloc_start__doc__ },
+    { "stop", reinterpret_cast<PyCFunction>(memalloc_stop), METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", reinterpret_cast<PyCFunction>(memalloc_heap_py), METH_NOARGS, memalloc_heap_py__doc__ },
                                         /* sentinel */
                                         { NULL, NULL, 0, NULL } };
 

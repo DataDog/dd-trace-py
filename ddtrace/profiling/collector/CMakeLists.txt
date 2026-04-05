@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/cmake/AnalysisFunc.cmake)
 
 project(_memalloc)
 
@@ -80,6 +81,9 @@ endif()
 # Create the shared library with the full name
 add_library(${FULL_EXTENSION_NAME} SHARED ${SOURCE_FILES})
 
+# Apply common profiling native extension config (LTO, warnings, linker opts)
+add_ddup_config(${FULL_EXTENSION_NAME})
+
 # Set properties to prevent CMake from adding any prefix or suffix
 set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES PREFIX "" SUFFIX "")
 
@@ -89,10 +93,12 @@ if(DEFINED LIB_INSTALL_DIR)
 endif()
 
 # Include directories
+# Python headers are marked SYSTEM to suppress warnings from CPython internals
+# (e.g. C-style casts in pyatomic_gcc.h) that we cannot control.
+target_include_directories(${FULL_EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS})
 target_include_directories(
     ${FULL_EXTENSION_NAME}
-    PRIVATE ${Python3_INCLUDE_DIRS}
-            ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
             ${RUST_GENERATED_HEADERS_DIR})

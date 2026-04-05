@@ -196,16 +196,16 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 }
 
 uint32_t
-heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
+heap_tracker_t::next_sample_size_no_cpython(uint32_t new_sample_size)
 {
     /* Draw a sampling target from an exponential distribution with mean
-       sample_size. std::exponential_distribution handles the inverse-transform
+       new_sample_size. std::exponential_distribution handles the inverse-transform
        sampling internally.
 
        NOTE: std::exponential_distribution calls log internally. log is not
        listed as async-signal-safe by POSIX, but does not use locks in practice.
        We assume it is safe to call from heap_tracker_t::postfork_child. */
-    std::exponential_distribution<double> dist(1.0 / (sample_size + 1));
+    std::exponential_distribution<double> dist(1.0 / (new_sample_size + 1));
     return static_cast<uint32_t>(dist(rng));
 }
 

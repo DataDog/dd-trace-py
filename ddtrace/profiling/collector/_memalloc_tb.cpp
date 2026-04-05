@@ -19,7 +19,8 @@ unicode_to_sv_no_alloc(PyObject* obj)
         return "<unknown>";
     }
     if (PyUnicode_IS_COMPACT_ASCII(obj)) {
-        return std::string_view((const char*)PyUnicode_DATA(obj), (size_t)PyUnicode_GET_LENGTH(obj));
+        return std::string_view(static_cast<const char*>(PyUnicode_DATA(obj)),
+                                static_cast<size_t>(PyUnicode_GET_LENGTH(obj)));
     }
     return "<non-ascii>";
 }
@@ -41,12 +42,12 @@ unicode_to_sv_no_alloc(PyObject* obj)
 static void
 push_threadinfo_to_sample(Datadog::Sample& sample)
 {
-    int64_t thread_id = (int64_t)PyThread_get_thread_ident();
+    int64_t thread_id = static_cast<int64_t>(PyThread_get_thread_ident());
     if (thread_id == 0) {
         return;
     }
 
-    int64_t thread_native_id = (int64_t)PyThread_get_thread_native_id();
+    int64_t thread_native_id = static_cast<int64_t>(PyThread_get_thread_native_id());
 
     // Pass empty name; push_threadinfo will fall back to str(thread_id)
     sample.push_threadinfo(thread_id, thread_native_id, "");
@@ -121,8 +122,8 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
     // but we can't sample it, so we sample the next allocation which happens to be 0
     // bytes. Defensively make sure size isn't 0.
     size_t adjusted_size = size > 0 ? size : 1;
-    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
-    size_t count = (size_t)scaled_count;
+    double scaled_count = static_cast<double>(weighted_size) / static_cast<double>(adjusted_size);
+    size_t count = static_cast<size_t>(scaled_count);
 
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
