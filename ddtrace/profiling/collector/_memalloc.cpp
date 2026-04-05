@@ -247,8 +247,9 @@ static PyMethodDef module_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(memalloc_start), METH_VARARGS, memalloc_start__doc__ },
     { "stop", reinterpret_cast<PyCFunction>(memalloc_stop), METH_NOARGS, memalloc_stop__doc__ },
     { "heap", reinterpret_cast<PyCFunction>(memalloc_heap_py), METH_NOARGS, memalloc_heap_py__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
