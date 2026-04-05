@@ -92,14 +92,12 @@ if(DEFINED LIB_INSTALL_DIR)
     set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${LIB_INSTALL_DIR})
 endif()
 
-# Include directories
-# Python headers are marked SYSTEM to suppress warnings from CPython internals
-# (e.g. C-style casts in pyatomic_gcc.h) that we cannot control.
+# Include directories Python headers are marked SYSTEM to suppress warnings from CPython internals (e.g. C-style casts
+# in pyatomic_gcc.h) that we cannot control.
 target_include_directories(${FULL_EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS})
 target_include_directories(
     ${FULL_EXTENSION_NAME}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
             ${RUST_GENERATED_HEADERS_DIR})
 
