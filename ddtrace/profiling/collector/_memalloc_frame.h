@@ -60,10 +60,10 @@ memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
     int lasti = DataDog::get_lasti(frame, code);
 
 #ifdef _PY310_AND_LATER
-    const unsigned char* table = reinterpret_cast<const unsigned char*>(PyBytes_AS_STRING(code->co_linetable));
+    const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_linetable);
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_linetable);
 #else
-    const unsigned char* table = reinterpret_cast<const unsigned char*>(PyBytes_AS_STRING(code->co_lnotab));
+    const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_lnotab);
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_lnotab);
 #endif
 
