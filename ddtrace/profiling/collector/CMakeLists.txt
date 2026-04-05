@@ -70,11 +70,10 @@ endif()
 # Source files for the extension
 set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
 
-# These files use CPython macros that expand C-style casts (e.g. PyUnicode_IS_COMPACT_ASCII,
-# PyUnicode_DATA). Suppress -Wold-style-cast per-file rather than globally.
-set_source_files_properties(
-    _memalloc.cpp _memalloc_tb.cpp _memalloc_frame.h _memalloc_heap.cpp
-    PROPERTIES COMPILE_OPTIONS "-Wno-old-style-cast")
+# These files use CPython macros that expand C-style casts (e.g. PyUnicode_IS_COMPACT_ASCII, PyUnicode_DATA). Suppress
+# -Wold-style-cast per-file rather than globally.
+set_source_files_properties(_memalloc.cpp _memalloc_tb.cpp _memalloc_frame.h _memalloc_heap.cpp
+                            PROPERTIES COMPILE_OPTIONS "-Wno-old-style-cast")
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
