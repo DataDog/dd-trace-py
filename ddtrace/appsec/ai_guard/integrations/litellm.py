@@ -36,14 +36,14 @@ GUARDRAIL_NAME = "datadog_ai_guard"
 
 
 class DatadogAIGuardGuardrailException(Exception):
-    def __init__(
-        self,
-        status_code: int,
-        cause: AIGuardAbortError,
-        **kwargs: Any,
-    ):
+    def __init__(self, status_code: int, cause: AIGuardAbortError):
+        super().__init__(f"Datadog AI Guard: request blocked '{cause.reason}'")
         self.status_code = status_code
-        super().__init__(f"Datadog AI Guard: request blocked '{cause.reason}'", cause, kwargs)
+        self.action = cause.action
+        self.reason = cause.reason
+        self.tags = cause.tags
+        self.sds = cause.sds
+        self.__cause__ = cause
 
 
 class DatadogAIGuardGuardrail(CustomGuardrail):

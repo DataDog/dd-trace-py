@@ -5,13 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import ContentPart
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import ImageURL
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import ToolCall
 from ddtrace.appsec.ai_guard.integrations.litellm import DatadogAIGuardGuardrail
+from ddtrace.appsec.ai_guard.integrations.litellm import DatadogAIGuardGuardrailException
 from tests.appsec.ai_guard.litellm_guardrail.conftest import assistant_msg
 from tests.appsec.ai_guard.litellm_guardrail.conftest import function_msg
 from tests.appsec.ai_guard.litellm_guardrail.conftest import make_choice
@@ -280,7 +280,7 @@ class TestRunAIGuardCheck:
         mock_req.return_value = mock_evaluate_response(
             "DENY", reason="prompt injection", tags=["injection"], block=True
         )
-        with pytest.raises(AIGuardAbortError) as exc_info:
+        with pytest.raises(DatadogAIGuardGuardrailException) as exc_info:
             asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {}))
 
         assert exc_info.value.action == "DENY"
@@ -290,7 +290,7 @@ class TestRunAIGuardCheck:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_abort_with_blocking_raises_abort_error(self, mock_req, guardrail):
         mock_req.return_value = mock_evaluate_response("ABORT", reason="data leak", block=True)
-        with pytest.raises(AIGuardAbortError) as exc_info:
+        with pytest.raises(DatadogAIGuardGuardrailException) as exc_info:
             asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {}))
 
         assert exc_info.value.action == "ABORT"
@@ -306,7 +306,7 @@ class TestRunAIGuardCheck:
     def test_dynamic_param_true_overrides_monitor_mode(self, mock_req, guardrail_monitor):
         """enable_blocking=True in dynamic params enables blocking even in monitor-mode guardrail."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=True)
-        with pytest.raises(AIGuardAbortError):
+        with pytest.raises(DatadogAIGuardGuardrailException):
             asyncio.run(guardrail_monitor._run_ai_guard_check(self.MSGS, {"enable_blocking": True}))
 
 
@@ -395,7 +395,7 @@ class TestOnRequest:
             ]
         )
 
-        with pytest.raises(AIGuardAbortError):
+        with pytest.raises(DatadogAIGuardGuardrailException):
             asyncio.run(guardrail._on_request(make_request_data(), "completion"))
 
 
@@ -462,7 +462,7 @@ class TestOnResponse:
         response = make_model_response(choices=[make_choice(content="Here is how to exfiltrate data")])
         data = make_request_data(metadata={"ai_guard_messages": stored})
 
-        with pytest.raises(AIGuardAbortError):
+        with pytest.raises(DatadogAIGuardGuardrailException):
             asyncio.run(guardrail._on_response(data, response))
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -621,7 +621,7 @@ class TestAsyncHooks:
         response = make_model_response(choices=[make_choice(content="Bad output")])
         data = make_request_data(metadata={"ai_guard_messages": stored})
 
-        with pytest.raises(AIGuardAbortError):
+        with pytest.raises(DatadogAIGuardGuardrailException):
             asyncio.run(
                 guardrail.async_post_call_success_hook(
                     data=data,
