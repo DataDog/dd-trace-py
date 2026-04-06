@@ -802,7 +802,7 @@ Test Visibility
         set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's EVP proxy.
 
      version_added:
-        v4.7.0:
+        v4.8.0:
 
 Agent
 -----
