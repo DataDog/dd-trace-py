@@ -7,6 +7,7 @@ from unittest import mock
 import ddtrace
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import api as ext_api
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility import api
 
 
@@ -97,8 +98,7 @@ def main():
 if __name__ == "__main__":
     freeze_support()
     # NOTE: this is only safe because these tests are run in a subprocess
-    import os
 
-    os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "1"
+    env["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "1"
     with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
         main()

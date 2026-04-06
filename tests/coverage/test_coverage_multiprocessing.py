@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
 def test_coverage_multiprocessing_without_coverage():
@@ -7,10 +9,9 @@ def test_coverage_multiprocessing_without_coverage():
     import multiprocessing
 
     if __name__ == "__main__":
-        import os
         from pathlib import Path
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         from ddtrace.internal.coverage.installer import install
 
@@ -35,10 +36,9 @@ def test_coverage_multiprocessing_coverage_started():
     import multiprocessing
 
     if __name__ == "__main__":
-        import os
         from pathlib import Path
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
@@ -65,10 +65,9 @@ def test_coverage_multiprocessing_coverage_stopped():
     import multiprocessing
 
     if __name__ == "__main__":
-        import os
         from pathlib import Path
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
@@ -98,7 +97,7 @@ def test_coverage_multiprocessing_session():
         import os
         from pathlib import Path
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
@@ -138,7 +137,7 @@ def test_coverage_multiprocessing_context():
         import os
         from pathlib import Path
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.coverage.installer import install
@@ -180,7 +179,7 @@ def test_coverage_concurrent_futures_processpool_session():
     if __name__ == "__main__":
         import os
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         import concurrent.futures
         from pathlib import Path
@@ -222,7 +221,7 @@ def test_coverage_concurrent_futures_processpool_context():
     if __name__ == "__main__":
         import os
 
-        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+        multiprocessing.set_start_method(env["start_method"], force=True)
 
         import concurrent.futures
         from pathlib import Path
@@ -254,7 +253,7 @@ def test_coverage_concurrent_futures_processpool_context():
             "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
-        if os.environ["start_method"] != "fork":
+        if env["start_method"] != "fork":
             # In spawn or forkserver modes, the module is reimported entirely
             expected_lines["tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
