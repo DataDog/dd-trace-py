@@ -980,7 +980,7 @@ def openai_set_meta_tags_from_response(
 
 
 # Maximum nesting depth allowed for a single tool schema.
-# The backend CBOR decoder has a default max depth of 32. A threshold of 10 is 
+# The backend CBOR decoder has a default max depth of 32. A threshold of 10 is
 # a conservative limit to avoid parsing issues.
 MAX_TOOL_SCHEMA_DEPTH = 10
 
