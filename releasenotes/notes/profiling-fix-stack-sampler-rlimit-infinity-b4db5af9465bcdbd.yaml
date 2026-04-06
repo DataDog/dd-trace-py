@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where setting an unlimited stack size (``ulimit -s unlimited``)
+    on Linux caused the stack profiler sampling thread to fail to start, resulting in empty
+    CPU and wall-time profiles. #17132
