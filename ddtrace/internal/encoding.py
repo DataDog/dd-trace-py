@@ -96,11 +96,11 @@ class _EncoderBase(object):
         if span.span_type:
             d["type"] = span.span_type
 
-        if span._links:
-            d["span_links"] = [link.to_dict() for link in span._links]
+        if span._has_links():
+            d["span_links"] = [link.to_dict() for link in span._get_links()]
 
-        if span._events and agent_config.trace_native_span_events:
-            d["span_events"] = [dict(event) for event in span._events]
+        if span._has_events() and agent_config.trace_native_span_events:
+            d["span_events"] = [dict(event) for event in span._get_events()]
 
         return d
 
