@@ -53,6 +53,7 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percen
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -226,28 +227,28 @@ class TestOptPlugin:
 
         # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
         # and want ddtrace spans to be entirely independent from the test spans.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+        if asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = False
 
         # Log correlation: if DD_LOGS_INJECTION is enabled, a real ddtrace span must be active during tests so that
         # the logging patch can read the test's trace_id/span_id. Re-enable the trace filter unless it was explicitly
         # disabled via _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER.
-        if asbool(os.environ.get("DD_LOGS_INJECTION")) and not asbool(
-            os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")
+        if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(
+            env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")
         ):
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: if DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set, forward logs to the Datadog logs
         # intake. This requires DD_CIVISIBILITY_AGENTLESS_ENABLED and a real ddtrace span (trace filter).
-        self.enable_agentless_log_submission = asbool(os.environ.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
+        self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
-            if not asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
                 log.warning(
                     "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
                     "Log submission to Datadog requires agentless mode; logs will not be forwarded."
                 )
                 self.enable_agentless_log_submission = False
-            elif not asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 # Agentless log submission needs a real ddtrace span to carry trace/span IDs.
                 self.enable_ddtrace_trace_filter = True
 
