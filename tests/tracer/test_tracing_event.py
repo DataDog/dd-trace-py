@@ -10,6 +10,10 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import event_field
+from ddtrace.internal.settings.integration import IntegrationConfig
+
+
+_TEST_CONFIG = IntegrationConfig(None, "test")
 
 
 ExcInfoType = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
@@ -54,7 +58,9 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
 
     try:
         with core.context_with_event(
-            TestTracingEvent(resource="test.resource", service="svc", component="comp", my_span_name="name")
+            TestTracingEvent(
+                resource="test.resource", service="svc", component="comp", config=_TEST_CONFIG, my_span_name="name"
+            )
         ):
             pass
     finally:

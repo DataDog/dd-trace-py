@@ -1,29 +1,19 @@
-from typing import Optional
-
 import aiohttp
 import wrapt
 from yarl import URL
 
-from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace import config
+from ddtrace.contrib._events.generic import GenericOperationEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
-from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -58,70 +48,62 @@ def _supported_versions() -> dict[str, str]:
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):
-    def __init__(self, obj):
-        super().__init__(obj)
-
     async def connect(self, req, *args, **kwargs):
-        with tracer.trace("%s.connect" % self.__class__.__name__) as span:
-            # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.aiohttp.integration_name)
-            result = await self.__wrapped__.connect(req, *args, **kwargs)
-            return result
+        with core.context_with_event(
+            GenericOperationEvent(
+                span_name="%s.connect" % self.__class__.__name__,
+                component=config.aiohttp.integration_name,
+                config=config.aiohttp,
+            ),
+        ):
+            return await self.__wrapped__.connect(req, *args, **kwargs)
 
     async def _create_connection(self, req, *args, **kwargs):
-        with tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
-            # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.aiohttp.integration_name)
-            result = await self.__wrapped__._create_connection(req, *args, **kwargs)
-            return result
+        with core.context_with_event(
+            GenericOperationEvent(
+                span_name="%s._create_connection" % self.__class__.__name__,
+                component=config.aiohttp.integration_name,
+                config=config.aiohttp,
+            ),
+        ):
+            return await self.__wrapped__._create_connection(req, *args, **kwargs)
 
 
 async def _traced_clientsession_request(func, instance, args, kwargs):
-    method: str = get_argument_value(args, kwargs, 0, "method")
-    raw_url: URL = URL(str(get_argument_value(args, kwargs, 1, "url")))
-    # Resolve against base_url if present, mirroring aiohttp's internal behaviour.
-    base_url: Optional[URL] = getattr(instance, "_base_url", None)
-    url: URL = base_url.join(raw_url) if base_url is not None else raw_url
+    method = get_argument_value(args, kwargs, 0, "method")
+    raw_url = URL(str(get_argument_value(args, kwargs, 1, "url")))
+    base_url = getattr(instance, "_base_url", None)
+    url = base_url.join(raw_url) if base_url is not None else raw_url
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
+    kwargs["headers"] = headers
 
-    with tracer.trace(
-        schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
-        service=ext_service(None, config.aiohttp_client),
-    ) as span:
-        if config.aiohttp_client.split_by_domain:
-            span.service = url.host
+    url_str = str(url.update_query(params) if params else url)
+    host, query = extract_netloc_and_query_info_from_url(url_str)
 
-        maybe_set_service_source_tag(span, config.aiohttp)
-
-        if config.aiohttp.distributed_tracing:
-            HTTPPropagator.inject(span.context, headers)
-            kwargs["headers"] = headers
-
-        span._set_attribute(COMPONENT, config.aiohttp_client.integration_name)
-
-        # set span.kind tag equal to type of request
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-        # Params can be included separate of the URL so the URL has to be constructed
-        # with the passed params.
-        url_str = str(url.update_query(params) if params else url)
-        host, query = extract_netloc_and_query_info_from_url(url_str)
-        set_http_meta(
-            span,
-            config.aiohttp_client,
-            method=method,
-            url=str(url),
-            target_host=host,
-            query=query,
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            http_operation="aiohttp.request",
+            component=config.aiohttp_client.integration_name,
+            config=config.aiohttp_client,
+            request_method=method,
             request_headers=headers,
-        )
-        resp: aiohttp.ClientResponse = await func(*args, **kwargs)
-        set_http_meta(
-            span, config.aiohttp_client, response_headers=resp.headers, status_code=resp.status, status_msg=resp.reason
-        )
-        return resp
+            url=str(url),
+            query=query,
+            target_host=host,
+            split_by_domain_target=str(url.host),
+            measured=False,
+        ),
+    ) as ctx:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            return resp
+        finally:
+            if resp is not None:
+                ctx.event.response_status_code = resp.status
+                ctx.event.response_headers = resp.headers
+                ctx.event.response_status_msg = resp.reason
 
 
 def _traced_clientsession_init(func, instance, args, kwargs):
@@ -129,12 +111,16 @@ def _traced_clientsession_init(func, instance, args, kwargs):
     instance._connector = _WrappedConnectorClass(instance._connector)
 
 
+def _patch_client(aiohttp):
+    wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init)
+    wrap("aiohttp", "ClientSession._request", _traced_clientsession_request)
+
+
 def patch():
     if getattr(aiohttp, "_datadog_patch", False):
         return
 
-    wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init)
-    wrap("aiohttp", "ClientSession._request", _traced_clientsession_request)
+    _patch_client(aiohttp)
 
     aiohttp._datadog_patch = True
 
