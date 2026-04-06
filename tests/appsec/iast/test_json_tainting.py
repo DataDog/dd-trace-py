@@ -70,7 +70,8 @@ def test_taint_json_no_taint(iast_context_defaults, input_jsonstr, res_type, tai
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
 def test_plain_json_loads_not_tainted(iast_context_defaults, input_jsonstr, res_type, tainted_type):
     """Test that plain json.loads (not going through the aspect) does NOT taint results,
-    confirming that json.loads is no longer globally wrapped."""
+    confirming that json.loads is no longer globally wrapped.
+    """
     with override_global_config(dict(_iast_enabled=True)):
         input_str = taint_pyobject(
             pyobject=input_jsonstr,
