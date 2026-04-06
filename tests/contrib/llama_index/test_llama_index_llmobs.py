@@ -36,7 +36,7 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 9,
                 "total_tokens": 17,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -67,7 +67,7 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 15,
                 "total_tokens": 29,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -91,7 +91,7 @@ class TestLLMObsLlamaIndex:
             input_messages=[{"content": "Hello", "role": "user"}],
             output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -122,7 +122,7 @@ class TestLLMObsLlamaIndex:
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
             metadata={"max_tokens": 100},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -165,7 +165,7 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 100,
                 "total_tokens": 139,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -192,7 +192,7 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 9,
                 "total_tokens": 17,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -216,7 +216,7 @@ class TestLLMObsLlamaIndex:
             input_messages=[{"content": "Hello", "role": "user"}],
             output_messages=[{"content": "Hello! How can I assist you today?", "role": "assistant"}],
             metadata={"max_tokens": 100},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -244,7 +244,7 @@ class TestLLMObsLlamaIndex:
                 }
             ],
             metadata={"max_tokens": 100},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -272,7 +272,7 @@ class TestLLMObsLlamaIndex:
                 }
             ],
             metadata={"max_tokens": 100},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -303,7 +303,7 @@ class TestLLMObsLlamaIndex:
                 "output_tokens": 15,
                 "total_tokens": 29,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -318,7 +318,7 @@ class TestLLMObsLlamaIndex:
             span_kind="workflow",
             input_value="What is the meaning of life?",
             output_value="The answer is 42.",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -333,7 +333,7 @@ class TestLLMObsLlamaIndex:
             span_kind="workflow",
             input_value="What is the meaning of life?",
             output_value="The answer is 42.",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -348,7 +348,7 @@ class TestLLMObsLlamaIndex:
             span_kind="retrieval",
             input_value="test query",
             output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -363,7 +363,7 @@ class TestLLMObsLlamaIndex:
             span_kind="retrieval",
             input_value="test query",
             output_documents=[{"text": "Document text", "score": 0.95, "id": mock.ANY}],
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -380,7 +380,7 @@ class TestLLMObsLlamaIndex:
             model_provider="unknown",
             input_documents=[{"text": "test query"}],
             output_value="[1 embedding(s) returned with size 3]",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -397,7 +397,7 @@ class TestLLMObsLlamaIndex:
             model_provider="unknown",
             input_documents=[{"text": "[2 texts]"}],
             output_value="[2 embedding(s) returned with size 3]",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
@@ -414,7 +414,7 @@ class TestLLMObsLlamaIndex:
             model_provider="unknown",
             input_documents=[{"text": "test query"}],
             output_value="[1 embedding(s) returned with size 3]",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index", "integration": "llama_index"},
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
