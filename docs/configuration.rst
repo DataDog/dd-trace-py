@@ -790,6 +790,20 @@ Test Visibility
      version_added:
         v3.15.0:
 
+   DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        When used with ``DD_CIVISIBILITY_AGENTLESS_ENABLED=true``, enables log submission from the
+        ``ddtrace.testing`` pytest plugin directly to the Datadog logs intake. Log records emitted
+        during tests are enriched with the active test span's ``dd.trace_id`` and ``dd.span_id``
+        and forwarded as structured JSON. When using the Datadog Agent instead of agentless mode,
+        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's EVP proxy.
+
+     version_added:
+        v4.7.0:
+
 Agent
 -----
 
