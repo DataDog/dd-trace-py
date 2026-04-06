@@ -213,15 +213,7 @@ class Span(SpanData):
         return value
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
-        """Set a tag key/value pair on the span.
-
-        Keys must be strings, values must be ``str``-able.
-
-        :param key: Key to use for the tag
-        :type key: str
-        :param value: Value to assign for the tag
-        :type value: ``str``-able value
-        """
+        """Set a tag key/value pair on the span."""
         # Special case, force `http.status_code` as a string
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
