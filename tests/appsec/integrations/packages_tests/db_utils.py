@@ -1,12 +1,12 @@
-import os
-
 import psycopg
 import psycopg2
 import pymysql
 
+from ddtrace.internal.settings import env
 
-POSTGRES_HOST = os.getenv("TEST_POSTGRES_HOST", "127.0.0.1")
-MYSQL_HOST = os.getenv("TEST_MYSQL_HOST", "127.0.0.1")
+
+POSTGRES_HOST = env.get("TEST_POSTGRES_HOST", "127.0.0.1")
+MYSQL_HOST = env.get("TEST_MYSQL_HOST", "127.0.0.1")
 
 
 def get_psycopg2_connection():

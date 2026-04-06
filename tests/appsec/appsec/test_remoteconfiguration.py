@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import os
 import time
 
 import mock
@@ -20,6 +19,7 @@ from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
@@ -111,7 +111,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, rc_poller):
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, rc_poller):
     with override_env({APPSEC.ENV: appsec_enabled}):
         if appsec_enabled == "":
-            del os.environ[APPSEC.ENV]
+            del env[APPSEC.ENV]
         with override_global_config(dict(_asm_enabled=True)):
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 

@@ -1,10 +1,9 @@
-import os
-
 import django
 from django.conf import settings
 from django.test.client import Client
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.propagation._utils import get_wsgi_header
 from tests.appsec.contrib_appsec import utils
 from tests.utils import scoped_tracer
@@ -15,7 +14,7 @@ class _Test_Django_Base:
 
     @pytest.fixture
     def interface(self, printer):
-        os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
+        env["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
         settings.DEBUG = False
         django.setup()
         client = Client(

@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.internal.settings import env
 from tests.appsec.iast.conftest import CONFIG_SERVER_PORT
 from tests.utils import _build_env
 
@@ -28,10 +29,10 @@ def _run_python_file(*args, **kwargs):
 
 def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_TRACE_DEBUG"] = "true"
-    _run_python_file(env=env)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = "true"
+    subenv["DD_TRACE_DEBUG"] = "true"
+    _run_python_file(env=subenv)
     captured = capfd.readouterr()
     assert "iast" in captured.err
     assert "hi" in captured.out
@@ -39,10 +40,10 @@ def test_env_var_iast_enabled(capfd):
 
 def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "false"
-    env["DD_TRACE_DEBUG"] = "true"
-    _run_python_file(env=env)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = "false"
+    subenv["DD_TRACE_DEBUG"] = "true"
+    _run_python_file(env=subenv)
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "iast::instrumentation::starting IAST" not in captured.err
@@ -87,10 +88,10 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     ],
 )
 def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_vars):
-    env = os.environ.copy()
+    subenv = env.copy()
     for k, v in env_vars.items():
-        env[k] = v
-    _run_python_file(env=env)
+        subenv[k] = v
+    _run_python_file(env=subenv)
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "iast::instrumentation::starting IAST" in captured.err
@@ -136,10 +137,10 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     ],
 )
 def test_env_var_iast_disabled_parametrized(capfd, configuration_endpoint, env_vars):
-    env = os.environ.copy()
+    subenv = env.copy()
     for k, v in env_vars.items():
-        env[k] = v
-    _run_python_file(env=env)
+        subenv[k] = v
+    _run_python_file(env=subenv)
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "iast::instrumentation::starting IAST" not in captured.err
@@ -153,11 +154,11 @@ def test_env_var_iast_enabled_no__native_module_warning():
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_TRACE_DEBUG"] = "true"
-    env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
-    _run_python_file(filename="main_gevent.py", env=env)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = "true"
+    subenv["DD_TRACE_DEBUG"] = "true"
+    subenv["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
+    _run_python_file(filename="main_gevent.py", env=subenv)
     captured = capfd.readouterr()
     assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
@@ -166,11 +167,11 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_TRACE_DEBUG"] = "true"
-    env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
-    _run_python_file(filename="main_gevent.py", env=env)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = "true"
+    subenv["DD_TRACE_DEBUG"] = "true"
+    subenv["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
+    _run_python_file(filename="main_gevent.py", env=subenv)
     captured = capfd.readouterr()
     assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
@@ -179,10 +180,10 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
 @pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "true"
-    env["DD_TRACE_DEBUG"] = "true"
-    _run_python_file(filename="main_gevent.py", env=env)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = "true"
+    subenv["DD_TRACE_DEBUG"] = "true"
+    _run_python_file(filename="main_gevent.py", env=subenv)
     captured = capfd.readouterr()
     assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
@@ -213,10 +214,10 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
 )
 def test_env_var_iast_modules_to_patch(module_name, expected_result):
     # type: (...) -> None
-    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
+    env[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
         ["ddtrace.allowed.", "please_patch.", "also.that.", "please_patch.do_not.but_yes."]
     )
-    os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not.", "also.that.but.not.that."])
+    env[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not.", "also.that.but.not.that."])
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
@@ -249,43 +250,43 @@ def assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, env):
 
 def test_env_var__configure_wrong(monkeypatch, capfd):
     # type: (...) -> None
-    env = os.environ.copy()
+    subenv = env.copy()
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
-    env["DD_IAST_ENABLED"] = iast_enabled
-    env["DD_TRACE_DEBUG"] = "true"
-    assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
+    subenv["DD_IAST_ENABLED"] = iast_enabled
+    subenv["DD_TRACE_DEBUG"] = "true"
+    assert_configure_wrong(monkeypatch, capfd, iast_enabled, subenv)
     # Test with env var unset
-    del env["DD_IAST_ENABLED"]
-    assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
+    del subenv["DD_IAST_ENABLED"]
+    assert_configure_wrong(monkeypatch, capfd, iast_enabled, subenv)
 
 
 def test_env_var__configure_right(monkeypatch, capfd):
     # type: (...) -> None
-    env = os.environ.copy()
+    subenv = env.copy()
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
-    env["DD_IAST_ENABLED"] = iast_enabled
-    env["DD_TRACE_DEBUG"] = "true"
-    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
+    subenv["DD_IAST_ENABLED"] = iast_enabled
+    subenv["DD_TRACE_DEBUG"] = "true"
+    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, subenv)
     # Test with env var unset
-    del env["DD_IAST_ENABLED"]
-    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
+    del subenv["DD_IAST_ENABLED"]
+    assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, subenv)
 
     iast_enabled = "true"
     # Test with DD_IAST_ENABLED = "true"
-    env["DD_IAST_ENABLED"] = iast_enabled
-    assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, env)
+    subenv["DD_IAST_ENABLED"] = iast_enabled
+    assert_configure_right_enabled(monkeypatch, capfd, iast_enabled, subenv)
 
 
 @pytest.mark.parametrize("_iast_enabled", ["true", "false"])
 @pytest.mark.parametrize("no_ddtracerun", [True, False])
 def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
     # Test that ``tracer.configure`` takes precedence over env var value
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = _iast_enabled
-    env["DD_TRACE_DEBUG"] = "true"
-    _run_python_file(_iast_enabled, env=env, filename="main_configure.py", no_ddtracerun=True, returncode=0)
+    subenv = env.copy()
+    subenv["DD_IAST_ENABLED"] = _iast_enabled
+    subenv["DD_TRACE_DEBUG"] = "true"
+    _run_python_file(_iast_enabled, env=subenv, filename="main_configure.py", no_ddtracerun=True, returncode=0)
     captured = capfd.readouterr()
     assert f"IAST env var: {_iast_enabled.capitalize()}" in captured.out
     assert "hi" in captured.out
@@ -309,8 +310,8 @@ def test_should_iast_patch_invalid_input(module_name, expected_error):
 
 
 def test_should_iast_patch_empty_lists():
-    os.environ[IAST.PATCH_MODULES] = ""
-    os.environ[IAST.DENY_MODULES] = ""
+    env[IAST.PATCH_MODULES] = ""
+    env[IAST.DENY_MODULES] = ""
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
@@ -319,7 +320,7 @@ def test_should_iast_patch_empty_lists():
 
 def test_should_iast_patch_max_list_size():
     large_list = ",".join([f"module{i}." for i in range(1000)])
-    os.environ[IAST.PATCH_MODULES] = large_list
+    env[IAST.PATCH_MODULES] = large_list
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     assert iastpatch.should_iast_patch("module1") == iastpatch.ALLOWED_USER_ALLOWLIST
     assert iastpatch.should_iast_patch("module2") == iastpatch.ALLOWED_USER_ALLOWLIST
@@ -337,8 +338,8 @@ def test_should_iast_patch_max_list_size():
     ],
 )
 def test_should_iast_patch_priority_conflicts(module_name, allowlist, denylist, expected_result):
-    os.environ[IAST.PATCH_MODULES] = allowlist
-    os.environ[IAST.DENY_MODULES] = denylist
+    env[IAST.PATCH_MODULES] = allowlist
+    env[IAST.DENY_MODULES] = denylist
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
     assert iastpatch.should_iast_patch(module_name) == expected_result
