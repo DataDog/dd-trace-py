@@ -3,7 +3,8 @@ message: Use ddtrace.internal.settings.env instead of importing from os
 severity: error
 language: python
 files:
-  - "**"
+  - "ddtrace/**"
+  - "tests/**"
 ignores:
   - "ddtrace/internal/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
