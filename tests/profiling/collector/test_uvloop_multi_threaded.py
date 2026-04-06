@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.settings import env
 from tests.profiling.collector import test_utils
 
 
@@ -65,7 +66,7 @@ def test_uvloop_multi_threaded() -> None:
         # Wait for the thread to finish
         thread.join()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")

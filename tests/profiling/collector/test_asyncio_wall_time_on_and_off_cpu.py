@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.subprocess(
     env=dict(
@@ -69,7 +71,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
 
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
@@ -80,7 +82,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
 
     # On Python < 3.11 with uvloop, the runner is uvloop/__init__.py, not asyncio/runners.py
     # On Python >= 3.11, uvloop delegates to asyncio.Runner, so it's still runners.py
-    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+    use_uvloop = env.get("USE_UVLOOP", "0") == "1"
     if use_uvloop and sys.version_info < (3, 11):
         run_file = "__init__.py"
     else:
