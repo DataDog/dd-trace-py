@@ -790,46 +790,64 @@ class TestXdistWorkerCrashRestart:
 
 
 class TestXdistPartialFlush:
-    """Verify that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss."""
+    """Verify that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
 
-    def test_partial_flush_saves_events_before_crash(
-        self, mock_server: MockCIVisibilityServer, test_project: Path
-    ) -> None:
-        """With DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1, events are flushed eagerly.
+    These tests prove the workaround works by running the same crash scenario
+    with and without the env var and comparing the outcomes.
+    """
 
-        This means the passing test's event is sent to the backend before the
-        next test crashes the worker. Compare with
-        test_crash_loses_buffered_events_on_same_worker which shows the same
-        scenario WITHOUT this env var — where the passing test's event is lost.
+    def test_partial_flush_before_and_after(self, test_project: Path) -> None:
+        """Same crash scenario, two runs: without and with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1.
+
+        Run 1 (no env var): the passing test's event is LOST because it was
+        buffered on the same worker that crashed.
+
+        Run 2 (env var set): the passing test's event is SAVED because the
+        writer flushed it synchronously before the next test could crash.
+
+        This is the definitive proof that the workaround fixes the data-loss
+        issue — same test code, same crash, different outcome.
         """
-        (test_project / "test_crash_sequence.py").write_text(
-            textwrap.dedent("""\
-                import os
+        test_code = textwrap.dedent("""\
+            import os
 
-                def test_passes_before_crash():
-                    '''This passes and its event should be flushed immediately.'''
-                    assert True
+            def test_passes_before_crash():
+                assert True
 
-                def test_crashes_worker():
-                    '''This crashes the worker via os._exit.'''
-                    os._exit(1)
-            """)
+            def test_crashes_worker():
+                os._exit(1)
+        """)
+
+        # --- Run 1: WITHOUT eager flushing (default) ---
+        with MockCIVisibilityServer() as server_without:
+            (test_project / "test_crash_sequence.py").write_text(test_code)
+            _git_commit(test_project)
+
+            env = _make_env(server_without.url)
+            _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
+
+            names_without = [e["content"]["meta"]["test.name"] for e in server_without.get_test_events()]
+
+        # --- Run 2: WITH eager flushing ---
+        with MockCIVisibilityServer() as server_with:
+            # Rewrite the file to reset git state for a clean commit.
+            (test_project / "test_crash_sequence.py").write_text(test_code)
+            _git_commit(test_project, message="re-commit for second run")
+
+            env = _make_env(server_with.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+            _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
+
+            names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
+
+        # --- Assertions: the contrast ---
+        # Without eager flushing: the passing test is lost.
+        assert "test_passes_before_crash" not in names_without, (
+            f"Without eager flushing, the event should be lost. Got: {names_without}"
         )
-        _git_commit(test_project)
 
-        env = _make_env(mock_server.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
-        result = _run_pytest_subprocess(
-            test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env
-        )
-
-        test_events = mock_server.get_test_events()
-        test_names = [e["content"]["meta"]["test.name"] for e in test_events]
-
-        # With min_flush_events=1, the passing test's event was flushed before
-        # the crash killed the worker. It should be present.
-        assert "test_passes_before_crash" in test_names, (
-            f"Expected test_passes_before_crash to be saved by eager flushing. Got: {test_names}\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        # With eager flushing: the passing test is saved.
+        assert "test_passes_before_crash" in names_with, (
+            f"With DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
         )
 
     def test_partial_flush_preserves_all_healthy_tests_with_crashes(
