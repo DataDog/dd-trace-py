@@ -292,8 +292,9 @@ class TestAgentlessLogSubmission:
     def test_no_handler_in_ci_context_provider_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """DD_LOGS_INJECTION=true must not install LogsHandler when _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1.
 
-        In Bazel/offline mode the CI context provider is used and there is no active connector to
-        route logs through, so log submission must be suppressed even if DD_LOGS_INJECTION is set.
+        That flag enables a separate CIVisibilityTracer with its own CIContextProvider for test spans,
+        independent from the global ddtrace.tracer. The ddtrace logging patch reads from the global
+        tracer, so it sees no active test span and would produce zero trace/span IDs.
         """
         monkeypatch.setenv("DD_LOGS_INJECTION", "true")
         monkeypatch.setenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", "1")
