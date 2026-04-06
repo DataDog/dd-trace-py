@@ -4,7 +4,6 @@ from collections import defaultdict
 from io import StringIO
 import json
 import logging
-import os
 from pathlib import Path
 import re
 import traceback
@@ -20,6 +19,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
@@ -226,7 +226,7 @@ class TestOptPlugin:
 
         # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
         # and want ddtrace spans to be entirely independent from the test spans.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+        if asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = False
 
         self.enable_all_ddtrace_integrations = False
@@ -982,7 +982,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
-    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+    return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
 def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
@@ -1127,7 +1127,7 @@ def _get_test_command(config: pytest.Config) -> str:
     command = "pytest"
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
-    if addopts := os.environ.get("PYTEST_ADDOPTS"):
+    if addopts := env.get("PYTEST_ADDOPTS"):
         command += " {}".format(addopts)
     return command
 
