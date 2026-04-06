@@ -197,19 +197,31 @@ variables:
 "upload serverless":
   extends: .upload_wheels_base
   needs:
-    - job: "build linux"
+    - job: "build linux serverless"
       artifacts: true
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *X86_64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
           - ARCH_TAG: "arm64"
-            PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *AARCH64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"
+  script:
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
+
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
+
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
@@ -239,6 +251,7 @@ variables:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
+  retry: 2
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "6"
     CARGO_BUILD_JOBS: "6"
@@ -378,10 +391,19 @@ download_dependency_wheels:
       - "pywheels/*.whl"
 
 # Aggregate and validate all built wheels
-"ddtrace package":
+.package_base:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
+  before_script:
+    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+
+"ddtrace package":
+  extends: .package_base
   needs:
     - "build linux"
     - "build macos"
@@ -389,9 +411,12 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
-    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
     - .gitlab/validate-ddtrace-package.py pywheels
-  artifacts:
-    paths:
-      - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
+
+"ddtrace package serverless":
+  extends: .package_base
+  needs:
+    - "build linux serverless"
+    - "package version"
+  script:
+    - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless

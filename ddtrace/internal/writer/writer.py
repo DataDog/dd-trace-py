@@ -3,7 +3,6 @@ import binascii
 from collections import defaultdict
 import functools
 import gzip
-import os
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -19,7 +18,10 @@ from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -647,7 +649,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             _headers.update(headers)
 
         _headers.update({"Content-Type": client.encoder.content_type})
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
@@ -847,6 +849,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Mark stats as computed, without computing them, skipping trace exporter stats computation.
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -896,7 +899,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if test_session_token is None and additional_header_str is not None:
             additional_header = parse_tags_str(additional_header_str)
             if "X-Datadog-Test-Session-Token" in additional_header:
@@ -904,6 +907,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
+        self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
@@ -936,6 +940,25 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if hasattr(self, "_fork_hook") and self._fork_hook:
             forksafe.unregister_before_fork(self._fork_hook)
 
+    @staticmethod
+    def _parse_otlp_headers() -> list:
+        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs.
+
+        TODO: This parsing will move into libdatadog once header handling is supported natively.
+        The current split-on-comma approach does not handle percent-encoded commas (%2C) in header
+        values per the OTEL spec; that edge case will be handled correctly on the libdatadog side.
+        """
+        raw = otel_config.exporter.TRACES_HEADERS
+        if not raw:
+            return []
+        headers = []
+        for item in raw.split(","):
+            item = item.strip()
+            if "=" in item:
+                key, _, value = item.partition("=")
+                headers.append((key.strip(), value.strip()))
+        return headers
+
     def _create_exporter(self) -> native.TraceExporter:
         """
         Create a new TraceExporter with the current configuration.
@@ -962,6 +985,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_env(config.env)
         if config.version:
             builder.set_app_version(config.version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+            otlp_headers = self._parse_otlp_headers()
+            if otlp_headers:
+                builder.set_otlp_headers(otlp_headers)
+            builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
         if self._test_session_token is not None:
@@ -969,7 +998,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._stats_opt_out:
             builder.set_client_computed_stats()
         elif self._compute_stats_enabled:
-            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
             bucket_size_ns: int = int(stats_interval * 1e9)
             builder.enable_stats(bucket_size_ns)
 
@@ -1017,6 +1046,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -1250,11 +1280,7 @@ def _use_log_writer() -> bool:
     The LogWriter is required by default in AWS Lambdas when the Datadog Agent extension
     is not available in the Lambda.
     """
-    if (
-        os.environ.get("DD_AGENT_HOST")
-        or os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-        or os.environ.get("DD_TRACE_AGENT_URL")
-    ):
+    if env.get("DD_AGENT_HOST") or env.get("DATADOG_TRACE_AGENT_HOSTNAME") or env.get("DD_TRACE_AGENT_URL"):
         # If one of these variables are set, we definitely have an agent
         return False
     elif in_aws_lambda() and has_aws_lambda_agent_extension():
@@ -1307,6 +1333,10 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
 
     verify_url(agent_config.trace_agent_url)
 
+    otlp_endpoint = (
+        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    )
+
     if config._trace_writer_native:
         return NativeWriter(
             intake_url=agent_config.trace_agent_url,
@@ -1316,6 +1346,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             report_metrics=not asm_config._apm_opt_out,
             response_callback=response_callback,
             stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
         )
     else:
         headers: dict[str, str] = {}

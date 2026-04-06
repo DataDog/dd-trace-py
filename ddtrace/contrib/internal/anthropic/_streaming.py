@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import anthropic
@@ -8,6 +7,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_load_json
 
 
 log = get_logger(__name__)
@@ -201,7 +201,7 @@ def _on_content_block_stop_chunk(chunk, message):
     content_type = _get_attr(message["content"][-1], "type", "")
     if "tool_use" in content_type:
         input_json = _get_attr(message["content"][-1], "input", "{}")
-        message["content"][-1]["input"] = json.loads(input_json)
+        message["content"][-1]["input"] = safe_load_json(input_json) if input_json else {}
     return message
 
 

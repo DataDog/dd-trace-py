@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
-from tempfile import gettempdir
+from tempfile import mkdtemp
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
@@ -30,6 +30,12 @@ import warnings
 import pytest
 
 import ddtrace
+
+
+# DEV: Consumed by detect_service() during ddtrace import above; unset now so
+# it doesn't leak into tests (e.g. unit tests that call detect_service directly).
+os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -156,6 +162,19 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
     )
+    # DEV: Propagate the inferred service name to xdist workers so detect_service()
+    # returns the same result there as on the controller, even though workers run
+    # as "python -c ..." and have sys.argv=['-c']. Workers inherit this env var at
+    # spawn time; detect_service() short-circuits on it during ddtrace's import-time
+    # calls in the worker, then conftest pops it so it never leaks into test code.
+    # Only set when xdist workers are actually being spawned (numprocesses > 0 or
+    # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
+    if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
+        from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+
+        _inferred = _detect_service(sys.argv)
+        if _inferred:
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -412,8 +431,9 @@ def run_function_from_file(item, params=None):
     expected_err = marker.kwargs.get("err", "")
 
     # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
-    # consistency
-    temp_dir = gettempdir()
+    # consistency. Use a unique parent dir so parallel xdist workers don't share the same path
+    # and race on cleanup (shutil.rmtree would delete files still in use by other workers).
+    temp_dir = mkdtemp()
     custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
 
     os.makedirs(custom_temp_dir, exist_ok=True)
@@ -464,9 +484,9 @@ def run_function_from_file(item, params=None):
 
             return _subprocess_wrapper()
     finally:
-        # Clean up the temporary directory
-        if os.path.exists(custom_temp_dir):
-            shutil.rmtree(custom_temp_dir)
+        # Clean up the unique parent temp directory (contains ddtrace_subprocess_dir)
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -696,6 +716,7 @@ class TelemetryTestSession(object):
                 time.sleep(pow(exp_time, try_nb))
             finally:
                 conn.close()
+        raise RuntimeError("Unreachable: loop exits via return or pytest.xfail")
 
     def clear(self):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
