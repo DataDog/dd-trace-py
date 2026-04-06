@@ -81,7 +81,7 @@ endif()
 # Create the shared library with the full name
 add_library(${FULL_EXTENSION_NAME} SHARED ${SOURCE_FILES})
 
-# Enable LTO if the compiler supports it
+# Enable LTO (Link Time Optimization) if the compiler supports it
 check_ipo_supported(RESULT ipo_supported)
 if(ipo_supported)
     set_property(TARGET ${FULL_EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
