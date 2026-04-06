@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -15,6 +14,7 @@ import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from tests.contrib.google_adk.utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -29,12 +29,12 @@ def ddtrace_global_config():
 @pytest.fixture
 def adk(ddtrace_global_config):
     # Set dummy API key for VCR mode if no real API key is present
-    if not os.environ.get("GOOGLE_API_KEY"):
-        os.environ["GOOGLE_API_KEY"] = "dummy-api-key-for-vcr"
+    if not env.get("GOOGLE_API_KEY"):
+        env["GOOGLE_API_KEY"] = "dummy-api-key-for-vcr"
 
     # Location/project may be required for client init.
-    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
-    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"))
+    env.setdefault("GOOGLE_CLOUD_LOCATION", env.get("GOOGLE_CLOUD_LOCATION", "us-central1"))
+    env.setdefault("GOOGLE_CLOUD_PROJECT", env.get("GOOGLE_CLOUD_PROJECT", "dummy-project"))
 
     with override_global_config(ddtrace_global_config):
         adk_patch()

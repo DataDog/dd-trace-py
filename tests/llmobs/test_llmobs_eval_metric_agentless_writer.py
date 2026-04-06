@@ -7,6 +7,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from tests.utils import override_global_config
@@ -14,7 +15,7 @@ from tests.utils import override_global_config
 
 DD_SITE = "datad0g.com"
 INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric"
-DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
+DD_API_KEY = env.get("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricEvent:
@@ -208,11 +209,11 @@ def test_send_on_exit(run_python_code_in_subprocess):
 
     mock_url = f"http://localhost:{server.server_address[1]}"
 
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
@@ -225,7 +226,7 @@ llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
 llmobs_eval_metric_writer.start()
 llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
 """,
-        env=env,
+        env=subenv,
     )
 
     server.shutdown()
