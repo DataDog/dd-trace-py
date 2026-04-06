@@ -122,6 +122,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
+        crashtracker_config._test_token,
     )
 
     receiver_env = {}
