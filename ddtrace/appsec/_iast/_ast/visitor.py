@@ -88,6 +88,9 @@ _ASPECTS_SPEC: dict[Text, Any] = {
     },
     # Replacement functions for modules
     "module_functions": {
+        "json": {
+            "loads": _PREFIX + "aspects.json_loads_aspect",
+        },
         "os.path": {
             "basename": _PREFIX + "aspects.ospathbasename_aspect",
             "dirname": _PREFIX + "aspects.ospathdirname_aspect",
@@ -95,7 +98,7 @@ _ASPECTS_SPEC: dict[Text, Any] = {
             "normcase": _PREFIX + "aspects.ospathnormcase_aspect",
             "split": _PREFIX + "aspects.ospathsplit_aspect",
             "splitext": _PREFIX + "aspects.ospathsplitext_aspect",
-        }
+        },
     },
     "operators": {
         ast.Add: _PREFIX + "aspects.add_aspect",
@@ -552,10 +555,15 @@ class AstVisitor(ast.NodeTransformer):
             aspect = None
             is_module_symbol = False
 
-            if func_value_value_id or func_attr:
+            func_value_id = getattr(func_value, "id", None) if func_value else None
+
+            if func_value_value_id or func_value_id or func_attr:
                 if func_value_value_id and func_value_attr:
                     # e.g. "os.path" or "one.two.three.whatever" (all dotted previous tokens with be in the id)
                     key = func_value_value_id + "." + func_value_attr
+                elif func_value_id:
+                    # e.g. json.loads where func_value is a Name node
+                    key = func_value_id
                 elif func_value_attr:
                     # e.g os
                     key = func_attr

@@ -3,6 +3,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
 import itertools
+import json
 import os
 from re import Match
 from re import Pattern
@@ -1460,6 +1461,26 @@ def ospathsplitroot_aspect(*args: Any, **kwargs: Any) -> Any:
             iast_propagation_error_log("_aspect_ospathsplitroot", e)
 
     return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]
+
+
+def json_loads_aspect(*args: Any, **kwargs: Any) -> Any:
+    obj = json.loads(*args, **kwargs)
+    try:
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+        from ddtrace.appsec._iast._taint_utils import taint_structure
+
+        if is_iast_request_enabled():
+            ranges = get_tainted_ranges(args[0])
+            if ranges and obj:
+                source = ranges[0].source
+                if isinstance(obj, (dict, list)):
+                    obj = taint_structure(obj, source.origin, source.origin)
+                elif isinstance(obj, IAST.TEXT_TYPES):
+                    obj = taint_pyobject(obj, source.name, source.value, source.origin)
+    except Exception as e:
+        iast_propagation_error_log("json_loads_aspect", e)
+    return obj
 
 
 def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
