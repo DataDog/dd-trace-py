@@ -1,12 +1,12 @@
 """Configuration for tests."""
 
+import os
 import subprocess
 import typing as t
 from unittest.mock import Mock
 
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
@@ -19,7 +19,7 @@ def set_env() -> None:
     """
     Make sure that we don't send inner tests to Datadog.
     """
-    env["DD_API_KEY"] = "test-key"
+    os.environ["DD_API_KEY"] = "test-key"
 
 
 @pytest.fixture

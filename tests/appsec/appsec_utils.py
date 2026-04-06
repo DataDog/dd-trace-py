@@ -13,7 +13,6 @@ from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.utils import _build_env
@@ -312,7 +311,7 @@ def appsec_application_server(
 
     if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled
-    env["DD_TRACE_AGENT_URL"] = env.get("DD_TRACE_AGENT_URL", "")
+    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
     env["PYTHONFAULTHANDLER"] = "1"
     env["MALLOC_PERTURB_"] = "glibc.malloc.tcache_max=0"
@@ -341,7 +340,7 @@ def appsec_application_server(
         # Run the server command by replacing the child Python process with the target binary (exec),
         # ensuring signals/termination behave like the subprocess.Popen path.
         # Build the environment for the child exec
-        mp_env = dict(subprocess_kwargs["env"]) if "env" in subprocess_kwargs else env.copy()
+        mp_env = dict(subprocess_kwargs["env"]) if "env" in subprocess_kwargs else os.environ.copy()
         server_process: _t.Union[subprocess.Popen, multiprocessing.Process]
         server_process = multiprocessing.Process(target=_mp_target, args=(cmd, mp_env), daemon=True)
         server_process.start()
@@ -471,9 +470,9 @@ def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
 
     Returns None if no limits were requested.
     """
-    mem_mb = env.get("TEST_SUBPROC_MEM_MB")
-    cpu_aff = env.get("TEST_SUBPROC_CPU_AFFINITY")
-    nice_val = env.get("TEST_SUBPROC_NICE")
+    mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
+    cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
+    nice_val = os.environ.get("TEST_SUBPROC_NICE")
     if not any((mem_mb, cpu_aff, nice_val)):
         return None
 

@@ -9,7 +9,6 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.internal.settings import env
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
@@ -69,7 +68,7 @@ def _child_check(q: Queue):
             {
                 "pid": os.getpid(),
                 "tracer_enabled": bool(tracer.enabled),
-                "iast_env": env.get("DD_IAST_ENABLED"),
+                "iast_env": os.environ.get("DD_IAST_ENABLED"),
                 "text_is_tainted": is_tainted(tainted_text),
                 "text_is_tainted2": is_tainted(tainted_text2),
                 "iast_enabled_flag": bool(asm_config._iast_enabled),

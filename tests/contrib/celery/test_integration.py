@@ -14,7 +14,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
-from ddtrace.internal.settings import env
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 
@@ -874,18 +873,18 @@ def is_single_trace(trace_id):
 celery_app.worker_main(["worker", "--loglevel=info"])
 """
 
-    subenv = env.copy()
-    subenv["CELERY_BROKER_URL"] = BROKER_URL
-    subenv["CELERY_RESULT_BACKEND"] = BACKEND_URL
-    subenv["DD_CELERY_DISTRIBUTED_TRACING"] = str(distributed_tracing_enabled)
+    env = os.environ.copy()
+    env["CELERY_BROKER_URL"] = BROKER_URL
+    env["CELERY_RESULT_BACKEND"] = BACKEND_URL
+    env["DD_CELERY_DISTRIBUTED_TRACING"] = str(distributed_tracing_enabled)
     # Disable Redis to reduce noise in the snapshot file
-    subenv["DD_TRACE_REDIS_ENABLED"] = "false"
+    env["DD_TRACE_REDIS_ENABLED"] = "false"
 
     worker_process = subprocess.Popen(
         ["ddtrace-run", sys.executable, "-c", consumer_code],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env=subenv,
+        env=env,
         preexec_fn=os.setsid if os.name != "nt" else None,
         close_fds=True,
     )
@@ -898,7 +897,7 @@ celery_app.worker_main(["worker", "--loglevel=info"])
         while _inspect_app.control.inspect(timeout=1).active() is None and waited < max_wait:
             time.sleep(0.5)
             waited += 0.5
-        _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=subenv, timeout=30)
+        _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=env, timeout=30)
         assert status == 0, stderr.decode() if stderr else "producer failed"
     finally:
         try:

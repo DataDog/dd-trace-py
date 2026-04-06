@@ -7,7 +7,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.internal.settings import env
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -447,9 +446,10 @@ class TraceBottleTest(TracerTestCase):
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
         root = self.get_root_span()
+        import os
 
-        assert "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA" in env
-        assert env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
+        assert "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA" in os.environ
+        assert os.environ["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
         root.assert_matches(name="http.server.request")
 
     def test_http_request_header_tracing(self):

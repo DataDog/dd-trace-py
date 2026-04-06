@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shlex
 import subprocess
@@ -7,7 +8,6 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._inferred_base_service import PythonDetector
 from ddtrace.internal.settings._inferred_base_service import _module_exists
 from ddtrace.internal.settings._inferred_base_service import detect_service
@@ -201,7 +201,7 @@ def test_module_exists(module_name, should_exist):
 def test_get_service(cmd, default, expected, testdir):
     cmd_parts = shlex.split(cmd)
 
-    subenv = env.copy()
+    env = os.environ.copy()
     # Extract environment variables from the command (e.g., DD_SERVICE=app)
     env_vars = {}
     command = []
@@ -211,7 +211,7 @@ def test_get_service(cmd, default, expected, testdir):
             env_vars[key] = value
         else:
             command.append(part)
-    subenv.update(env_vars)
+    env.update(env_vars)
 
     app_dir = testdir.mkdir("app")
 
@@ -232,7 +232,7 @@ def test_get_service(cmd, default, expected, testdir):
     app_dir.join("__init__.py").write("# Init for web package")
 
     # Execute the command using subprocess
-    result = subprocess.run(command, cwd=testdir.tmpdir, capture_output=True, text=True, env=subenv)
+    result = subprocess.run(command, cwd=testdir.tmpdir, capture_output=True, text=True, env=env)
 
     assert result.returncode == 0, (
         f"Command failed with return code {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
@@ -262,7 +262,7 @@ def test_get_service(cmd, default, expected, testdir):
 )
 def test_python_detector_pattern_matching(command, should_match, expected_capture):
     """Test that the PythonDetector regex pattern correctly matches various Python executable formats."""
-    detector = PythonDetector(dict(env))
+    detector = PythonDetector(dict(os.environ))
 
     match = detector.pattern.search(command)
 

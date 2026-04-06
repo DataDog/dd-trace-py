@@ -14,7 +14,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.settings import env
 from ddtrace.trace import Span
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
@@ -22,25 +21,25 @@ from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 @pytest.fixture
 def mock_xdist_worker_env():
     """Fixture to mock being in an xdist worker environment"""
-    original_env = env.get("PYTEST_XDIST_WORKER")
-    env["PYTEST_XDIST_WORKER"] = "gw0"
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
     yield
     # Restore original environment
     if original_env is None:
-        env.pop("PYTEST_XDIST_WORKER", None)
+        os.environ.pop("PYTEST_XDIST_WORKER", None)
     else:
-        env["PYTEST_XDIST_WORKER"] = original_env
+        os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
 @pytest.fixture
 def mock_no_xdist_worker_env():
     """Fixture to ensure we're not in xdist worker environment"""
-    original_env = env.get("PYTEST_XDIST_WORKER")
-    env.pop("PYTEST_XDIST_WORKER", None)
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ.pop("PYTEST_XDIST_WORKER", None)
     yield
     # Restore original environment
     if original_env is not None:
-        env["PYTEST_XDIST_WORKER"] = original_env
+        os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
 def test_encode_traces_civisibility_v0():
@@ -235,8 +234,8 @@ def test_build_payload_with_filtered_spans():
     ]
 
     # Set up xdist worker environment to trigger filtering
-    original_env = env.get("PYTEST_XDIST_WORKER")
-    env["PYTEST_XDIST_WORKER"] = "gw0"
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
 
     try:
         # Add session type tag to trigger filtering
@@ -258,9 +257,9 @@ def test_build_payload_with_filtered_spans():
 
     finally:
         if original_env is None:
-            env.pop("PYTEST_XDIST_WORKER", None)
+            os.environ.pop("PYTEST_XDIST_WORKER", None)
         else:
-            env["PYTEST_XDIST_WORKER"] = original_env
+            os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
 def test_build_payload_all_spans_filtered():
@@ -271,8 +270,8 @@ def test_build_payload_all_spans_filtered():
     ]
 
     # Set up xdist worker environment to trigger filtering
-    original_env = env.get("PYTEST_XDIST_WORKER")
-    env["PYTEST_XDIST_WORKER"] = "gw0"
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
 
     try:
         # Make both spans session types to trigger filtering
@@ -287,9 +286,9 @@ def test_build_payload_all_spans_filtered():
 
     finally:
         if original_env is None:
-            env.pop("PYTEST_XDIST_WORKER", None)
+            os.environ.pop("PYTEST_XDIST_WORKER", None)
         else:
-            env["PYTEST_XDIST_WORKER"] = original_env
+            os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
 def test_build_payload_no_infinite_recursion():

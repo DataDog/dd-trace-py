@@ -5,7 +5,6 @@ from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.internal.settings import env
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -365,8 +364,9 @@ class TestFlaskCacheSchematization(TracerTestCase):
 
         self.cache.get("á_complex_operation")
         spans = self.get_spans()
+        import os
 
-        assert env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA") == "v1"
+        assert os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA") == "v1"
 
         for span in spans:
             assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)

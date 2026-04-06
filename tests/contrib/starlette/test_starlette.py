@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import httpx
 import pytest
@@ -11,7 +12,6 @@ from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
-from ddtrace.internal.settings import env
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -582,17 +582,17 @@ def test(snapshot_client):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     if service:
-        subenv["DD_SERVICE"] = service
+        env["DD_SERVICE"] = service
     if schema:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
     # We only care about the starlette traces
-    subenv["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
-    subenv["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    subenv["DD_TRACE_HTTPX_ENABLED"] = "false"
-    subenv["DD_TRACE_REQUESTS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
+    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    env["DD_TRACE_HTTPX_ENABLED"] = "false"
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

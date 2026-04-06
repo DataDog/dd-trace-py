@@ -1,3 +1,5 @@
+import os
+
 import mock
 import pytest
 
@@ -8,13 +10,12 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import override_env
 
 
-AGENT_VERSION = env.get("AGENT_VERSION")
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 @pytest.fixture(autouse=True, scope="module")

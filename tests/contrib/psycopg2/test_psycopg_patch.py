@@ -15,7 +15,6 @@ try:
     from ddtrace.contrib.internal.psycopg.patch import unpatch
 except ImportError:
     unpatch = None
-from ddtrace.internal.settings import env
 from tests.contrib.patch import PatchTestCase
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
@@ -48,9 +47,9 @@ class TestPsycopgPatch(PatchTestCase.Base):
     def test_psycopg_circular_import_fix(self):
         fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "reproduce_psycopg_cyclic_import_error.py")
 
-        subenv = env.copy()
+        env = os.environ.copy()
         codebase_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        subenv["PYTHONPATH"] = os.pathsep.join([codebase_root, subenv.get("PYTHONPATH", "")])
+        env["PYTHONPATH"] = os.pathsep.join([codebase_root, env.get("PYTHONPATH", "")])
 
         # Run the reproduction script with ddtrace-run
         # Note: tried with @run_in_subprocess but that fails to reproduce the error in the affected version
@@ -59,7 +58,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
             [sys.executable, "-m", "ddtrace.commands.ddtrace_run", "python", fixture_path],
             capture_output=True,
             text=True,
-            env=subenv,
+            env=env,
             timeout=30,
         )
 

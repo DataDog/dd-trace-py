@@ -5,7 +5,6 @@ import subprocess
 import pytest
 from sanic import __version__ as sanic_version
 
-from ddtrace.internal.settings import env
 from tests.webclient import Client
 
 
@@ -18,11 +17,11 @@ sanic_version = tuple(map(int, sanic_version.split(".")))
 @pytest.fixture()
 def sanic_client():
     """Fixture for using sanic async HTTP server rather than a asgi async server used by test client"""
-    subenv = env.copy()
-    subenv["SANIC_PORT"] = str(SERVER_PORT)
+    env = os.environ.copy()
+    env["SANIC_PORT"] = str(SERVER_PORT)
     args = ["ddtrace-run", "python", RUN_SERVER_PY]
     subp = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=subenv, preexec_fn=os.setsid
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env, preexec_fn=os.setsid
     )
     client = Client("http://0.0.0.0:{}".format(SERVER_PORT))
     client.wait(path="/hello")

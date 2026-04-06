@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from ddtrace.constants import _HOSTNAME_KEY
@@ -5,15 +7,14 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.patch import patch as mlflow_patch
 from ddtrace.contrib.internal.mlflow.patch import unpatch as mlflow_unpatch
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.settings import env
 
 
 @pytest.fixture(autouse=True, scope="session")
 def mlflow_isolated_tracking_uri(tmp_path_factory):
     db_path = tmp_path_factory.mktemp("mlflow") / "mlflow.db"
-    env["MLFLOW_TRACKING_URI"] = f"sqlite:///{db_path}"
+    os.environ["MLFLOW_TRACKING_URI"] = f"sqlite:///{db_path}"
     yield
-    del env["MLFLOW_TRACKING_URI"]
+    del os.environ["MLFLOW_TRACKING_URI"]
 
 
 @pytest.fixture(autouse=True)

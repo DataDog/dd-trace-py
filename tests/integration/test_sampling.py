@@ -1,15 +1,15 @@
 import json
+import os
 
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.integration.utils import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
-USING_NATIVE_WRITER = env.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
+USING_NATIVE_WRITER = os.environ.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
 
 
 @pytest.mark.snapshot()

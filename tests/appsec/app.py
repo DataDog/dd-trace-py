@@ -3,10 +3,8 @@
 import os
 import sys
 
-from ddtrace.internal.settings import env  # noqa: E402
 
-
-if env.get("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
+if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
     import ddtrace.auto  # noqa: F401  # isort: skip
     import logging
 
@@ -1083,7 +1081,7 @@ def subprocess_popen_ok():
 
 
 if __name__ == "__main__":
-    env_port = env.get("FLASK_RUN_PORT", 8000)
-    debug = asbool(env.get("FLASK_DEBUG", "false"))
+    env_port = os.getenv("FLASK_RUN_PORT", 8000)
+    debug = asbool(os.getenv("FLASK_DEBUG", "false"))
     ddtrace_iast_flask_patch()
     app.run(debug=debug, port=env_port)

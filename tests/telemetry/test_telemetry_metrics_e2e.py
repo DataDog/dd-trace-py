@@ -8,7 +8,6 @@ import sys
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.retry import RetryError
 from tests.utils import _build_env
 from tests.webclient import Client
@@ -22,7 +21,7 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env(file_path=FILE_PATH)
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
-    env["DD_TRACE_AGENT_URL"] = env.get("DD_TRACE_AGENT_URL", "")
+    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
     # do not patch flask because we will end up with confusing metrics
     # now that we generate metrics for spans
@@ -98,9 +97,9 @@ for _ in range(10):
         span.set_tag("component", "custom")
         pass
 """
-    subenv = env.copy()
-    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     metrics_sc = test_agent_session.get_metrics("spans_created")
 
@@ -125,10 +124,10 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    subenv = env.copy()
-    subenv["DD_TRACE_OTEL_ENABLED"] = "true"
-    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_TRACE_OTEL_ENABLED"] = "true"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
     metrics_sc = test_agent_session.get_metrics("spans_created")

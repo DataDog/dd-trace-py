@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -34,7 +32,7 @@ def test_heap_tracker_count_present():
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
     assert files, "Expected at least one internal_metadata.json file"
 

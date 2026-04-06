@@ -1,12 +1,12 @@
-import pytest
+import os
 
-from ddtrace.internal.settings import env
+import pytest
 
 
 # Skip this test when using uvloop - the weak link feature relies on asyncio internals
 # that uvloop doesn't expose the same way
 @pytest.mark.skipif(
-    env.get("USE_UVLOOP", "0") == "1",
+    os.environ.get("USE_UVLOOP", "0") == "1",
     reason="uvloop does not support weak link detection the same way as asyncio",
 )
 @pytest.mark.subprocess(
@@ -57,7 +57,7 @@ def test_asyncio_weak_links_wall_time() -> None:
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 

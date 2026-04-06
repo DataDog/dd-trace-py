@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import random
 import time
 
@@ -12,7 +13,6 @@ from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_config
 
@@ -295,10 +295,10 @@ def test():
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(kafka_topic)
-    subenv = env.copy()
-    subenv["DD_KAFKA_SERVICE"] = "my-custom-service-name"
-    subenv["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
 
@@ -318,13 +318,13 @@ def test():
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(kafka_topic)
-    subenv = env.copy()
+    env = os.environ.copy()
     if service:
-        subenv["DD_SERVICE"] = service
+        env["DD_SERVICE"] = service
     if schema:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    subenv["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
 
@@ -427,9 +427,9 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
 
-    subenv = env.copy()
-    subenv["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
 
@@ -627,9 +627,9 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    subenv = env.copy()
-    subenv["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
 

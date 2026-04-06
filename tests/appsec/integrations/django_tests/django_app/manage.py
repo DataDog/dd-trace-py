@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 import ddtrace.auto  # noqa: F401  # isort: skip
+import os
 import sys
-
-from ddtrace.internal.settings import env
 
 
 def main():
     """Run administrative tasks."""
-    env.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -1,5 +1,6 @@
 from io import StringIO
 import logging
+import os
 
 import pytest
 import wrapt
@@ -12,7 +13,6 @@ from ddtrace.contrib.internal.logging.patch import unpatch
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
 from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.settings import env
 from tests.utils import TracerTestCase
 
 
@@ -322,9 +322,9 @@ logging.basicConfig(level=logging.INFO, format=format_string)
 log.info("Hello!")
     """
 
-    subenv = env.copy()
-    subenv["DD_LOGS_INJECTION"] = dd_logs_enabled
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_LOGS_INJECTION"] = dd_logs_enabled
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
     assert stdout == b"", stderr

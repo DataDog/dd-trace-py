@@ -32,7 +32,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.internal.settings import env
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 
@@ -673,6 +672,8 @@ def test_span_link_v04_encoding():
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
 def test_span_event_encoding_msgpack():
+    import os
+
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
     from tests.tracer.test_encoders import decode
@@ -714,8 +715,8 @@ def test_span_event_encoding_msgpack():
     span._add_event("We are going to the moon", timestamp=2234567890123456)
 
     # Get test parameters from environment variables
-    version = env.get("DD_TRACE_API_VERSION")
-    trace_native_span_events = env.get("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
+    version = os.getenv("DD_TRACE_API_VERSION")
+    trace_native_span_events = os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
@@ -1111,11 +1112,12 @@ def test_json_encoder_traces_bytes():
     as we only accept valid str/bytes/None types for span names.
     """
     import json
+    import os
 
     import ddtrace.internal.encoding as encoding
     from ddtrace.trace import Span
 
-    encoder_class_name = env.get("encoder_cls")
+    encoder_class_name = os.getenv("encoder_cls")
 
     encoder = getattr(encoding, encoder_class_name)()
     data = encoder.encode_traces(

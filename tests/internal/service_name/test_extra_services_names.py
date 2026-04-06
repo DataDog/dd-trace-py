@@ -1,8 +1,7 @@
+import os
 import sys
 
 import pytest
-
-from ddtrace.internal.settings import env
 
 
 @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
@@ -45,9 +44,9 @@ assert len(extra_services) == 10, extra_services
 assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
 """
 
-    subenv = env.copy()
-    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)
 
 
@@ -68,9 +67,9 @@ extra_services.discard("sqlite")  # coverage
 assert extra_services == {"extra_service_1"}, extra_services
     """
 
-    subenv = env.copy()
-    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)
 
 
@@ -90,9 +89,9 @@ extra_services = ddtrace.config._get_extra_services()
 assert len(extra_services) == 0
     """
 
-    subenv = env.copy()
-    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)
 
 
@@ -115,7 +114,7 @@ assert "parent_service" in extra_services
 assert "child_service" in extra_services
     """
 
-    subenv = env.copy()
-    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)

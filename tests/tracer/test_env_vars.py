@@ -1,8 +1,7 @@
+import os
 import subprocess
 
 import pytest
-
-from ddtrace.internal.settings import env
 
 
 @pytest.mark.parametrize(
@@ -43,8 +42,8 @@ def test_obfuscation_querystring_pattern_env_var(
     """
     Test that obfuscation config is properly configured from env vars
     """
-    subenv = env.copy()
-    subenv[env_var_name] = env_var_value
+    env = os.environ.copy()
+    env[env_var_name] = env_var_value
     out = subprocess.check_output(
         [
             "python",
@@ -63,7 +62,7 @@ assert config._http_tag_query_string == %s
                 )
             ),
         ],
-        env=subenv,
+        env=env,
     )
     assert b"AssertionError" not in out, out
 
@@ -95,11 +94,11 @@ def test_tag_querystring_env_var(
     """
     Test that query string tagging config is properly configured from env vars
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     if server_tag_query_string is not None:
-        subenv["DD_HTTP_SERVER_TAG_QUERY_STRING"] = server_tag_query_string
+        env["DD_HTTP_SERVER_TAG_QUERY_STRING"] = server_tag_query_string
     if client_tag_query_string is not None:
-        subenv["DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
+        env["DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
     out = subprocess.check_output(
         [
             "python",
@@ -123,6 +122,6 @@ assert config.requests.http_tag_query_string == %s
                 )
             ),
         ],
-        env=subenv,
+        env=env,
     )
     assert b"AssertionError" not in out

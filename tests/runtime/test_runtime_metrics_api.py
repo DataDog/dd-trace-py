@@ -1,8 +1,9 @@
+import os
+
 import pytest
 
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.settings import env
 from ddtrace.runtime import RuntimeMetrics
 
 
@@ -83,9 +84,9 @@ assert not RuntimeMetrics._enabled
 telemetry_writer.periodic(force_flush=True)
     """
 
-    subenv = env.copy()
-    subenv["DD_RUNTIME_METRICS_ENABLED"] = "true"
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
     runtimemetrics_enabled = test_agent_session.get_configurations("DD_RUNTIME_METRICS_ENABLED")
@@ -202,6 +203,7 @@ def test_runtime_metrics_experimental_runtime_tag():
     When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
         Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
     """
+    import os
 
     from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
@@ -215,13 +217,13 @@ def test_runtime_metrics_experimental_runtime_tag():
 
     runtime_id_tag = f"runtime-id:{get_runtime_id()}"
     if (
-        env["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "true"
-        or env["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true"
+        os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "true"
+        or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true"
     ):
         assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
     elif (
-        env["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "false"
-        or env["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false"
+        os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "false"
+        or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false"
     ):
         assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
     else:
@@ -239,6 +241,7 @@ def test_runtime_metrics_experimental_metric_type():
     When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
         Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
     """
+    import os
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.service import ServiceStatus
@@ -248,7 +251,7 @@ def test_runtime_metrics_experimental_metric_type():
 
     worker_instance = RuntimeWorker._instance
     assert worker_instance.status == ServiceStatus.RUNNING
-    if "DD_RUNTIME_METRICS_ENABLED" in env["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
+    if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
         assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
     else:
         assert worker_instance.send_metric == worker_instance._dogstatsd_client.distribution, (

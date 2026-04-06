@@ -9,7 +9,6 @@ import subprocess
 
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
@@ -19,20 +18,20 @@ def preapare_test_env(mypackage_example):
     subprocess.check_output("python setup.py bdist_wheel", shell=True)
     pkgfile = glob.glob(os.path.join(mypackage_example, "dist", "*.whl"))[0]
 
-    env["SHA_VALUE"] = subprocess.check_output("git rev-parse HEAD", shell=True).decode("utf-8").strip()
+    os.environ["SHA_VALUE"] = subprocess.check_output("git rev-parse HEAD", shell=True).decode("utf-8").strip()
 
     envdir = os.path.join(mypackage_example, "run_env_dir")
     cwd = os.getcwd()
-    python_path = env.get("PYTHONPATH", None)
+    python_path = os.getenv("PYTHONPATH", None)
     try:
         subprocess.check_output("pip install --target=" + envdir + " " + pkgfile, shell=True)
         os.chdir(envdir)
-        env["PYTHONPATH"] = env.get("PYTHONPATH", "") + os.pathsep + envdir
+        os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
         yield
     finally:
         os.chdir(cwd)
         if python_path is not None:
-            env["PYTHONPATH"] = python_path
+            os.environ["PYTHONPATH"] = python_path
 
 
 @pytest.mark.usefixtures("preapare_test_env")
@@ -46,7 +45,7 @@ class GitMetadataTestCase(TracerTestCase):
         with self.tracer.trace("span") as s:
             pass
 
-        assert s.get_tag("_dd.git.commit.sha") == env.get("SHA_VALUE")
+        assert s.get_tag("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
         assert s.get_tag("_dd.git.repository_url") == "https://github.com/companydotcom/repo"
         assert s.get_tag("_dd.python_main_package") == "mypackage"
 

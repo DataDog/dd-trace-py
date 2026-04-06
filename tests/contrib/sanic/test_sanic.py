@@ -1,4 +1,5 @@
 import asyncio
+import os
 import random
 import re
 
@@ -19,7 +20,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.sanic.patch import patch
 from ddtrace.contrib.internal.sanic.patch import unpatch
-from ddtrace.internal.settings import env
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -478,14 +478,14 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
 
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name is not None:
-        subenv["DD_SERVICE"] = service_name
+        env["DD_SERVICE"] = service_name
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=subenv,
+        env=env,
     )
     assert status == 0, out or err
 
@@ -526,12 +526,12 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
 
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=subenv,
+        env=env,
     )
     assert status == 0, out or err
 

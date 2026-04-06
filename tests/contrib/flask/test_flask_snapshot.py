@@ -8,7 +8,6 @@ from typing import Generator  # noqa:F401
 import pytest
 
 from ddtrace.contrib.internal.flask.patch import flask_version
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
@@ -35,8 +34,8 @@ def flask_command(flask_wsgi_application: str, flask_port: str) -> list[str]:
 
 
 def flask_default_env(flask_wsgi_application: str) -> dict[str, str]:
-    subenv = env.copy()
-    subenv.update(
+    env = os.environ.copy()
+    env.update(
         {
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",

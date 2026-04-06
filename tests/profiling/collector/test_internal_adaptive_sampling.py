@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -53,7 +51,7 @@ def test_internal_adaptive_sampling():
         loop.run_until_complete(main_task)
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
 
     # With adaptive sampling enabled, the sampling interval can grow up to 1 second

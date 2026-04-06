@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import subprocess
 import sys
 import time
@@ -14,7 +15,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.settings import env
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -1173,12 +1173,12 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
-        subenv["DD_SERVICE"] = service_name
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_SERVICE"] = service_name
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
     assert err == b""
 
@@ -1215,10 +1215,10 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
     assert err == b"", (out, err)
 

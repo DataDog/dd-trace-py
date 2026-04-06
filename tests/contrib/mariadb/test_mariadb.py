@@ -1,9 +1,10 @@
+import os
+
 import mariadb
 import pytest
 
 from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
-from ddtrace.internal.settings import env
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -159,13 +160,13 @@ def test():
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
     if service:
-        subenv["DD_SERVICE"] = service
+        env["DD_SERVICE"] = service
 
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

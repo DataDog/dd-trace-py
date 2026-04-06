@@ -1,3 +1,5 @@
+import os
+
 import botocore
 import pytest
 
@@ -5,7 +7,6 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
-from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -26,11 +27,11 @@ def ddtrace_global_config():
 @pytest.fixture
 def aws_credentials():
     """Mocked AWS Credentials. To regenerate test cassettes, comment this out and use real credentials."""
-    env["AWS_ACCESS_KEY_ID"] = "testing"
-    env["AWS_SECRET_ACCESS_KEY"] = "testing"
-    env["AWS_SECURITY_TOKEN"] = "testing"
-    env["AWS_SESSION_TOKEN"] = "testing"
-    env["AWS_DEFAULT_REGION"] = "us-east-1"
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"
+    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 
 @pytest.fixture
@@ -50,10 +51,10 @@ def boto3(aws_credentials, llmobs_span_writer, ddtrace_global_config):
 @pytest.fixture
 def bedrock_client(boto3, request_vcr):
     session = boto3.Session(
-        aws_access_key_id=env.get("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=env.get("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=env.get("AWS_SESSION_TOKEN", ""),
-        region_name=env.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
     client = session.client("bedrock-runtime")
     yield client
@@ -62,10 +63,10 @@ def bedrock_client(boto3, request_vcr):
 @pytest.fixture
 def bedrock_agent_client(boto3, request_vcr):
     session = boto3.Session(
-        aws_access_key_id=env.get("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=env.get("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=env.get("AWS_SESSION_TOKEN", ""),
-        region_name=env.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
     client = session.client("bedrock-agent-runtime")
     yield client
@@ -74,10 +75,10 @@ def bedrock_agent_client(boto3, request_vcr):
 @pytest.fixture
 def bedrock_client_proxy(boto3):
     session = boto3.Session(
-        aws_access_key_id=env.get("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=env.get("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=env.get("AWS_SESSION_TOKEN", ""),
-        region_name=env.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
     bedrock_client = session.client("bedrock-runtime", endpoint_url="http://localhost:4000")
     yield bedrock_client

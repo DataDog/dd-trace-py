@@ -1,13 +1,12 @@
+import os
 import subprocess
 import sys
 
 import mock
 import pytest
 
-from ddtrace.internal.settings import env
 
-
-AGENT_VERSION = env.get("AGENT_VERSION")
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 class BadEncoder:

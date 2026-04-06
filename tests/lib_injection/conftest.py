@@ -14,7 +14,6 @@ except ImportError:
 import pytest
 
 from ddtrace import __version__
-from ddtrace.internal.settings import env
 
 
 HOST_DDTRACE_VERSION = __version__
@@ -143,9 +142,9 @@ def test_venv(ddtrace_injection_artifact):
 
             # Construct the base environment needed to run things in this venv
             base_env = {
-                **env,
+                **os.environ,
                 "VIRTUAL_ENV": venv_dir,
-                "PATH": os.path.dirname(pip_executable) + os.pathsep + env.get("PATH", ""),
+                "PATH": os.path.dirname(pip_executable) + os.pathsep + os.environ.get("PATH", ""),
                 "PYTHONPATH": "",
             }
 

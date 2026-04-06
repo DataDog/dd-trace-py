@@ -32,9 +32,9 @@ def get_env_tags() -> dict[str, str]:
     merge_tags(
         tags,
         git.get_git_tags_from_git_command(),
-        ci.get_ci_tags(env),
-        git.get_git_tags_from_dd_variables(env),
-        get_custom_dd_tags(env),
+        ci.get_ci_tags(os.environ),
+        git.get_git_tags_from_dd_variables(os.environ),
+        get_custom_dd_tags(os.environ),
     )
 
     if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):

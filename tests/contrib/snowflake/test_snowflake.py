@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 
 import pytest
 import responses
@@ -7,7 +8,6 @@ import snowflake.connector
 
 from ddtrace.contrib.internal.snowflake.patch import patch
 from ddtrace.contrib.internal.snowflake.patch import unpatch
-from ddtrace.internal.settings import env
 from tests.utils import override_config
 from tests.utils import snapshot
 
@@ -238,12 +238,12 @@ def test_snowflake_service_env():
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     if service:
-        subenv["DD_SERVICE"] = service
+        env["DD_SERVICE"] = service
     if schema:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    subenv["DD_TRACE_REQUESTS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

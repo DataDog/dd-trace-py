@@ -1,6 +1,7 @@
+import os
+
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
@@ -42,12 +43,12 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=subenv,
+        env=env,
     )
     assert status == 0, (out, err)
 
@@ -90,11 +91,11 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=subenv,
+        env=env,
     )
     assert status == 0, (out, err)

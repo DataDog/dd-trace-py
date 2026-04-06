@@ -1,5 +1,6 @@
 import asyncio
 from collections import namedtuple
+import os
 import sys
 
 import grpc
@@ -12,7 +13,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
-from ddtrace.internal.settings import env
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -847,12 +847,12 @@ async def test_client_streaming(server_info, tracer):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
     """.format(expected_operation_name_format)
-    subenv = env.copy()
+    env = os.environ.copy()
     if service:
-        subenv["DD_SERVICE"] = service
+        env["DD_SERVICE"] = service
     if schema:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

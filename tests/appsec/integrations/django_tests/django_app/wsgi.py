@@ -5,12 +5,11 @@ This enables running the Django test app under Gunicorn using the
 """
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+import os
 
 from django.core.wsgi import get_wsgi_application
 
-from ddtrace.internal.settings import env
 
-
-env.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
 
 application = get_wsgi_application()

@@ -22,7 +22,6 @@ from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as un
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -178,7 +177,7 @@ def configuration_endpoint():
 
 @pytest.fixture(autouse=True)
 def clear_iast_env_vars():
-    env[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
-    if IAST.DENY_MODULES in env:
-        env.pop("_DD_IAST_DENY_MODULES")
+    os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
+    if IAST.DENY_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_DENY_MODULES")
     yield

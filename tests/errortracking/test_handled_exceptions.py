@@ -6,7 +6,6 @@ import tempfile
 
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
@@ -231,7 +230,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             file.write(submodule_2_string)
 
         sys.path.insert(0, str(base_path))
-        env["PYTHONPATH"] = str(base_path) + os.pathsep + env.get("PYTHONPATH", "")
+        os.environ["PYTHONPATH"] = str(base_path) + os.pathsep + os.environ.get("PYTHONPATH", "")
 
         self.addCleanup(temp_dir.cleanup)
 

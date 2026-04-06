@@ -7,11 +7,10 @@ cases marked with @run_in_subprocess in a separate python interpreter.
 """
 
 import inspect
+import os
 import subprocess
 import sys
 import unittest
-
-from ddtrace.internal.settings import env
 
 
 SUBPROC_TEST_ATTR = "_subproc_test"
@@ -110,7 +109,7 @@ class SubprocessTestCase(unittest.TestCase):
         env_overrides = self._get_env_overrides()
         use_pytest = self._get_use_pytest()
         full_testcase_name = self._full_method_name(use_pytest=use_pytest)
-        sp_test_env = env.copy()
+        sp_test_env = os.environ.copy()
         sp_test_env.update(env_overrides)
         sp_test_env[SUBPROC_ENV_VAR] = "True"
         test_framework = "pytest" if use_pytest else "unittest"
@@ -149,7 +148,7 @@ class SubprocessTestCase(unittest.TestCase):
 
         :return: whether the test is a subprocess test
         """
-        return env.get(SUBPROC_ENV_VAR, None) is not None
+        return os.getenv(SUBPROC_ENV_VAR, None) is not None
 
     def _is_subprocess_test(self):
         if hasattr(self, SUBPROC_TEST_ATTR):

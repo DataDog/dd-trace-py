@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -49,14 +47,14 @@ def test_asyncio_run_frames_captured():
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     # Get samples with task_name - this is the key check
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0, "No task names found - asyncio task tracking failed!"
 
-    use_uvloop = env.get("USE_UVLOOP", "0") == "1"
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
 
     # uvloop uses a C-based event loop that doesn't go through Python's BaseEventLoop methods
     # so we only expect these frames when NOT using uvloop

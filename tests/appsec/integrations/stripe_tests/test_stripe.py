@@ -11,13 +11,12 @@ import vcr
 
 from ddtrace._trace.tracer import Tracer
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.settings import env
 from tests.utils import override_global_config
 
 
 RULES_STRIPE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rules-stripe.json")
 
-STRIPE_API_KEY = env.get(
+STRIPE_API_KEY = os.environ.get(
     "STRIPE_API_KEY",
     "fake_stripe_key",
 )

@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -43,7 +41,7 @@ def test_generators_stacks() -> None:
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 

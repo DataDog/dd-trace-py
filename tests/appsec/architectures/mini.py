@@ -12,7 +12,6 @@ from flask import request  # noqa: E402
 import requests  # noqa: E402 F401
 
 from ddtrace import __version__  # noqa: E402
-from ddtrace.internal.settings import env  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 import ddtrace.internal.telemetry.writer  # noqa: E402
 
@@ -46,9 +45,9 @@ def hello_world():
         "asm_config": {
             k: getattr(asm_config, k) for k in dir(asm_config) if isinstance(getattr(asm_config, k), (int, bool, float))
         },
-        "aws": "AWS_LAMBDA_FUNCTION_NAME" in env,
+        "aws": "AWS_LAMBDA_FUNCTION_NAME" in os.environ,
         "version": __version__,
-        "env": dict(env),
+        "env": dict(os.environ),
         "file_length": file_length,
     }
 

@@ -3,12 +3,11 @@ import sys
 
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 
 
-@pytest.mark.skipif(not env.get("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
+@pytest.mark.skipif(not os.getenv("DD_PROFILING_PYTORCH_ENABLED", False), reason="Not testing pytorch GPU")
 def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)

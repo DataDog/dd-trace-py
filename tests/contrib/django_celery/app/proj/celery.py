@@ -1,10 +1,10 @@
+import os
 
 from celery import Celery
-from ddtrace.internal.settings import env
 
 
 # Set the default Django settings module for the 'celery' program.
-env.setdefault("DJANGO_SETTINGS_MODULE", "proj.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "proj.settings")
 
 app = Celery("proj")
 

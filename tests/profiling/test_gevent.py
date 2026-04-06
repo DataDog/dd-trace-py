@@ -1,13 +1,12 @@
 """Tests for ddtrace/profiling/_gevent.py task-linkage helpers."""
 
+import os
 import sys
 
 import pytest
 
-from ddtrace.internal.settings import env
 
-
-GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = env.get("DD_PROFILE_TEST_GEVENT", False) and (
+GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
 

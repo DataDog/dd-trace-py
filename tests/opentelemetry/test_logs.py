@@ -1,11 +1,11 @@
 from concurrent import futures
+import os
 
 from opentelemetry.version import __version__ as api_version_string
 import pytest
 
 from ddtrace.internal.opentelemetry.logs import API_VERSION
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
-from ddtrace.internal.settings import env
 
 
 try:
@@ -88,9 +88,9 @@ def extract_log_correlation_attributes(captured_logs, log_message: str) -> dict:
 @pytest.mark.skipif(API_VERSION >= (1, 15, 0), reason="OpenTelemetry API >= 1.15.0 supports logs collection")
 def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
     """Test error when OpenTelemetry API version is too old."""
-    subenv = env.copy()
-    subenv["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=subenv)
+    env = os.environ.copy()
+    env["DD_LOGS_OTEL_ENABLED"] = "true"
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
     assert (
         "OpenTelemetry API requires version 1.15.0 or higher to enable logs collection. "
@@ -105,9 +105,9 @@ def test_otel_api_version_not_supported(ddtrace_run_python_code_in_subprocess):
 )
 def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
     """Test error when OpenTelemetry SDK is not installed."""
-    subenv = env.copy()
-    subenv["DD_LOGS_OTEL_ENABLED"] = "true"
-    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=subenv)
+    env = os.environ.copy()
+    env["DD_LOGS_OTEL_ENABLED"] = "true"
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="import opentelemetry", env=env)
     assert status == 0, (stdout, stderr)
 
     assert (
@@ -388,6 +388,7 @@ def test_ddtrace_log_injection_otlp_enabled():
 def test_ddtrace_log_correlation():
     """Test OpenTelemetry logs exporter correlates ddtrace traces with logs."""
     from logging import getLogger
+    import os
 
     from opentelemetry._logs import get_logger_provider
 
@@ -395,7 +396,7 @@ def test_ddtrace_log_correlation():
     from tests.opentelemetry.test_logs import create_mock_grpc_server
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
-    otel_context = env.get("OTEL_PYTHON_CONTEXT")
+    otel_context = os.environ.get("OTEL_PYTHON_CONTEXT")
     assert otel_context == "ddcontextvars_context", (
         f"Expected OTEL_PYTHON_CONTEXT to be set to ddcontextvars_context but found: {otel_context}"
     )
@@ -452,6 +453,7 @@ def test_ddtrace_log_correlation():
 def test_otel_trace_log_correlation():
     """Test OpenTelemetry logs exporter correlates OpenTelemetry traces with logs."""
     from logging import getLogger
+    import os
 
     from opentelemetry import trace
     from opentelemetry._logs import get_logger_provider
@@ -459,7 +461,7 @@ def test_otel_trace_log_correlation():
     from tests.opentelemetry.test_logs import create_mock_grpc_server
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
-    otel_context = env.get("OTEL_PYTHON_CONTEXT")
+    otel_context = os.environ.get("OTEL_PYTHON_CONTEXT")
     assert otel_context == "ddcontextvars_context", (
         f"Expected OTEL_PYTHON_CONTEXT to be set to ddcontextvars_context but found: {otel_context}"
     )

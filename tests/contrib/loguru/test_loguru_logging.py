@@ -1,4 +1,5 @@
 import json
+import os
 
 from loguru import logger
 import pytest
@@ -9,7 +10,6 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.loguru.patch import patch
 from ddtrace.contrib.internal.loguru.patch import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 from tests.utils import override_global_config
 
@@ -116,9 +116,9 @@ with tracer.trace("test.logging") as span:
     logger.info("Hello!")
     """
 
-    subenv = env.copy()
-    subenv.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, err + out
 
@@ -143,9 +143,9 @@ with tracer.trace("test.logging") as span:
     logger.info("Hello!")
     """
 
-    subenv = env.copy()
-    subenv.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, err + out
 

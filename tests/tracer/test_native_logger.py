@@ -1,10 +1,10 @@
 from contextlib import nullcontext
+import os
 import uuid
 
 import pytest
 
 from ddtrace.internal.native._native import logger
-from ddtrace.internal.settings import env
 
 
 @pytest.fixture(autouse=True)
@@ -114,11 +114,11 @@ def test_logger_subprocess(
     if not tmp_path.exists():
         tmp_path.mkdir(parents=True, exist_ok=True)
 
-    subenv = env.copy()
-    subenv["_DD_TRACE_WRITER_NATIVE"] = "1"
-    subenv["_DD_NATIVE_LOGGING_BACKEND"] = backend
-    subenv["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
-    subenv["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
+    env = os.environ.copy()
+    env["_DD_TRACE_WRITER_NATIVE"] = "1"
+    env["_DD_NATIVE_LOGGING_BACKEND"] = backend
+    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
+    env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
 
     message = f"msg_{uuid.uuid4().hex}"
     code = """
@@ -127,7 +127,7 @@ from ddtrace.internal.native._native import logger
 message_level = f"{}"
 logger.log(message_level, f"{}")
     """.format(message_level, message)
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0
     if backend == "":

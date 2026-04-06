@@ -12,7 +12,6 @@ import pytest
 
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.settings import env
 from tests.contrib.django.utils import make_soap_request
 from tests.webclient import Client
 
@@ -52,10 +51,10 @@ app = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
 
 @pytest.fixture()
 def wsgi_app():
-    subenv = env.copy()
-    subenv.update(
+    env = os.environ.copy()
+    env.update(
         {
-            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + subenv["PYTHONPATH"],
+            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
             "DD_TRACE_ENABLED": "true",
         }
@@ -66,7 +65,7 @@ def wsgi_app():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=True,
-        env=subenv,
+        env=env,
     )
 
     yield proc

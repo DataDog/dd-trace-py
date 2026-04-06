@@ -10,7 +10,6 @@ import pytest
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
-from ddtrace.internal.settings import env
 import tests.test_module
 from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
@@ -101,6 +100,7 @@ def test_after_module_imported_decorator(module_watchdog):
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
+    import os
     from pathlib import Path
     import sys
 
@@ -109,7 +109,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
     from ddtrace.internal.module import ModuleWatchdog
 
     name = "tests.test_module"
-    path = Path(env.get("MODULE_ORIGIN"))
+    path = Path(os.getenv("MODULE_ORIGIN"))
     hook = mock.Mock()
 
     ModuleWatchdog.register_origin_hook(path, hook)
@@ -169,6 +169,7 @@ def test_import_module_hook_for_module_not_yet_imported():
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(json))))
 def test_module_deleted():
     import gc
+    import os
     from pathlib import Path
     import sys
 
@@ -179,7 +180,7 @@ def test_module_deleted():
         gc.collect()
 
     name = "json"
-    path = Path(env.get("MODULE_ORIGIN")).resolve()
+    path = Path(os.getenv("MODULE_ORIGIN")).resolve()
 
     class Counter(object):
         count = 0
@@ -432,7 +433,7 @@ def test_module_watchdog_namespace_import():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
-        PYTHONPATH=os.pathsep.join((str(Path(__file__).parent), env.get("PYTHONPATH", ""))),
+        PYTHONPATH=os.pathsep.join((str(Path(__file__).parent), os.environ.get("PYTHONPATH", ""))),
         PYTHONDEVMODE="1",
     ),
 )
@@ -446,9 +447,10 @@ def test_module_watchdog_namespace_import_no_warnings():
 def test_module_watchdog_pkg_resources_support():
     # Test that we can access resource files with pkg_resources without raising
     # an exception.
+    import os
     import sys
 
-    sys.path.insert(0, env.get("NSPATH"))
+    sys.path.insert(0, os.getenv("NSPATH"))
 
     try:
         import pkg_resources as p
@@ -465,11 +467,12 @@ def test_module_watchdog_pkg_resources_support():
 def test_module_watchdog_pkg_resources_support_already_imported():
     # Test that we can access resource files with pkg_resources without raising
     # an exception.
+    import os
     import sys
 
     assert "ddtrace" not in sys.modules
 
-    sys.path.insert(0, env.get("NSPATH"))
+    sys.path.insert(0, os.getenv("NSPATH"))
 
     import pkg_resources as p
 
@@ -483,9 +486,10 @@ def test_module_watchdog_pkg_resources_support_already_imported():
 )
 @pytest.mark.subprocess(env=dict(NSPATH=str(Path(__file__).parent)))
 def test_module_watchdog_importlib_resources_files():
+    import os
     import sys
 
-    sys.path.insert(0, env.get("NSPATH"))
+    sys.path.insert(0, os.getenv("NSPATH"))
 
     from importlib.readers import MultiplexedPath
     import importlib.resources as r

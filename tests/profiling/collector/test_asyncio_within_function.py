@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -63,13 +61,13 @@ def test_asyncio_within_function() -> None:
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     def loc(f_name: str, filename: str = "", line_no: int = -1) -> StackLocation:
         return pprof_utils.StackLocation(function_name=f_name, filename=filename, line_no=line_no)
 
-    use_uvloop = env.get("USE_UVLOOP", "0") == "1"
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
 
     # uvloop uses a C-based event loop that doesn't go through Python's BaseEventLoop methods
     # With uvloop: async_starter → async_run → run (uvloop) → Runner.run → async_main

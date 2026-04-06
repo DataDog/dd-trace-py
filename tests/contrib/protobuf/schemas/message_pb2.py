@@ -18,6 +18,9 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from tests.contrib.protobuf.schemas import (
+    other_message_pb2 as tests_dot_contrib_dot_protobuf_dot_schemas_dot_other__message__pb2,
+)
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(

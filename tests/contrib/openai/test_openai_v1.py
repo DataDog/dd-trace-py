@@ -4,7 +4,6 @@ import mock
 import openai as openai_module
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -850,11 +849,11 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
     FIXME: there _should_ be httpx spans generated for this test case. There aren't
            because the patching VCR does into httpx interferes with the tracing patching.
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(subenv["PYTHONPATH"])
-    subenv.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+        pypath.append(env["PYTHONPATH"])
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import openai
@@ -869,7 +868,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
     )
 """,
-        env=subenv,
+        env=env,
     )
     assert status == 0, err
     assert out == b""
@@ -890,11 +889,11 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
     FIXME: there _should_ be httpx spans generated for this test case. There aren't
            because the patching VCR does into httpx interferes with the tracing patching.
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(subenv["PYTHONPATH"])
-    subenv.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+        pypath.append(env["PYTHONPATH"])
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -913,7 +912,7 @@ async def task():
 
 asyncio.run(task())
 """,
-        env=subenv,
+        env=env,
     )
     assert status == 0, err
     assert out == b""
@@ -1074,15 +1073,15 @@ async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_subprocess, schema_version, service_name):
-    subenv = env.copy()
+    env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(subenv["PYTHONPATH"])
-    subenv.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+        pypath.append(env["PYTHONPATH"])
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
-        subenv["DD_SERVICE"] = service_name
+        env["DD_SERVICE"] = service_name
     with snapshot_context(
         token="tests.contrib.openai.test_openai_v1.test_integration_service_name[%s-%s]"
         % (service_name, schema_version),
@@ -1101,7 +1100,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")
     """,
-            env=subenv,
+            env=env,
         )
         assert status == 0, err
         assert out == b""

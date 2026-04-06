@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -6,7 +7,6 @@ import sys
 import django
 import pytest
 
-from ddtrace.internal.settings import env
 from tests.utils import _build_env
 from tests.utils import package_installed
 from tests.utils import snapshot
@@ -32,10 +32,10 @@ def daphne_client(django_asgi, additional_env=None):
 
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
-    subenv = _build_env(env.copy(), file_path=FILE_PATH)
-    subenv.update(additional_env or {})
-    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in subenv, "Client fixture needs test token in headers"
-    subenv.update(
+    env = _build_env(os.environ.copy(), file_path=FILE_PATH)
+    env.update(additional_env or {})
+    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
+    env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
         }
@@ -52,7 +52,7 @@ def daphne_client(django_asgi, additional_env=None):
         "tests.contrib.django.asgi:%s" % django_asgi,
     ]
     subprocess_kwargs = {
-        "env": subenv,
+        "env": env,
         "start_new_session": True,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,

@@ -15,7 +15,6 @@ from pytest import MonkeyPatch
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.settings import env
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.conftest import get_original_test_name
@@ -31,7 +30,7 @@ if TYPE_CHECKING:
 # https://github.com/python/cpython/issues/117983
 # The fix was not backported to 3.11. The fix was first released in 3.12.5 for
 # Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
-GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = env.get("DD_PROFILE_TEST_GEVENT", False) and (
+GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
 
@@ -75,10 +74,10 @@ def test_collect_truncate() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
 
-    pprof_prefix = env["DD_PROFILING_OUTPUT_PPROF"]
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    max_nframes = int(env["DD_PROFILING_MAX_FRAMES"])
+    max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
 
     p = profiler.Profiler()
     p.start()
@@ -620,7 +619,7 @@ def test_collect_gevent_task_started_before_profiler() -> None:
         pre_started_greenlet.join(timeout=2)
         p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0

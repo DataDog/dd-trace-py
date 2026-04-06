@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -20,7 +18,7 @@ def test_lock_acquire_events():
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
 
-    init_linenos(env["DD_PROFILING_FILE_PATH"])
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
     from tests.profiling.collector.test_utils import async_run
 
@@ -46,7 +44,7 @@ def test_lock_acquire_events():
     p.stop()
 
     expected_filename = "test_threading_asyncio.py"
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     linenos_1 = get_lock_linenos("test_lock_acquire_events_1")
     linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
@@ -59,7 +57,7 @@ def test_lock_acquire_events():
     # is reported from uvloop's wrapper code, not from _lock. We skip the _lock lock
     # event check when using uvloop since the filename and line numbers would be from
     # uvloop's source code.
-    use_uvloop = env.get("USE_UVLOOP", "0") == "1"
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
 
     expected_acquire_events = [
         pprof_utils.LockAcquireEvent(

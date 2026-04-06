@@ -17,7 +17,6 @@ from typing import cast
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings.profiling import ProfilingConfig
 from ddtrace.internal.settings.profiling import (
     _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
@@ -79,7 +78,7 @@ def test_heap_samples_collected() -> None:
     from tests.profiling.collector.test_memalloc import _allocate_1k
 
     # Test for https://github.com/DataDog/dd-trace-py/issues/11069
-    pprof_prefix = env["DD_PROFILING_OUTPUT_PPROF"]
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     p = Profiler()
@@ -378,8 +377,8 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     test_name = f"test_memory_collector_allocation_accuracy_with_tracemalloc_{sample_interval}"
     output_filename = _setup_profiling_prelude(tmp_path, test_name)
 
-    old = env.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
-    env["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
+    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
+    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
 
     mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
 
@@ -404,10 +403,10 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
     finally:
         if old is not None:
-            env["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
+            os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
         else:
-            if "_DD_MEMALLOC_DEBUG_RNG_SEED" in env:
-                del env["_DD_MEMALLOC_DEBUG_RNG_SEED"]
+            if "_DD_MEMALLOC_DEBUG_RNG_SEED" in os.environ:
+                del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
     # Get sample type indices
     heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")

@@ -8,7 +8,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.ext.ci import github_actions
-from ddtrace.internal.settings import env
 
 
 class TestGitHubActionsJobID:
@@ -205,7 +204,7 @@ class TestGitHubActionsJobID:
     def test_get_github_diag_dirs_windows(self):
         """Test Windows diagnostics directory paths."""
         with mock.patch("platform.system", return_value="Windows"):
-            with mock.patch.dict(env, {"ProgramFiles": "C:\\Program Files"}):
+            with mock.patch.dict(os.environ, {"ProgramFiles": "C:\\Program Files"}):
                 dirs = github_actions._get_diag_dirs()
                 assert os.path.join("C:\\Program Files", "actions-runner", "cached", "_diag") in dirs
                 assert os.path.join("C:\\Program Files", "actions-runner", "_diag") in dirs

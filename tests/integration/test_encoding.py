@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
 
 import mock
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 
 
-AGENT_VERSION = env.get("AGENT_VERSION")
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 class TestTraceAcceptedByAgent:

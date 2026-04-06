@@ -4,8 +4,6 @@ import sys
 
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
@@ -26,7 +24,7 @@ EXPL_FOLDER = Path(__file__).parent.resolve()
 
 def expl_env(**kwargs):
     return {
-        "PYTHONPATH": os.pathsep.join((str(EXPL_FOLDER), env.get("PYTHONPATH", ""))),
+        "PYTHONPATH": os.pathsep.join((str(EXPL_FOLDER), os.getenv("PYTHONPATH", ""))),
         **kwargs,
     }
 

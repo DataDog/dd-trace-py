@@ -1,4 +1,5 @@
 import itertools
+import os
 from pathlib import Path
 
 from azure.eventhub import EventData
@@ -7,7 +8,6 @@ import pytest
 
 from ddtrace.contrib.internal.azure_eventhubs.patch import patch
 from ddtrace.contrib.internal.azure_eventhubs.patch import unpatch
-from ddtrace.internal.settings import env
 
 
 CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
@@ -79,11 +79,11 @@ def patch_azure_eventhubs():
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
-    subenv = env.copy()
-    subenv.update(env_vars)
+    env = os.environ.copy()
+    env.update(env_vars)
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=subenv)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
 
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

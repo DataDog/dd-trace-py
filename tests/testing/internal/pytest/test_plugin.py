@@ -4,13 +4,13 @@ This file is organized with high-level feature tests first, followed by unit tes
 Integration tests are in tests/test_integration.py.
 """
 
+import os
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
@@ -374,7 +374,7 @@ class TestSessionManagement:
         mock_config.invocation_params = mock_invocation_params
 
         # Mock environment variable
-        with patch.dict(env, {"PYTEST_ADDOPTS": "--maxfail=1"}):
+        with patch.dict(os.environ, {"PYTEST_ADDOPTS": "--maxfail=1"}):
             command = _get_test_command(mock_config)
 
         expected = "pytest --tb=short -v tests/ --maxfail=1"
@@ -385,7 +385,7 @@ class TestSessionManagement:
         mock_config = Mock()
         mock_config.invocation_params = None
 
-        with patch.dict(env, {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True):
             command = _get_test_command(mock_config)
 
         assert command == "pytest"

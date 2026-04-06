@@ -1,11 +1,11 @@
 """Tests for ddtrace.testing.internal.logging module."""
 
 import logging
+import os
 from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.logging import testing_logger
@@ -23,7 +23,7 @@ class TestSetupLogging:
         testing_logger.propagate = True
         testing_logger.setLevel(logging.NOTSET)
 
-    @patch.dict(env, {}, clear=True)
+    @patch.dict(os.environ, {}, clear=True)
     def test_setup_logging_default_level(self) -> None:
         """Test setup_logging with default (INFO) level."""
         setup_logging()
@@ -35,7 +35,7 @@ class TestSetupLogging:
         handler = testing_logger.handlers[0]
         assert isinstance(handler, logging.StreamHandler)
 
-    @patch.dict(env, {"DD_TEST_DEBUG": "true"})
+    @patch.dict(os.environ, {"DD_TEST_DEBUG": "true"})
     def test_setup_logging_debug_level_true(self) -> None:
         """Test setup_logging with DEBUG level enabled via true."""
         setup_logging()
@@ -44,21 +44,21 @@ class TestSetupLogging:
         assert testing_logger.level == logging.DEBUG
         assert len(testing_logger.handlers) == 1
 
-    @patch.dict(env, {"DD_TEST_DEBUG": "1"})
+    @patch.dict(os.environ, {"DD_TEST_DEBUG": "1"})
     def test_setup_logging_debug_level_one(self) -> None:
         """Test setup_logging with DEBUG level enabled via 1."""
         setup_logging()
 
         assert testing_logger.level == logging.DEBUG
 
-    @patch.dict(env, {"DD_TEST_DEBUG": "false"})
+    @patch.dict(os.environ, {"DD_TEST_DEBUG": "false"})
     def test_setup_logging_debug_level_false(self) -> None:
         """Test setup_logging with DEBUG level disabled."""
         setup_logging()
 
         assert testing_logger.level == logging.INFO
 
-    @patch.dict(env, {"DD_TEST_DEBUG": "0"})
+    @patch.dict(os.environ, {"DD_TEST_DEBUG": "0"})
     def test_setup_logging_debug_level_zero(self) -> None:
         """Test setup_logging with DEBUG level disabled via 0."""
         setup_logging()

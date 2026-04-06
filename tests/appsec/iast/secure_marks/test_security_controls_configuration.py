@@ -1,6 +1,7 @@
 """Tests for DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable functionality."""
 
 import functools
+import os
 from unittest.mock import patch
 
 import pytest
@@ -16,7 +17,6 @@ from ddtrace.appsec._iast.secure_marks.configuration import parse_security_contr
 from ddtrace.appsec._iast.secure_marks.configuration import parse_vulnerability_types
 from ddtrace.appsec._iast.secure_marks.sanitizers import create_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import create_validator
-from ddtrace.internal.settings import env
 from tests.utils import override_global_config
 
 
@@ -213,7 +213,7 @@ def test_get_security_controls_from_env_valid():
     assert result[1].module_path == "html"
 
 
-@patch.dict(env, {"DD_IAST_SECURITY_CONTROLS_CONFIGURATION": "INVALID:FORMAT"})
+@patch.dict(os.environ, {"DD_IAST_SECURITY_CONTROLS_CONFIGURATION": "INVALID:FORMAT"})
 def test_get_security_controls_from_env_invalid():
     """Test getting security controls from invalid environment variable."""
     result = get_security_controls_from_env()

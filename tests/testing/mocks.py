@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import gzip
 import json
+import os
 from pathlib import Path
 import typing as t
 from unittest.mock import Mock
@@ -20,7 +21,6 @@ from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
@@ -201,7 +201,7 @@ class SessionManagerMockBuilder:
                 patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=self._env_tags),
                 patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
                 patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                patch.dict(env, test_env),
+                patch.dict(os.environ, test_env),
             ):
                 # Create session manager
                 test_session = MockDefaults.test_session()

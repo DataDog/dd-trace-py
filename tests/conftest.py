@@ -30,6 +30,12 @@ import warnings
 import pytest
 
 import ddtrace
+
+
+# DEV: Consumed by detect_service() during ddtrace import above; unset now so
+# it doesn't leak into tests (e.g. unit tests that call detect_service directly).
+os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -37,7 +43,6 @@ from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
@@ -53,10 +58,6 @@ try:
 except ImportError:
     StashKey = None
 
-
-# DEV: Consumed by detect_service() during ddtrace import above; unset now so
-# it doesn't leak into tests (e.g. unit tests that call detect_service directly).
-env.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
@@ -104,7 +105,7 @@ def get_original_test_name(request_or_item):
 # pytest shutdown. This is a temporary workaround until we can figure out... why....
 # https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
 # OSError: [Errno 9] Bad file descriptor
-if env.get("CI") == "true":
+if os.environ.get("CI") == "true":
     try:
         from _pytest.capture import FDCapture
 
@@ -168,12 +169,12 @@ def pytest_configure(config):
     # calls in the worker, then conftest pops it so it never leaks into test code.
     # Only set when xdist workers are actually being spawned (numprocesses > 0 or
     # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
-    if not env.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
+    if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
         from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
         _inferred = _detect_service(sys.argv)
         if _inferred:
-            env["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -196,7 +197,7 @@ def remove_git_repo_url_from_test_env():
         ddtrace.internal.gitmetadata._GITMETADATA_TAGS = ("", commit_sha, main_package)
 
     # Remove the env var so it doesn't get re-read
-    env.pop("DD_GIT_REPOSITORY_URL", None)
+    os.environ.pop("DD_GIT_REPOSITORY_URL", None)
     yield
 
 
@@ -298,7 +299,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
-    if marks and env.get("DD_SNAPSHOT_ENABLED", "1") == "1":
+    if marks and os.getenv("DD_SNAPSHOT_ENABLED", "1") == "1":
         snap = marks[0]
         token = snap.kwargs.get("token")
         if token:
@@ -411,19 +412,19 @@ def run_function_from_file(item, params=None):
         args.append("-m")
 
     # Override environment variables for the subprocess
-    subenv = env.copy()
-    pythonpath = subenv.get("PYTHONPATH", None)
+    env = os.environ.copy()
+    pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
-    subenv["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
 
     for key, value in marker.kwargs.get("env", {}).items():
         if value is None:  # None means remove the variable
-            subenv.pop(key, None)
+            env.pop(key, None)
         else:
-            subenv[key] = value
+            env[key] = value
 
     if params is not None:
-        subenv.update(params)
+        env.update(params)
 
     expected_status = marker.kwargs.get("status", 0)
     expected_out = marker.kwargs.get("out", "")
@@ -454,7 +455,7 @@ def run_function_from_file(item, params=None):
             args.extend(marker.kwargs.get("args", []))
 
             def _subprocess_wrapper():
-                out, err, status, _ = call_program(*args, env=subenv, cwd=cwd, timeout=timeout)
+                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
                 xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
                 if xfailed:
@@ -839,15 +840,15 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
         finally:
             conn.close()
 
-    p_agentless = env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
         # The default environment for the telemetry writer tests disables agentless mode
         # because the behavior is identical except for the trace URL, endpoint, and
         # presence of an API key header.
-        env["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
-        env["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
 
 

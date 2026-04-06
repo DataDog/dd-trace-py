@@ -1,3 +1,5 @@
+import os
+
 import graphql
 from graphql import build_schema
 from graphql import graphql_sync
@@ -6,7 +8,6 @@ import pytest
 from ddtrace.contrib.internal.graphql.patch import _graphql_version as graphql_version
 from ddtrace.contrib.internal.graphql.patch import patch
 from ddtrace.contrib.internal.graphql.patch import unpatch
-from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 from tests.utils import override_config
 from tests.utils import snapshot
@@ -232,11 +233,11 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
 
-    subenv = env.copy()
+    env = os.environ.copy()
     if service_name:
-        subenv["DD_SERVICE"] = service_name
+        env["DD_SERVICE"] = service_name
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()

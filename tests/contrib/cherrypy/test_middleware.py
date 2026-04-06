@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 import re
 import time
 from urllib.parse import quote as url_quote
@@ -16,7 +17,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
-from ddtrace.internal.settings import env
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
@@ -647,11 +647,11 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    subenv["DD_SERVICE"] = "mysvc"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_SERVICE"] = "mysvc"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
     assert b"2 passed" in out
 
@@ -703,10 +703,10 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    subenv["DD_SERVICE"] = "mysvc"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    env["DD_SERVICE"] = "mysvc"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
     assert b"2 passed" in out

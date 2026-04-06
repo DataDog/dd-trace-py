@@ -3,7 +3,6 @@ import pytest
 
 from ddtrace.internal import agent
 from ddtrace.internal.agent import info
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import is_ipv6_hostname
 from ddtrace.internal.utils.http import verify_url
 
@@ -30,12 +29,13 @@ def test_is_ipv6_hostname(hostname, expected):
     env={"DD_TRACE_AGENT_HOST": None, "DD_TRACE_AGENT_URL": None, "DD_DOGSTATSD_URL": None, "DD_DOGSTATSD_HOST": None},
 )
 def test_hostname():
+    import os
     from urllib.parse import urlparse
 
     from ddtrace.internal.settings._agent import config
 
-    assert urlparse(config.trace_agent_url).hostname == env.get("DD_AGENT_HOST")
-    assert urlparse(config.dogstatsd_url).hostname == env.get("DD_AGENT_HOST"), urlparse(config.dogstatsd_url)
+    assert urlparse(config.trace_agent_url).hostname == os.environ.get("DD_AGENT_HOST")
+    assert urlparse(config.dogstatsd_url).hostname == os.environ.get("DD_AGENT_HOST"), urlparse(config.dogstatsd_url)
 
 
 @pytest.mark.subprocess(

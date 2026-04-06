@@ -1,10 +1,11 @@
+import os
+
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
 
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
-from ddtrace.internal.settings import env
 from tests.utils import TracerTestCase
 
 from .hello_pb2_grpc import add_HelloServicer_to_server
@@ -12,7 +13,7 @@ from .hello_servicer import _HelloServicer
 
 
 def _get_grpc_port():
-    worker = env.get("PYTEST_XDIST_WORKER", "gw0")
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
     try:
         worker_num = int(worker[2:])
     except (ValueError, IndexError):

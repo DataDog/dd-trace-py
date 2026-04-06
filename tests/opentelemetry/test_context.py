@@ -17,7 +17,6 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
-from ddtrace.internal.settings import env
 
 from .test_logs import EXPORTER_VERSION
 
@@ -136,12 +135,13 @@ def test_otel_trace_across_fork():
 def test_sampling_decisions_across_processes():
     # sampling decision in the subprocess task should be the same as the parent
     import multiprocessing
+    import os
 
     from opentelemetry.trace import get_tracer
 
     from tests.opentelemetry.test_context import _subprocess_task
 
-    decision = env["SAMPLING_DECISION"]
+    decision = os.environ["SAMPLING_DECISION"]
     oteltracer = get_tracer(__name__)
 
     errors = multiprocessing.Queue()

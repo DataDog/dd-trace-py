@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import pytest_asyncio
 
@@ -10,7 +12,6 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -96,10 +97,10 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name, expected_span_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b""
 

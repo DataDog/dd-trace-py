@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 import typing as t
 from unittest import mock
 
@@ -13,7 +14,6 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
@@ -187,7 +187,7 @@ def _get_default_os_env_vars():
         "HOME",
     }
 
-    return {key: env[key] for key in os_env_keys if key in env}
+    return {key: os.environ[key] for key in os_env_keys if key in os.environ}
 
 
 def _get_default_ci_env_vars(

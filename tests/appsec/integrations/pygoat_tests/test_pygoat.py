@@ -1,10 +1,10 @@
 import json
+import os
 import time
 
 import pytest
 import requests
 
-from ddtrace.internal.settings import env
 from tests.appsec.iast.conftest import iast_context_defaults
 from tests.appsec.iast.iast_utils import load_iast_report
 
@@ -17,7 +17,7 @@ span_defaults = iast_context_defaults  # So ruff does not remove it
 
 IMAGE_NAME = "pygoat:2.0.1"
 PYGOAT_URL = "http://0.0.0.0:8321"
-TESTAGENT_URL = env.get("DD_TRACE_AGENT_URL", "http://localhost:9126")
+TESTAGENT_URL = os.getenv("DD_TRACE_AGENT_URL", "http://localhost:9126")
 TESTAGENT_TOKEN = "pygoat_test"
 TESTAGENT_HEADERS = {"X-Datadog-Test-Session-Token": TESTAGENT_TOKEN}
 TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN

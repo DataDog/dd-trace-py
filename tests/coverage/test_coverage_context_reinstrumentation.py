@@ -18,8 +18,6 @@ import sys
 
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -40,7 +38,7 @@ def test_sequential_contexts_with_no_overlap():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -124,7 +122,7 @@ def test_context_with_repeated_execution_reinstruments_correctly():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -175,7 +173,7 @@ def test_nested_contexts_maintain_independence():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -229,7 +227,7 @@ def test_many_sequential_contexts_no_degradation():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -296,7 +294,7 @@ def test_context_after_session_coverage():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -392,7 +390,7 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 

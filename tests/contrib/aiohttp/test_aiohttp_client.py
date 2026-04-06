@@ -1,10 +1,11 @@
+import os
+
 import aiohttp
 import pytest
 
 from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
-from ddtrace.internal.settings import env
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -111,9 +112,9 @@ async def test():
 
 asyncio.run(test())
     """
-    subenv = env.copy()
-    subenv["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+    env = os.environ.copy()
+    env["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""
 
@@ -137,11 +138,11 @@ async def test():
 
 asyncio.run(test())
     """
-    subenv = env.copy()
-    subenv["DD_SERVICE"] = "global-service-name"
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "global-service-name"
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""
 
@@ -165,10 +166,10 @@ async def test():
 
 asyncio.run(test())
     """
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version is not None:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""
 

@@ -3,19 +3,19 @@
 The tests in this module only validate the exit status from pytest-xdist.
 """
 
+import os  # Just for the RIOT env var check
 from unittest import mock
 
 import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
-from ddtrace.internal.settings import env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
 ######
 # Skip these tests if they are not running under riot
-riot_env_value = env.get("RIOT", None)
+riot_env_value = os.getenv("RIOT", None)
 if not riot_env_value:
     pytest.importorskip("xdist", reason="Auto Test Retries + xdist tests, not running under riot")
 ######

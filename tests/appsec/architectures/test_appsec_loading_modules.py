@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -8,7 +9,6 @@ from urllib.request import urlopen
 
 import pytest
 
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -26,26 +26,26 @@ MODULE_IAST_ONLY = [
 @pytest.mark.parametrize("aws_lambda", [None, "any"])
 def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     flask_app = pathlib.Path(__file__).parent / "mini.py"
-    subenv = env.copy()
+    env = os.environ.copy()
     if appsec_enabled:
-        subenv["DD_APPSEC_ENABLED"] = appsec_enabled
+        env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
-        subenv.pop("DD_APPSEC_ENABLED", None)
+        env.pop("DD_APPSEC_ENABLED", None)
     if iast_enabled:
-        subenv["DD_IAST_ENABLED"] = iast_enabled
+        env["DD_IAST_ENABLED"] = iast_enabled
     else:
-        subenv.pop("DD_IAST_ENABLED", None)
+        env.pop("DD_IAST_ENABLED", None)
     if aws_lambda:
-        subenv["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
+        env["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
     else:
-        subenv.pop("AWS_LAMBDA_FUNCTION_NAME", None)
+        env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
 
     # Disable debug logging as it creates too large buffer to handle
-    subenv["DD_TRACE_DEBUG"] = "false"
+    env["DD_TRACE_DEBUG"] = "false"
 
     print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
 
-    process = subprocess.Popen([sys.executable, str(flask_app)], env=subenv)
+    process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
     try:
         print("process started", flush=True)
         for i in range(24):
@@ -103,9 +103,9 @@ def test_package(module, expected):
 
     print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
 
-    subenv = env.copy()
-    subenv["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "4"
-    process = subprocess.Popen([sys.executable, str(flask_app)], env=subenv)
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "4"
+    process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
     try:
         print("process started", flush=True)
         for i in range(24):

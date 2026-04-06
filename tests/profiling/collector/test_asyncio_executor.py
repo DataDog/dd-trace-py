@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 @pytest.mark.subprocess(
     env=dict(
@@ -39,7 +37,7 @@ def test_asyncio_executor_wall_time() -> None:
 
     p.stop()
 
-    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -65,7 +63,7 @@ def test_asyncio_executor_wall_time() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "thread name")
     assert len(samples) > 0
 
-    use_uvloop = env.get("USE_UVLOOP", "0") == "1"
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
 
     # uvloop uses ThreadPoolExecutor naming instead of asyncio naming
     if use_uvloop:

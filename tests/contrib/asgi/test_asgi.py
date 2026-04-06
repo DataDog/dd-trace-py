@@ -1,6 +1,7 @@
 import asyncio
 from functools import partial
 import logging
+import os
 import random
 
 from asgiref.testing import ApplicationCommunicator
@@ -13,7 +14,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
-from ddtrace.internal.settings import env
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -222,10 +222,10 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_span_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
     assert err == b"", f"STDOUT\n{out.decode()}\nSTDERR\n{err.decode()}"
 
@@ -278,12 +278,12 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
-    subenv = env.copy()
+    env = os.environ.copy()
     if global_service_name:
-        subenv["DD_SERVICE"] = global_service_name
+        env["DD_SERVICE"] = global_service_name
     if schema_version:
-        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
     assert err == b""
 
