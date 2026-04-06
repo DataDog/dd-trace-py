@@ -8,8 +8,6 @@ from typing import Union
 from typing import cast
 import unittest
 from unittest import mock
-from uuid import uuid4
-
 import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareState
@@ -23,7 +21,6 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 # Renamed to avoid pytest trying to collect it as a Test class:
-from tests.utils import TestAgentClient as _TestAgentClient
 from tests.utils import remote_config_build_payload as build_payload
 
 
@@ -59,11 +56,19 @@ class TracerFlareTests(unittest.TestCase):
             flare_dir=str(self.shared_dir),
             ddconfig={"config": "testconfig"},
         )
-        self.testagent_token = f"tracer-flare-{uuid4().hex}"
-        self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
+        # TODO: TracerFlareManager.zip_and_send() (Rust/libdatadog) does not support
+        # custom request headers, so we cannot pass test_session_token to scope flare
+        # uploads to this test's session in the test agent. Under xdist parallel
+        # execution, unscoped flare requests bleed across workers causing unreliable
+        # counts. Wrap the native manager so all methods (handle_remote_config_data,
+        # set_current_log_level) still delegate to the real implementation, but
+        # zip_and_send is replaced with a MagicMock so uploads are counted in-process
+        # without making real HTTP calls. The native object's attributes are read-only
+        # (PyO3), so we can't patch zip_and_send in-place; wrapping it in a MagicMock
+        # first is the workaround.
+        # Remove this mock once libdatadog's TracerFlareManager gains custom header support.
+        self.flare._native_manager = mock.MagicMock(wraps=self.flare._native_manager)
+        self.flare._native_manager.zip_and_send = mock.MagicMock()
         self.pid = os.getpid()
         self.flare_file_path = str(self.shared_dir / f"tracer_python_{self.pid}.log")
         self.config_file_path = str(self.shared_dir / f"tracer_config_{self.pid}.json")
@@ -78,10 +83,7 @@ class TracerFlareTests(unittest.TestCase):
         self.confirm_cleanup()
 
     def _flare_upload_count(self) -> int:
-        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
-        requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        return self.flare._native_manager.zip_and_send.call_count
 
     def _get_handler(self) -> Optional[logging.Handler]:
         ddlogger = get_logger("ddtrace")
@@ -609,7 +611,11 @@ def test_multiple_process_success():
 
 
 @pytest.mark.subprocess(
-    err=lambda err: all("ddtrace logs will be routed to" in line for line in err.splitlines() if line)
+    # Use any() rather than all(): background ddtrace threads write additional lines to stderr while
+    # forked grandchild processes run (remote config, telemetry writers, etc.), so we can't require
+    # EVERY line to be the routing message. We still assert the expected message appears at least once,
+    # confirming set_current_log_level() ran successfully.
+    err=lambda err: any("ddtrace logs will be routed to" in line for line in err.splitlines() if line)
 )
 def test_multiple_process_partial_failure():
     """
@@ -706,19 +712,28 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     def setUp(self):
         self.shared_dir = self.tmp_path / "tracer_flare_test"
         self.shared_dir.mkdir(parents=True, exist_ok=True)
-        self.testagent_token = f"tracer-flare-sub-{uuid4().hex}"
-        self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
         self.connector = PublisherSubscriberConnector()
+        flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL,
+            ddconfig={"config": "testconfig"},
+            flare_dir=self.shared_dir,
+        )
+        # TODO: TracerFlareManager.zip_and_send() (Rust/libdatadog) does not support
+        # custom request headers, so we cannot pass test_session_token to scope flare
+        # uploads to this test's session in the test agent. Under xdist parallel
+        # execution, unscoped flare requests bleed across workers causing unreliable
+        # counts. Wrap the native manager so all methods (handle_remote_config_data,
+        # set_current_log_level) still delegate to the real implementation, but
+        # zip_and_send is replaced with a MagicMock so uploads are counted in-process
+        # without making real HTTP calls. The native object's attributes are read-only
+        # (PyO3), so we can't patch zip_and_send in-place; wrapping it in a MagicMock
+        # first is the workaround.
+        # Remove this mock once libdatadog's TracerFlareManager gains custom header support.
+        flare._native_manager = mock.MagicMock(wraps=flare._native_manager)
+        flare._native_manager.zip_and_send = mock.MagicMock()
         self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=self.connector,
-            flare=Flare(
-                trace_agent_url=TRACE_AGENT_URL,
-                ddconfig={"config": "testconfig"},
-                flare_dir=self.shared_dir,
-            ),
+            flare=flare,
         )
 
     def get_data_from_connector_and_exec(self):
@@ -746,10 +761,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         self.get_data_from_connector_and_exec()
 
     def _flare_upload_count(self) -> int:
-        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
-        requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        return self.tracer_flare_sub.flare._native_manager.zip_and_send.call_count
 
     def test_process_flare_request_success(self):
         """

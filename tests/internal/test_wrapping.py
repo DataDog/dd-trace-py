@@ -944,6 +944,7 @@ def test_wrapping_context_method_leaks():
     import gc
 
     from ddtrace.internal.wrapping.context import WrappingContext
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
     NOTSET = object()
 
@@ -980,15 +981,36 @@ def test_wrapping_context_method_leaks():
     wc = DummyWrappingContext(foo)
     wc.wrap()
 
-    method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+    # Disable auto-GC to prevent non-deterministic collection between measurements,
+    # and narrow to bound methods of _UniversalWrappingContext (the __enter__,
+    # __return__, and _exit bound methods injected into the wrapped bytecode) to
+    # avoid counting unrelated method objects from background threads or imports.
+    def is_wrapping_method(obj):
+        return type(obj).__name__ == "method" and isinstance(getattr(obj, "__self__", None), _UniversalWrappingContext)
+
+    gc.disable()
+    gc.collect()
+    # Store only IDs before the run — no object references held, so nothing is kept alive artificially.
+    before_ids = {id(obj) for obj in gc.get_objects() if is_wrapping_method(obj)}
 
     for _ in range(10000):
         foo()
 
     gc.collect()
 
-    new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
-    assert new_method_count <= method_count + 1
+    # After measurement is complete it is safe to hold references for inspection.
+    after_objects = [obj for obj in gc.get_objects() if is_wrapping_method(obj)]
+    gc.enable()
+
+    new_objects = [obj for obj in after_objects if id(obj) not in before_ids]
+    assert len(after_objects) <= len(before_ids) + 1, (
+        f"Expected at most {len(before_ids) + 1} wrapping methods, got {len(after_objects)}.\n"
+        + "\n".join(
+            f"  NEW {obj!r} __func__={getattr(obj, '__func__', None)!r} "
+            f"referrers={gc.get_referrers(obj)!r}"
+            for obj in new_objects
+        )
+    )
 
 
 class DummyLazyWrappingContext(LazyWrappingContext):
