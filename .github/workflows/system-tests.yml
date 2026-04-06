@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '00 04 * * 2-6'
 
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
 jobs:
   should-run:
     runs-on: ubuntu-latest
@@ -356,6 +361,18 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_SYMDB
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
+      - name: Upload test results to Test Optimization
+        if: always() && steps.docker_load.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
+
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: always() && steps.docker_load.outcome == 'success'
@@ -402,6 +419,18 @@ jobs:
         if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
+      - name: Upload test results to Test Optimization
+        if: always() && steps.build_runner.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
+
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
@@ -445,9 +474,6 @@ jobs:
     # Automatically managed, use scripts/update-system-tests-version to update
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python_lambda
       binaries_artifact: serverless_system_tests_binaries
@@ -477,13 +503,24 @@ jobs:
     # Automatically managed, use scripts/update-system-tests-version to update
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
+
+  tracer-release:
+    # TODO: re-enable once DataDog/system-tests reusable workflow supports dd-sts
+    if: false
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
+    secrets:
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
+    with:
+      library: python
+      ref: main
+      scenarios_groups: tracer-release
+      _system_tests_dev_mode: true
+      push_to_test_optimization: true
 
   finished:
     name: system-tests finished
@@ -506,5 +543,7 @@ jobs:
           needs.serverless-system-tests.result == 'failure' ||
           needs.serverless-system-tests.result == 'cancelled' ||
           needs.integration-frameworks-system-tests.result == 'failure' ||
-          needs.integration-frameworks-system-tests.result == 'cancelled'
+          needs.integration-frameworks-system-tests.result == 'cancelled'||
+          needs.tracer-release.result == 'failure' ||
+          needs.tracer-release.result == 'cancelled'
         run: exit 1
