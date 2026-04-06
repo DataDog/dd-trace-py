@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.subprocess(
     env={
@@ -12,7 +14,6 @@ def test_otlp_traces_sent_via_http():
     """Traces generated with tracer.trace() are exported as OTLP JSON to the configured HTTP endpoint."""
     from http.server import BaseHTTPRequestHandler
     import json
-    import os
     import queue
     import socketserver
     import threading
@@ -33,7 +34,7 @@ def test_otlp_traces_sent_via_http():
     with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
         port = server.server_address[1]
         # Set the endpoint before importing ddtrace so the NativeWriter picks it up at init time.
-        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
+        env["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
 
         t = threading.Thread(target=server.serve_forever)
         t.daemon = True

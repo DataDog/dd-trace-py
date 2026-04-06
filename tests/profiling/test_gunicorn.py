@@ -17,6 +17,7 @@ import urllib.request
 import pytest
 from typing_extensions import TypeAlias
 
+from ddtrace.internal.settings import env
 from tests.profiling.collector import pprof_utils
 
 
@@ -34,7 +35,7 @@ def debug_print(*args: Any) -> None:
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+TESTING_GEVENT = env.get("DD_PROFILE_TEST_GEVENT", False)
 
 RunGunicornFunc: TypeAlias = Callable[..., subprocess.Popen[bytes]]
 

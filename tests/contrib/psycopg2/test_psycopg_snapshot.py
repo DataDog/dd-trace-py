@@ -1,11 +1,10 @@
-import os
-
 import psycopg2
 import pytest
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.settings import env
 
 
 @pytest.fixture(autouse=True)
@@ -62,9 +61,9 @@ conn = psycopg2.connect(**POSTGRES_CONFIG)
 assert conn
     """
 
-    env = os.environ.copy()
-    env["DD_PSYCOPG2_TRACE_CONNECT"] = "true"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_PSYCOPG2_TRACE_CONNECT"] = "true"
+    out, err, status, pid = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert out == b"", err
     assert err == b""

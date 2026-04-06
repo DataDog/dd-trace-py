@@ -1,10 +1,10 @@
 import importlib
-import os
 
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
 from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -54,8 +54,8 @@ def llmobs_events(llmobs, llmobs_span_writer):
 def langchain_core():
     with override_env(
         dict(
-            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            OPENAI_API_KEY=env.get("OPENAI_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=env.get("ANTHROPIC_API_KEY", "<not-a-real-key>"),
         )
     ):
         langchain_core_patch()

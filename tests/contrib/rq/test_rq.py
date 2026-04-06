@@ -1,4 +1,3 @@
-import os
 import subprocess
 import time
 
@@ -9,6 +8,7 @@ import rq
 from ddtrace.contrib.internal.rq.patch import get_version
 from ddtrace.contrib.internal.rq.patch import patch
 from ddtrace.contrib.internal.rq.patch import unpatch
+from ddtrace.internal.settings import env
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
@@ -138,13 +138,13 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
     )
     num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
-        env = os.environ.copy()
-        env["DD_TRACE_REDIS_ENABLED"] = "false"
+        subenv = env.copy()
+        subenv["DD_TRACE_REDIS_ENABLED"] = "false"
         if distributed_tracing_enabled is not None:
-            env["DD_RQ_DISTRIBUTED_TRACING_ENABLED"] = str(distributed_tracing_enabled)
+            subenv["DD_RQ_DISTRIBUTED_TRACING_ENABLED"] = str(distributed_tracing_enabled)
         if worker_service_name is not None:
-            env["DD_SERVICE"] = "custom-worker-service"
-        p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=env)
+            subenv["DD_SERVICE"] = "custom-worker-service"
+        p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=subenv)
         try:
             job = queue.enqueue(job_add1, 1)
             # Wait for job to complete
@@ -198,12 +198,12 @@ def test_worker_class_job(queue):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    env = os.environ.copy()
+    subenv = env.copy()
     if service:
-        env["DD_SERVICE"] = service
+        subenv["DD_SERVICE"] = service
     if schema:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    env["DD_TRACE_REDIS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    subenv["DD_TRACE_REDIS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

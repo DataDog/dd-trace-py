@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import re
 import subprocess
 
@@ -9,6 +8,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal import debug
+from ddtrace.internal.settings import env
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
@@ -228,15 +228,14 @@ def test_runtime_metrics_enabled_via_manual_start():
 
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_RUNTIME_METRICS_ENABLED": ["0", "true"]}, err=None)
 def test_runtime_metrics_enabled_via_env_var_start():
-    import os
 
     from ddtrace.internal import debug
     from ddtrace.internal.utils.formats import asbool
 
     f = debug.collect()
-    assert f.get("runtime_metrics_enabled") is asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")), (
+    assert f.get("runtime_metrics_enabled") is asbool(env.get("DD_RUNTIME_METRICS_ENABLED")), (
         f.get("runtime_metrics_enabled"),
-        asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")),
+        asbool(env.get("DD_RUNTIME_METRICS_ENABLED")),
     )
 
 
@@ -313,7 +312,7 @@ def test_startup_logs_log_level_override_set():
 def test_error_output_ddtracerun_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -325,7 +324,7 @@ def test_error_output_ddtracerun_debug_mode():
     # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", **env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -340,7 +339,7 @@ def test_error_output_ddtracerun():
     # Connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="false", **os.environ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="false", **env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -353,7 +352,7 @@ def test_error_output_ddtracerun():
     # No connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="false", **os.environ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="false", **env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -367,7 +366,7 @@ def test_error_output_ddtracerun():
 def test_debug_span_log():
     p = subprocess.Popen(
         ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

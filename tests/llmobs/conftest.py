@@ -9,6 +9,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
@@ -98,7 +99,7 @@ def ddtrace_global_config():
 
 def default_global_config():
     return {
-        "_dd_api_key": os.environ.get("DD_API_KEY", "<not-a-real-api_key>"),
+        "_dd_api_key": env.get("DD_API_KEY", "<not-a-real-api_key>"),
         "_llmobs_ml_app": "unnamed-ml-app",
         "service": "tests.llmobs",
     }
@@ -122,7 +123,7 @@ def ragas(mock_llmobs_eval_metric_writer):
             import ragas
         except ImportError:
             pytest.skip("Ragas not installed")
-        with override_env(dict(OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"))):
+        with override_env(dict(OPENAI_API_KEY=env.get("OPENAI_API_KEY", "<not-a-real-key>"))):
             yield ragas
 
 
@@ -160,9 +161,9 @@ def mock_ragas_answer_relevancy_calculate_similarity():
 @pytest.fixture
 def llmobs_env():
     return {
-        "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
+        "DD_API_KEY": env.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-        "DD_LLMOBS_PROJECT_NAME": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
+        "DD_LLMOBS_PROJECT_NAME": env.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
     }
 
 
@@ -234,7 +235,7 @@ def llmobs_backend(_llmobs_backend):
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {"project_name": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")}
+    yield {"project_name": env.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")}
 
 
 @pytest.fixture
@@ -254,8 +255,8 @@ def llmobs(
     mock_llmobs_eval_metric_writer,
     mock_llmobs_evaluator_runner,
 ):
-    for env, val in llmobs_env.items():
-        monkeypatch.setenv(env, val)
+    for env_key, val in llmobs_env.items():
+        monkeypatch.setenv(env_key, val)
     global_config = default_global_config()
     global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)

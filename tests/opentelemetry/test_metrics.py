@@ -1,7 +1,7 @@
-import os
-
 from opentelemetry import version
 import pytest
+
+from ddtrace.internal.settings import env
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
@@ -21,7 +21,7 @@ def skipif(
     if unsupported_otel_version and OTEL_VERSION < (1, 12):
         return pytest.mark.skipif(True, reason="OpenTelemetry version 1.12 or higher is required for these tests")
 
-    has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
+    has_exporter = env.get("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
     if exporter_installed and has_exporter:
         return pytest.mark.skipif(True, reason="Tests not compatible with the opentelemetry exporters")
     elif exporter_not_installed and not has_exporter:

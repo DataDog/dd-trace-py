@@ -1,7 +1,7 @@
-import os
 import subprocess
 import sys
 
+from ddtrace.internal.settings import env
 from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 from tests.utils import snapshot
 
@@ -41,11 +41,11 @@ asyncio.run(main())
 def do_test(tmpdir, es_module, async_class):
     f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
     f.write(code % {"module": es_module, "class": async_class})
-    env = os.environ.copy()
+    subenv = env.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
     # results. This generates sqlite3 spans during the test run which interfere
     # with the snapshot. So disable sqlite3.
-    env.update(
+    subenv.update(
         {
             "DD_TRACE_SQLITE3_ENABLED": "false",
             "DD_TRACE_AIOHTTP_ENABLED": "false",
@@ -56,7 +56,7 @@ def do_test(tmpdir, es_module, async_class):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
-        env=env,
+        env=subenv,
     )
     p.wait()
     stderr = p.stderr.read()

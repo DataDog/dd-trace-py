@@ -3,10 +3,10 @@ This app exists to replicate and report on failures and degraded behavior that c
 gunicorn
 """
 
-import os
+from ddtrace.internal.settings import env  # noqa: E402
 
 
-if os.getenv("_DD_TEST_IMPORT_AUTO"):
+if env.get("_DD_TEST_IMPORT_AUTO"):
     import ddtrace.auto  # noqa: F401  # isort: skip
 
 import json

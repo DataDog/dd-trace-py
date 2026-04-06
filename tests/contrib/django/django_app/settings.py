@@ -2,6 +2,7 @@ import os
 
 import django
 
+from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
@@ -86,7 +87,7 @@ MIDDLEWARE = [
     "tests.contrib.django.middleware.EverythingMiddleware",
 ]
 
-if os.getenv("TEST_INCLUDE_ASYNC_ONLY_MIDDLEWARE") == "1":
+if env.get("TEST_INCLUDE_ASYNC_ONLY_MIDDLEWARE") == "1":
     # DEV: Add to the front, since adding at the end causes it to not get called?
     MIDDLEWARE = ["tests.contrib.django.middleware.async_only_middleware"] + MIDDLEWARE
 

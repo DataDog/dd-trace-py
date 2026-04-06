@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-import os
 import re
 import subprocess
 
@@ -9,6 +8,7 @@ import pytest
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import FINGERPRINTING
 import ddtrace.internal.constants as constants
+from ddtrace.internal.settings import env
 import tests.appsec.rules as rules
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -29,10 +29,10 @@ def daphne_client(django_asgi, additional_env=None):
 
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
-    env = os.environ.copy()
-    env.update(additional_env or {})
+    subenv = env.copy()
+    subenv.update(additional_env or {})
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
-    env.update(
+    subenv.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
         }
@@ -41,7 +41,7 @@ def daphne_client(django_asgi, additional_env=None):
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
     cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
-    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=subenv)
 
     client = Client("http://localhost:%d" % SERVER_PORT)
 

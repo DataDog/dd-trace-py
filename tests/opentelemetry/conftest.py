@@ -1,8 +1,7 @@
-import os
-
 import opentelemetry
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.opentelemetry import TracerProvider
 
 
@@ -16,7 +15,7 @@ def set_otel_python_context():
     # OTEL_PYTHON_CONTEXT overrides the default contextvar used to parent otel spans. Setting this envar to
     # ``ddcontextvars_context`` allows us correlate otel and ddtrace spans by load the following
     # ddtrace entry point: `ddcontextvars_context = ddtrace.internal.opentelemetry.context:DDRuntimeContext`
-    os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+    env["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 
 
 @pytest.fixture

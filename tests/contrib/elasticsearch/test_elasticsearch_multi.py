@@ -1,7 +1,7 @@
-import os
 import subprocess
 import sys
 
+from ddtrace.internal.settings import env
 from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 from tests.utils import snapshot
 
@@ -33,17 +33,17 @@ else:
 def do_test(tmpdir, es_version):
     f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
     f.write(code % es_version)
-    env = os.environ.copy()
+    subenv = env.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
     # results. This generates sqlite3 spans during the test run which interfere
     # with the snapshot. So disable sqlite3.
-    env.update({"DD_TRACE_SQLITE3_ENABLED": "false"})
+    subenv.update({"DD_TRACE_SQLITE3_ENABLED": "false"})
     p = subprocess.Popen(
         ["ddtrace-run", sys.executable, str(f)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
-        env=env,
+        env=subenv,
     )
     p.wait()
     stderr = p.stderr.read()

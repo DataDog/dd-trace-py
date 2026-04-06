@@ -1,5 +1,3 @@
-import os
-
 import consul
 from wrapt import BoundFunctionWrapper
 
@@ -7,6 +5,7 @@ from ddtrace.contrib.internal.consul.patch import patch
 from ddtrace.contrib.internal.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.settings import env
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -18,8 +17,8 @@ CONSUL_HTTP_ADDR = f"{CONSUL_CONFIG['host']}:{CONSUL_CONFIG['port']}"
 
 class TestConsulPatch(TracerTestCase):
     def setUp(self):
-        if "CONSUL_HTTP_ADDR" in os.environ:
-            del os.environ["CONSUL_HTTP_ADDR"]
+        if "CONSUL_HTTP_ADDR" in env:
+            del env["CONSUL_HTTP_ADDR"]
         super(TestConsulPatch, self).setUp()
         patch()
         c = consul.Consul(

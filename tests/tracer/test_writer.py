@@ -21,6 +21,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -692,12 +693,12 @@ class CIVisibilityWriterTests(AgentWriterTests):
     WRITER_CLASS = CIVisibilityWriter
 
     def setUp(self):
-        self.original_env = dict(os.environ)
-        os.environ.update(dict(DD_API_KEY="foobar.baz"))
+        self.original_env = dict(env)
+        env.update(dict(DD_API_KEY="foobar.baz"))
 
     def tearDown(self):
-        os.environ.clear()
-        os.environ.update(self.original_env)
+        env.clear()
+        env.update(self.original_env)
 
     # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
     # that CIVisibilityWriter does not implement

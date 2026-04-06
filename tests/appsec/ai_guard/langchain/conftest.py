@@ -1,10 +1,9 @@
-import os
-
 import pytest
 
 from ddtrace.appsec._ai_guard import init_ai_guard
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.internal.settings import env
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.utils import override_env
 
@@ -26,8 +25,8 @@ def pytest_configure():
 def langchain():
     with override_env(
         dict(
-            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            OPENAI_API_KEY=env.get("OPENAI_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=env.get("ANTHROPIC_API_KEY", "<not-a-real-key>"),
         )
     ):
         patch()

@@ -29,6 +29,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -737,7 +738,6 @@ def test_tracer_shutdown_timeout():
     parametrize={"USE_START_SPAN": ["true", "false"]},
 )
 def test_tracer_shutdown():
-    import os
 
     import mock
 
@@ -746,7 +746,7 @@ def test_tracer_shutdown():
 
     t.shutdown()
 
-    if os.environ.get("USE_START_SPAN") == "true":
+    if env.get("USE_START_SPAN") == "true":
         create_span = t.start_span
     else:
         create_span = t.trace
@@ -1067,11 +1067,10 @@ def test_tracer_runtime_tags_cross_execution(tracer):
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_enable():
-    import os
 
     from ddtrace.trace import tracer as t2
 
-    if os.environ["DD_TRACE_ENABLED"] == "true":
+    if env["DD_TRACE_ENABLED"] == "true":
         assert t2.enabled
     else:
         assert not t2.enabled

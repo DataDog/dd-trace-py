@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import itertools
-import os
 import sys
 
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings import env
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
@@ -60,14 +60,13 @@ def test_single_trace_uds():
 
 @parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/nosockethere"})
 def test_uds_wrong_socket_path():
-    import os
 
     import mock
 
     from ddtrace import config
     from ddtrace.trace import tracer as t
 
-    encoding = os.environ["DD_TRACE_API_VERSION"]
+    encoding = env["DD_TRACE_API_VERSION"]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -106,7 +105,6 @@ def test_uds_wrong_socket_path():
     }
 )
 def test_payload_too_large():
-    import os
 
     import mock
 
@@ -115,7 +113,7 @@ def test_payload_too_large():
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
-    encoding = os.environ["DD_TRACE_API_VERSION"]
+    encoding = env["DD_TRACE_API_VERSION"]
     assert t._span_aggregator.writer._max_payload_size == FOUR_KB
     assert t._span_aggregator.writer._buffer_size == FOUR_KB
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -335,7 +333,6 @@ def test_single_trace_too_large_partial_flush_disabled():
     env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}, check_logs=False
 )
 def test_trace_generates_error_logs_when_trace_agent_url_invalid():
-    import os
 
     import mock
 
@@ -346,7 +343,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
         t.trace("op").finish()
         t.shutdown()
 
-    encoding = os.environ["DD_TRACE_API_VERSION"]
+    encoding = env["DD_TRACE_API_VERSION"]
 
     if config._trace_writer_native:
         calls = [
@@ -631,7 +628,6 @@ def test_api_version_downgrade_generates_no_warning_logs():
 @parametrize_with_all_encodings()
 def test_writer_flush_queue_generates_debug_log():
     import logging
-    import os
 
     import mock
 
@@ -640,7 +636,7 @@ def test_writer_flush_queue_generates_debug_log():
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
-    encoding = os.environ["DD_TRACE_API_VERSION"]
+    encoding = env["DD_TRACE_API_VERSION"]
     writer = create_trace_writer()
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -672,15 +668,15 @@ s1.finish()
 s2.finish()
 """.format(str(patch_logging))
 
-        env = os.environ.copy()
-        env.update(
+        subenv = env.copy()
+        subenv.update(
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
             }
         )
 
-        _, err, status, _ = run_python_code_in_subprocess(close_parent_span_before_child, env=env, timeout=5)
+        _, err, status, _ = run_python_code_in_subprocess(close_parent_span_before_child, env=subenv, timeout=5)
         assert status == 0, err
 
 
@@ -709,10 +705,10 @@ def test_writer_configured_correctly_from_env_defaults():
 
 
 def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+    subenv = env.copy()
+    subenv["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    subenv["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    subenv["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
@@ -722,7 +718,7 @@ assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
 assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
 assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 
@@ -781,12 +777,12 @@ def test_partial_flush_log():
 def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injection_enabled(
     ddtrace_run_python_code_in_subprocess,
 ):
-    env = os.environ.copy()
-    env["DD_TRACE_DEBUG"] = "true"
-    env["DD_LOGS_INJECTION"] = "true"
+    subenv = env.copy()
+    subenv["DD_TRACE_DEBUG"] = "true"
+    subenv["DD_LOGS_INJECTION"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=subenv)
 
     assert status == 0, (out, err)
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
@@ -803,11 +799,11 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
-    env = os.environ.copy()
+    subenv = env.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown
     # which results in a trace being generated after the tracer shutdown
     # has been initiated which results in a deprecation warning.
-    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
+    subenv["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=subenv)
     assert out == b"", out
     assert err == b"", err

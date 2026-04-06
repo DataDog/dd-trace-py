@@ -1,11 +1,11 @@
 import json
-import os
 from typing import Sequence
 
 import pytest
 
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._core import DDConfig
 from tests.utils import remote_config_build_payload as build_payload
@@ -258,8 +258,8 @@ def test_settings_missing_lib_config(config, monkeypatch):
 
 
 def test_remoteconfig_sampling_rules(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
+    subenv = env.copy()
+    subenv.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
 
     _, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
@@ -321,7 +321,7 @@ with tracer.trace("test") as span:
 assert span.get_tag("_dd.p.dm") == "-0"
 assert span.context.sampling_priority == 1
         """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err.decode("utf-8")
 
@@ -330,8 +330,8 @@ def test_remoteconfig_global_sample_rate_and_rules(ddtrace_run_python_code_in_su
     """There is complex logic regarding the interaction between setting new
     sample rates and rules with remote config.
     """
-    env = os.environ.copy()
-    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}, {"sample_rate":0.8}]'})
+    subenv = env.copy()
+    subenv.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}, {"sample_rate":0.8}]'})
 
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
@@ -442,14 +442,14 @@ with tracer.trace("sample_rate") as span:
 assert span.get_metric("_dd.rule_psr") is None
 assert span.get_tag("_dd.p.dm") == "-0"
          """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err.decode("utf-8")
 
 
 def test_remoteconfig_custom_tags(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TAGS": "team:apm"})
+    subenv = env.copy()
+    subenv.update({"DD_TAGS": "team:apm"})
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -470,14 +470,14 @@ with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "apm"
         """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
 def test_remoteconfig_tracing_enabled(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TRACE_ENABLED": "true"})
+    subenv = env.copy()
+    subenv.update({"DD_TRACE_ENABLED": "true"})
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -493,7 +493,7 @@ call_apm_tracing_rc(_base_rc_config({"tracing_enabled": "true"}), config)
 
 assert tracer.enabled is False
         """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
@@ -563,8 +563,8 @@ log.critical("Hi Friend!")
 
 
 def test_remoteconfig_header_tags(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
+    subenv = env.copy()
+    subenv.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -601,7 +601,7 @@ with tracer.trace("test") as span3:
 assert span3.get_tag("header_tag_420") is None
 assert span3.get_tag("env_set_tag_name") == "helloworld"
         """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 

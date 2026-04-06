@@ -1,13 +1,13 @@
 import importlib
 import json
 from operator import itemgetter
-import os
 import sys
 
 import mock
 import pytest
 
 from ddtrace import patch
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
@@ -1028,17 +1028,17 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     openai_env_config = dict(
-        OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "testing"),
+        OPENAI_API_KEY=env.get("OPENAI_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 
     azure_openai_env_config = dict(
         OPENAI_API_VERSION="2024-12-01-preview",
-        AZURE_OPENAI_API_KEY=os.getenv("AZURE_OPENAI_API_KEY", "testing"),
+        AZURE_OPENAI_API_KEY=env.get("AZURE_OPENAI_API_KEY", "testing"),
     )
 
     anthropic_env_config = dict(
-        ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "testing"),
+        ANTHROPIC_API_KEY=env.get("ANTHROPIC_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 

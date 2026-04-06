@@ -23,6 +23,7 @@ import sys
 from unittest import mock
 
 from ddtrace.ext.test_visibility import api as ext_api
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility import api
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -393,8 +394,7 @@ def main():
 
 if __name__ == "__main__":
     freeze_support()
-    import os
 
-    os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "0"
+    env["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "0"
     with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
         main()
