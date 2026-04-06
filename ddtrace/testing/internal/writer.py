@@ -1,11 +1,11 @@
 from abc import ABC
 from abc import abstractmethod
 import logging
-import os
 import threading
 import typing as t
 import uuid
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -124,7 +124,7 @@ def _get_min_flush_events() -> int:
     only sent on the 60-second periodic timer or on shutdown.
     """
     try:
-        value = int(os.environ.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "0"))
+        value = int(env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "0"))
         return max(value, 0)
     except (ValueError, TypeError):
         return 0
