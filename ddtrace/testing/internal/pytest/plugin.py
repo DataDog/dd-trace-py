@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
@@ -53,7 +54,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percen
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -233,9 +233,7 @@ class TestOptPlugin:
         # Log correlation: if DD_LOGS_INJECTION is enabled, a real ddtrace span must be active during tests so that
         # the logging patch can read the test's trace_id/span_id. Re-enable the trace filter unless it was explicitly
         # disabled via _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER.
-        if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(
-            env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")
-        ):
+        if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: if DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set, forward logs to the Datadog logs
