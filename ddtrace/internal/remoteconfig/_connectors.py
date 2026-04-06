@@ -45,7 +45,14 @@ class PublisherSubscriberConnector:
     def __init__(self):
         try:
             self.data = get_mp_context().Array("c", SHARED_MEMORY_SIZE, lock=False)
-        except FileNotFoundError:
+        # FileNotFoundError: /dev/shm may not exist or be inaccessible.
+        # ImportError: multiprocessing.Array imports multiprocessing.sharedctypes,
+        # which imports ctypes and requires the _ctypes C extension module. Some
+        # environments (e.g. Alpine Linux, minimal Docker images, or custom
+        # Python builds without libffi) do not provide _ctypes and raise
+        # ModuleNotFoundError.
+        # See: https://app.datadoghq.com/error-tracking/issue/25b34008-bb9f-11f0-abbd-da7ad0900002
+        except (FileNotFoundError, ImportError):
             log.warning(
                 "Unable to create shared memory. Features relying on remote configuration will not work as expected."
             )

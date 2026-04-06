@@ -428,7 +428,7 @@ def expected_llmobs_span_event(span):
         output_messages=[{"content": "The sky is blue due to rayleigh scattering", "role": "assistant"}],
         metadata=get_expected_metadata(),
         token_metrics={"input_tokens": 8, "output_tokens": 9, "total_tokens": 17},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
     )
 
 
@@ -446,7 +446,7 @@ def expected_llmobs_error_span_event(span):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
         metadata=get_expected_metadata(),
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
     )
 
 
@@ -475,7 +475,7 @@ def expected_llmobs_tool_call_span_event(span):
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
         tool_definitions=[
             {
                 "name": "get_current_weather",
@@ -535,7 +535,7 @@ def expected_llmobs_tool_response_span_event(span):
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
         tool_definitions=[
             {
                 "name": "get_current_weather",
@@ -572,7 +572,7 @@ def expected_llmobs_embedding_span_event(span):
             "title": None,
         },
         token_metrics={"input_tokens": 10, "billable_character_count": 16},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
     )
 
 
@@ -597,7 +597,7 @@ def expected_llmobs_embedding_error_span_event(span):
             "task_type": None,
             "title": None,
         },
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
     )
 
 
@@ -621,5 +621,5 @@ def expected_llmobs_span_event_with_reasoning(span):
             "total_tokens": 22,
             "reasoning_output_tokens": 5,
         },
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai", "integration": "google_genai"},
     )

@@ -255,6 +255,22 @@ def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_detai
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
+def wrap_cosmos_trigger(func, function_name):
+    trigger_type = "CosmosDB"
+
+    def context_factory(kwargs):
+        resource_name = f"{trigger_type} {function_name}"
+        return create_context("azure.functions.patched_cosmosdb", resource_name)
+
+    def pre_dispatch(ctx, kwargs):
+        return (
+            "azure.functions.trigger_call_modifier",
+            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.INTERNAL),
+        )
+
+    return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
+
+
 def patched_get_functions(wrapped, instance, args, kwargs):
     functions = wrapped(*args, **kwargs)
 
@@ -286,6 +302,8 @@ def patched_get_functions(wrapped, instance, args, kwargs):
             function._func = wrap_durable_trigger(
                 func, function_name, "Entity", "azure.durable_functions.patched_entity"
             )
+        elif trigger_type == "cosmosDBTrigger":
+            function._func = wrap_cosmos_trigger(func, function_name)
         elif trigger_type == "orchestrationTrigger":
             # Orchestration triggers are explicitly skipped as they are not traced
             continue

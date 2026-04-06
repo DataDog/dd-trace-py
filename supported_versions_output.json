@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.13.2",
+        "max_tracer_supported": "3.13.4",
         "auto-instrumented": true
     },
     {
@@ -105,6 +105,14 @@
         "integration": "aws_lambda",
         "minimum_tracer_supported": "6.105.0",
         "max_tracer_supported": "6.105.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-cosmos",
+        "integration": "azure_cosmos",
+        "minimum_tracer_supported": "4.9.0",
+        "max_tracer_supported": "4.15.0",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -495,21 +503,21 @@
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
         "minimum_tracer_supported": "3.9.0",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
         "minimum_tracer_supported": "3.9.0",
-        "max_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
@@ -681,7 +689,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "24.6.0",
+        "max_tracer_supported": "25.12.0",
         "auto-instrumented": true
     },
     {

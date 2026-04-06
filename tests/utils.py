@@ -11,7 +11,6 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import Any
 from typing import Optional
 from typing import TypedDict
 from typing import cast
@@ -1151,7 +1150,7 @@ class TestAgentClient:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
-        return cast(list[dict[str, Any]], data)  # type: ignore[return-value]
+        return cast(list[TestAgentRequest], data)
 
     def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
@@ -1197,10 +1196,12 @@ class SnapshotTest:
     _client: TestAgentClient
 
     def __init__(self, token: str):
-        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)  # type: ignore[arg-type]
+        base_url = ddtrace.tracer.agent_trace_url
+        assert base_url is not None, "agent_trace_url must be set for SnapshotTest"
+        self._client = TestAgentClient(base_url=base_url, token=token)
 
-    def requests(self) -> list[dict[str, Any]]:
-        return self._client.requests()  # type: ignore[return-value]
+    def requests(self) -> list[TestAgentRequest]:
+        return self._client.requests()
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
@@ -1554,8 +1555,7 @@ def override_third_party_packages(packages: list[str]):
         original_callonce = None
 
     try:
-        mapping_wrapped = _package_for_root_module_mapping.__wrapped__  # type: ignore[attr-defined]
-        original_mapping = mapping_wrapped.__callonce_result__
+        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore
     except AttributeError:
         original_mapping = None
 
@@ -1576,8 +1576,7 @@ def override_third_party_packages(packages: list[str]):
             del _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
         if original_mapping is not None:
-            pkg_wrapped = _package_for_root_module_mapping.__wrapped__  # type: ignore[attr-defined]
-            pkg_wrapped.__callonce_result__ = original_mapping
+            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping  # type: ignore
         else:
             del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 

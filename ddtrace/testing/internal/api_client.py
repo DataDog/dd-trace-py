@@ -3,11 +3,11 @@ from __future__ import annotations
 import gzip
 import json
 import logging
-import os
 from pathlib import Path
 import typing as t
 import uuid
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
@@ -31,7 +31,7 @@ _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 def _get_known_tests_max_pages() -> int:
     """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
     try:
-        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+        value = int(env.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
     except ValueError:
         log.warning(
             "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
