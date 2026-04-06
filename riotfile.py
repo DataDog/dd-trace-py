@@ -352,7 +352,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +361,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
