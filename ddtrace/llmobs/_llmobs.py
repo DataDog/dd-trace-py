@@ -66,6 +66,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -501,6 +502,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
