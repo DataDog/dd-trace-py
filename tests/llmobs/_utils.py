@@ -2,6 +2,26 @@ import os
 
 import mock
 
+from ddtrace.llmobs.types import _ErrorField
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _SpanField
+
+
+try:
+    import vcr
+except ImportError:
+    vcr = None
+
+import ddtrace
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.trace import Span
+
+
 DEEP_TOOL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -26,25 +46,6 @@ DEEP_TOOL_SCHEMA = {
         }
     },
 }
-
-from ddtrace.llmobs.types import _ErrorField
-from ddtrace.llmobs.types import _Meta
-from ddtrace.llmobs.types import _SpanField
-
-
-try:
-    import vcr
-except ImportError:
-    vcr = None
-
-import ddtrace
-from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
-from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.trace import Span
 
 
 if vcr:
