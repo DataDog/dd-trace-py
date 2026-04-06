@@ -5,11 +5,13 @@ from typing import ClassVar
 from typing import Optional
 
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.core.events import event_field
 
 
 if TYPE_CHECKING:
     # DEV: potential source of circular import in the future
     from ddtrace._trace.provider import ActiveTrace
+    from ddtrace.internal.settings.integration import IntegrationConfig
 
 
 @dataclass
@@ -19,11 +21,16 @@ class TracingEvent(Event):
     """
 
     span_type: ClassVar[str]
-    span_kind: ClassVar[str]
+    span_kind: ClassVar[str] = "internal"
 
     # These attributes are required but can be known only at instance-creation time.
+    # AIDEV-NOTE: component and config use event_field() instead of field() for Python 3.9
+    # compatibility. Subclasses may override span_name with event_field() (which adds
+    # default=None on 3.9), and since span_name is positioned before component/config,
+    # plain field() would cause "non-default argument follows default argument" errors.
     span_name: str = field(init=False)
-    component: str = field()
+    component: str = event_field()
+    config: "IntegrationConfig" = event_field()
 
     tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.

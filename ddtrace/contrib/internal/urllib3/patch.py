@@ -4,25 +4,16 @@ import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
-from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
-from ddtrace.ext import net
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import tracer
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -32,7 +23,7 @@ DROP_PORTS = (80, 443)
 config._add(
     "urllib3",
     {
-        "_default_service": schematize_service_name("urllib3"),
+        "_default_service": schematize_service_name("urllib3"),  # type: ignore[operator]
         "distributed_tracing": asbool(env.get("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
         "split_by_domain": asbool(env.get("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
@@ -65,7 +56,6 @@ def patch():
         else:
             # Old version before https://github.com/urllib3/urllib3/pull/2398
             _w("urllib3.request", "RequestMethods.request", _wrap_request)
-    Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
 def unpatch():
@@ -86,8 +76,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
-    request_method = get_argument_value(args, kwargs, 0, "method")
-    request_url = get_argument_value(args, kwargs, 1, "url")
     try:
         request_headers = get_argument_value(args, kwargs, 3, "headers")
     except ArgumentError:
@@ -96,6 +84,9 @@ def _wrap_urlopen(func, instance, args, kwargs):
         request_retries = get_argument_value(args, kwargs, 4, "retries")
     except ArgumentError:
         request_retries = None
+
+    request_method = get_argument_value(args, kwargs, 0, "method")
+    request_url = get_argument_value(args, kwargs, 1, "url")
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
@@ -115,50 +106,37 @@ def _wrap_urlopen(func, instance, args, kwargs):
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
 
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+    # Ensure request_headers is mutable for distributed tracing injection
+    if request_headers is None:
+        request_headers = {}
+        kwargs["headers"] = request_headers
 
-    with tracer.trace(
-        schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.urllib3),
-        span_type=SpanTypes.HTTP,
-    ) as span:
-        maybe_set_service_source_tag(span, config.urllib3)
-        span._set_attribute(COMPONENT, config.urllib3.integration_name)
+    retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 
-        # set span.kind to the type of operation being performed
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-        if config.urllib3.split_by_domain:
-            span.service = hostname
-
-        # If distributed tracing is enabled, propagate the tracing headers to downstream services
-        if config.urllib3.distributed_tracing:
-            if request_headers is None:
-                request_headers = {}
-                kwargs["headers"] = request_headers
-            HTTPPropagator.inject(span.context, request_headers)
-
-        retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
-
-        # Call the target function
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            http_operation="urllib3.request",
+            split_by_domain_target=hostname,
+            component=config.urllib3.integration_name,
+            request_method=request_method,
+            request_headers=request_headers,
+            config=config.urllib3,
+            url=request_url,
+            query=parsed_uri.query,
+            target_host=instance.host,
+            server_address=instance.host,
+            retries_remaining=retries,
+            measured=False,
+        ),
+    ) as ctx:
+        maybe_set_service_source_tag(ctx.span, config.urllib3)
         response = None
         try:
             response = func(*args, **kwargs)
         finally:
-            trace_utils.set_http_meta(
-                span,
-                integration_config=config.urllib3,
-                method=request_method,
-                url=request_url,
-                target_host=instance.host,
-                status_code=None if response is None else response.status,
-                query=parsed_uri.query,
-                request_headers=request_headers,
-                response_headers={} if response is None else dict(response.headers),
-                retries_remain=retries,
-            )
-            span._set_attribute(net.SERVER_ADDRESS, instance.host)
+            if response is not None:
+                ctx.event.response_status_code = response.status
+                ctx.event.response_headers = dict(response.headers)
+                ctx.event.response_status_msg = response.reason
 
         return response

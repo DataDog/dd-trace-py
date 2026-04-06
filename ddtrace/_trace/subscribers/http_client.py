@@ -6,6 +6,8 @@ from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -30,6 +32,9 @@ class HttpClientTracingSubscriber(TracingSubscriber):
         if trace_utils.distributed_tracing_enabled(event.config) and event.request_headers is not None:
             HTTPPropagator.inject(ctx.span.context, cast(dict[str, str], event.request_headers))
 
+        if event.server_address:
+            ctx.span.set_tag(net.SERVER_ADDRESS, event.server_address)
+
     @classmethod
     def on_ended(
         cls,
@@ -46,9 +51,12 @@ class HttpClientTracingSubscriber(TracingSubscriber):
                 url=event.url,
                 target_host=event.target_host,
                 status_code=event.response_status_code,
+                status_msg=event.response_status_msg,
                 query=event.query,
                 request_headers=event.request_headers,
                 response_headers=event.response_headers,
             )
+            if event.retries_remaining is not None:
+                ctx.span.set_tag(http.RETRIES_REMAIN, str(event.retries_remaining))
         except Exception:
             log.debug("%s: error adding tags", event.config.integration_name, exc_info=True)

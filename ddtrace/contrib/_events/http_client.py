@@ -9,6 +9,7 @@ from typing import Sequence
 from typing import Union
 
 from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import Event
@@ -48,6 +49,7 @@ class HttpClientBaseEvent(Event):
     request_headers: MutableMapping[str, str] = event_field()
     response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
+    response_status_msg: Optional[str] = event_field(default=None)
 
     def set_response(self, response: _HttpClientResponse) -> None:
         self.response_status_code = response.status_code
@@ -69,11 +71,19 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
     config: "IntegrationConfig" = event_field()
 
     response: Optional[_HttpClientResponse] = event_field(default=None)
+    split_by_domain_target: Optional[str] = event_field(default=None)
+    server_address: Optional[str] = event_field(default=None)
+    retries_remaining: Optional[int] = event_field(default=None)
 
     def __post_init__(self):
         self.span_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
+        if self.service is None:
+            if self.config.split_by_domain and self.split_by_domain_target:
+                self.service = self.split_by_domain_target
+            else:
+                self.service = ext_service(None, self.config)
 
     def set_response(self, response: _HttpClientResponse) -> None:
         super().set_response(response)

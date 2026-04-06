@@ -13,10 +13,14 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
 
-called = []
+_TEST_CONFIG = IntegrationConfig(None, "test")
+
+
+called: list = []
 
 
 @pytest.fixture(autouse=True)
@@ -179,7 +183,9 @@ def test_base_tracing_subscriber(test_spans):
         event_names = (TestTracingEvent.event_name,)
 
     with core.context_with_event(
-        TestTracingEvent(component="test-component", service="my-service", resource="/api/endpoint")
+        TestTracingEvent(
+            component="test-component", config=_TEST_CONFIG, service="my-service", resource="/api/endpoint"
+        )
     ):
         pass
 
@@ -209,7 +215,7 @@ def test_span_context_event_missing_required_field(test_spans):
         event_names = (TestTracingEvent.event_name,)
 
     with pytest.raises(AttributeError):
-        with core.context_with_event(TestTracingEvent(component="component")):
+        with core.context_with_event(TestTracingEvent(component="component", config=_TEST_CONFIG)):
             pass
 
     test_spans.assert_span_count(0)
@@ -239,7 +245,9 @@ def test_span_context_event_with_custom_fields(test_spans):
             span = ctx.span
             span._set_attribute("http.status_code", ctx.event.status_code)
 
-    with core.context_with_event(TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200)):
+    with core.context_with_event(
+        TestTracingEvent(my_op="op", my_arg="arg", component="comp", config=_TEST_CONFIG, status_code=200)
+    ):
         pass
 
     test_spans.assert_span_count(1)
@@ -284,7 +292,9 @@ def test_span_context_event_inheritance(test_spans):
             span = ctx.span
             span._set_attribute("http.method", ctx.event.method)
 
-    with core.context_with_event(HTTPClientEvent(url="http://example.com", component="http", method="GET")):
+    with core.context_with_event(
+        HTTPClientEvent(url="http://example.com", component="http", config=_TEST_CONFIG, method="GET")
+    ):
         pass
 
     test_spans.assert_span_count(1)
@@ -310,7 +320,7 @@ def test_span_context_event_with_exception(test_spans):
         event_names = (TestSpanEvent.event_name,)
 
     with pytest.raises(ValueError):
-        with core.context_with_event(TestSpanEvent(component="test_component")):
+        with core.context_with_event(TestSpanEvent(component="test_component", config=_TEST_CONFIG)):
             raise ValueError("test error")
 
     test_spans.assert_span_count(1)
@@ -339,6 +349,7 @@ def test_span_parent_child_default(test_spans):
         with core.context_with_event(
             TestSpanEvent(
                 component="test_component",
+                config=_TEST_CONFIG,
             )
         ):
             current_span = tracer.current_span()
@@ -368,6 +379,7 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
         with core.context_with_event(
             TestSpanEvent(
                 component="test_component",
+                config=_TEST_CONFIG,
                 use_active_context=False,
                 activate=False,
                 distributed_context=tracer.context_provider.active(),
@@ -398,7 +410,7 @@ def test_span_context_event_end_span_false(test_spans):
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
 
-    with core.context_with_event(TestSpanEvent(component="test_component")):
+    with core.context_with_event(TestSpanEvent(component="test_component", config=_TEST_CONFIG)):
         pass
 
     # Span should be started but not finished
