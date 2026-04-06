@@ -2,6 +2,31 @@ import os
 
 import mock
 
+DEEP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "l1": {
+            "type": "object",
+            "properties": {
+                "l2": {
+                    "type": "object",
+                    "properties": {
+                        "l3": {
+                            "type": "object",
+                            "properties": {
+                                "l4": {
+                                    "type": "object",
+                                    "properties": {"l5": {"type": "string"}},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+    },
+}
+
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanField

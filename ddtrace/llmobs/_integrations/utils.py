@@ -1001,7 +1001,7 @@ def _tool_schema_depth(obj: Any, current: int = 0) -> int:
 def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
     """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
     if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
-        log.warning(
+        logger.warning(
             "LLMObs: dropping tool %r from span metadata because its schema exceeds the maximum "
             "allowed nesting depth (%d). Deeply nested tool schemas can cause span drops in the "
             "LLMObs backend.",

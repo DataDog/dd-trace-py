@@ -9,6 +9,7 @@ from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
+from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import aiterate_stream
@@ -1683,6 +1684,49 @@ class TestLLMObsAnthropic:
             {
                 "name": "search_logs",
                 "description": "",
+                "schema": {},
+            },
+        ]
+
+    def test_tool_with_deep_schema_has_schema_dropped(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should have their schema replaced with {}
+        while preserving name and description. Tools with shallow schemas are unaffected.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                    },
+                    {
+                        "name": "deep_tool",
+                        "description": "A tool with a deeply nested schema",
+                        "input_schema": DEEP_TOOL_SCHEMA,
+                    },
+                ],
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather for a specific location",
+                "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+            },
+            {
+                "name": "deep_tool",
+                "description": "A tool with a deeply nested schema",
                 "schema": {},
             },
         ]
