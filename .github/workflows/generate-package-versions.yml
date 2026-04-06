@@ -4,9 +4,6 @@ on:
   workflow_dispatch: # can be triggered manually
   schedule:
     - cron: "0 0 * * *" # daily at midnight
-  push:
-    branches:
-      - taegyunkim/fix-ci-ddtrace-install-from-wheel  # TODO: remove before merging
 
 jobs:
   update-riot-lockfiles:
