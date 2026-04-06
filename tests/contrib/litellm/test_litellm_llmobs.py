@@ -53,7 +53,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -82,7 +82,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": False}},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -129,7 +129,7 @@ class TestLLMObsLiteLLM:
                 }
             ],
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
@@ -158,7 +158,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -187,7 +187,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
@@ -216,7 +216,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_instrumented_proxy_urls="http://localhost:4000")])
@@ -253,7 +253,7 @@ class TestLLMObsLiteLLM:
                 "api_base": "http://localhost:4000",
                 "model": "gpt-3.5-turbo",
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -291,7 +291,7 @@ class TestLLMObsLiteLLM:
                 "model": "gpt-3.5-turbo",
             },
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -333,7 +333,7 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
@@ -375,7 +375,7 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
@@ -417,7 +417,7 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
@@ -459,7 +459,7 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
@@ -514,7 +514,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
         # Verify cache token metrics are present
@@ -572,7 +572,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
     def test_completion_with_reasoning(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
@@ -598,7 +598,7 @@ class TestLLMObsLiteLLM:
             output_messages=output_messages,
             metadata={},
             token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
         )
 
         # Verify reasoning output message is present

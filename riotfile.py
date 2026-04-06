@@ -352,7 +352,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +361,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
@@ -3462,23 +3463,23 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
+                    command="pytest -n auto {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
+                        "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
                     },
                     venvs=[
                         Venv(
                             pys=["3.9"],
-                            command="pytest {cmdargs} tests/llmobs",
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
-                            command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
                                 "pydantic-evals": ">=1.31",
@@ -3489,9 +3490,10 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
