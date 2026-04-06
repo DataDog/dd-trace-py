@@ -2,6 +2,9 @@ name: Generate Supported Integration Versions
 
 on:
   workflow_dispatch: # can be triggered manually
+  push:
+    branches:
+      - taegyunkim/fix-ci-ddtrace-install-from-wheel  # TODO: remove before merging
 
 jobs:
   generate-supported-versions:
