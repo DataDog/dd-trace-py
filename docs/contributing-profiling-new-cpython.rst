@@ -9,11 +9,16 @@ Echion), **asyncio** integration for stack and tasks, **lock** profilers (thread
 **memory** and **heap** (memalloc), **exception** profiling, **PyTorch** hook, **ddup** export, build
 gates, Riot/CI, and **validation tests** for each area.
 
-The best reference implementation is `PR #15546`__ (feat(profiling): support Python 3.14): Echion
-frame/task/asyncio changes, ``setup.py`` un-gating, profiling defaults, Riot venv splits, tests, and
-a release note.
+Reference implementations:
+
+* `PR #15546`__ (feat(profiling): support Python 3.14) — Echion frame/task/asyncio changes,
+  ``setup.py`` un-gating, profiling defaults, Riot venv splits, tests, and a release note.
+* `PR #17294`__ (feat(profiling): support Python 3.15) — native ABI fixes for renumbered
+  ``PyFrameState`` and removed ``FRAME_OWNED_BY_CSTACK``; Python-side ``_asyncio.py`` hardening
+  with tiered ``hasattr`` guards; new compile-time layout contract tests.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
+__ https://github.com/DataDog/dd-trace-py/pull/17294
 
 Current status
 --------------
@@ -33,8 +38,12 @@ Current status
      - Echion frame/task/asyncio, ``setup.py`` un-gating, Riot venv splits, tests done.
    * - 3.15
      - `PR #17294`__
-     - ``FRAME_OWNED_BY_CSTACK`` removed; ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` added;
-       ``PyStackRef`` tag scheme unified. Use ``0x030f0000`` guards.
+     - Echion: ``FRAME_OWNED_BY_CSTACK`` removed; ``PyFrameState`` renumbered;
+       ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` added for free-threaded builds.
+       ``_asyncio.py``: tiered ``hasattr`` guards for private asyncio APIs
+       (``_GatheringFuture``, ``_wait``, ``_scheduled_tasks``).
+       New compile-time layout contract tests (``test_cpython_layout_contracts.cpp``).
+       Use ``0x030f0000`` guards.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
 __ https://github.com/DataDog/dd-trace-py/pull/17294
@@ -221,6 +230,25 @@ migration: ABI changes often break **stack** first, but **memalloc**, **locks**,
 
 Automated tests (what to run)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a quick sanity check on any Python version (import guards + pprof samples), use the
+compatibility script before running the full suite:
+
+.. code-block:: bash
+
+   # Import/guard checks only — no C extensions required (~2 s)
+   python scripts/verify_profiler_compatibility.py --python 3.15 --quick
+
+   # Full check: asyncio guards + real pprof samples with named tasks (~8 s)
+   python scripts/verify_profiler_compatibility.py --python 3.15
+
+   # Save results as the baseline for this MAJOR.MINOR
+   python scripts/verify_profiler_compatibility.py --python 3.15 --baseline
+
+   # Compare against a saved baseline (use in CI or after a change)
+   python scripts/verify_profiler_compatibility.py --python 3.15 --compare
+
+Baselines for Python 3.9–3.14 live in ``scripts/profiles/compatibility_baselines.json``.
 
 Use **`scripts/run-tests`** (see :ref:`testing_guidelines` in ``contributing-testing``) —
 **never** raw ``pytest`` for full-suite validation. For profiling, CI maps paths to Riot via
