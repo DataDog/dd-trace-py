@@ -1006,8 +1006,7 @@ def test_wrapping_context_method_leaks():
     assert len(after_objects) <= len(before_ids) + 1, (
         f"Expected at most {len(before_ids) + 1} wrapping methods, got {len(after_objects)}.\n"
         + "\n".join(
-            f"  NEW {obj!r} __func__={getattr(obj, '__func__', None)!r} "
-            f"referrers={gc.get_referrers(obj)!r}"
+            f"  NEW {obj!r} __func__={getattr(obj, '__func__', None)!r} referrers={gc.get_referrers(obj)!r}"
             for obj in new_objects
         )
     )

@@ -8,6 +8,7 @@ from typing import Union
 from typing import cast
 import unittest
 from unittest import mock
+
 import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareState
