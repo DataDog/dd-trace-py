@@ -489,12 +489,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 1,
-                "probe-instance-method-1": 1,
-                "probe-instance-method-2": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 1,
+                    "probe-instance-method-1": 1,
+                    "probe-instance-method-2": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[1])
@@ -504,12 +506,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 2,
-                "probe-instance-method-2": 2,
-                "probe-instance-method-1": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 2,
+                    "probe-instance-method-2": 2,
+                    "probe-instance-method-1": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[0], probes[2])
@@ -551,6 +555,8 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 # DEV: The following tests are to ensure compatibility with the tracer
 import wrapt  # noqa:E402,F401
+
+from ddtrace.internal.settings import env  # noqa: E402
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -904,10 +910,10 @@ def test_debugger_run_module():
 
     # This is also where the sitecustomize resides, so we set the PYTHONPATH
     # accordingly. This is responsible for booting the test debugger
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join((cwd, env.get("PYTHONPATH", "")))
+    subenv = env.copy()
+    subenv["PYTHONPATH"] = os.pathsep.join((cwd, subenv.get("PYTHONPATH", "")))
 
-    out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
+    out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=subenv)
 
     assert out.strip() == b"OK", err.decode()
     assert status == 0
