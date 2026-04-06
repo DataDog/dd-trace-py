@@ -1495,7 +1495,13 @@ def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
     _set_azure_cosmos_request_tags(span, client, request_params, request, request_data)
 
 
-def _set_azure_cosmos_request_tags(span, client, request_params, request, request_data):
+def _set_azure_cosmos_request_tags(
+    span,
+    client,
+    request_params,
+    request,
+    request_data,
+) -> None:
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     span._set_attribute(db.SYSTEM, "cosmosdb")
     span._set_attribute(COMPONENT, config.azure_cosmos.integration_name)
@@ -1540,7 +1546,7 @@ def _on_azure_cosmos_request_finish(
 ):
     span = ctx.span
     sub_status = ctx.get_item("sub_status_code")
-    exception = ctx.get_item("exception")
+    _, exception, _ = exc_info
 
     if sub_status:
         span._set_attribute("cosmosdb.response.sub_status_code", sub_status)

@@ -66,15 +66,11 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         request=request,
         request_data=request_data,
     ) as ctx:
-        try:
-            result = wrapped(*args, **kwargs)
-            _, headers = result
-            ctx.set_item("sub_status_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
+        result = wrapped(*args, **kwargs)
+        _, headers = result
+        ctx.set_item("sub_status_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
 
-            return result
-        except azure_cosmos.exceptions.CosmosHttpResponseError as e:
-            ctx.set_item("exception", e)
-            raise e
+        return result
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
@@ -101,15 +97,11 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
         request=request,
         request_data=request_data,
     ) as ctx:
-        try:
-            result = await wrapped(*args, **kwargs)
-            _, headers = result
-            ctx.set_item("sub_status_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
+        result = await wrapped(*args, **kwargs)
+        _, headers = result
+        ctx.set_item("sub_status_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
 
-            return result
-        except azure_cosmos.exceptions.CosmosHttpResponseError as e:
-            ctx.set_item("exception", e)
-            raise e
+        return result
 
 
 def unpatch():
