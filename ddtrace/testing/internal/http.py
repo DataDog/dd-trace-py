@@ -64,6 +64,7 @@ class Subdomain(str, Enum):
     CITESTCYCLE = "citestcycle-intake"
     CITESTCOV = "citestcov-intake"
     CICOVREPRT = "ci-intake"
+    LOGS = "http-intake.logs"
 
 
 RETRIABLE_ERRORS = {
