@@ -3,8 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from ddtrace.internal.settings import env
-
 
 NEEDLE = "Enabling debugging exploration testing"
 
@@ -13,7 +11,7 @@ EXPL_FOLDER = Path(__file__).parent.resolve()
 
 def expl_env(**kwargs):
     return {
-        "PYTHONPATH": os.pathsep.join((str(EXPL_FOLDER), env.get("PYTHONPATH", ""))),
+        "PYTHONPATH": os.pathsep.join((str(EXPL_FOLDER), os.getenv("PYTHONPATH", ""))),
         **kwargs,
     }
 

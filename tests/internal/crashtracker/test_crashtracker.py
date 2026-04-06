@@ -1,9 +1,9 @@
+import os
 import sys
 import warnings
 
 import pytest
 
-from ddtrace.internal.settings import env
 import tests.internal.crashtracker.utils as utils
 
 
@@ -100,6 +100,7 @@ def test_crashtracker_started():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_receiver_not_in_path():
+    import os
     import shutil
 
     import pytest
@@ -112,7 +113,7 @@ def test_crashtracker_receiver_not_in_path():
         # have _dd_crashtracker_receiver in the PATH, for example when running
         # in an injected environment. And we should just load the script
         # directly.
-        env["PATH"] = ""
+        os.environ["PATH"] = ""
         dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
         assert dd_crashtracker_receiver is None
 
@@ -374,9 +375,9 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
 def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Call the program
     with utils.with_test_agent() as client:
-        subenv = env.copy()
-        subenv["DD_CRASHTRACKING_ENABLED"] = "false"
-        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=subenv)
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_ENABLED"] = "false"
+        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -425,9 +426,9 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 
     # Call the program
     with utils.with_test_agent() as client:
-        subenv = env.copy()
-        subenv["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=subenv)
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -451,9 +452,9 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Call the program
     with utils.with_test_agent() as client:
-        subenv = env.copy()
-        subenv["DD_CRASHTRACKING_ENABLED"] = "false"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=subenv)
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_ENABLED"] = "false"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -470,8 +471,8 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
     import json
 
     with utils.with_test_agent() as client:
-        subenv = env.copy()
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=subenv)
+        env = os.environ.copy()
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -495,7 +496,7 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Call the program
     with utils.with_test_agent() as client:
-        subenv = env.copy()
+        env = os.environ.copy()
 
         # Injecting tags, but since the way we validate them is with a raw-data string search, we make things unique
         tag_prefix = "cryptocrystalline"
@@ -503,8 +504,8 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
             tag_prefix + "_tag1": "quartz_flint",
             tag_prefix + "_tag2": "quartz_chert",
         }
-        subenv["DD_CRASHTRACKING_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=subenv)
+        env["DD_CRASHTRACKING_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -526,9 +527,9 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
     with utils.with_test_agent() as client:
-        subenv = env.copy()
-        subenv["DD_PROFILING_ENABLED"] = "1"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=subenv)
+        env = os.environ.copy()
+        env["DD_PROFILING_ENABLED"] = "1"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         assert not stdout
         assert not stderr
@@ -843,13 +844,13 @@ def test_crashtracker_receiver_env_inheritance():
 
     test_env_key = "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"
     test_env_value = "true"
-    env[test_env_key] = test_env_value
+    os.environ[test_env_key] = test_env_value
 
     with utils.with_test_agent() as client:
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
-            assert env.get(test_env_key) == test_env_value
+            assert os.environ.get(test_env_key) == test_env_value
 
             ct = utils.CrashtrackerWrapper(base_name="env_inheritance")
             assert ct.start()
@@ -867,4 +868,4 @@ def test_crashtracker_receiver_env_inheritance():
         assert b"string_at" in report["body"]
 
     # Clean up
-    env.pop(test_env_key, None)
+    os.environ.pop(test_env_key, None)
