@@ -324,6 +324,8 @@ def _extract_content_parts(parts: list) -> str:
             extracted.append("[image]")
         elif part_type == "input_audio":
             extracted.append("[audio]")
+        else:
+            extracted.append(f"[{part_type}]")
     return "\n".join(extracted)
 
 
