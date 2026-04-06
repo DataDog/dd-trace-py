@@ -125,9 +125,9 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: main 
   needs:
-    - job: "upload manylinux2014"
+    - job: "upload serverless"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL

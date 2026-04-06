@@ -2549,6 +2549,43 @@ MUL: "*"
             )
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Regression test: deferred tools (defer_loading=True) should have description and schema
+        stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
+        full definitions.
+        """
+        deferred_tool = {
+            "type": "function",
+            "function": {
+                "name": "search_logs",
+                "description": "Search Datadog logs",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string", "description": "Search query"}},
+                    "required": ["query"],
+                },
+            },
+            "defer_loading": True,
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
+            model = "gpt-3.5-turbo"
+            client = openai.OpenAI()
+            client.chat.completions.create(
+                tools=[chat_completion_custom_functions[0], deferred_tool],
+                model=model,
+                messages=[{"role": "user", "content": chat_completion_input_description}],
+                user="ddtrace-test",
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            EXPECTED_TOOL_DEFINITIONS[0],
+            {"name": "search_logs", "description": "", "schema": {}},
+        ]
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
