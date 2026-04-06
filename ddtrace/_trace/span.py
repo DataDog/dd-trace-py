@@ -14,7 +14,6 @@ from typing import cast
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
@@ -136,7 +135,7 @@ class Span(SpanData):
             else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
         )
 
-        self._links: list[Union[SpanLink, _SpanPointer]] = []
+        self._links: list[SpanLink] = []
         if links:
             for new_link in links:
                 self._set_link_or_append_pointer(new_link)
@@ -673,7 +672,7 @@ class Span(SpanData):
         # This is a Private API for now.
 
         self._set_link_or_append_pointer(
-            _SpanPointer(
+            SpanLink._SpanPointer(
                 pointer_kind=pointer_kind,
                 pointer_direction=pointer_direction,
                 pointer_hash=pointer_hash,
@@ -681,7 +680,7 @@ class Span(SpanData):
             )
         )
 
-    def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
+    def _set_link_or_append_pointer(self, link: SpanLink) -> None:
         if link.kind == SpanLinkKind.SPAN_POINTER.value:
             self._links.append(link)
             return
