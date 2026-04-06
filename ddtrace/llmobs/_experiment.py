@@ -1269,15 +1269,20 @@ def _task_results_from_previous(rows: list[ExperimentRowResult]) -> "list[TaskRe
 
 
 def _parse_experiment_result(response: dict) -> "ExperimentResult":
-    """Deserialise a backend ``/results`` response into an ``ExperimentResult``.
+    """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
 
-    Converts the ``spans`` array from the backend response into a list of
-    ``ExperimentRowResult`` dicts and wraps them in an ``ExperimentRun``.
-    ``eval_metrics`` on each span (when present) are converted to the
-    ``evaluations`` dict format used by ``ExperimentRowResult``.
+    Response shape (JSON:API envelope):
+    ``{"data": {"id": "<uuid>", "type": "experiment_events", "attributes": {"spans": [...], "summary_metrics": []}}}``
+
+    Each span has ``span_id``, ``trace_id``, ``start_ns`` (nanoseconds), ``tags``, ``meta``
+    (with ``input``, ``output``, ``expected_output``, ``metadata``, ``error`` sub-keys),
+    and ``eval_metrics`` (present when ``include[eval_metrics]=true`` was requested).
+
+    ``eval_metrics`` on each span (when present) are converted to the ``evaluations`` dict
+    format used by ``ExperimentRowResult``. When multiple eval events share the same label
+    (e.g. original run + re-run), the one with the latest ``timestamp_ms`` wins.
     """
-    attributes = response.get("data", {}).get("attributes", {})
-    spans = attributes.get("spans", [])
+    spans = response.get("data", {}).get("attributes", {}).get("spans", [])
 
     rows: list[ExperimentRowResult] = []
     for i, span in enumerate(spans):
@@ -1294,12 +1299,18 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
                 record_id = tag.split(":", 1)[1]
                 break
 
-        # Convert eval_metrics list → evaluations dict keyed by label
+        # Convert eval_metrics list → evaluations dict keyed by label.
+        # Multiple events per label are possible (original run + re-run); keep latest by timestamp_ms.
         evaluations: dict = {}
+        latest_ts: dict[str, int] = {}
         for em in span.get("eval_metrics") or []:
             label = em.get("label", "")
             if not label:
                 continue
+            ts = em.get("timestamp_ms", 0) or 0
+            if label in latest_ts and ts < latest_ts[label]:
+                continue
+            latest_ts[label] = ts
             metric_type = em.get("metric_type", "score")
             value = em.get("score_value") if metric_type == "score" else em.get("boolean_value")
             evaluations[label] = {
@@ -1308,6 +1319,14 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
                 "reasoning": em.get("reasoning"),
                 "assessment": em.get("assessment"),
             }
+
+        # Normalise error: the new API returns an empty dict {} when there is no error.
+        raw_error = meta.get("error") or {}
+        normalised_error: dict[str, Optional[str]] = {
+            "type": raw_error.get("type") or None,
+            "message": raw_error.get("message") or None,
+            "stack": raw_error.get("stack") or None,
+        }
 
         row: ExperimentRowResult = {
             "idx": idx,
@@ -1320,7 +1339,7 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
             "expected_output": meta.get("expected_output"),
             "evaluations": evaluations,
             "metadata": metadata,
-            "error": meta.get("error") or {"type": None, "message": None, "stack": None},
+            "error": normalised_error,
         }
         rows.append(row)
 
@@ -3133,7 +3152,7 @@ class SyncExperiment:
         experiment_id = self._experiment._id
 
         if experiment_id:
-            raw = client.experiment_results_get(
+            raw = client.experiment_events_get(
                 experiment_id=str(experiment_id),
                 include_eval_metrics=include_eval_metrics,
             )
@@ -3145,7 +3164,7 @@ class SyncExperiment:
                     "experiment name and project_name are required to pull results when "
                     "the experiment has not been run in the current session."
                 )
-            raw = client.experiment_results_get(
+            raw = client.experiment_events_get(
                 project_name=project_name,
                 experiment_name=experiment_name,
                 include_eval_metrics=include_eval_metrics,
@@ -3153,7 +3172,8 @@ class SyncExperiment:
 
         self.result = _parse_experiment_result(raw)
 
-        # Populate _id from the response so rerun_evaluators() can post new eval metrics
+        # Populate _id from the response so rerun_evaluators() can post new eval metrics.
+        # /events API returns the experiment UUID in the JSON:API data.id field.
         if not self._experiment._id:
             response_id = raw.get("data", {}).get("id")
             if response_id:
