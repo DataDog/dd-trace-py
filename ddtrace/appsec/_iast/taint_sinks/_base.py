@@ -8,6 +8,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
+from ddtrace.appsec._shared._stacktrace import get_info_frame
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -19,7 +20,6 @@ from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._span_metrics import increment_iast_span_metric
-from .._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
