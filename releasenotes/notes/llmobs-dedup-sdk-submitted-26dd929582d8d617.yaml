@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes incorrect span hierarchy in LLMObs traces when using the
+    ddtrace SDK alongside OTel-based instrumentation (e.g. Strands Agents). OTel gen_ai
+    spans (e.g. ``invoke_agent``) were incorrectly appearing as siblings of their SDK
+    parent span (e.g. ``call_agent``) rather than being nested under it.

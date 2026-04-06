@@ -593,6 +593,29 @@ class LibDDWafDownload(LibraryDownload):
         return archive_dir
 
 
+# Source/build file extensions that should never appear in a binary wheel.
+# These live alongside .py files in package dirs but are only needed for compiling.
+_WHEEL_EXCLUDED_EXTENSIONS = frozenset(
+    [
+        # C/C++ source and headers (compiled into .so extensions)
+        ".c",
+        ".h",
+        ".cpp",
+        ".cc",
+        ".hpp",
+        # Cython source (compiled into .so extensions; .pxd kept for sdist only)
+        ".pyx",
+        ".pxd",
+        # Build system files
+        ".cmake",
+        ".sh",
+        # Developer tooling
+        ".plantuml",
+        ".supp",
+    ]
+)
+
+
 class LibraryDownloader(BuildPyCommand):
     def run(self):
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
@@ -605,6 +628,30 @@ class LibraryDownloader(BuildPyCommand):
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
+        self._strip_build_artifacts()
+
+    def find_data_files(self, package, src_dir):
+        """Strip build/source artifacts from wheel data files."""
+        files = BuildPyCommand.find_data_files(self, package, src_dir)
+        return [f for f in files if os.path.splitext(f)[1].lower() not in _WHEEL_EXCLUDED_EXTENSIONS]
+
+    def _strip_build_artifacts(self):
+        """Remove source/build artifacts from the build_lib directory after copying.
+
+        find_data_files() handles most setuptools code paths, but the PEP 517
+        build backend may populate build_lib via a different route. This post-
+        processing pass guarantees the artifacts are absent from the final wheel.
+        """
+        if not self.build_lib:
+            return
+        build_lib = Path(self.build_lib)
+        removed = 0
+        for path in build_lib.rglob("*"):
+            if path.is_file() and path.suffix.lower() in _WHEEL_EXCLUDED_EXTENSIONS:
+                path.unlink()
+                removed += 1
+        if removed:
+            print(f"Stripped {removed} build artifact(s) from wheel", flush=True)
 
 
 class CleanLibraries(CleanCommand):
@@ -763,13 +810,16 @@ class CustomBuildExt(build_ext):
         """Build libdd_wrapper shared library as a dependency for profiling extensions."""
         dd_wrapper_dir = DDUP_DIR.parent / "dd_wrapper"
 
-        # Determine output directory (profiling directory)
+        # Determine output directory (profiling directory).
+        # Store as self.wrapper_output_dir so _get_common_cmake_args can pass
+        # DD_WRAPPER_DIR to downstream extensions (ddup, stack, memalloc).
         if IS_EDITABLE or getattr(self, "inplace", False):
             wrapper_output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
         else:
             wrapper_output_dir = (
                 Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
             )
+        self.wrapper_output_dir = wrapper_output_dir
 
         wrapper_name = f"libdd_wrapper{self.suffix}"
         wrapper_library = wrapper_output_dir / wrapper_name
@@ -876,6 +926,11 @@ class CustomBuildExt(build_ext):
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
+        # Pass DD_WRAPPER_DIR for ddup/stack/memalloc cmake builds to find libdd_wrapper
+        if hasattr(self, "wrapper_output_dir"):
+            cmake_args += [
+                f"-DDD_WRAPPER_DIR={self.wrapper_output_dir}",
+            ]
 
         # Point FetchContent downloads at the persistent download cache so CMake
         # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
@@ -1356,18 +1411,27 @@ print(f"INFO: building package '{PACKAGE_NAME}'")
 interpose_sccache()
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
+    packages=find_packages(
+        exclude=[
+            "tests*",
+            "benchmarks*",
+            "scripts*",
+            # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
+            "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
+            # C++ test helpers, not needed at runtime
+            "ddtrace.internal.datadog.profiling.ddup.test*",
+        ]
+    ),
+    include_package_data=False,
     package_data={
-        "ddtrace": ["py.typed"],
+        # Type stubs and markers for all packages
+        "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"]
-            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
-    },
-    exclude_package_data={
-        "": ["CMakeLists.txt", "*.md", "*.sh", "*.cmake", "*.pxd"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python

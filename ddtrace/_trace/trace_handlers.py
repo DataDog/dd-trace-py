@@ -238,7 +238,7 @@ def _on_web_framework_finish_request(
         status_code=status_code,
         query=query,
         request_headers=req_headers,
-        response_headers=res_headers,
+        response_headers=dict(res_headers) if res_headers is not None else None,
         route=route,
         **kwargs,
     )
@@ -255,7 +255,7 @@ def _set_inferred_proxy_tags(span, status_code):
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
-            inferred_span.set_tag("http.status_code", status_code)
+            inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
             if ERROR_MSG in span._meta.keys():
@@ -1627,6 +1627,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1662,6 +1663,7 @@ def listen():
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
