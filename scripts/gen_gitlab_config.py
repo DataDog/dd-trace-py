@@ -509,9 +509,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             TARGET_JOBS,
             len(scalable_suites),
         )
-        final_jobs = _scale_suites(
-            suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS
-        )
+        final_jobs = _scale_suites(suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS)
         LOGGER.info("Scaled total jobs: %d", sum(final_jobs.values()))
     else:
         final_jobs = baseline_jobs
