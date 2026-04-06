@@ -3,12 +3,11 @@ message: Use ddtrace.internal.settings.env instead of os to access environment v
 severity: error
 language: python
 files:
-  - "ddtrace/**"
+  - "**"
 ignores:
   - "ddtrace/internal/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
-  - "ddtrace/testing/**"
 rule:
   any:
     # Aliased imports — cannot auto-fix because the alias is used throughout the file
