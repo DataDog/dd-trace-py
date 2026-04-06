@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
-import os
 import pickle
 from unittest import mock
 
@@ -23,6 +22,7 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.settings import env
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -2495,12 +2495,12 @@ assert context == expected_context, f"Expected {{expected_context}} but got {{co
         headers,
         pickle.dumps(expected_context),
     )
-    env = os.environ.copy()
+    subenv = env.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+        subenv["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if extract_behavior is not None:
-        env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = extract_behavior
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+        subenv["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = extract_behavior
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=subenv)
     print(stderr, stdout)
     assert status == 0, (stdout, stderr)
 
@@ -2597,13 +2597,13 @@ else:
       "dd_origin": context.dd_origin,
     }}))
     """.format(headers)
-    env = os.environ.copy()
+    subenv = env.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+        subenv["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_extract is not None:
-        env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
+        subenv["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=subenv)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
 
@@ -3306,10 +3306,10 @@ HTTPPropagator.inject(context, headers)
 print(json.dumps(headers))
     """.format(context)
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+        subenv["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=subenv)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
 
@@ -3371,12 +3371,12 @@ HTTPPropagator.inject(context, headers)
 print(json.dumps(headers))
     """.format(context)
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+        subenv["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_inject is not None:
-        env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+        subenv["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=subenv)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
 
