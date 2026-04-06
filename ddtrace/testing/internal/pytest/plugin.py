@@ -4,7 +4,6 @@ from collections import defaultdict
 from io import StringIO
 import json
 import logging
-import os
 from pathlib import Path
 import re
 import traceback
@@ -1042,7 +1041,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
-    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+    return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
 def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
@@ -1187,7 +1186,7 @@ def _get_test_command(config: pytest.Config) -> str:
     command = "pytest"
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
-    if addopts := os.environ.get("PYTEST_ADDOPTS"):
+    if addopts := env.get("PYTEST_ADDOPTS"):
         command += " {}".format(addopts)
     return command
 

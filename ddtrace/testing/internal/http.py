@@ -18,6 +18,7 @@ from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import uuid
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
@@ -98,7 +99,7 @@ class BackendConnectorSetup:
         """
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
-        if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+        if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
             log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
@@ -111,8 +112,8 @@ class BackendConnectorSetup:
         """
         Detect settings for agentless backend connection mode.
         """
-        site = os.environ.get("DD_SITE") or DEFAULT_SITE
-        api_key = os.environ.get("_CI_DD_API_KEY") or os.environ.get("DD_API_KEY")
+        site = env.get("DD_SITE") or DEFAULT_SITE
+        api_key = env.get("_CI_DD_API_KEY") or env.get("DD_API_KEY")
 
         if not api_key:
             raise SetupError("DD_API_KEY environment variable is not set")
@@ -124,10 +125,10 @@ class BackendConnectorSetup:
         """
         Detect settings for EVP proxy mode backend connection mode.
         """
-        agent_url = os.environ.get("_CI_DD_AGENT_URL") or os.environ.get("DD_TRACE_AGENT_URL")
+        agent_url = env.get("_CI_DD_AGENT_URL") or env.get("DD_TRACE_AGENT_URL")
         if not agent_url:
-            user_provided_host = os.environ.get("DD_TRACE_AGENT_HOSTNAME") or os.environ.get("DD_AGENT_HOST")
-            user_provided_port = os.environ.get("DD_TRACE_AGENT_PORT") or os.environ.get("DD_AGENT_PORT")
+            user_provided_host = env.get("DD_TRACE_AGENT_HOSTNAME") or env.get("DD_AGENT_HOST")
+            user_provided_port = env.get("DD_TRACE_AGENT_PORT") or env.get("DD_AGENT_PORT")
 
             if user_provided_host or user_provided_port:
                 host = user_provided_host or DEFAULT_AGENT_HOSTNAME
@@ -168,7 +169,7 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.api_key = api_key
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
-        if agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL"):
+        if agentless_url := env.get("DD_CIVISIBILITY_AGENTLESS_URL"):
             url = agentless_url
         else:
             url = f"https://{subdomain.value}.{self.site}"
