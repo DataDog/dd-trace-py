@@ -108,7 +108,6 @@ def test_filters():
 @pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
 @snapshot(async_mode=False)
 def test_synchronous_writer(writer_class):
-
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer

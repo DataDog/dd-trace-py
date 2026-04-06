@@ -738,7 +738,6 @@ def test_tracer_shutdown_timeout():
     parametrize={"USE_START_SPAN": ["true", "false"]},
 )
 def test_tracer_shutdown():
-
     import mock
 
     from ddtrace._trace.span import Span
@@ -1067,7 +1066,6 @@ def test_tracer_runtime_tags_cross_execution(tracer):
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_enable():
-
     from ddtrace.trace import tracer as t2
 
     if env["DD_TRACE_ENABLED"] == "true":

@@ -673,7 +673,6 @@ def test_span_link_v04_encoding():
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
 def test_span_event_encoding_msgpack():
-
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
     from tests.tracer.test_encoders import decode

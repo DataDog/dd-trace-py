@@ -60,7 +60,6 @@ def test_single_trace_uds():
 
 @parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/nosockethere"})
 def test_uds_wrong_socket_path():
-
     import mock
 
     from ddtrace import config
@@ -105,7 +104,6 @@ def test_uds_wrong_socket_path():
     }
 )
 def test_payload_too_large():
-
     import mock
 
     from ddtrace.trace import tracer as t
@@ -333,7 +331,6 @@ def test_single_trace_too_large_partial_flush_disabled():
     env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}, check_logs=False
 )
 def test_trace_generates_error_logs_when_trace_agent_url_invalid():
-
     import mock
 
     from ddtrace import config
