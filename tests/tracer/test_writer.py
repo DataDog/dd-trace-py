@@ -21,6 +21,8 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings._opentelemetry import ExporterConfig
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentWriter
@@ -1670,3 +1672,29 @@ def test_agentless_writer_no_api_key():
 
     writer = tracer._span_aggregator.writer
     assert not isinstance(writer, AgentlessTraceWriter)
+
+
+def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+
+
+def test_is_otlp_traces_exporter_enabled_case_insensitive():
+    with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_by_default():
+    with override_env({"OTEL_TRACES_EXPORTER": ""}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_native_writer_stores_otlp_endpoint():
+    """NativeWriter stores the otlp_endpoint when provided."""
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
