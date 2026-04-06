@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where deeply nested tool schemas in Anthropic and OpenAI
+    integrations caused LLMObs spans to be silently dropped in the backend. The Anthropic and OpenAI integrations 
+    now check each tool's schema depth at extraction time. If a tool's schema exceeds the maximum allowed
+    depth, the schema is replaced with an empty object while the tool's name and description are
+    preserved, and a warning is emitted.
