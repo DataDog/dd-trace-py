@@ -287,10 +287,13 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@aio_pika'
+      - '@datastreams'
       - tests/contrib/aio_pika/*
+      - tests/snapshots/tests.contrib.aio_pika.*
     runner: riot
     services:
       - rabbitmq
+    snapshot: true
   aiokafka:
     env:
       TEST_KAFKA_HOST: kafka

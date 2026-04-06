@@ -26,7 +26,9 @@ Configuration
    This option can also be set with the ``DD_AIO_PIKA_SERVICE`` environment
    variable.
 
-   Default: ``"rabbitmq"``
+   Default: ``"rabbitmq"`` (aio-pika is a RabbitMQ-specific client; the service name
+   reflects the backing broker rather than the library, consistent with other
+   broker integrations such as ``aiokafka`` defaulting to ``"kafka"``)
 
 .. py:data:: ddtrace.config.aio_pika["distributed_tracing_enabled"]
 

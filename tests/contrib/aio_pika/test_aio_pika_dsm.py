@@ -173,7 +173,8 @@ async def test_dsm_publish_consume_linked_pathway(patch_aio_pika, dsm_processor,
 
 
 @pytest.mark.asyncio
-async def test_dsm_span_has_pathway_hash(patch_aio_pika, dsm_processor, tracer, test_spans):
+@pytest.mark.snapshot()
+async def test_dsm_span_has_pathway_hash(patch_aio_pika, dsm_processor):
     """Spans should have DSM pathway hash tag set."""
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("dsm pathway hash test")
@@ -194,14 +195,3 @@ async def test_dsm_span_has_pathway_hash(patch_aio_pika, dsm_processor, tracer, 
             pytest.fail("Timed out waiting for consumer callback")
         finally:
             await queue.cancel(consumer_tag)
-
-    traces = test_spans.pop_traces()
-    all_spans = [span for trace in traces for span in trace]
-
-    publish_spans = [s for s in all_spans if s.name == "rabbitmq.publish"]
-    assert len(publish_spans) >= 1
-    assert publish_spans[0].get_tag("pathway.hash") is not None, "Publish span should have pathway.hash tag"
-
-    consumer_spans = [s for s in all_spans if s.name == "rabbitmq.receive"]
-    assert len(consumer_spans) >= 1
-    assert consumer_spans[0].get_tag("pathway.hash") is not None, "Consume span should have pathway.hash tag"
