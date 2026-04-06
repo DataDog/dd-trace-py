@@ -232,8 +232,10 @@ class TestLogCorrelation:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_without_logs_injection_no_ids_injected(self, pytester: Pytester) -> None:
+    def test_without_logs_injection_no_ids_injected(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without DD_LOGS_INJECTION, log records must not have dd.trace_id/dd.span_id."""
+        monkeypatch.setenv("DD_LOGS_INJECTION", "false")
+
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_WITHOUT_LOG_INJECTION)
 
