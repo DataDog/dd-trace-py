@@ -919,7 +919,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   mlflow:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
