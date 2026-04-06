@@ -9,6 +9,8 @@ ignores:
   - "ddtrace/internal/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
+  - "tests/contrib/config.py"
+  - "tests/wait-for-services.py"
 rule:
   any:
     # Aliased imports — cannot auto-fix because the alias is used throughout the file

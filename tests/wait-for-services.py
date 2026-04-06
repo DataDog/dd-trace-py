@@ -33,7 +33,7 @@ import redis
 import requests
 import vertica_python
 
-from ddtrace.internal.settings import env
+import os
 
 
 logging.basicConfig(level=logging.INFO)
@@ -125,7 +125,7 @@ def check_redis(redis_config):
         client.close()
 
 
-@try_until_timeout(Exception, args={"url": env.get("DD_TRACE_AGENT_URL", "http://localhost:8126")})
+@try_until_timeout(Exception, args={"url": os.getenv("DD_TRACE_AGENT_URL", "http://localhost:8126")})
 def check_agent(url):
     if not url.endswith("/"):
         url += "/"
