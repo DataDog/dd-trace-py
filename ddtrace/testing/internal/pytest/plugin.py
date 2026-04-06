@@ -292,13 +292,18 @@ class TestOptPlugin:
             install_global_trace_filter(self.manager.writer)
             try:
                 import ddtrace
-
-                if ddtrace.config._logs_injection or self.enable_log_submission:
-                    from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
-
-                    _patch_logging()
             except ImportError:
-                pass
+                log.debug("ddtrace is not available, skipping logging patch")
+            else:
+                if ddtrace.config._logs_injection or self.enable_log_submission:
+                    try:
+                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
+
+                        _patch_logging()
+                    except ImportError:
+                        log.warning(
+                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
+                        )
 
         if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler

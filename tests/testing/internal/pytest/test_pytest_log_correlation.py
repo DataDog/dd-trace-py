@@ -49,6 +49,44 @@ def pytest_configure(config):
 """
 
 
+# Variant of _INFRA_PLUGIN that makes the ddtrace logging patch unimportable,
+# simulating an environment where the contrib logging module is missing.
+_INFRA_PLUGIN_NO_LOGGING_PATCH = """\
+import sys
+from unittest.mock import Mock, patch
+
+from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.settings_data import Settings
+
+
+class _MockConnectorSetup:
+    def get_connector_for_subdomain(self, subdomain):
+        connector = Mock()
+        connector.request.return_value = Mock(error_type=None)
+        return connector
+
+    def default_env(self):
+        return "none"
+
+
+def pytest_configure(config):
+    # Setting a module to None in sys.modules causes ImportError on subsequent imports.
+    sys.modules["ddtrace.contrib.internal.logging.patch"] = None
+
+    mock_api = Mock()
+    mock_api.get_settings.return_value = Settings()
+    mock_api.get_known_tests.return_value = set()
+    mock_api.get_test_management_properties.return_value = {}
+    mock_api.get_skippable_tests.return_value = (set(), None)
+
+    patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
+    patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
+    patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
+    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
+    patch("ddtrace.testing.internal.session_manager.Git").start()
+"""
+
+
 # ---------------------------------------------------------------------------
 # Test file content strings — each asserts directly so a passing subprocess
 # (exit 0) proves the feature works.
@@ -228,6 +266,21 @@ class TestLogCorrelation:
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_WITH_LOG_CORRELATION)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_logging_patch_import_error_does_not_crash_session(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If the ddtrace logging patch module cannot be imported, the session must not crash.
+
+        A warning is emitted and tests continue to run normally.
+        """
+        monkeypatch.setenv("DD_LOGS_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN_NO_LOGGING_PATCH)
+        pytester.makepyfile(test_file="def test_pass(): pass")
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
