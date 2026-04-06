@@ -12,9 +12,11 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.tracer_api import msgpack_packb
+from ddtrace.testing.internal.writer import BaseWriter
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace.testing.internal.writer import _get_min_flush_events
 from ddtrace.testing.internal.writer import serialize_module
 from ddtrace.testing.internal.writer import serialize_session
 from ddtrace.testing.internal.writer import serialize_suite
@@ -24,6 +26,90 @@ from tests.testing.mocks import mock_test_module
 from tests.testing.mocks import mock_test_run
 from tests.testing.mocks import mock_test_session
 from tests.testing.mocks import mock_test_suite
+
+
+class _ConcreteWriter(BaseWriter):
+    """Minimal concrete subclass for testing BaseWriter."""
+
+    def __init__(self, min_flush_events: int = 0) -> None:
+        super().__init__(min_flush_events=min_flush_events)
+        self.sent_batches: list[list[Event]] = []
+
+    def _send_events(self, events: list[Event]) -> None:
+        self.sent_batches.append(events)
+
+    def _encode_events(self, events: list[Event]) -> bytes:
+        return b"x" * len(events)
+
+
+class TestBaseWriterMinFlushEvents:
+    """Tests for BaseWriter.min_flush_events threshold flush."""
+
+    def test_no_flush_when_disabled(self) -> None:
+        writer = _ConcreteWriter(min_flush_events=0)
+        writer.put_event(Event(n=1))
+        writer.put_event(Event(n=2))
+
+        assert len(writer.events) == 2
+        assert writer.sent_batches == []
+
+    def test_flush_on_every_event_with_threshold_1(self) -> None:
+        writer = _ConcreteWriter(min_flush_events=1)
+        writer.put_event(Event(n=1))
+
+        assert len(writer.events) == 0
+        assert len(writer.sent_batches) == 1
+        assert writer.sent_batches[0] == [{"n": 1}]
+
+    def test_flush_on_threshold_3(self) -> None:
+        writer = _ConcreteWriter(min_flush_events=3)
+        writer.put_event(Event(n=1))
+        writer.put_event(Event(n=2))
+        assert len(writer.events) == 2
+        assert writer.sent_batches == []
+
+        writer.put_event(Event(n=3))
+        assert len(writer.events) == 0
+        assert len(writer.sent_batches) == 1
+        assert len(writer.sent_batches[0]) == 3
+
+    def test_multiple_flush_cycles(self) -> None:
+        writer = _ConcreteWriter(min_flush_events=2)
+        writer.put_event(Event(n=1))
+        writer.put_event(Event(n=2))
+        assert len(writer.sent_batches) == 1
+
+        writer.put_event(Event(n=3))
+        writer.put_event(Event(n=4))
+        assert len(writer.sent_batches) == 2
+
+
+class TestGetMinFlushEvents:
+    """Tests for _get_min_flush_events env var parsing."""
+
+    def test_default_is_zero(self) -> None:
+        with patch.dict("os.environ", {}, clear=False):
+            # Remove the var if it exists
+            import os
+
+            os.environ.pop("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
+            assert _get_min_flush_events() == 0
+
+    def test_reads_env_var(self) -> None:
+        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5"}):
+            assert _get_min_flush_events() == 5
+
+    def test_value_1(self) -> None:
+        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"}):
+            assert _get_min_flush_events() == 1
+
+    def test_negative_clamped_to_zero(self) -> None:
+        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
+            assert _get_min_flush_events() == 0
+
+    def test_invalid_value_returns_zero(self) -> None:
+        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
+            assert _get_min_flush_events() == 0
 
 
 class TestEvent:
