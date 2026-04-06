@@ -33,7 +33,7 @@ class EnvConfig(MutableMapping):
         return len(os.environ)
 
     def copy(self) -> dict:
-        return os.environ.copy()
+        return dict(self)
 
 
 dd_environ = EnvConfig()
