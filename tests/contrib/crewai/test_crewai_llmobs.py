@@ -77,8 +77,9 @@ EXPECTED_SPAN_ARGS = {
     "input_value": mock.ANY,
     "output_value": mock.ANY,
     "metadata": mock.ANY,
-    "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+    "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     "span_links": True,
+    "parent_id": mock.ANY,  # async task spans don't have in-process parent links
 }
 
 
@@ -87,8 +88,9 @@ def expected_agent_span_args(role):
         "input_value": mock.ANY,
         "output_value": mock.ANY,
         "metadata": {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[role]}},
-        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
         "span_links": True,
+        "parent_id": mock.ANY,  # async task spans don't have in-process parent links
     }
 
 
@@ -98,6 +100,11 @@ def _assert_basic_crew_events(llmobs_events, spans):
     for llmobs_span, span, kind in zip(llmobs_events, spans, ("workflow", "task", "agent", "task", "agent")):
         extra_args = expected_agent_span_args(llmobs_span["name"]) if kind == "agent" else EXPECTED_SPAN_ARGS
         assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **extra_args)
+    # assert parent_id chain: workflow -> task -> agent
+    assert llmobs_events[1]["parent_id"] == llmobs_events[0]["span_id"]  # task -> workflow
+    assert llmobs_events[2]["parent_id"] == llmobs_events[1]["span_id"]  # agent -> task
+    assert llmobs_events[3]["parent_id"] == llmobs_events[0]["span_id"]  # task -> workflow
+    assert llmobs_events[4]["parent_id"] == llmobs_events[3]["span_id"]  # agent -> task
 
 
 def _assert_basic_crew_links(llmobs_events):
@@ -128,8 +135,12 @@ def _assert_tool_crew_events(llmobs_events, spans):
         input_value=mock.ANY,
         output_value=mock.ANY,
         metadata=mock.ANY,
-        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     )
+    # assert parent_id chain: workflow -> task -> agent -> tool
+    assert llmobs_events[1]["parent_id"] == llmobs_events[0]["span_id"]  # task -> workflow
+    assert llmobs_events[2]["parent_id"] == llmobs_events[1]["span_id"]  # agent -> task
+    assert llmobs_events[3]["parent_id"] == llmobs_events[2]["span_id"]  # tool -> agent
 
 
 def _assert_tool_crew_links(llmobs_events):
@@ -157,12 +168,17 @@ def _assert_async_crew_events(llmobs_events, spans):
         input_value=mock.ANY,
         output_value=mock.ANY,
         metadata=mock.ANY,
-        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     )
     assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **EXPECTED_SPAN_ARGS)
     assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
         spans[5], span_kind="agent", **expected_agent_span_args(llmobs_events[5]["name"])
     )
+    # assert parent_id chain: workflow -> task -> agent, workflow -> task -> agent
+    assert llmobs_events[1]["parent_id"] == llmobs_events[0]["span_id"]  # task -> workflow
+    assert llmobs_events[2]["parent_id"] == llmobs_events[1]["span_id"]  # agent -> task
+    assert llmobs_events[4]["parent_id"] == llmobs_events[0]["span_id"]  # task -> workflow
+    assert llmobs_events[5]["parent_id"] == llmobs_events[4]["span_id"]  # agent -> task
 
 
 def _assert_async_crew_links(llmobs_events):
@@ -205,7 +221,7 @@ def _assert_hierarchical_crew_events(llmobs_events, spans):
                 input_value=mock.ANY,
                 output_value=mock.ANY,
                 metadata=mock.ANY,
-                tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+                tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
             )
             continue
         assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **EXPECTED_SPAN_ARGS)

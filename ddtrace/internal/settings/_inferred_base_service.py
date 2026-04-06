@@ -145,6 +145,16 @@ def detect_service(args: list[str]) -> Optional[str]:
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
     """
+    # DEV: pytest-xdist workers run as "python -c ..." so sys.argv=['-c'], which
+    # would yield no inferred service. When xdist workers are active the pytest
+    # conftest propagates the controller's already-resolved service name via this
+    # env var; workers inherit it at spawn time and detect_service short-circuits
+    # here. The conftest pops the var right after `import ddtrace` so it never
+    # leaks into test code.
+    xdist_service = env.get("_DD_PYTEST_XDIST_INFERRED_SERVICE")
+    if xdist_service is not None:
+        return xdist_service or None
+
     detector_classes = [PythonDetector]
 
     if not args:

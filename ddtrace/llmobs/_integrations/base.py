@@ -9,9 +9,10 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -42,6 +43,11 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
+    def _annotate_integration_tag(self, span: Span) -> None:
+        if not self.llmobs_enabled:
+            return
+        _annotate_llmobs_span_data(span, tags={LLMOBS_STRUCT.INTEGRATION: self._integration_name})
+
     def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
@@ -69,8 +75,7 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
-        if self.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, self._integration_name)
+        self._annotate_integration_tag(span)
         return span
 
     def llmobs_set_tags(

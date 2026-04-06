@@ -46,7 +46,7 @@ packaging==23.2
 pandas==2.3.3
 pillow==12.1.1
 pluggy==1.6.0
-protobuf==4.25.8
+protobuf==4.25.9
 pyarrow==15.0.2
 pygments==2.19.2
 pyparsing==3.3.2
@@ -67,7 +67,7 @@ sortedcontainers==2.4.0
 sqlalchemy==2.0.48
 sqlparse==0.5.5
 threadpoolctl==3.6.0
-tomli==2.4.0
+tomli==2.4.1
 typing-extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3

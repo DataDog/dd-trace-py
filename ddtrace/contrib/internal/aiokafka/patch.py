@@ -1,4 +1,3 @@
-import os
 from time import time_ns
 
 import aiokafka
@@ -22,6 +21,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -33,7 +33,7 @@ config._add(
     "aiokafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(env.get("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
     ),
 )
 

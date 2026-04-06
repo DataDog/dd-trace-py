@@ -7,12 +7,12 @@ from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+        assert get_llmobs_parent_id(span) == int(headers["_DD_LLMOBS_SPAN_ID"])
 
 
 def test_propagate_llmobs_parent_id_complex(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -133,8 +133,8 @@ print(json.dumps(headers))
     with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
         with llmobs.llm(model_name="llm_model", name="LLMObs span") as llm_span:
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
-            assert span._get_ctx_item(PARENT_ID_KEY) is None
-            assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+            assert get_llmobs_parent_id(span) is None
+            assert get_llmobs_parent_id(llm_span) == int(headers["_DD_LLMOBS_SPAN_ID"])
 
 
 def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -166,7 +166,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers.get("x-datadog-parent-id")
-        assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
+        assert get_llmobs_parent_id(span) is None
 
 
 def test_inject_distributed_headers_simple(llmobs):
@@ -208,6 +208,7 @@ import json
 
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 
 LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
@@ -215,7 +216,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
         headers = {
             "_DD_LLMOBS_SPAN_ID": str(root_span.span_id),
-            "_DD_LLMOBS_TRACE_ID": str(root_span._get_ctx_item("_ml_obs.llmobs_trace_id"))
+            "_DD_LLMOBS_TRACE_ID": str(get_llmobs_trace_id(root_span))
         }
         headers = LLMObs.inject_distributed_headers(headers, span=child_span)
 
@@ -230,9 +231,9 @@ print(json.dumps(headers))
     llmobs_no_ml_app.activate_distributed_headers(headers)
     with llmobs_no_ml_app.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
-        assert span._get_ctx_item(ML_APP) == "test-app"  # should have been propagated
-        assert span._get_ctx_item(LLMOBS_TRACE_ID) == int(headers["_DD_LLMOBS_TRACE_ID"])
+        assert get_llmobs_parent_id(span) == int(headers["_DD_LLMOBS_SPAN_ID"])
+        assert get_llmobs_ml_app(span) == "test-app"  # should have been propagated
+        assert get_llmobs_trace_id(span) == int(headers["_DD_LLMOBS_TRACE_ID"])
 
 
 def test_activate_distributed_headers_propagate_complex(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -266,9 +267,9 @@ print(json.dumps(headers))
     with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
         with llmobs.llm(model_name="llm_model", name="LLMObs span") as llm_span:
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
-            assert span._get_ctx_item(PARENT_ID_KEY) is None
-            assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
-            assert llm_span._get_ctx_item(ML_APP) == "test-app"  # should be the one set by `llmobs` fixture
+            assert get_llmobs_parent_id(span) is None
+            assert get_llmobs_parent_id(llm_span) == int(headers["_DD_LLMOBS_SPAN_ID"])
+            assert get_llmobs_ml_app(llm_span) == "test-app"  # should be the one set by `llmobs` fixture
 
 
 def test_activate_distributed_headers_for_local_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -299,7 +300,7 @@ print(json.dumps(headers))
     headers = json.loads(stdout.decode())
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llm_span._get_ctx_item(ML_APP) == "local-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "local-ml-app"
 
 
 def test_activate_distributed_headers_for_twice_propagated_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -333,7 +334,7 @@ print(json.dumps(headers))
 
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llm_span._get_ctx_item(ML_APP) == "twice-propagated-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
@@ -365,8 +366,8 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-        assert span._get_ctx_item(ML_APP) == "test-app"
+        assert get_llmobs_parent_id(span) is None
+        assert get_llmobs_ml_app(span) == "test-app"
 
 
 def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
