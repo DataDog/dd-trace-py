@@ -268,7 +268,36 @@ class TestAgentlessLogSubmission:
         result.assert_outcomes(passed=1)
 
     def test_no_handler_without_flag(self, pytester: Pytester) -> None:
-        """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED, LogsHandler must not be installed."""
+        """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED or DD_LOGS_INJECTION, LogsHandler must not be installed."""
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_handler_installed_via_logs_injection(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """LogsHandler must be installed when DD_LOGS_INJECTION=true, without requiring agentless mode.
+
+        This enables log submission via EVP proxy in agent mode, using whatever connector the session
+        manager was set up with.
+        """
+        monkeypatch.setenv("DD_LOGS_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_no_handler_in_ci_context_provider_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DD_LOGS_INJECTION=true must not install LogsHandler when _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1.
+
+        In Bazel/offline mode the CI context provider is used and there is no active connector to
+        route logs through, so log submission must be suppressed even if DD_LOGS_INJECTION is set.
+        """
+        monkeypatch.setenv("DD_LOGS_INJECTION", "true")
+        monkeypatch.setenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", "1")
+
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 

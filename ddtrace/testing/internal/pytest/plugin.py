@@ -236,8 +236,8 @@ class TestOptPlugin:
         if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = True
 
-        # Agentless log submission: if DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set, forward logs to the Datadog logs
-        # intake. This requires DD_CIVISIBILITY_AGENTLESS_ENABLED and a real ddtrace span (trace filter).
+        # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
+        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
         self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
             if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
@@ -249,6 +249,12 @@ class TestOptPlugin:
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 # Agentless log submission needs a real ddtrace span to carry trace/span IDs.
                 self.enable_ddtrace_trace_filter = True
+
+        # Log submission via connector: active when DD_LOGS_INJECTION is set (works with both EVP proxy and agentless
+        # connectors), or when explicit agentless log submission is enabled.
+        self.enable_log_submission = self.enable_agentless_log_submission or (
+            asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER"))
+        )
 
         self._logs_writer: t.Optional[t.Any] = None
         self._logs_handler: t.Optional[t.Any] = None
@@ -288,14 +294,14 @@ class TestOptPlugin:
             try:
                 import ddtrace
 
-                if ddtrace.config._logs_injection or self.enable_agentless_log_submission:
+                if ddtrace.config._logs_injection or self.enable_log_submission:
                     from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
 
                     _patch_logging()
             except ImportError:
                 pass
 
-        if self.enable_agentless_log_submission:
+        if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler
             from ddtrace.testing.internal.logs import LogsWriter
 
