@@ -36,7 +36,7 @@ def guardrail():
 @pytest.fixture
 def guardrail_monitor():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        return DatadogAIGuardGuardrail(enable_blocking=False)
+        return DatadogAIGuardGuardrail(block=False)
 
 
 def make_choice(content=None, tool_calls=None, function_call=None):

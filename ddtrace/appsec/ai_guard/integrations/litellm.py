@@ -49,16 +49,16 @@ class DatadogAIGuardGuardrailException(Exception):
 class DatadogAIGuardGuardrail(CustomGuardrail):
     def __init__(
         self,
-        enable_blocking: Optional[bool] = True,
+        block: Optional[bool] = True,
         **kwargs: Any,
     ):
         """
         Initialize the DatadogAIGuardGuardrail class.
 
         Args:
-            enable_blocking: whether to enable blocking or not when an evaluation is not safe
+            block: whether to enable blocking or not when an evaluation is not safe
         """
-        self._enable_blocking = enable_blocking
+        self._block = block
         self._client = new_ai_guard_client()
 
         kwargs.setdefault("guardrail_name", GUARDRAIL_NAME)
@@ -182,10 +182,10 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
 
         return result
 
-    def _resolve_enable_blocking(self, dynamic_params: dict[str, Any]) -> bool:
-        raw = dynamic_params.get("enable_blocking")
+    def _resolve_block(self, dynamic_params: dict[str, Any]) -> bool:
+        raw = dynamic_params.get("block")
         if raw is None:
-            return bool(self._enable_blocking)
+            return bool(self._block)
         return raw if isinstance(raw, bool) else str(raw).lower() != "false"
 
     async def _run_ai_guard_check(
@@ -195,8 +195,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
     ) -> None:
         try:
             verbose_proxy_logger.debug("Datadog AI Guard: Making request to endpoint")
-            enable_blocking = self._resolve_enable_blocking(dynamic_params)
-            response = await asyncio.to_thread(self._client.evaluate, messages, Options(block=enable_blocking))
+            block = self._resolve_block(dynamic_params)
+            response = await asyncio.to_thread(self._client.evaluate, messages, Options(block=block))
             if response["action"] in ("DENY", "ABORT"):
                 verbose_proxy_logger.debug(
                     "Datadog AI Guard: monitor mode - violation detected but allowing request. "

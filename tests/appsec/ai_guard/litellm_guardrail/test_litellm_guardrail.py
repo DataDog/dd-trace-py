@@ -224,28 +224,28 @@ class TestConvertResponseMessages:
         assert result[0]["tool_calls"][0]["function"]["arguments"] == "{}"
 
 
-class TestResolveEnableBlocking:
-    """Unit tests for _resolve_enable_blocking."""
+class TestResolveBlock:
+    """Unit tests for _resolve_block."""
 
     def test_none_falls_back_to_instance_true(self, guardrail):
-        assert guardrail._resolve_enable_blocking({}) is True
+        assert guardrail._resolve_block({}) is True
 
     def test_none_falls_back_to_instance_false(self, guardrail_monitor):
-        assert guardrail_monitor._resolve_enable_blocking({}) is False
+        assert guardrail_monitor._resolve_block({}) is False
 
     def test_bool_true_overrides_default(self, guardrail_monitor):
-        assert guardrail_monitor._resolve_enable_blocking({"enable_blocking": True}) is True
+        assert guardrail_monitor._resolve_block({"block": True}) is True
 
     def test_bool_false_overrides_default(self, guardrail):
-        assert guardrail._resolve_enable_blocking({"enable_blocking": False}) is False
+        assert guardrail._resolve_block({"block": False}) is False
 
     @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes"])
     def test_truthy_strings(self, guardrail, value):
-        assert guardrail._resolve_enable_blocking({"enable_blocking": value}) is True
+        assert guardrail._resolve_block({"block": value}) is True
 
     @pytest.mark.parametrize("value", ["false", "False", "FALSE"])
     def test_false_string(self, guardrail, value):
-        assert guardrail._resolve_enable_blocking({"enable_blocking": value}) is False
+        assert guardrail._resolve_block({"block": value}) is False
 
 
 class TestRunAIGuardCheck:
@@ -297,17 +297,17 @@ class TestRunAIGuardCheck:
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_dynamic_param_false_overrides_instance_blocking(self, mock_req, guardrail):
-        """enable_blocking='false' in dynamic params disables blocking even when instance default is True."""
+        """block='false' in dynamic params disables blocking even when instance default is True."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=False)
         # Must not raise — dynamic param disables blocking
-        asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {"enable_blocking": "false"}))
+        asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {"block": "false"}))
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_dynamic_param_true_overrides_monitor_mode(self, mock_req, guardrail_monitor):
-        """enable_blocking=True in dynamic params enables blocking even in monitor-mode guardrail."""
+        """block=True in dynamic params enables blocking even in monitor-mode guardrail."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=True)
         with pytest.raises(DatadogAIGuardGuardrailException):
-            asyncio.run(guardrail_monitor._run_ai_guard_check(self.MSGS, {"enable_blocking": True}))
+            asyncio.run(guardrail_monitor._run_ai_guard_check(self.MSGS, {"block": True}))
 
 
 class TestOnRequest:
