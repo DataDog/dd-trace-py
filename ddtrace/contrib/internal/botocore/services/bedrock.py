@@ -474,6 +474,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         params=params,
         model_provider=model_provider,
         model_name=model_name,
+        model_id=model_id,
         instance=instance,
     ) as ctx:
         try:
