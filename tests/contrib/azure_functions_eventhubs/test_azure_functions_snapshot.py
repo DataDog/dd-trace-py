@@ -8,6 +8,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 import pytest
 
+from ddtrace.internal.settings import env
 from tests.webclient import Client
 
 
@@ -45,12 +46,14 @@ def azure_functions_client(request):
 
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
-    env = os.environ.copy()
-    env.update(env_vars)
+    subenv = env.copy()
+    subenv.update(env_vars)
 
     port = 7071
-    env["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
-    env["DD_TRACE_STATS_COMPUTATION_ENABLED"] = "False"  # disable stats computation to avoid potential flakes in tests
+    subenv["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
+    subenv["DD_TRACE_STATS_COMPUTATION_ENABLED"] = (
+        "False"  # disable stats computation to avoid potential flakes in tests
+    )
 
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
@@ -59,7 +62,7 @@ def azure_functions_client(request):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         close_fds=True,
-        env=env,
+        env=subenv,
         preexec_fn=os.setsid,
         cwd=os.path.join(os.path.dirname(__file__), "azure_function_app"),
     )
