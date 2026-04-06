@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from ddtrace.internal.settings import env
 from tests.integration.utils import AGENT_VERSION
 
 
@@ -106,13 +107,13 @@ async def _async_test_method2():
 
 @pytest.mark.snapshot()
 def test_ddtrace_run_trace_methods_async(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_METHODS"] = (
+    subenv = env.copy()
+    subenv["DD_TRACE_METHODS"] = (
         "tests.integration.test_tracemethods:_async_test_method,_async_test_method2;"
         "tests.integration.test_tracemethods:_Class.async_test_method"
     )
     tests_dir = os.path.dirname(os.path.dirname(__file__))
-    env["PYTHONPATH"] = os.pathsep.join([tests_dir, env.get("PYTHONPATH", "")])
+    subenv["PYTHONPATH"] = os.pathsep.join([tests_dir, subenv.get("PYTHONPATH", "")])
 
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
@@ -130,7 +131,7 @@ async def main():
 
 asyncio.run(main())
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
     assert out == b""
@@ -144,15 +145,15 @@ def test_ddtrace_run_trace_methods_async_nested(ddtrace_run_python_code_in_subpr
     """
     import os
 
-    env = os.environ.copy()
-    env["DD_TRACE_METHODS"] = (
+    subenv = env.copy()
+    subenv["DD_TRACE_METHODS"] = (
         "tests.integration.test_tracemethods:_Class._nested_async_test_method,"
         "tests.integration.test_tracemethods:_async_test_method,"
         "tests.integration.test_tracemethods:_async_test_method2"
     )
 
     tests_dir = os.path.dirname(os.path.dirname(__file__))
-    env["PYTHONPATH"] = os.pathsep.join([tests_dir, env.get("PYTHONPATH", "")])
+    subenv["PYTHONPATH"] = os.pathsep.join([tests_dir, subenv.get("PYTHONPATH", "")])
 
     code = r"""
 import asyncio
@@ -165,7 +166,7 @@ async def main():
 asyncio.run(main())
 """
 
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
 
     assert status == 0, err
     assert out == b""

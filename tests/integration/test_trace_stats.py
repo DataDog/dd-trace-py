@@ -1,5 +1,4 @@
 import functools
-import os
 
 import mock
 import pytest
@@ -7,6 +6,7 @@ import pytest
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+from ddtrace.internal.settings import env
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import skip_if_native_writer
 from tests.utils import override_global_config
@@ -63,8 +63,8 @@ def send_once_stats_tracer(stats_tracer):
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
-    env = os.environ.copy()
-    env.update({envvar: "true"})
+    subenv = env.copy()
+    subenv.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace.trace import tracer
@@ -80,7 +80,7 @@ for p in tracer._span_processors:
 assert stats_processor is not None
 assert stats_processor._hostname == "" # report_hostname is disabled by default
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, out + err
 
@@ -88,8 +88,8 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
 @skip_if_native_writer
 def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
     # Test via environment variable
-    env = os.environ.copy()
-    env.update({"DD_APM_TRACING_ENABLED": "false", "DD_APPSEC_ENABLED": "true"})
+    subenv = env.copy()
+    subenv.update({"DD_APM_TRACING_ENABLED": "false", "DD_APPSEC_ENABLED": "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace.trace import tracer
@@ -102,7 +102,7 @@ assert config._trace_compute_stats is False
 # to avoid the agent from doing it either.
 assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, out + err
 

@@ -6,6 +6,7 @@ import tempfile
 import pytest
 
 import ddtrace
+from ddtrace.internal.settings import env
 
 from ..utils import BaseTestCase
 from ..utils import override_env
@@ -26,13 +27,13 @@ def inject_sitecustomize(path):
     # Copy the current environment and replace the PYTHONPATH. This is
     # required otherwise `ddtrace` scripts are not found when `env` kwarg is
     # passed
-    env = os.environ.copy()
+    subenv = env.copy()
     sitecustomize = os.path.abspath(os.path.join(root_folder, "..", path))
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify
     python_path = [sitecustomize] + list(sys.path)
-    env["PYTHONPATH"] = os.pathsep.join(python_path)
+    subenv["PYTHONPATH"] = os.pathsep.join(python_path)
     return env
 
 
@@ -419,10 +420,9 @@ MODULES_TO_CHECK_PARAMS = dict(
     err=None,
 )
 def test_ddtrace_run_imports():
-    import os
     import sys
 
-    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+    MODULES_TO_CHECK = env["MODULES_TO_CHECK"].split(",")
 
     for module in MODULES_TO_CHECK:
         assert module not in sys.modules, module
@@ -434,10 +434,9 @@ def test_ddtrace_run_imports():
     err=None,
 )
 def test_ddtrace_auto_imports():
-    import os
     import sys
 
-    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
+    MODULES_TO_CHECK = env["MODULES_TO_CHECK"].split(",")
 
     for module in MODULES_TO_CHECK:
         assert module not in sys.modules, module
