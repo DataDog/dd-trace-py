@@ -202,11 +202,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
         """Materialize any iterable message content fields to lists before the OpenAI SDK
         consumes them, so that our post-call tag extraction can still read the content.
         """
-        for message in kwargs.get("messages", []):
-            if isinstance(message, dict):
-                content = message.get("content")
-            else:
-                content = getattr(message, "content", None)
+        for message in kwargs.get("messages", []):           
+            content = _get_attr(message, "content", None)
             if content is None or isinstance(content, (str, list)):
                 continue
             try:
