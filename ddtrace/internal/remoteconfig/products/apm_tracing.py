@@ -81,8 +81,9 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
-            if payload.content is None:
-                log.debug("Skipping deleted config %s", payload.metadata.id)
+            if payload.content is None and payload.metadata.id in self._config_map:
+                log.debug("Deleting config %s", payload.metadata.id)
+                self._config_map.pop(payload.metadata.id)
                 continue
 
             service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
