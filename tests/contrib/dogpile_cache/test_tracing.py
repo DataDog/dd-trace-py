@@ -1,10 +1,9 @@
-import os
-
 import dogpile
 import pytest
 
 from ddtrace.contrib.internal.dogpile_cache.patch import patch
 from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
+from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import assert_is_measured
 
@@ -235,11 +234,11 @@ def test(tracer, single_cache, test_spans):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service, expected_operation)
-    env = os.environ.copy()
+    subenv = env.copy()
     if service_override:
-        env["DD_SERVICE"] = service_override
+        subenv["DD_SERVICE"] = service_override
     if schema_version:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, out.decode()
     assert err == b"", err.decode()

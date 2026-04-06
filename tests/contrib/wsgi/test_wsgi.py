@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from webtest import TestApp
 
@@ -7,6 +5,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
+from ddtrace.internal.settings import env
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -402,10 +401,10 @@ from tests.contrib.wsgi.test_wsgi import application
 app = TestApp(DDWSGIMiddleware(application))
 app.get("/")"""
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name is not None:
-        env["DD_SERVICE"] = service_name
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_SERVICE"] = service_name
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr

@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.settings import env
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.webclient import Client
@@ -231,8 +232,8 @@ def pyramid_client(snapshot, pyramid_app):
     at the end of the testcase.
     """
 
-    env = os.environ.copy()
-    env["SERVER_PORT"] = str(SERVER_PORT)
+    subenv = env.copy()
+    subenv["SERVER_PORT"] = str(SERVER_PORT)
 
     # Create a temp folder as if run_function_from_file was used
     temp_dir = gettempdir()
@@ -259,7 +260,7 @@ def pyramid_client(snapshot, pyramid_app):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=True,
-        env=env,
+        env=subenv,
     )
 
     client = Client("http://localhost:%d" % SERVER_PORT)

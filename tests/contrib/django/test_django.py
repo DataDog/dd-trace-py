@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import itertools
-import os
 import subprocess
 import types
 import uuid
@@ -31,6 +30,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings import env
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -1706,14 +1706,14 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
-        env["DD_SERVICE"] = global_service_name
+        subenv["DD_SERVICE"] = global_service_name
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 
@@ -1753,17 +1753,17 @@ with setup_django_test_spans() as test_spans, with_default_django_db(test_spans)
     assert span.get_tag("django.db.alias") == "default"
     """.format(expected_service_name)
 
-    env = os.environ.copy()
-    env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
-    env["DD_TRACE_PSYCOPG_ENABLED"] = "false"
-    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    subenv = env.copy()
+    subenv["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
+    subenv["DD_TRACE_PSYCOPG_ENABLED"] = "false"
+    subenv["DD_TRACE_SQLITE3_ENABLED"] = "false"
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
-        env["DD_SERVICE"] = global_service_name
+        subenv["DD_SERVICE"] = global_service_name
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 
@@ -1797,12 +1797,12 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 
@@ -2392,11 +2392,11 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
     Test that {env} enables instrumentation
     """
 
-    env = os.environ.copy()
-    env[env_var] = "true"
+    subenv = env.copy()
+    subenv[env_var] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         "import ddtrace;import django;assert ddtrace.config.django.{}".format(instrument_x),
-        env=env,
+        env=subenv,
     )
 
     assert status == 0, (out, err)
@@ -2416,11 +2416,11 @@ def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python
     Test that {env} disables instrumentation
     """
 
-    env = os.environ.copy()
-    env[env_var] = "false"
+    subenv = env.copy()
+    subenv[env_var] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         "import ddtrace;import django;assert not ddtrace.config.django.{}".format(instrument_x),
-        env=env,
+        env=subenv,
     )
 
     assert status == 0, (out, err)

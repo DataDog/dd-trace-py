@@ -1,11 +1,10 @@
-import os
-
 import django
 import pytest
 
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
+from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -142,12 +141,12 @@ def test(client, test_spans):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name)
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 
@@ -177,11 +176,11 @@ def test(client, test_spans):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_operation_name)
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)

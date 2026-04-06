@@ -1,4 +1,3 @@
-import os
 import time
 
 import aiobotocore
@@ -8,6 +7,7 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.aiobotocore.patch import patch
 from ddtrace.contrib.internal.aiobotocore.patch import unpatch
+from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -396,12 +396,12 @@ if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service_name, expected_operation_name)
-    env = os.environ.copy()
+    subenv = env.copy()
     if service_name:
-        env["DD_SERVICE"] = service_name
+        subenv["DD_SERVICE"] = service_name
     if schema_version:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, out.decode()
 
 

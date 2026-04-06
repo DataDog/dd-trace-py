@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import os
 
 import aredis
 import pytest
@@ -7,6 +6,7 @@ import pytest
 from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_config
 
@@ -150,12 +150,12 @@ async def test(tracer, test_spans):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_service, expected_operation)
-    env = os.environ.copy()
+    subenv = env.copy()
     if service:
-        env["DD_SERVICE"] = service
+        subenv["DD_SERVICE"] = service
     if schema:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
