@@ -67,7 +67,7 @@ Note: ``--configs`` applies the same filter to every scenario. When running scen
   # JSON for programmatic use
   scripts/perf-analyze benchmark-artifacts/ --json
 
-The summary shows mean ± stddev, change %, ratio, and a significance label for each config. Changes under 2% are reported as not significant. The ``--markdown`` output is suitable for pasting directly into a pull request description.
+The summary shows mean ± ``stddev``, change %, ratio, and a significance label for each config. Changes under 2% are reported as not significant. The ``--markdown`` output is suitable for pasting directly into a pull request description.
 
 **Step 4 — Profiling (optional)**
 
@@ -82,7 +82,7 @@ When the summary shows a regression and you need to know *why*::
   # Compare baseline vs candidate function-by-function
   scripts/perf-analyze benchmark-artifacts/ --profile-compare --filter ddtrace --min-calls 1000
 
-Use ``--configs`` to limit profiling to one config variant — viztracer files are large and slow to process.
+Use ``--configs`` to limit profiling to one config variant — ``viztracer`` files are large and slow to process.
 
 .. _framework:
 
