@@ -979,6 +979,39 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
+# Maximum nesting depth allowed for a single tool schema.
+# The backend CBOR decoder has a default max depth of 32. A threshold of 10 is 
+# a conservative limit to avoid parsing issues.
+MAX_TOOL_SCHEMA_DEPTH = 10
+
+
+def _tool_schema_depth(obj: Any, current: int = 0) -> int:
+    """Return the maximum nesting depth of a tool schema object."""
+    if isinstance(obj, dict):
+        if not obj:
+            return current
+        return max(_tool_schema_depth(v, current + 1) for v in obj.values())
+    if isinstance(obj, list):
+        if not obj:
+            return current
+        return max(_tool_schema_depth(item, current + 1) for item in obj)
+    return current
+
+
+def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
+    """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
+    if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
+        log.warning(
+            "LLMObs: dropping tool %r from span metadata because its schema exceeds the maximum "
+            "allowed nesting depth (%d). Deeply nested tool schemas can cause span drops in the "
+            "LLMObs backend.",
+            name,
+            MAX_TOOL_SCHEMA_DEPTH,
+        )
+        return True
+    return False
+
+
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
@@ -1012,6 +1045,8 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
             continue
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
+            tool_definition["schema"] = {}
+        if _tool_schema_exceeds_depth(tool_definition.get("name"), tool_definition.get("schema") or {}):
             tool_definition["schema"] = {}
         tool_definitions.append(tool_definition)
     return tool_definitions

@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import _tool_schema_exceeds_depth
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -277,5 +278,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 description="" if is_deferred else tool.get("description", ""),
                 schema={} if is_deferred else tool.get("input_schema", {}),
             )
+            if _tool_schema_exceeds_depth(tool_def.get("name"), tool_def.get("schema") or {}):
+                tool_def["schema"] = {}
             tool_definitions.append(tool_def)
         return tool_definitions
