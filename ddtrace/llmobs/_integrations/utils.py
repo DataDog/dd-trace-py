@@ -979,9 +979,9 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
-# Maximum nesting depth allowed for a single tool schema.
-# The backend CBOR decoder has a default max depth of 32. A threshold of 10 is
-# a conservative limit to avoid parsing issues.
+# Maximum nesting depth allowed for a single tool schema
+# hitting EVP's nested field limit: 
+# https://datadoghq.atlassian.net/wiki/spaces/EP/pages/1277560173/Platform+Limitations#Storage-Limitations.
 MAX_TOOL_SCHEMA_DEPTH = 10
 
 
