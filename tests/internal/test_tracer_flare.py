@@ -47,6 +47,12 @@ class TracerFlareTests(unittest.TestCase):
         self.tmp_path = tmp_path
         self._caplog = caplog
 
+    @fibonacci_backoff_with_jitter(attempts=5, initial_wait=0.1)
+    def _start_session(self):
+        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
+        assert status == 200, f"Failed to start test session: status={status}, body={body.decode('utf-8')}"
+        self.testagent_client.clear()
+
     def setUp(self):
         # Defensive cleanup: remove any pre-existing tracer flare handlers
         self._remove_handlers()
@@ -61,9 +67,7 @@ class TracerFlareTests(unittest.TestCase):
         )
         self.testagent_token = f"tracer-flare-{uuid4().hex}"
         self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
+        self._start_session()
         self.pid = os.getpid()
         self.flare_file_path = str(self.shared_dir / f"tracer_python_{self.pid}.log")
         self.config_file_path = str(self.shared_dir / f"tracer_config_{self.pid}.json")
@@ -77,11 +81,17 @@ class TracerFlareTests(unittest.TestCase):
             pass
         self.confirm_cleanup()
 
-    def _flare_upload_count(self) -> int:
+    @fibonacci_backoff_with_jitter(
+        attempts=10, initial_wait=0.1, until=lambda result: not isinstance(result, Exception)
+    )
+    def _flare_upload_count(self, expected_count: Optional[int] = None) -> int:
         status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
+        assert status == 200, f"Failed to get test session requests: status={status}, body={body.decode('utf-8')}"
         requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        count = sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        if expected_count is not None:
+            assert count == expected_count, f"Expected {expected_count} uploads, found {count}"
+        return count
 
     def _get_handler(self) -> Optional[logging.Handler]:
         ddlogger = get_logger("ddtrace")
@@ -266,7 +276,7 @@ class TracerFlareTests(unittest.TestCase):
         uploads_before = self._flare_upload_count()
         self.flare.send(non_numeric_request)
         # Verify that zip_and_send was not attempted
-        assert self._flare_upload_count() == uploads_before
+        self._flare_upload_count(uploads_before)
 
         # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
         self.flare.revert_configs()
@@ -284,7 +294,7 @@ class TracerFlareTests(unittest.TestCase):
         # This should succeed as it matches the pattern \d+-(with-debug|with-content)
         uploads_before = self._flare_upload_count()
         self.flare.send(special_char_request)
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
         # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
         self.flare.revert_configs()
@@ -302,7 +312,7 @@ class TracerFlareTests(unittest.TestCase):
         uploads_before = self._flare_upload_count()
         self.flare.send(valid_request)
         # Verify that zip_and_send was attempted for valid case_id
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
         # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
         self.flare.revert_configs()
@@ -319,7 +329,7 @@ class TracerFlareTests(unittest.TestCase):
 
         uploads_before = self._flare_upload_count()
         self.flare.send(empty_case_request)
-        assert self._flare_upload_count() == uploads_before
+        self._flare_upload_count(uploads_before)
 
     def test_case_id_cannot_be_zero(self):
         """
@@ -341,7 +351,7 @@ class TracerFlareTests(unittest.TestCase):
         uploads_before = self._flare_upload_count()
         self.flare.send(zero_case_request)
         # Verify that zip_and_send was not attempted
-        assert self._flare_upload_count() == uploads_before
+        self._flare_upload_count(uploads_before)
 
         # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
         self.flare.revert_configs()
@@ -359,7 +369,7 @@ class TracerFlareTests(unittest.TestCase):
         uploads_before = self._flare_upload_count()
         self.flare.send(valid_request)
         # Verify that zip_and_send was attempted for valid case_id
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
     def test_flare_dir_cleaned_on_all_send_exit_points(self):
         """
@@ -380,7 +390,7 @@ class TracerFlareTests(unittest.TestCase):
         print(f"zero_case_request: {zero_case_request}")
         uploads_before = self._flare_upload_count()
         self.flare.send(zero_case_request)
-        assert self._flare_upload_count() == uploads_before
+        self._flare_upload_count(uploads_before)
         assert not self.flare.flare_dir.exists()
 
         # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
@@ -397,7 +407,7 @@ class TracerFlareTests(unittest.TestCase):
         )
         uploads_before = self._flare_upload_count()
         self.flare.send(valid_request)
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
         assert not self.flare.flare_dir.exists()
 
     def test_prepare_creates_flare_dir(self):
@@ -457,7 +467,7 @@ class TracerFlareTests(unittest.TestCase):
 
         uploads_before = self._flare_upload_count()
         self.flare.send(valid_request)
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
         self.flare.revert_configs()
         self.flare.prepare("DEBUG")
@@ -469,7 +479,7 @@ class TracerFlareTests(unittest.TestCase):
 
         uploads_before = self._flare_upload_count()
         self.flare.send(empty_uuid_request)
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
     def test_config_file_contents_validation(self):
         """
@@ -703,14 +713,18 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     def inject_fixtures(self, tmp_path):
         self.tmp_path = tmp_path
 
+    @fibonacci_backoff_with_jitter(attempts=5, initial_wait=0.1)
+    def _start_session(self):
+        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
+        assert status == 200, f"Failed to start test session: status={status}, body={body.decode('utf-8')}"
+        self.testagent_client.clear()
+
     def setUp(self):
         self.shared_dir = self.tmp_path / "tracer_flare_test"
         self.shared_dir.mkdir(parents=True, exist_ok=True)
         self.testagent_token = f"tracer-flare-sub-{uuid4().hex}"
         self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
+        self._start_session()
         self.connector = PublisherSubscriberConnector()
         self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=self.connector,
@@ -745,11 +759,17 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         self.connector.write([build_payload("AGENT_TASK", self.agent_task, "task")])
         self.get_data_from_connector_and_exec()
 
-    def _flare_upload_count(self) -> int:
+    @fibonacci_backoff_with_jitter(
+        attempts=10, initial_wait=0.1, until=lambda result: not isinstance(result, Exception)
+    )
+    def _flare_upload_count(self, expected_count: Optional[int] = None) -> int:
         status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
+        assert status == 200, f"Failed to get test session requests: status={status}, body={body.decode('utf-8')}"
         requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        count = sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        if expected_count is not None:
+            assert count == expected_count, f"Expected {expected_count} uploads, found {count}"
+        return count
 
     def test_process_flare_request_success(self):
         """
@@ -764,7 +784,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
 
         # Generate an AGENT_TASK product to complete the request
         self.generate_agent_task()
-        assert self._flare_upload_count() == uploads_before + 1
+        self._flare_upload_count(uploads_before + 1)
 
         # Timestamp cleared after request completed
         assert self.tracer_flare_sub.current_request_start is None, (
