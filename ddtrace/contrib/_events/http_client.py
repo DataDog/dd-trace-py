@@ -41,10 +41,11 @@ class HttpClientEvents(Enum):
 
 
 @dataclass
-class HttpClientBaseEvent(Event):
-    url: str = event_field()
+class HttpBaseEvent(Event):
+    request_url: str = event_field()
     request_method: str = event_field()
     request_headers: MutableMapping[str, str] = event_field()
+
     response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
 
@@ -54,7 +55,13 @@ class HttpClientBaseEvent(Event):
 
 
 @dataclass
-class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
+class HttpRequestBaseEvent(HttpBaseEvent):
+    http_operation: str = event_field()
+    query: str = event_field()
+
+
+@dataclass
+class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     """HTTP client request event"""
 
     event_name = HttpClientEvents.HTTP_REQUEST.value
@@ -62,10 +69,7 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
     span_kind = SpanKind.CLIENT
     span_type = SpanTypes.HTTP
 
-    http_operation: str = event_field()
-    query: str = event_field()
     target_host: Optional[str] = event_field()
-
     response: Optional[_HttpClientResponse] = event_field(default=None)
 
     def __post_init__(self):
@@ -79,7 +83,7 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
 
 
 @dataclass
-class HttpClientSendEvent(HttpClientBaseEvent):
+class HttpClientSendEvent(HttpBaseEvent):
     """HTTP client send event
 
     This represents individual requests in a single http client call.
