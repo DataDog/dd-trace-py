@@ -540,6 +540,7 @@ lib_injection_tests:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - export PYENV_VERSION=${PYTHON_VERSION}
+    - apt-get update -qq && apt-get install -y -qq autoconf automake libtool
   script:
     - python --version
     - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi

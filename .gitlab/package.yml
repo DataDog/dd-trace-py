@@ -238,6 +238,7 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
+    - apk add --no-cache autoconf automake libtool
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - twine check ${SDIST_FILE}
