@@ -1,5 +1,6 @@
 import functools
 import inspect
+import sys
 from typing import Any
 from typing import Callable
 from typing import Generator
@@ -117,8 +118,8 @@ def _llm_wrapper(build_kwargs_fn, always_stream, operation):
         with core.context_with_event(event, dispatch_end_event=False) as ctx:
             try:
                 resp = func(*args, **kwargs)
-            except Exception as e:
-                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+            except Exception:
+                ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             if always_stream or isinstance(resp, Generator):
                 return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
@@ -141,8 +142,8 @@ def _llm_wrapper_async(build_kwargs_fn, always_stream, operation):
         with core.context_with_event(event, dispatch_end_event=False) as ctx:
             try:
                 resp = await func(*args, **kwargs)
-            except Exception as e:
-                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+            except Exception:
+                ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             if always_stream or inspect.isasyncgen(resp):
                 return handle_streamed_response(_get_integration(), resp, args, request_kwargs, ctx)
@@ -165,8 +166,8 @@ def _operation_wrapper(build_kwargs_fn, operation):
         with core.context_with_event(event, dispatch_end_event=False) as ctx:
             try:
                 resp = func(*args, **kwargs)
-            except Exception as e:
-                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+            except Exception:
+                ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             event.response = resp
             ctx.dispatch_ended_event()
@@ -187,8 +188,8 @@ def _operation_wrapper_async(build_kwargs_fn, operation):
         with core.context_with_event(event, dispatch_end_event=False) as ctx:
             try:
                 resp = await func(*args, **kwargs)
-            except Exception as e:
-                ctx.dispatch_ended_event(type(e), e, e.__traceback__)
+            except Exception:
+                ctx.dispatch_ended_event(*sys.exc_info())
                 raise
             event.response = resp
             ctx.dispatch_ended_event()

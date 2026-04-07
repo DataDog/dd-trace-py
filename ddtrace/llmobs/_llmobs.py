@@ -557,10 +557,6 @@ class LLMObs(Service):
         parent_id = str(raw_parent_id) if raw_parent_id is not None else ROOT_PARENT_ID
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
-            raw_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
-            if raw_trace_id is not None:
-                llmobs_trace_id = format_trace_id(raw_trace_id)
-        if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         if span_kind == "llm":

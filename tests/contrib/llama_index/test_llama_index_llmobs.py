@@ -1,5 +1,7 @@
 from unittest import mock
 
+from llama_index.core.llms import ChatMessage
+from llama_index.llms.openai import OpenAI
 import pytest
 
 from tests.contrib.llama_index.test_llama_index import _make_mock_embedding
@@ -15,9 +17,6 @@ from tests.llmobs._utils import next_stream
 
 class TestLLMObsLlamaIndex:
     def test_chat_completion(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
             llm.chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -42,8 +41,6 @@ class TestLLMObsLlamaIndex:
         assert llmobs_events[0] == expected
 
     def test_completion(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
             llm.complete("What is the meaning of life?")
@@ -74,9 +71,6 @@ class TestLLMObsLlamaIndex:
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_chat_stream(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_chat_stream.yaml"):
             response = llm.stream_chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -97,9 +91,6 @@ class TestLLMObsLlamaIndex:
         assert llmobs_events[0] == expected
 
     def test_chat_error(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with pytest.raises(Exception):
             with request_vcr.use_cassette("llama_index_chat_error.yaml"):
@@ -128,9 +119,6 @@ class TestLLMObsLlamaIndex:
         assert llmobs_events[0] == expected
 
     def test_multi_turn_conversation(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         messages = [
             ChatMessage(role="system", content="You are a helpful assistant."),
@@ -171,9 +159,6 @@ class TestLLMObsLlamaIndex:
         assert llmobs_events[0] == expected
 
     async def test_chat_async(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
             await llm.achat(messages=[ChatMessage(role="user", content="Hello")])
@@ -199,9 +184,6 @@ class TestLLMObsLlamaIndex:
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_chat_stream_async(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
-        from llama_index.core.llms import ChatMessage
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_chat_stream.yaml"):
             response = await llm.astream_chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -223,8 +205,6 @@ class TestLLMObsLlamaIndex:
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_complete_stream(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete_stream.yaml"):
             response = llm.stream_complete("What is the meaning of life?")
@@ -251,8 +231,6 @@ class TestLLMObsLlamaIndex:
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_complete_stream_async(self, llama_index, llmobs_events, test_spans, request_vcr, consume_stream):
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete_stream.yaml"):
             response = await llm.astream_complete("What is the meaning of life?")
@@ -278,8 +256,6 @@ class TestLLMObsLlamaIndex:
         assert llmobs_events[0] == expected
 
     async def test_complete_async(self, llama_index, llmobs_events, test_spans, request_vcr):
-        from llama_index.llms.openai import OpenAI
-
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
             await llm.acomplete("What is the meaning of life?")

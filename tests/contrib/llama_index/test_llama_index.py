@@ -1,17 +1,19 @@
+from llama_index.core import PromptTemplate
+from llama_index.core.base.base_query_engine import BaseQueryEngine
+from llama_index.core.base.base_retriever import BaseRetriever
+from llama_index.core.base.embeddings.base import BaseEmbedding
+from llama_index.core.base.response.schema import Response
+from llama_index.core.llms import ChatMessage
+from llama_index.core.schema import NodeWithScore
+from llama_index.core.schema import TextNode
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
 import pytest
 
 from tests.utils import override_global_config
 
 
 def _make_mock_query_engine():
-    """Return a fresh MockQueryEngine instance.
-
-    Must be called *after* llama_index has been patched so the imports
-    resolve against an already-instrumented module.
-    """
-    from llama_index.core.base.base_query_engine import BaseQueryEngine
-    from llama_index.core.base.response.schema import Response
-
     response_obj = Response(response="The answer is 42.")
 
     class MockQueryEngine(BaseQueryEngine):
@@ -28,14 +30,6 @@ def _make_mock_query_engine():
 
 
 def _make_mock_retriever():
-    """Return a fresh MockRetriever instance.
-
-    Must be called *after* llama_index has been patched.
-    """
-    from llama_index.core.base.base_retriever import BaseRetriever
-    from llama_index.core.schema import NodeWithScore
-    from llama_index.core.schema import TextNode
-
     mock_nodes = [NodeWithScore(node=TextNode(text="Document text"), score=0.95)]
 
     class MockRetriever(BaseRetriever):
@@ -49,12 +43,6 @@ def _make_mock_retriever():
 
 
 def _make_mock_embedding():
-    """Return a fresh MockEmbedding instance.
-
-    Must be called *after* llama_index has been patched.
-    """
-    from llama_index.core.base.embeddings.base import BaseEmbedding
-
     class MockEmbedding(BaseEmbedding):
         def _get_query_embedding(self, query):
             return [0.1, 0.2, 0.3]
@@ -72,9 +60,6 @@ def _make_mock_embedding():
 
 
 def test_global_tags(llama_index, request_vcr, test_spans):
-    from llama_index.core.llms import ChatMessage
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("llama_index_completion.yaml"):
@@ -91,9 +76,6 @@ def test_global_tags(llama_index, request_vcr, test_spans):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat")
 def test_llama_index_chat(llama_index, request_vcr):
-    from llama_index.core.llms import ChatMessage
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_completion.yaml"):
         llm.chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -101,8 +83,6 @@ def test_llama_index_chat(llama_index, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_complete")
 def test_llama_index_complete(llama_index, request_vcr):
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_complete.yaml"):
         llm.complete("What is the meaning of life?")
@@ -110,9 +90,6 @@ def test_llama_index_complete(llama_index, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat_stream")
 def test_llama_index_chat_stream(llama_index, request_vcr):
-    from llama_index.core.llms import ChatMessage
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_chat_stream.yaml"):
         response = llm.stream_chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -122,8 +99,6 @@ def test_llama_index_chat_stream(llama_index, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_complete_stream")
 def test_llama_index_complete_stream(llama_index, request_vcr):
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_complete_stream.yaml"):
         response = llm.stream_complete("What is the meaning of life?")
@@ -136,9 +111,6 @@ def test_llama_index_complete_stream(llama_index, request_vcr):
     ignores=["meta.error.stack"],
 )
 def test_llama_index_chat_error(llama_index, request_vcr):
-    from llama_index.core.llms import ChatMessage
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with pytest.raises(Exception):
         with request_vcr.use_cassette("llama_index_chat_error.yaml"):
@@ -146,9 +118,6 @@ def test_llama_index_chat_error(llama_index, request_vcr):
 
 
 async def test_llama_index_chat_async(llama_index, request_vcr, snapshot_context):
-    from llama_index.core.llms import ChatMessage
-    from llama_index.llms.openai import OpenAI
-
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_chat_async"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
@@ -156,8 +125,6 @@ async def test_llama_index_chat_async(llama_index, request_vcr, snapshot_context
 
 
 async def test_llama_index_complete_async(llama_index, request_vcr, snapshot_context):
-    from llama_index.llms.openai import OpenAI
-
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_complete_async"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
@@ -202,8 +169,6 @@ def test_llama_index_embedding_batch(llama_index):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_openai_embedding")
 def test_llama_index_openai_embedding(llama_index, request_vcr):
-    from llama_index.embeddings.openai import OpenAIEmbedding
-
     embed = OpenAIEmbedding(model_name="text-embedding-ada-002")
     with request_vcr.use_cassette("llama_index_openai_embedding.yaml"):
         embed.get_query_embedding("test query")
@@ -211,18 +176,12 @@ def test_llama_index_openai_embedding(llama_index, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.llama_index.test_llama_index.test_llama_index_predict")
 def test_llama_index_predict(llama_index, request_vcr):
-    from llama_index.core import PromptTemplate
-    from llama_index.llms.openai import OpenAI
-
     llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
     with request_vcr.use_cassette("llama_index_complete.yaml"):
         llm.predict(PromptTemplate("What is the meaning of life?"))
 
 
 async def test_llama_index_apredict(llama_index, request_vcr, snapshot_context):
-    from llama_index.core import PromptTemplate
-    from llama_index.llms.openai import OpenAI
-
     with snapshot_context(token="tests.contrib.llama_index.test_llama_index.test_llama_index_apredict"):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=15)
         with request_vcr.use_cassette("llama_index_complete.yaml"):

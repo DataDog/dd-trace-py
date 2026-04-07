@@ -1,3 +1,4 @@
+import inspect
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -67,7 +68,7 @@ def handle_streamed_response(
 ) -> Any:
     """Wrap a sync or async LlamaIndex stream for tracing."""
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
-    if hasattr(resp, "__aiter__"):
+    if inspect.isasyncgen(resp):
         handler = LlamaIndexAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)
     else:
         handler = LlamaIndexStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx)

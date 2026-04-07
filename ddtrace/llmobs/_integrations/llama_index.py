@@ -85,7 +85,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         output_value = ""
         if not span.error and response is not None:
             # QueryEngine responses have a .response attribute with the text output
-            output_value = str(_get_attr(response, "response", "") or "")
+            output_value = str(_get_attr(response, "response", None) or "")
 
         _annotate_llmobs_span_data(span, kind="workflow", input_value=input_value, output_value=output_value)
 
@@ -114,8 +114,9 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         Expected ``kwargs`` keys: ``tool_name``.
         """
         tool_name = kwargs.get("tool_name", "")
+        output_value = str(response) if not span.error and response is not None else ""
 
-        _annotate_llmobs_span_data(span, kind="tool", input_value=tool_name)
+        _annotate_llmobs_span_data(span, kind="tool", input_value=tool_name, output_value=output_value)
 
     def _llmobs_set_embedding_tags(
         self,
@@ -235,7 +236,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             for msg in kwargs.get("messages", []):
                 role = _get_attr(msg, "role", "user")
                 content = _get_attr(msg, "content", "")
-                role = getattr(role, "value", role)
+                role = _get_attr(role, "value", role)
                 input_messages.append(Message(content=str(content), role=str(role)))
             return input_messages
         prompt = kwargs.get("prompt", "")
@@ -254,7 +255,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
                 return [Message(content="")]
             role = _get_attr(message, "role", "assistant")
             content = _get_attr(message, "content", "")
-            role = getattr(role, "value", role)
+            role = _get_attr(role, "value", role)
             return [Message(content=str(content), role=str(role))]
         text = _get_attr(response, "text", None)
         if text is None:
@@ -279,8 +280,12 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         if usage is None:
             return metrics
 
-        input_tokens = _get_attr(usage, "prompt_tokens", None) or _get_attr(usage, "input_tokens", None)
-        output_tokens = _get_attr(usage, "completion_tokens", None) or _get_attr(usage, "output_tokens", None)
+        input_tokens = _get_attr(usage, "prompt_tokens", None)
+        if input_tokens is None:
+            input_tokens = _get_attr(usage, "input_tokens", None)
+        output_tokens = _get_attr(usage, "completion_tokens", None)
+        if output_tokens is None:
+            output_tokens = _get_attr(usage, "output_tokens", None)
         total_tokens = _get_attr(usage, "total_tokens", None)
 
         if input_tokens is not None:
