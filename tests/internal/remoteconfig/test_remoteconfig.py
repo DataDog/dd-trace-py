@@ -244,7 +244,9 @@ def test_remote_configuration_check_remote_config_enable_in_agent_errors(
     # Check that the initial state is agent_check
     assert worker._state == worker._agent_check
 
-    worker.periodic()
+    with mock.patch.object(worker._client, "request", return_value=True):
+        # mock request() to avoid flaky HTTP connection issues
+        worker.periodic()
 
     # Check that the state is online if the agent supports remote config
     assert worker._state == worker._online if expected else worker._agent_check
