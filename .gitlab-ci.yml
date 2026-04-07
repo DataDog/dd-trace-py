@@ -110,8 +110,10 @@ serverless lambda tests:
   needs:
     - job: "upload all"
   rules:
-    # NOTE: Temporary guard for 4.5 backports while downstream serverless setup fails independently of dd-trace-py changes.
+    # AIDEV-NOTE: Temporary guard for 4.5 backports while downstream serverless setup fails independently of dd-trace-py changes.
     - if: $CI_COMMIT_BRANCH == "4.5"
+      when: never
+    - if: $CI_COMMIT_BRANCH =~ /backport-4\.5$/
       when: never
     - allow_failure: true
   variables:
