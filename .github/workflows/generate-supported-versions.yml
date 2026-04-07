@@ -60,17 +60,9 @@ jobs:
 
       - uses: ./.github/actions/setup-ci-deps
 
-      - name: Download ddtrace wheels from S3
-        run: |
-          bash scripts/download-s3-wheels.sh \
-            "${{ github.sha }}" \
-            ./wheels \
-            manylinux2014_x86_64
-
       - name: Install ddtrace from pre-built wheel
         run: |
-          PYVER="cp$(python -c 'import sys; print(str(sys.version_info.major) + str(sys.version_info.minor))')"
-          pip install $(ls ./wheels/ddtrace-*${PYVER}*.whl | head -1)  # ci-deps: allow-no-version
+          curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
       - run: python scripts/freshvenvs.py generate
 
