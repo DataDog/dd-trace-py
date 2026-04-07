@@ -30,8 +30,13 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("WARNING: Debug mode: not using abseil")
     message("=====================================")
     add_definitions(-DDONT_COMPILE_ABSEIL)
+elseif(DEFINED ABSL_INSTALL_DIR)
+    # setup.py pre-built abseil once via cmake/abseil/CMakeLists.txt and installed it to ABSL_INSTALL_DIR.  Use
+    # find_package() so we link against the existing build instead of compiling abseil a second time in this project.
+    message(STATUS "Using pre-built abseil from ${ABSL_INSTALL_DIR}")
+    find_package(absl CONFIG REQUIRED PATHS "${ABSL_INSTALL_DIR}" NO_DEFAULT_PATH)
 else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
+    message("Release, RelWithDebInfo, or MinSizeRel mode: fetching and building abseil")
 
     # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
     # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure

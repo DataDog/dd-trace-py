@@ -127,6 +127,8 @@ exclude_dirs = [
   "ddtrace/internal/rate_limiter.py",
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
+  "scripts/ext_cache.py",
+  "setup.py",
 ]
 
 [tool.ruff]
