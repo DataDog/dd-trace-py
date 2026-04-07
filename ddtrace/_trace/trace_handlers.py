@@ -76,7 +76,6 @@ from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _extract_header_value
-
 from ddtrace.trace import tracer
 
 
@@ -303,7 +302,9 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     message_id = _extract_header_value(POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, normalized)
     project_id, subscription_id = _parse_pubsub_resource_path(subscription_name)
 
-    propagated_context = tracer.current_trace_context() if config.google_cloud_pubsub.distributed_tracing_enabled else None
+    propagated_context = (
+        tracer.current_trace_context() if config.google_cloud_pubsub.distributed_tracing_enabled else None
+    )
 
     span = tracer.start_span(
         "gcp.pubsub.receive",
