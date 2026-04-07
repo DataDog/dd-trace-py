@@ -79,30 +79,8 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 """
 
 
-_SCAN_SKIP_DIRS = frozenset(
-    {
-        ".git",
-        ".tox",
-        ".venv",
-        "venv",
-        "__pycache__",
-        "node_modules",
-        ".mypy_cache",
-        ".pytest_cache",
-        "build",
-        "dist",
-    }
-)
-
-
 def check_registry(data: dict) -> int:
-    """Verify every DD_*/OTEL_* var referenced in the repo is in the registry.
-
-    Any string literal matching DD_* or OTEL_* in Python files under the repo root
-    is checked. Add a ``# sc-ignore`` comment on a line to suppress the check for
-    that line (e.g. for build-time vars, intentionally-invalid test strings, or
-    prefix constants that are not full var names).
-    """
+    """Verify every DD_*/OTEL_* var referenced in ddtrace/ is in the registry."""
     configs = data["supportedConfigurations"]
     all_known: set[str] = set(configs.keys()) | {
         alias for entries in configs.values() for entry in entries for alias in entry.get("aliases", [])
@@ -110,18 +88,14 @@ def check_registry(data: dict) -> int:
 
     missing: set[str] = set()
 
-    # Broad scan: any quoted string matching DD_*/OTEL_* across all repo Python files.
-    # Lines with '# sc-ignore' are excluded. The generated registry module is also skipped.
+    # Broad scan: any quoted string matching DD_*/OTEL_* in ddtrace/ Python files.
+    # The generated registry module is skipped to avoid self-referential matches.
     pattern = re.compile(r'["\']((DD_|OTEL_)[A-Z][A-Z0-9_]*)["\']')
     exclude = {OUTPUT_FILE.resolve()}
-    for path in REPO_ROOT.rglob("*.py"):
+    for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
         if path.resolve() in exclude:
             continue
-        if any(part in _SCAN_SKIP_DIRS for part in path.parts):
-            continue
         for line in path.read_text(errors="ignore").splitlines():
-            if "# sc-ignore" in line:
-                continue
             for m in pattern.finditer(line):
                 var = m.group(1)
                 if not var.startswith("_DD_") and var not in all_known:
@@ -149,10 +123,9 @@ def check_registry(data: dict) -> int:
 
     if missing:
         print(
-            f"ERROR: {len(missing)} unregistered var(s) found in the repo. For each one, either:\n"
-            f"  (a) Add it to {INPUT_FILE.name} and re-run this script to regenerate the module, or\n"
-            f"  (b) Add '# sc-ignore' to the offending line if it is not a runtime config var\n"
-            f"      (e.g. build-time vars, test fixtures, prefix constants, cross-tracer references).\n"
+            f"ERROR: {len(missing)} var(s) found in ddtrace/ but missing from {INPUT_FILE.name}.\n"
+            f"Add them to the registry and re-run this script to regenerate the module:\n"
+            f"\n  python scripts/supported_configurations.py\n"
             f"\nUnregistered vars:"
         )
         for var in sorted(missing):

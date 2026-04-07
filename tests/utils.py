@@ -97,7 +97,7 @@ def override_env(env, replace_os_env=False):
         os.environ.clear()
 
     for k in os.environ.keys():
-        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):  # sc-ignore
+        if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
             del os.environ[k]
 
     # Update based on the passed in arguments

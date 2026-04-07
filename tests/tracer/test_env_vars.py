@@ -17,7 +17,7 @@ import pytest
             True,
         ),
         (
-            "DD_WRONG_ENV_NAME",  # sc-ignore
+            "DD_WRONG_ENV_NAME",
             "(?i)(?:p(?:ass)?w(?:or))",
             "re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode('ascii'))",
             False,
