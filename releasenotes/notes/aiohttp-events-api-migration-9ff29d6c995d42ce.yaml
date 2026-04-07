@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: Migrates the ``aiohttp`` integration to use the internal events API (``context_with_event``), replacing direct tracer calls with structured event subscribers for HTTP client and internal operations.
