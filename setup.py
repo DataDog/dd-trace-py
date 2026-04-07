@@ -625,7 +625,10 @@ class LibraryDownloader(BuildPyCommand):
         if self.editable_mode:
             IS_EDITABLE = True
 
-        CleanLibraries.remove_artifacts()
+        if not self.editable_mode:
+            # AIDEV-NOTE: Skip for editable installs — remove_artifacts() deletes .so files
+            # that incremental checks and ext_cache restorations depend on.
+            CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
@@ -719,10 +722,44 @@ class CleanLibraries(CleanCommand):
             CleanLibraries.remove_build_artifacts()
 
 
+def _purge_stale_cmake_caches(base_dir: Path) -> None:
+    """Delete CMake build/subbuild directories whose CMakeCache.txt was configured
+    at a different absolute path (e.g. host vs Docker path mismatch).
+
+    """
+    import re as _re
+
+    if not base_dir.is_dir():
+        return
+    for cache_file in base_dir.glob("*/CMakeCache.txt"):
+        subdir = cache_file.parent
+        try:
+            cache_text = cache_file.read_text()
+        except OSError:
+            continue
+        m = _re.search(r"^CMAKE_CACHEFILE_DIR:INTERNAL=(.+)$", cache_text, _re.MULTILINE)
+        if m and Path(m.group(1)).resolve() != subdir.resolve():
+            print(f"Stale CMake cache (configured at {m.group(1)!r}), clearing {subdir}")
+            shutil.rmtree(subdir, ignore_errors=True)
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
     def run(self):
+        global IS_EDITABLE
+        if not IS_EDITABLE:
+            # AIDEV-NOTE: build_ext runs before build_py, so LibraryDownloader hasn't set
+            # IS_EDITABLE yet. Detect editable mode early so output paths resolve correctly.
+            try:
+                bp = self.distribution.get_command_obj("build_py")
+                if bp is not None:
+                    bp.ensure_finalized()
+                    if getattr(bp, "editable_mode", False):
+                        IS_EDITABLE = True
+            except Exception:
+                pass
+
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
@@ -848,10 +885,17 @@ class CustomBuildExt(build_ext):
             should_build = source_files_changed or getattr(self, "built_native", False)
 
         if should_build:
-            # Build libdd_wrapper using CMake
-            cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+            # Build libdd_wrapper using CMake.
+            # AIDEV-NOTE: Editable installs use a persistent build dir so CMake can reuse
+            # incremental state (avoids ~10 s ThinLTO relink on every `pip install -e .`).
+            if IS_EDITABLE:
+                cmake_build_dir = (
+                    HERE / ".cmake_cache" / f"libdd_wrapper_build.py{sys.version_info.major}{sys.version_info.minor}"
+                ).resolve()
+            else:
+                cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), "libdd_wrapper_build").resolve()
+            _purge_stale_cmake_caches(cmake_build_dir.parent)
             cmake_build_dir.mkdir(parents=True, exist_ok=True)
-
             cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
 
             build_args = [f"--config {COMPILE_MODE}"]
@@ -899,6 +943,18 @@ class CustomBuildExt(build_ext):
                     return
                 raise
         else:
+            # AIDEV-NOTE: setuptools writes to a throwaway temp dir, so the source-tree
+            # .so is used as the mtime reference instead to detect unchanged extensions.
+            if IS_EDITABLE and self.INCREMENTAL:
+                src_path = HERE / self.get_ext_filename(ext.name)
+                sources = [str(Path(s).resolve()) for s in ext.sources if Path(s).exists()]
+                if src_path.exists() and sources and not newer_group(sources, str(src_path.resolve()), "newer"):
+                    print(f"skipping '{ext.name}' extension (up-to-date)")
+                    full_path = Path(self.get_ext_fullpath(ext.name))
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    if src_path.resolve() != full_path.resolve():
+                        shutil.copy2(src_path, full_path)
+                    return
             super().build_extension(ext)
 
         if COMPILE_MODE.lower() in ("release", "minsizerel"):
@@ -1003,6 +1059,10 @@ class CustomBuildExt(build_ext):
         # a sibling directory to avoid polluting the final package
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
+
+        # Purge any FetchContent subbuilds whose CMakeCache.txt was configured at
+        # a different path (e.g. host macOS path vs Docker Linux path).
+        _purge_stale_cmake_caches(LibraryDownload.CACHE_DIR / "_cmake_deps")
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
@@ -1182,7 +1242,7 @@ class CMakeExtension(Extension):
                 src.is_file()
                 and src.name != full_path.name
                 and src.suffix
-                and src.suffix not in {".py", ".pyc", ".pyi"}
+                and src.suffix not in {".py", ".pyc", ".pyi", ".pyx", ".pxd"}
             )
 
         return [

@@ -73,6 +73,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.cmake_cache/
 test-results/
 coverage.xml
 coverage.json
