@@ -5473,6 +5473,34 @@
         "default": null
       }
     ],
+    "OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "OTEL_EXPORTER_OTLP_TRACES_COMPRESSION": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": [
       {
         "implementation": "A",
@@ -5481,6 +5509,13 @@
       }
     ],
     "OTEL_EXPORTER_OTLP_TRACES_HEADERS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE": [
       {
         "implementation": "A",
         "type": "string",

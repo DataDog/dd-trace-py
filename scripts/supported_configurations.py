@@ -80,7 +80,11 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 
 
 def check_registry(data: dict) -> int:
-    """Verify every DD_*/OTEL_* var accessed in ddtrace/ is in the registry."""
+    """Verify every DD_*/OTEL_* var accessed in ddtrace/ is in the registry.
+
+    Any string literal matching DD_* or OTEL_* in ddtrace/ source files is checked.
+    Add a ``# sc-ignore`` comment on a line to suppress the check for that line.
+    """
     configs = data["supportedConfigurations"]
     all_known: set[str] = set(configs.keys()) | {
         alias for entries in configs.values() for entry in entries for alias in entry.get("aliases", [])
@@ -88,15 +92,20 @@ def check_registry(data: dict) -> int:
 
     missing: set[str] = set()
 
-    # Literal string accesses — one pattern covers env.get, _get_config, os.environ*, os.getenv
-    pattern = re.compile(
-        r'(?:env\.get|_get_config|os\.environ(?:\.get)?|os\.getenv)\(\s*\[?\s*["\']([A-Z][A-Z0-9_]+)["\']'
-    )
+    # Broad scan: any quoted string matching DD_*/OTEL_* in ddtrace/ Python files.
+    # Lines with '# sc-ignore' are excluded to suppress intentional non-registry references
+    # (e.g. error messages, cross-tracer examples). The generated registry module is also skipped.
+    pattern = re.compile(r'["\']((DD_|OTEL_)[A-Z][A-Z0-9_]*)["\']')
+    exclude = {OUTPUT_FILE.resolve()}
     for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
-        for m in pattern.finditer(path.read_text(errors="ignore")):
-            var = m.group(1)
-            if (var.startswith("DD_") or var.startswith("OTEL_")) and not var.startswith("_DD_"):
-                if var not in all_known:
+        if path.resolve() in exclude:
+            continue
+        for line in path.read_text(errors="ignore").splitlines():
+            if "# sc-ignore" in line:
+                continue
+            for m in pattern.finditer(line):
+                var = m.group(1)
+                if not var.startswith("_DD_") and var not in all_known:
                     missing.add(var)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
