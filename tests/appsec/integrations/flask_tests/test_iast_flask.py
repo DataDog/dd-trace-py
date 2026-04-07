@@ -731,7 +731,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
     def test_flask_request_body(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_10():
-            import json
             import sqlite3
 
             from flask import request
@@ -1124,7 +1123,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_10():
-            import json
             import sqlite3
 
             from flask import request
