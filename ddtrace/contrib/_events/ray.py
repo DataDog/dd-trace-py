@@ -77,7 +77,6 @@ class RayExecutionEvent(TracingEvent):
         else:
             self.span_name = self.event_name
 
-
 @dataclass
 class RayCoreAPIEvent(TracingEvent):
     event_name = RayEvents.RAY_CORE_API.value

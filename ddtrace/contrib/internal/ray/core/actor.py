@@ -10,6 +10,7 @@ from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
@@ -118,7 +119,7 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx=None, **kwargs: Any) -> Any:
         import ray.exceptions
 
-        submission_id = os.environ.get(RAY_SUBMISSION_ID)
+        submission_id = env.get(RAY_SUBMISSION_ID)
 
         with _trace_actor_method_execution(self, method, _dd_ray_trace_ctx, *args, **kwargs) as span:
             _inject_context_in_env(span.context)
