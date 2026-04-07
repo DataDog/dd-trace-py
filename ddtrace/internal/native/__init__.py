@@ -1,5 +1,6 @@
-import os
 from typing import Optional
+
+from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
 from ._native import BuilderError  # noqa: F401
@@ -35,13 +36,13 @@ def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[
     See https://github.com/DataDog/libdatadog/blob/06d2b6a19d7ec9f41b3bfd4ddf521585c55298f6/library-config/src/lib.rs
     for more information on how the configuration is read from disk
     """
-    debug_logs = os.getenv("DD_TRACE_DEBUG", "false").lower().strip() in ("true", "1")
+    debug_logs = env.get("DD_TRACE_DEBUG", "false").lower().strip() in ("true", "1")
     configurator = PyConfigurator(debug_logs)
 
     # Check if the file override is provided via environment variables
     # This is only used for testing purposes
-    local_file_override = os.getenv("_DD_SC_LOCAL_FILE_OVERRIDE", "")
-    managed_file_override = os.getenv("_DD_SC_MANAGED_FILE_OVERRIDE", "")
+    local_file_override = env.get("_DD_SC_LOCAL_FILE_OVERRIDE", "")
+    managed_file_override = env.get("_DD_SC_MANAGED_FILE_OVERRIDE", "")
     if local_file_override:
         configurator.set_local_file_override(local_file_override)
     if managed_file_override:
@@ -52,15 +53,15 @@ def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[
     local_config = {}
     try:
         for entry in configurator.get_configuration():
-            env = entry["name"]
+            var_name = entry["name"]
             source = entry["source"]
             if source == "fleet_stable_config":
-                fleet_config[env] = entry["value"]
-                fleet_config_ids[env] = entry.get("config_id")
+                fleet_config[var_name] = entry["value"]
+                fleet_config_ids[var_name] = entry.get("config_id")
             elif source == "local_stable_config":
-                local_config[env] = entry["value"]
+                local_config[var_name] = entry["value"]
             else:
-                print(f"Unknown configuration source: {source}, for {env}")
+                print(f"Unknown configuration source: {source}, for {var_name}")
     except Exception as e:
         # No logger at this point, so we rely on good old print
         print(f"Failed to load configuration from disk, skipping: {e}")

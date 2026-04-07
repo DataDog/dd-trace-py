@@ -315,7 +315,7 @@ class TelemetryWriter(PeriodicService):
         """
         payload = {}
         if time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
-            payload["configurations"] = self._sent_configs
+            payload["configuration"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
                 payload["dependencies"] = [entry.to_telemetry_dict() for entry in self._imported_dependencies.values()]
             self._extended_time += self._extended_heartbeat_interval

@@ -25,7 +25,7 @@ from tests.utils import override_global_config
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(
-        span, n_output, input_message=False, output_message=False, metadata=None, token_metrics=None
+        span, n_output, model_id=None, input_message=False, output_message=False, metadata=None, token_metrics=None
     ):
         expected_input = [{"content": mock.ANY}]
         if input_message:
@@ -40,13 +40,13 @@ class TestLLMObsBedrock:
 
         expected_event = _expected_llmobs_llm_span_event(
             span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+            model_name=model_id or "",
+            model_provider="amazon_bedrock",
             input_messages=expected_input,
             output_messages=expected_output,
             metadata=expected_parameters,
             token_metrics=expected_token_metrics,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
         # If parameters were not explicitly provided, use mock.ANY to match anything
@@ -89,7 +89,12 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
+            span,
+            n_output,
+            model_id=model,
+            input_message="message" in provider,
+            output_message=True,
+            metadata=expected_metadata,
         )
         LLMObs.disable()
 
@@ -124,7 +129,12 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
+            span,
+            n_output,
+            model_id=model,
+            input_message="message" in provider,
+            output_message=True,
+            metadata=expected_metadata,
         )
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
@@ -172,7 +182,7 @@ class TestLLMObsBedrock:
         span = test_spans.pop_traces()[0][0]
 
         assert len(llmobs_events) == 1
-        assert llmobs_events[0] == self.expected_llmobs_span_event(span, 1)
+        assert llmobs_events[0] == self.expected_llmobs_span_event(span, 1, model_id=model)
         LLMObs.disable()
 
     def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
@@ -252,15 +262,15 @@ class TestLLMObsBedrock:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+            model_name=model,
+            model_provider="amazon_bedrock",
             input_messages=[{"content": mock.ANY}],
             metadata=metadata,
             output_messages=[{"content": ""}],
             error=span.get_tag("error.type"),
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -274,8 +284,8 @@ class TestLLMObsBedrock:
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -305,7 +315,7 @@ class TestLLMObsBedrock:
                 "total_tokens": response["usage"]["totalTokens"],
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -324,8 +334,8 @@ class TestLLMObsBedrock:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
             output_messages=[{"content": ""}],
             metadata={
@@ -335,7 +345,7 @@ class TestLLMObsBedrock:
             error=span.get_tag("error.type"),
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -354,8 +364,8 @@ class TestLLMObsBedrock:
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -384,7 +394,7 @@ class TestLLMObsBedrock:
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -408,8 +418,8 @@ class TestLLMObsBedrock:
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -438,7 +448,7 @@ class TestLLMObsBedrock:
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -471,8 +481,8 @@ class TestLLMObsBedrock:
             span1, span2 = spans[0][0], spans[1][0]
             assert llmobs_events[0] == _expected_llmobs_llm_span_event(
                 span1,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"role": "system", "content": large_system_prompt},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -491,12 +501,12 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
             assert llmobs_events[1] == _expected_llmobs_llm_span_event(
                 span2,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"role": "system", "content": large_system_prompt},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -515,7 +525,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -552,8 +562,8 @@ class TestLLMObsBedrock:
 
             assert llmobs_events[0] == _expected_llmobs_llm_span_event(
                 span1,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"content": large_system_prompt, "role": "system"},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -571,12 +581,12 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
             assert llmobs_events[1] == _expected_llmobs_llm_span_event(
                 span2,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"content": large_system_prompt, "role": "system"},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -594,7 +604,7 @@ class TestLLMObsBedrock:
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -701,7 +711,7 @@ class TestLLMObsBedrockProxy:
             input_value=mock.ANY,
             output_value=mock.ANY,
             metadata=expected_parameters,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
         )
 
     @classmethod
@@ -1051,7 +1061,7 @@ class TestLLMObsBedrockProxy:
                 input_value=mock.ANY,
                 output_value=mock.ANY,
                 metadata={"temperature": 0.9, "max_tokens": 60},
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"},
                 error="botocore.exceptions.ClientError",
                 error_message=mock.ANY,
                 error_stack=mock.ANY,

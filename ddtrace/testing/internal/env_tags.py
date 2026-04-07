@@ -1,6 +1,7 @@
 import os
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal import ci
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.ci import CITag
@@ -49,7 +50,7 @@ def get_env_tags() -> dict[str, str]:
         tags[CITag.WORKSPACE_PATH] = str(get_workspace_path())
 
     # Allow JOB_ID environment variable to override job ID from any provider
-    if job_id := os.environ.get("JOB_ID"):
+    if job_id := env.get("JOB_ID"):
         tags[CITag.JOB_ID] = job_id
 
     return {k: v for k, v in tags.items() if v}
