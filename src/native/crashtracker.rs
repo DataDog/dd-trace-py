@@ -99,9 +99,6 @@ impl CrashtrackerConfigurationPy {
         if let Some(url) = endpoint {
             builder = builder.endpoint_url(url);
         }
-        if let Some(token) = test_token {
-            builder = builder.endpoint_test_token(&token);
-        }
         if let Some(path) = unix_socket_path {
             builder = builder.unix_socket_path(path);
         }
