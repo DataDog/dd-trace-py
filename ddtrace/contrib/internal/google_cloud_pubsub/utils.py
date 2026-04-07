@@ -1,7 +1,7 @@
 """Utilities for Google Cloud Pub/Sub instrumentation."""
 
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.formats import asbool
 
 
