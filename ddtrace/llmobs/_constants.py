@@ -5,6 +5,7 @@ SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 

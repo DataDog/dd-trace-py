@@ -66,6 +66,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -501,6 +502,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -1874,6 +1876,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = (
                 get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
+                # ast-grep-ignore: span-meta-access
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
@@ -1883,7 +1886,7 @@ class LLMObs(Service):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
                 session_id = None
         else:
             llmobs_trace_id = generate_128bit_trace_id()
