@@ -20,6 +20,7 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import datetime
+import hashlib
 import os
 import re
 import subprocess
@@ -116,7 +117,7 @@ class JobSpec:
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
         lines.append("  cache:")
-        lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
+        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
         lines.append("    paths:")
         lines.append("      - .cache")
 
@@ -447,7 +448,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="scripts/run-script-doctests.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
@@ -474,6 +475,11 @@ def gen_pre_checks() -> None:
         name="Check for namespace packages",
         command="scripts/check-for-namespace-packages.sh",
         paths={"*"},
+    )
+    check(
+        name="Hook tests",
+        command="scripts/run-hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
     )
     if not checks:
         return
@@ -516,7 +522,13 @@ prechecks:
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
     with TESTS_GEN.open("a") as f:
-        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
+        f.write(
+            template(
+                "cached-testrunner",
+                current_month=datetime.datetime.now().month,
+                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
+            )
+        )
 
 
 def gen_build_base_venvs() -> None:
@@ -566,6 +578,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+
+# Compute a short hash of the testrunner image so cache keys are automatically
+# invalidated whenever the image changes (e.g. Python patch version bumps).
+import ruamel.yaml as _ruamel_yaml  # noqa: E402
+
+
+_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
+TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
