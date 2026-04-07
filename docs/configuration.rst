@@ -799,7 +799,7 @@ Test Visibility
         ``ddtrace.testing`` pytest plugin directly to the Datadog logs intake. Log records emitted
         during tests are enriched with the active test span's ``dd.trace_id`` and ``dd.span_id``
         and forwarded as structured JSON. When using the Datadog Agent instead of agentless mode,
-        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's EVP proxy.
+        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's intake.
 
      version_added:
         v4.8.0:
