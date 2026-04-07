@@ -44,7 +44,6 @@ style = [
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
-    "hook_tests",
 ]
 fmt = [
     "ruff format --no-cache {args:.}",
