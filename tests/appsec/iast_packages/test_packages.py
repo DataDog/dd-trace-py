@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -42,26 +43,33 @@ CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_EXECUTABLE = os.path.join(TEMPLATE_VENV_DIR, "bin", "pip")
 PIP_CACHE_SHARED_VENVS_DIR = os.path.join(DDTRACE_PATH, "pip_cache_shared_venvs")
 
+# Compute a per-worker port offset so parallel xdist workers don't collide on the flask server port.
+# PYTEST_XDIST_WORKER is e.g. "gw0", "gw1", ... — not set when running without xdist.
+_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
+_XDIST_WORKER_NUM = int(_XDIST_WORKER[2:]) if _XDIST_WORKER.startswith("gw") else 0
+
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
     """Cleanup the venv and cloned venvs directories at the start and end of the test session"""
-    # Clean up at the start
-    if os.path.exists(TEMPLATE_VENV_DIR):
-        shutil.rmtree(TEMPLATE_VENV_DIR)
-    if os.path.exists(CLONED_VENVS_DIR):
-        shutil.rmtree(CLONED_VENVS_DIR)
-
-    def remove_test_dir():
-        if _DEBUG_MODE:
-            return
+    # In xdist mode each worker runs this fixture, but only the controller (no PYTEST_XDIST_WORKER)
+    # should touch the shared dirs — workers coordinate via file locks in create_venv/template_venv.
+    if not _XDIST_WORKER:
         if os.path.exists(TEMPLATE_VENV_DIR):
             shutil.rmtree(TEMPLATE_VENV_DIR)
         if os.path.exists(CLONED_VENVS_DIR):
             shutil.rmtree(CLONED_VENVS_DIR)
 
-    # Register cleanup to run at the end
-    request.addfinalizer(remove_test_dir)
+        def remove_test_dir():
+            if _DEBUG_MODE:
+                return
+            if os.path.exists(TEMPLATE_VENV_DIR):
+                shutil.rmtree(TEMPLATE_VENV_DIR)
+            if os.path.exists(CLONED_VENVS_DIR):
+                shutil.rmtree(CLONED_VENVS_DIR)
+
+        # Register cleanup to run at the end
+        request.addfinalizer(remove_test_dir)
 
 
 def get_pip_cache_dir(python):
@@ -208,20 +216,24 @@ class PackageForTesting:
         cloned_venv_dir = os.path.join(CLONED_VENVS_DIR, self.name)
         cloned_venv_dir_latest = cloned_venv_dir + "-latest"
 
-        if not os.path.exists(cloned_venv_dir):
-            base_venv = template_venv()
+        os.makedirs(CLONED_VENVS_DIR, exist_ok=True)
+        lock_path = cloned_venv_dir + ".lock"
+        with open(lock_path, "w") as _lock:
+            fcntl.flock(_lock, fcntl.LOCK_EX)
+            if not os.path.exists(cloned_venv_dir):
+                base_venv = template_venv()
 
-            clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir)
-            clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir_latest)
+                clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir)
+                clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir_latest)
 
-            with set_pip_cache_dir():
+                with set_pip_cache_dir():
+                    python_executable = os.path.join(cloned_venv_dir, "bin", "python")
+                    self.install(python_executable)
+                    python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
+                    self.install_latest(python_executable_latest)
+            else:
                 python_executable = os.path.join(cloned_venv_dir, "bin", "python")
-                self.install(python_executable)
                 python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
-                self.install_latest(python_executable_latest)
-        else:
-            python_executable = os.path.join(cloned_venv_dir, "bin", "python")
-            python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
 
         return python_executable, python_executable_latest
 
@@ -945,6 +957,16 @@ def template_venv():
     global PIP_CACHE_SHARED_VENVS_DIR
 
     os.makedirs(CLONED_VENVS_DIR, exist_ok=True)
+    lock_path = os.path.join(DDTRACE_PATH, "template_venv.lock")
+    with open(lock_path, "w") as _lock:
+        fcntl.flock(_lock, fcntl.LOCK_EX)
+        return _template_venv_locked()
+
+
+def _template_venv_locked():
+    global TEMPLATE_VENV_DIR
+    global PIP_CACHE_SHARED_VENVS_DIR
+
     in_venv, venv_path = _detect_virtualenv()
 
     pip_cache_dir = get_pip_cache_dir(os.path.join(TEMPLATE_VENV_DIR, "bin", "python"))
@@ -1021,9 +1043,10 @@ def _assert_propagation_results(response, package):
     assert result_ok
 
 
-# We need to set a different port for these tests of they can conflict with other tests using the flask server
-# running in parallel (e.g. test_gunicorn_handlers.py)
-_TEST_PORT = 8010
+# We need to set a different port for these tests so they can't conflict with other tests using the flask server
+# running in parallel (e.g. test_gunicorn_handlers.py). Each xdist worker gets its own port offset so parallel
+# workers don't collide either.
+_TEST_PORT = 8010 + _XDIST_WORKER_NUM
 
 NUM_TEST = 0
 
