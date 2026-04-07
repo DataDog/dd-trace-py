@@ -10,7 +10,6 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
@@ -35,9 +34,6 @@ def _finish_span(
     if not span:
         return
 
-    integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
-
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
@@ -59,11 +55,10 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     event = ctx.event
 
     activate_distributed_headers = ctx.get_item("activate_distributed_headers")
-    integration_config = ctx.get_item("integration_config")
-    if integration_config and activate_distributed_headers:
+    if activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
-            int_config=integration_config,
+            int_config=ctx.event.config,
             request_headers=ctx.get_item("distributed_headers"),
             override=ctx.get_item("distributed_headers_config_override"),
         )
@@ -88,12 +83,12 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
 
     span = tracer.start_span(event.span_name, **span_kwargs)
 
-    span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
+    meta = {COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags}
+    span._meta.update(meta)
 
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -105,13 +100,13 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
 
 
 class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
-    """Subscriber that automatically manages span lifecycle for SpanContextEvent.
+    """Subscriber that automatically manages span lifecycle for TracingEvents.
 
     This base class handles span creation and finishing, so subclasses only need to
     override on_started/on_ended for their specific logic.
 
     Example:
-        class MySpanSubscriber(SpanTracingSubscriber):
+        class MySpanSubscriber(TracingSubscriber):
             event_names = ("my.span",)
 
             @classmethod

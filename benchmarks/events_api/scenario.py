@@ -13,6 +13,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
 
@@ -24,6 +25,7 @@ class BenchmarkTracingEvent(TracingEvent):
     span_type = "base"
     span_kind = "client"
     component = "test"
+    config = IntegrationConfig(None, "benchmark")
 
     url: str = event_field()
     method: str = event_field()
