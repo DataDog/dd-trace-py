@@ -352,7 +352,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +361,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
@@ -3194,16 +3195,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="mlflow",
-            command="pytest {cmdargs} tests/contrib/mlflow",
-            pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "mlflow[default]": ["~=3.9.0", latest],
-                # pkg_resources was removed in v82.0.0
-                "setuptools": "<82",
-            },
-        ),
-        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -4427,6 +4418,27 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.10"),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_litellm_guardrail",
+            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.78.5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
+                    },
                 ),
             ],
         ),
