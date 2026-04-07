@@ -1046,7 +1046,7 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
             tool_definition["schema"] = {}
-        if _tool_schema_exceeds_depth(tool_definition.get("name"), tool_definition.get("schema") or {}):
+        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", tool_definition.get("schema") or {}):
             tool_definition["schema"] = {}
         tool_definitions.append(tool_definition)
     return tool_definitions

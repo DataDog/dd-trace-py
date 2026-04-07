@@ -278,7 +278,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 description="" if is_deferred else tool.get("description", ""),
                 schema={} if is_deferred else tool.get("input_schema", {}),
             )
-            if _tool_schema_exceeds_depth(tool_def.get("name"), tool_def.get("schema") or {}):
+            if _tool_schema_exceeds_depth(tool_def.get("name") or "", tool_def.get("schema") or {}):
                 tool_def["schema"] = {}
             tool_definitions.append(tool_def)
         return tool_definitions
