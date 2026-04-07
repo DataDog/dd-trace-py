@@ -4,8 +4,8 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace import config
-from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace._trace.span import Span
+from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
