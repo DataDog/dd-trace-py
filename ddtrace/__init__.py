@@ -1,4 +1,3 @@
-import os
 import sys
 
 
@@ -19,13 +18,14 @@ from ddtrace.vendor import debtcollector
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
+from .internal.settings import env
 from .internal.settings._config import config
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .version import __version__
 
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 # Initialize DSM support and register DSM handlers (if enabled)

@@ -9,6 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -672,6 +673,22 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_eve
     assert root.get_tag("llmobs_trace_id") == format_trace_id(first_trace_id)
     # The two workflows should have different trace IDs
     assert first_trace_id != second_trace_id
+
+
+def test_llmobs_submitted_tag_set_on_apm_span(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is set on the APM span when SDK submits an LLMObs event."""
+    with llmobs.workflow("my-workflow") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+
+
+def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is NOT set on regular APM spans."""
+    with llmobs._instance.tracer.trace("regular_span") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):

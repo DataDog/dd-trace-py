@@ -5,10 +5,8 @@ SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -66,17 +64,9 @@ DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exce
 
 ROOT_PARENT_ID = "undefined"
 
-# Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
-# Used to differentiate traces of Datadog-run operations vs user-application operations.
-RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
-
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
-
-FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
-EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
-EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
