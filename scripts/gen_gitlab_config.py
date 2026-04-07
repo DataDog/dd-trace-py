@@ -23,7 +23,7 @@ import datetime
 import hashlib
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import typing as t
 
 
@@ -114,7 +114,7 @@ class JobSpec:
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()  # nosec B603
         )
         lines.append("  cache:")
         lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
@@ -179,9 +179,9 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
     # Collect unique venv hashes by matching pattern (mimics riot's --hash-only logic)
     venv_hashes = set()
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name or not inst.matches_pattern(pattern_regex):  # type: ignore[attr-defined]
+        if not inst.name or not inst.matches_pattern(pattern_regex):
             continue
-        venv_hashes.add(inst.short_hash)  # type: ignore[attr-defined]
+        venv_hashes.add(inst.short_hash)
 
     venv_count = len(venv_hashes)
 
@@ -292,6 +292,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
         match = re.match(BENCHMARK_CLASS_REGEX, line)
         if match:
             return match.group(1).lower()
+    raise ValueError(f"No benchmark class name found for suite {suite_name!r}")
 
 
 def _filter_benchmarks_slos_file(classnames: list) -> None:
@@ -475,6 +476,11 @@ def gen_pre_checks() -> None:
         name="Check for namespace packages",
         command="scripts/check-for-namespace-packages.sh",
         paths={"*"},
+    )
+    check(
+        name="Shellcheck hook scripts",
+        command="scripts/shellcheck",
+        paths={"hooks/scripts/*.sh"},
     )
     if not checks:
         return

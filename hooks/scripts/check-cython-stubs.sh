@@ -5,6 +5,7 @@
 
 pyx_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.pyx$')
 if [ -z "$pyx_files" ]; then
+    # shellcheck disable=SC2016  # Backtick in message is literal, not a command substitution
     echo 'Cython stub check skipped: No .pyx files were found in `git diff --staged`'
     exit 0
 fi
