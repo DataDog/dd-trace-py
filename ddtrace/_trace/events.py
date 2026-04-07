@@ -24,11 +24,12 @@ class TracingEvent(Event):
 
     # These attributes are required but can be known only at instance-creation time.
     component: str = field()
-    integration_config: "IntegrationConfig" = field()
-    # operation_name can be either provided:
+    integration_config: IntegrationConfig = field()
+
+    # operation_name must be either provided:
     # - At event instantiation if constant
     # - At post init if depending on some runtime values
-    operation_name: str = field(default="")
+    operation_name: Optional[str] = field(default=None)
 
     tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.

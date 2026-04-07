@@ -85,6 +85,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     if default_child_of is not None:
         span_kwargs.setdefault("child_of", default_child_of)
 
+    assert event.operation_name, f"Missing required TracingEvent.operation_name {event.event_name} "
     span = tracer.start_span(event.operation_name, **span_kwargs)
 
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
