@@ -699,7 +699,7 @@ def expected_llmobs_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -714,7 +714,7 @@ def expected_llmobs_error_span_event(span):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -742,7 +742,7 @@ def expected_llmobs_tool_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
         tool_definitions=[
             {
                 "name": "get_current_weather",
@@ -778,7 +778,7 @@ def expected_llmobs_stream_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 16, "output_tokens": 37, "total_tokens": 53, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -793,7 +793,7 @@ def expected_llmobs_stream_error_span_event(span):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -812,7 +812,7 @@ def expected_llmobs_history_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -830,7 +830,7 @@ def expected_llmobs_system_prompt_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 50},
         token_metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -845,7 +845,7 @@ def expected_llmobs_no_generation_config_span_event(span):
         ],
         metadata={},
         token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
@@ -873,7 +873,7 @@ def expected_llmobs_tool_result_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70, "reasoning_output_tokens": 0},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
         tool_definitions=[
             {
                 "name": "get_current_weather",
@@ -909,5 +909,5 @@ def expected_llmobs_reasoning_span_event(span):
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 300},
         token_metrics={"input_tokens": 20, "output_tokens": 143, "total_tokens": 163, "reasoning_output_tokens": 128},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )

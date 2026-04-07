@@ -2,11 +2,11 @@ import os
 import sys
 import sysconfig
 import time
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Optional
+from unittest import mock
 
 import httpretty
-import mock
 import pytest
 
 from ddtrace import config
@@ -189,11 +189,14 @@ import opentelemetry
             "origin": "default",
             "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
             r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|"
+            r"consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
             r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|'
+            r"token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})"
             r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-            r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
+            r"{5}END[a-z\s]+PRIVATE\sKEY|"
+            r"ssh-rsa\s*([a-z0-9\/\.+]{100,})",
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
@@ -284,8 +287,10 @@ import opentelemetry
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
         {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
+        {"name": "DD_LLMOBS_PAYLOAD_SIZE_BYTES", "origin": "default", "value": 5242880},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
         {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
@@ -468,6 +473,21 @@ import opentelemetry
         },
         {
             "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
             "origin": "default",
             "value": 10000,
         },
@@ -832,6 +852,7 @@ def validate_request_body(received_body: dict, payload: dict, payload_type: str,
     if payload is not None:
         assert received_body["payload"] == payload
     assert received_body["request_type"] == payload_type
+    return received_body
 
 
 def test_telemetry_writer_agent_setup():
