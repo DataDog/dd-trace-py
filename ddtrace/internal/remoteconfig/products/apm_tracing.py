@@ -43,26 +43,18 @@ class APMTracingCallback(RCCallback):
     @staticmethod
     def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""
-        # Get items in insertion order, then sort by precedence while preserving order for ties
-        items_with_order = [(i, p) for i, p in enumerate(config_map.values())]
-
-        return ChainMap(
-            *(
-                t.cast(dict, content["lib_config"])
-                for content in (
-                    p.content
-                    for _, p in sorted(
-                        items_with_order,
-                        key=lambda x: (
-                            config_key(x[1]),
-                            x[0],
-                        ),  # Higher precedence first, then newer (higher index) first
-                        reverse=True,
-                    )
-                    if p.content is not None and "lib_config" in p.content
-                )
-            )
+        # Higher config_key first; on ties, higher insertion index (newer) first.
+        ordered = sorted(
+            enumerate(config_map.values()),
+            key=lambda ip: (config_key(ip[1]), ip[0]),
+            reverse=True,
         )
+        lib_configs = [
+            t.cast(dict, p.content["lib_config"])
+            for _, p in ordered
+            if p.content is not None and "lib_config" in p.content
+        ]
+        return ChainMap(*lib_configs)
 
     def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
         config_map: dict[str, Payload] = {}
@@ -73,9 +65,10 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
-            if payload.content is None and payload.metadata.id in config_map:
-                log.debug("Deleting config %s", payload.metadata.id)
-                config_map.pop(payload.metadata.id)
+            if payload.content is None:
+                if payload.metadata.id in config_map:
+                    log.debug("Deleting config %s", payload.metadata.id)
+                    config_map.pop(payload.metadata.id)
                 continue
 
             service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
