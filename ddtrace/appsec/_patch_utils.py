@@ -8,6 +8,7 @@ from typing import Optional
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
+from ddtrace.appsec._shared._stacktrace import get_info_frame
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -52,11 +53,6 @@ def get_caller_frame_info() -> tuple:
 
     Returns (None, None, None, None) when no relevant frame is found.
     """
-    try:
-        from ddtrace.appsec._iast._stacktrace import get_info_frame
-    except ImportError:
-        return None, None, None, None
-
     frame_info = get_info_frame()
     if not frame_info or frame_info[0] in ("", -1, None):
         return None, None, None, None

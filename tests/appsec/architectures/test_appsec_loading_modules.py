@@ -19,6 +19,10 @@ MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast._taint_tracking._native",
 ]
 
+MODULE_SHARED = [
+    "ddtrace.appsec._shared._stacktrace",
+]
+
 
 @pytest.mark.parametrize("appsec_enabled", ["true", "false"])
 @pytest.mark.parametrize("iast_enabled", ["true", None])
@@ -71,6 +75,8 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"
+                    for m in MODULE_SHARED:
+                        assert m not in data["appsec"], f"{m} in {data['appsec']}"
                 print(f"Test passed {i}", flush=True)
                 return
             except HTTPError as e:
