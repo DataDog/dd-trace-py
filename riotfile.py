@@ -591,6 +591,14 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    env={
+                        # Python 3.12+ emits a DeprecationWarning when os.fork() is called
+                        # from a multi-threaded process. The forksafe tests intentionally
+                        # fork from a multi-threaded subprocess (ddtrace starts background
+                        # threads on import), so suppress the warning to avoid spurious
+                        # stderr output that causes @pytest.mark.subprocess() to fail.
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         # pkg_resources was removed in v82.0.0
