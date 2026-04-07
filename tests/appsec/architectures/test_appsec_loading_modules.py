@@ -17,7 +17,6 @@ MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
     "ddtrace.appsec._iast._taint_tracking._native",
-    "ddtrace.appsec._shared._stacktrace",
 ]
 
 
