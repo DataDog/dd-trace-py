@@ -11,15 +11,16 @@ from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.contrib.internal.ray.constants import DD_RAY_TRACE_CTX
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_KWARGS
+from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.constants import RAY_ENTRYPOINT
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_STATUS
+from ddtrace.contrib.internal.ray.constants import RAY_JOB_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_ERROR
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_SUCCESS
 from ddtrace.contrib.internal.ray.constants import RAY_SUBMISSION_ID
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_KWARGS
-from ddtrace.contrib.internal.ray.constants import RAY_TASK_STATUS
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.core.utils import _extract_tracing_context_from_env
 from ddtrace.contrib.internal.ray.core.utils import _inject_context_in_kwargs
@@ -66,6 +67,8 @@ class RayJobStartSubscriber(TracingSubscriber):
         if event.job_name:
             env[RAY_JOB_NAME] = event.job_name
 
+        job_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
+
     @classmethod
     def on_ended(
         cls,
@@ -74,6 +77,10 @@ class RayJobStartSubscriber(TracingSubscriber):
     ) -> None:
         event: RayJobEvent = ctx.event
         job_span = ctx.span
+
+        # a simple if event.submit_failed does not work on event_field
+        if event.submit_failed is True:
+            job_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_ERROR)
 
         exc_type, exc_val, exc_tb = exc_info
         if exc_type is not None and exc_val is not None:
@@ -116,14 +123,11 @@ class RayExecutionSubscriber(TracingSubscriber):
         ctx: core.ExecutionContext,
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        event: RayExecutionEvent = ctx.event
         span = ctx.span
 
         exc_type, exc_val, exc_tb = exc_info
         if exc_type is not None and exc_val is not None:
             span.set_exc_info(exc_type, exc_val, exc_tb)
-        if event.is_remote_task:
-            span._set_attribute(RAY_TASK_STATUS, RAY_STATUS_ERROR if exc_val is not None else RAY_STATUS_SUCCESS)
 
         stop_long_running_span(span)
 
@@ -192,10 +196,8 @@ class RaySubmissionSubscriber(TracingSubscriber):
         event: RaySubmissionEvent = ctx.event
         span = ctx.span
 
-        if event.is_task_submission:
-            span._set_attribute(
-                RAY_TASK_SUBMIT_STATUS, RAY_STATUS_ERROR if exc_info[1] is not None else RAY_STATUS_SUCCESS
-            )
+        status_tag = RAY_TASK_SUBMIT_STATUS if event.is_task_submission else RAY_ACTOR_METHOD_SUBMIT_STATUS
+        span._set_attribute(status_tag, RAY_STATUS_ERROR if exc_info[1] is not None else RAY_STATUS_SUCCESS)
 
 
 class RayContextInjectionSubscriber(Subscriber):

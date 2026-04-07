@@ -20,7 +20,6 @@ from ddtrace.internal.settings.integration import IntegrationConfig
 
 class RayEvents(Enum):
     RAY_JOB = "ray.job"
-    RAY_JOB_SUBMISSION = "ray.job.submit"
     RAY_EXECUTE = "ray.execute"
     RAY_CORE_API = "ray.core_api"
     RAY_SUBMIT = "ray.submit"
@@ -77,19 +76,6 @@ class RayExecutionEvent(TracingEvent):
             self.span_name = "task.execute"
         else:
             self.span_name = self.event_name
-
-
-@dataclass
-class RayJobSubmissionEvent(TracingEvent):
-    event_name = RayEvents.RAY_JOB_SUBMISSION.value
-
-    span_kind = SpanKind.PRODUCER
-    span_type = SpanTypes.RAY
-
-    submission_id: str = event_field()
-
-    def __post_init__(self) -> None:
-        self.span_name = self.event_name
 
 
 @dataclass
