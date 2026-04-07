@@ -743,6 +743,20 @@
         "default": null
       }
     ],
+    "DD_CARGO_ARGS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "DD_CC_OLD": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_CELERY_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
@@ -918,6 +932,13 @@
         "default": null
       }
     ],
+    "DD_CMAKE_INCREMENTAL_BUILD": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "DD_CODE_ORIGIN_ENABLED": [
       {
         "implementation": "A",
@@ -937,6 +958,28 @@
         "implementation": "A",
         "type": "int",
         "default": "8"
+      }
+    ],
+    "DD_COMPILE_ABSEIL": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
+    "DD_COMPILE_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "deprecated": true
+      }
+    ],
+    "DD_COMPILE_MODE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_CONSUL_SERVICE": [
@@ -1055,6 +1098,20 @@
       {
         "implementation": "A",
         "type": "string",
+        "default": null
+      }
+    ],
+    "DD_CXX_OLD": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "DD_CYTHONIZE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
         "default": null
       }
     ],
@@ -1401,6 +1458,27 @@
         "default": null
       }
     ],
+    "DD_DOWNLOAD_INITIAL_DELAY": [
+      {
+        "implementation": "A",
+        "type": "float",
+        "default": null
+      }
+    ],
+    "DD_DOWNLOAD_MAX_DELAY": [
+      {
+        "implementation": "A",
+        "type": "float",
+        "default": null
+      }
+    ],
+    "DD_DOWNLOAD_MAX_RETRIES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null
+      }
+    ],
     "DD_DRAMATIQ_SERVICE": [
       {
         "implementation": "A",
@@ -1601,6 +1679,13 @@
       {
         "implementation": "A",
         "type": "string",
+        "default": null
+      }
+    ],
+    "DD_FAST_BUILD": [
+      {
+        "implementation": "A",
+        "type": "boolean",
         "default": null
       }
     ],
@@ -2927,6 +3012,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_NATIVE_TESTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "DD_PROFILING_OUTPUT_PPROF": [
       {
         "implementation": "A",
@@ -3427,6 +3519,13 @@
         "default": null
       }
     ],
+    "DD_SCCACHE_PATH": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_SELENIUM_SERVICE": [
       {
         "implementation": "A",
@@ -3466,6 +3565,27 @@
       {
         "implementation": "A",
         "type": "string",
+        "default": null
+      }
+    ],
+    "DD_SETUP_CACHE_DIR": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "DD_SETUP_CACHE_DOWNLOADS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
+    "DD_SETUP_FORCE_CYTHONIZE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
         "default": null
       }
     ],
