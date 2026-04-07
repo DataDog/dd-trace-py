@@ -20,6 +20,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
+from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -834,6 +835,11 @@ class LLMObs(Service):
             # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
             apm_filter = APMTracingEnabledFilter()
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
+
+            # Propagate llmobs_trace_id/llmobs_parent_id to every span in each batch so that
+            # partial-flush payloads (which may not include the local root) still carry the
+            # bridge tags needed by the backend trace-indexer.
+            cls._instance.tracer._span_aggregator.dd_processors.append(LLMObsBridgeTagsProcessor())
 
             cls.enabled = True
             cls._instance.start()
