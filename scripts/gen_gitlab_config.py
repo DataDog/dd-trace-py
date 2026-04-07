@@ -476,6 +476,11 @@ def gen_pre_checks() -> None:
         command="scripts/check-for-namespace-packages.sh",
         paths={"*"},
     )
+    check(
+        name="Hook tests",
+        command="scripts/run-hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+    )
     if not checks:
         return
 
