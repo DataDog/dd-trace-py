@@ -95,7 +95,7 @@ class TestLLMObsOpenaiV1:
                     "max_tokens": 10,
                     "user": "ddtrace-test",
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -153,7 +153,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                 metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -195,7 +195,7 @@ class TestLLMObsOpenaiV1:
                     "max_tokens": 20,
                     "user": "ddtrace-test",
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -242,7 +242,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -278,7 +278,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -303,7 +303,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_completion}],
                 metadata={"stream": True},
                 token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             ),
         )
 
@@ -341,7 +341,7 @@ class TestLLMObsOpenaiV1:
                     "n": 2,
                     "user": "ddtrace-test",
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -375,7 +375,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -424,7 +424,7 @@ class TestLLMObsOpenaiV1:
                 "max_tokens": 20,
                 "user": "ddtrace-test",
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_event)
 
@@ -471,7 +471,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -528,7 +528,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_output, "role": ""}],
                 metadata=expected_metadata,
                 token_metrics={"input_tokens": 9, "output_tokens": 45, "total_tokens": 54},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -562,7 +562,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"role": "assistant", "content": expected_output}],
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -605,7 +605,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -634,7 +634,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -667,7 +667,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata=mock.ANY,
                 token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -711,7 +711,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -741,7 +741,7 @@ class TestLLMObsOpenaiV1:
                 metadata={"user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -831,7 +831,7 @@ class TestLLMObsOpenaiV1:
                                 },
                             }
                         ],
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
                 mock.call(
@@ -885,7 +885,7 @@ class TestLLMObsOpenaiV1:
                             "cache_read_input_tokens": 0,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
             ]
@@ -978,7 +978,7 @@ class TestLLMObsOpenaiV1:
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}, "verbosity": "medium"},
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1056,7 +1056,7 @@ MUL: "*"
                         "schema": {"type": "grammar", "grammar": {"syntax": "lark", "definition": grammar}},
                     }
                 ],
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1089,7 +1089,7 @@ MUL: "*"
                 metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1122,7 +1122,7 @@ MUL: "*"
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1150,7 +1150,7 @@ MUL: "*"
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1195,7 +1195,7 @@ MUL: "*"
                             "cache_read_input_tokens": 0,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
                 mock.call(
@@ -1214,7 +1214,7 @@ MUL: "*"
                             "cache_read_input_tokens": 1152,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
             ]
@@ -1236,7 +1236,7 @@ MUL: "*"
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1256,7 +1256,7 @@ MUL: "*"
                 input_documents=[{"text": "hello world"}, {"text": "hello again"}],
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1276,7 +1276,7 @@ MUL: "*"
                 input_documents=[{"text": "[1111, 2222, 3333]"}],
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1302,7 +1302,7 @@ MUL: "*"
                 ],
                 output_value="[3 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1327,7 +1327,7 @@ MUL: "*"
                 input_documents=[{"text": "hello world"}],
                 output_value="[1 embedding(s) returned]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1371,7 +1371,7 @@ MUL: "*"
                 input_messages=[{"content": "Hello world"}],
                 output_messages=[{"content": ""}],
                 metadata={"stream": True},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1441,7 +1441,7 @@ MUL: "*"
                             "cache_read_input_tokens": 0,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
                 mock.call(
@@ -1465,7 +1465,7 @@ MUL: "*"
                             "cache_read_input_tokens": 1280,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
             ]
@@ -1499,7 +1499,7 @@ MUL: "*"
                 input_messages=input_messages,
                 output_messages=[{"content": ""}],
                 metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1543,7 +1543,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1586,7 +1586,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1641,7 +1641,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1697,7 +1697,7 @@ MUL: "*"
                         },
                     }
                 ],
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1762,7 +1762,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1791,7 +1791,7 @@ MUL: "*"
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1831,7 +1831,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -1888,7 +1888,7 @@ MUL: "*"
                             "cache_read_input_tokens": 0,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
                 mock.call(
@@ -1914,7 +1914,7 @@ MUL: "*"
                             "cache_read_input_tokens": 1390,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
             ],
@@ -1978,7 +1978,7 @@ MUL: "*"
                             "cache_read_input_tokens": 0,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
                 mock.call(
@@ -2004,7 +2004,7 @@ MUL: "*"
                             "cache_read_input_tokens": 1390,
                             "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
                     )
                 ),
             ],
@@ -2109,7 +2109,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -2167,7 +2167,7 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
 
@@ -2213,7 +2213,7 @@ MUL: "*"
             ),
             output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
             metadata={"tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3"},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
         assert tool_span.parent_id == response_span.span_id
 
@@ -2266,7 +2266,7 @@ MUL: "*"
                 "cache_read_input_tokens": 0,
                 "reasoning_output_tokens": 128,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             tool_definitions=[
                 {
                     "name": "dice_roll",
@@ -2545,9 +2545,46 @@ MUL: "*"
                     "cache_read_input_tokens": 0,
                     "reasoning_output_tokens": 128,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Regression test: deferred tools (defer_loading=True) should have description and schema
+        stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
+        full definitions.
+        """
+        deferred_tool = {
+            "type": "function",
+            "function": {
+                "name": "search_logs",
+                "description": "Search Datadog logs",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string", "description": "Search query"}},
+                    "required": ["query"],
+                },
+            },
+            "defer_loading": True,
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
+            model = "gpt-3.5-turbo"
+            client = openai.OpenAI()
+            client.chat.completions.create(
+                tools=[chat_completion_custom_functions[0], deferred_tool],
+                model=model,
+                messages=[{"role": "user", "content": chat_completion_input_description}],
+                user="ddtrace-test",
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            EXPECTED_TOOL_DEFINITIONS[0],
+            {"name": "search_logs", "description": "", "schema": {}},
+        ]
 
 
 @pytest.mark.parametrize(

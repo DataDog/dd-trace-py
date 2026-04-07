@@ -57,7 +57,7 @@ suites:
       - tests/snapshots/tests.contrib.claude_agent_sdk.*
     snapshot: true
   google_adk:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
