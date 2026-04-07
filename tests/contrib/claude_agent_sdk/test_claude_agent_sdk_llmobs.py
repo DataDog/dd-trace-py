@@ -3,6 +3,7 @@ from unittest.mock import ANY
 import pytest
 
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
@@ -162,13 +163,26 @@ class TestLLMObsClaudeAgentSdk:
             async for _ in claude_agent_sdk.query(prompt=prompt):
                 pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert span.error == 1
-        # Error fires before any AssistantMessage arrives → no LLM span created
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        assert agent_span.error == 1
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        # LLM span was opened at init and closed in finalize_stream with no response
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name="",
+            model_provider="anthropic",
+            output_messages=[{"content": "", "role": ""}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": ""}]),
@@ -179,8 +193,7 @@ class TestLLMObsClaudeAgentSdk:
             error_message="Connection failed",
             error_stack=ANY,
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_client_query_captures_prompt(self, mock_client, llmobs_events, test_spans):
         prompt = "Hello from client!"
@@ -646,3 +659,27 @@ class TestLLMObsClaudeAgentSdk:
 
         # Agent span (last event)
         assert llmobs_events[3]["meta"]["span"]["kind"] == "agent"
+
+    async def test_llmobs_llm_span_includes_token_usage(
+        self, claude_agent_sdk, llmobs_events, mock_internal_client_with_usage, test_spans
+    ):
+        """LLM span should include token metrics when AssistantMessage has usage data."""
+        prompt = "What is 2+2?"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = test_spans.pop_traces()[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            token_metrics=EXPECTED_ASSISTANT_USAGE,
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event

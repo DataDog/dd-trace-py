@@ -77,6 +77,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
         self.current_llm_span = None
+        # Open the first LLM span immediately so its duration includes
+        # the time waiting for the first AssistantMessage.
+        self._create_llm_span()
 
     def _create_llm_span(self) -> None:
         self.current_llm_span = self.integration.trace(
@@ -99,10 +102,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         chunk_type = type(chunk).__name__
 
         if chunk_type == "AssistantMessage":
-            # Open and immediately close an LLM span so that tool spans created
-            # below are siblings of it (children of the agent span), not children of the LLM span.
-            # This mirrors the pattern in DataDog/dd-source#387760.
-            self._create_llm_span()
+            # Close the LLM span that was opened at init (or after previous tool results).
+            # Its duration covers the real time waiting for this assistant response.
+            # Tool spans are created after this so they remain siblings of the LLM span.
             self._finalize_llm_span(chunk)
 
         if chunk_type == "ResultMessage" and self.instance and self.context is None:
@@ -139,6 +141,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     result_content = getattr(block, "content", "")
                     tool_output = safe_json(result_content) or str(result_content)
                     self._finalize_tool_span(tool_data, tool_output)
+
+        # After all tool results in a UserMessage are processed, open the next LLM span
+        # so it starts accumulating time for the next assistant turn.
+        if chunk_type == "UserMessage" and not self._active_tool_spans:
+            self._create_llm_span()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
         tool_span = tool_data["tool_span"]

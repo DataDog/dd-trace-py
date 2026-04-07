@@ -61,12 +61,29 @@ def create_mock_system_message(
     )
 
 
-def create_mock_assistant_message(text: str, model: str = MOCK_MODEL) -> AssistantMessage:
+MOCK_ASSISTANT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 3,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+}
+
+EXPECTED_ASSISTANT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 3,
+    "total_tokens": 13,
+}
+
+
+def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dict = None) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
-    return AssistantMessage(
+    msg = AssistantMessage(
         content=[TextBlock(text=text)],
         model=model,
     )
+    if usage is not None:
+        msg.usage = usage
+    return msg
 
 
 def create_mock_assistant_message_with_tool_use(
@@ -137,12 +154,19 @@ def create_mock_user_message(content: str) -> UserMessage:
 
 MOCK_SYSTEM_MESSAGE = create_mock_system_message()
 MOCK_ASSISTANT_RESPONSE = create_mock_assistant_message("4")
+MOCK_ASSISTANT_RESPONSE_WITH_USAGE = create_mock_assistant_message("4", usage=MOCK_ASSISTANT_USAGE)
 MOCK_RESULT_MESSAGE = create_mock_result_message()
 
 
 MOCK_QUERY_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE,
+    MOCK_RESULT_MESSAGE,
+]
+
+MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE_WITH_USAGE,
     MOCK_RESULT_MESSAGE,
 ]
 
