@@ -9,31 +9,31 @@
     "type": "ray",
     "error": 0,
     "meta": {
-      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dfeb8100000000",
+      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
+      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.ai_obs.enabled": 1,
-      "_dd.djm.enabled": 1,
-      "_dd.filter.kept": 1,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.ai_obs.enabled": 1.0,
+      "_dd.djm.enabled": 1.0,
+      "_dd.filter.kept": 1.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 1289
+      "_sampling_priority_v1": 2.0,
+      "process_id": 605.0
     },
-    "duration": 2621500,
-    "start": 1759505281704904470
+    "duration": 2382709,
+    "start": 1775577709842502127
   },
      {
        "name": "task.execute",
@@ -48,28 +48,25 @@
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
          "ray.task.status": "success",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-         "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
          "span.kind": "consumer"
        },
        "metrics": {
-         "_dd.ai_obs.enabled": 1,
-         "_dd.djm.enabled": 1,
-         "_dd.filter.kept": 1,
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "_sampling_priority_v1": 2,
-         "process_id": 1289
+         "_dd.ai_obs.enabled": 1.0,
+         "_dd.djm.enabled": 1.0,
+         "_dd.filter.kept": 1.0,
+         "_dd.measured": 1.0,
+         "_sampling_priority_v1": 2.0
        },
-       "duration": 266417,
-       "start": 1759505281707023595
+       "duration": 217833,
+       "start": 1775577709844471211
      }],
 [
   {
     "name": "ray.get",
-    "service": "unnamed.ray.job",
+    "service": "tests.contrib.ray",
     "resource": "ray.get",
     "trace_id": 1,
     "span_id": 1,
@@ -77,30 +74,29 @@
     "type": "ray",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.ray",
-      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dfeb8100000000",
+      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.get.value_size_bytes": "88",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "142aa12894d2b47a2b01989991cd0cec0340e675b8ba6d22a3ea0292",
+      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "81dd04c9904045e9b283e0bdc8fe152f",
+      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.ai_obs.enabled": 1,
-      "_dd.djm.enabled": 1,
-      "_dd.filter.kept": 1,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.ai_obs.enabled": 1.0,
+      "_dd.djm.enabled": 1.0,
+      "_dd.filter.kept": 1.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 1289
+      "_sampling_priority_v1": 2.0,
+      "process_id": 605.0
     },
-    "duration": 313000,
-    "start": 1759505281707677970
+    "duration": 392667,
+    "start": 1775577709845287544
   }]]
