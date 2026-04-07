@@ -19,6 +19,18 @@ Runs before each commit. A non-zero exit code **aborts the commit**. Contains:
 - Code formatting and linting checks
 - Other pre-commit validations
 
+Individual pre-commit hooks (run in numeric order):
+
+| Hook | Description |
+|------|-------------|
+| `01-format-and-lint` | Formats and lints staged Python files |
+| `02-run-mypy` | Type-checks staged Python files |
+| `03-run-codespell` | Spell-checks staged files |
+| `04-run-clang-format` | Formats staged C++ files with clang-format |
+| `05-run-bandit` | Security-scans staged production Python files |
+| `06-check-cython-stubs` | Validates Cython stub files |
+| `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
+
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
 - **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and alerts you to rebuild

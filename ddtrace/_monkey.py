@@ -95,6 +95,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_cosmos": True,
     "azure_eventhubs": True,
     "azure_functions": True,
     "azure_durable_functions": True,
@@ -153,6 +154,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_cosmos": ("azure.cosmos",),
     "azure_eventhubs": ("azure.eventhub",),
     "azure_durable_functions": ("azure.durable_functions",),
     "azure_functions": ("azure.functions",),
@@ -281,6 +283,7 @@ def _on_import_factory(
                 "failed to enable ddtrace support for %s: %s",
                 module,
                 str(e),
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(
                 module, False, PATCH_MODULES.get(module) is True, str(e), version=e.installed_version
@@ -293,6 +296,7 @@ def _on_import_factory(
                 module,
                 str(e),
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(

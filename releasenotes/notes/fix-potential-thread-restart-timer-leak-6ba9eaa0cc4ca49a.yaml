@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fix a potential internal thread leak in fork-heavy applications.

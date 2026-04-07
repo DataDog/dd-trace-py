@@ -352,7 +352,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +361,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
@@ -567,11 +568,12 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
@@ -3322,6 +3324,17 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="azure_cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_cosmos",
+            pys=select_pys(),
+            pkgs={
+                "azure.cosmos": ["~=4.9.0", latest],
+                "pytest-asyncio": "==0.23.7",
+                "aiohttp": latest,
+                "six": latest,
+            },
+        ),
+        Venv(
             name="azure_eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3345,6 +3358,17 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
+            },
+        ),
+        Venv(
+            name="azure_functions:cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.cosmos": ["~=4.9.0", latest],
+                "azure.storage.blob": latest,
+                "aiohttp": latest,
             },
         ),
         Venv(
@@ -3439,28 +3463,26 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
+                    command="pytest -n auto {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": "==0.1.21",
+                        "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
                     },
                     venvs=[
                         Venv(
                             pys=["3.9"],
-                            command="pytest {cmdargs} tests/llmobs",
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
-                            command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
-                                "pydantic-evals": "<1.31",
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
@@ -3468,9 +3490,10 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
+                        "pytest-xdist": latest,
                     },
                 ),
             ],

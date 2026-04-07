@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import os
 from typing import Any
 from typing import Callable
 from typing import Mapping
@@ -17,6 +16,7 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
@@ -160,7 +160,7 @@ class _ProfilerInstance(service.Service):
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
-        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 

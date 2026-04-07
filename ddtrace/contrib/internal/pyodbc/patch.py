@@ -1,5 +1,3 @@
-import os
-
 import pyodbc
 
 from ddtrace import config
@@ -9,6 +7,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -17,7 +16,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("pyodbc"),
         _dbapi_span_name_prefix="pyodbc",
-        trace_fetch_methods=asbool(os.getenv("DD_PYODBC_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_PYODBC_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

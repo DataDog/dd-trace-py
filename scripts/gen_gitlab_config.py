@@ -448,7 +448,7 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="scripts/run-script-doctests.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
@@ -475,6 +475,11 @@ def gen_pre_checks() -> None:
         name="Check for namespace packages",
         command="scripts/check-for-namespace-packages.sh",
         paths={"*"},
+    )
+    check(
+        name="Hook tests",
+        command="scripts/run-hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
     )
     if not checks:
         return

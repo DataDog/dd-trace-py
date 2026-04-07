@@ -166,6 +166,24 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder.
     ///
     /// The builder shouldn't be reused
