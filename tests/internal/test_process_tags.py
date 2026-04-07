@@ -183,9 +183,9 @@ def test_process_tags_without_reload():
         span = tracer._span_aggregator.writer.spans[0]
 
         assert span is not None
-        assert PROCESS_TAGS in span._meta
+        assert span._has_attribute(PROCESS_TAGS)
 
-        process_tags_meta = span._meta[PROCESS_TAGS]
+        process_tags_meta = span._get_str_attribute(PROCESS_TAGS)
         assert ENTRYPOINT_BASEDIR_TAG in process_tags_meta
         assert ENTRYPOINT_NAME_TAG in process_tags_meta
         assert ENTRYPOINT_TYPE_TAG in process_tags_meta
@@ -204,4 +204,4 @@ def test_process_tags_deactivated():
         span = tracer._span_aggregator.writer.spans[0]
 
         assert span is not None
-        assert PROCESS_TAGS not in span._meta
+        assert not span._has_attribute(PROCESS_TAGS)
