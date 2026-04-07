@@ -117,11 +117,13 @@ class BedrockIntegration(BaseLLMIntegration):
             else:
                 output_messages = self._extract_output_message(response)
 
+        model_id = ctx.get_item("model_id") or ctx.get_item("model_name") or ""
+
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=ctx.get_item("model_name") or "",
-            model_provider=ctx.get_item("model_provider") or "",
+            model_name=model_id,
+            model_provider="amazon_bedrock",
             input_messages=input_messages,
             metadata=metadata,
             metrics=usage_metrics if span_kind != "workflow" else {},
