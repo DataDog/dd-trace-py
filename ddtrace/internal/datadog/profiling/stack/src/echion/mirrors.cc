@@ -9,14 +9,13 @@ MirrorSet::create(PyObject* set_addr)
         return ErrorKind::MirrorError;
     }
 
-    auto size = set.mask + 1;
-    // Validate size before multiplication to prevent integer overflow.
-    // Without this check, a large mask value could cause size * sizeof(setentry)
-    // to wrap around to a small value, passing the MAX_MIRROR_SIZE check while
-    // the actual size used in iteration remains huge.
-    if (size <= 0 || size > MAX_MIRROR_ITEMS) {
+    // Validate mask before adding 1 then multiplying to prevent signed integer overflow.
+    // The overflow could happen on the +1, or on the *sizeof(setentry), which either
+    // way would wrap to a negative value and cause memory issues.
+    if (set.mask < 0 || set.mask >= MAX_MIRROR_ITEMS) {
         return ErrorKind::MirrorError;
     }
+    auto size = set.mask + 1;
 
     ssize_t table_size = static_cast<ssize_t>(size * sizeof(setentry));
     auto data = std::make_unique<char[]>(table_size);
