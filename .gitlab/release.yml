@@ -52,7 +52,7 @@ notify_datadog_release:
       aud: rapid-seceng-sit
   tags: [ "arch:amd64" ]
   before_script:
-    - apt-get update && apt-get install -y curl
+    - apt-get update && apt-get install --no-install-recommends -y curl
     - >-
       DD_STS_RESPONSE=$(curl -sS
       -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
@@ -62,7 +62,7 @@ notify_datadog_release:
   script:
     - |
       echo "Tag: ${CI_COMMIT_TAG} -> Commit SHA: ${CI_COMMIT_SHA}"
-      curl -X POST \
+      curl --retry 3 --retry-delay 2 --fail -X POST \
         -H "Content-Type: application/json" \
         -H "DD-API-KEY: ${DD_API_KEY}" \
         -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
