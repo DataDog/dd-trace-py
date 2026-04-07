@@ -35,7 +35,7 @@ class TestTracedCursor(TracerTestCase):
         # By default _dbm_propagator attribute should not be set or have a value of None.
         # DBM context propagation should be opt in.
         assert getattr(cfg, "_dbm_propagator", None) is None
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
         # Ensure dbm comment is not appended to sql statement
         traced_cursor.execute("SELECT * FROM db;")
         cursor.execute.assert_called_once_with("SELECT * FROM db;")
@@ -51,7 +51,7 @@ class TestTracedCursor(TracerTestCase):
     def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
 
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
@@ -133,7 +133,7 @@ class TestTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", service="my_service")
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
 
         def method():
             pass
@@ -156,7 +156,7 @@ class TestTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
 
         def method():
             pass
@@ -168,7 +168,7 @@ class TestTracedCursor(TracerTestCase):
     def test_default_service(self):
         cursor = self.cursor
         cursor.rowcount = 123
-        traced_cursor = TracedCursor(cursor, {})
+        traced_cursor = TracedCursor(cursor, cfg={})
 
         def method():
             pass
@@ -181,7 +181,7 @@ class TestTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
 
         def method():
             pass
@@ -197,7 +197,7 @@ class TestTracedCursor(TracerTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test")
-        traced_cursor = TracedCursor(cursor, cfg)
+        traced_cursor = TracedCursor(cursor, cfg=cfg)
 
         def method():
             pass
@@ -219,7 +219,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
@@ -228,7 +228,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.executemany.return_value = "__result__"
 
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
         assert "__result__" == traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
@@ -236,7 +236,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = "__result__"
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
         assert "__result__" == traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -252,14 +252,14 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchmany.return_value = "__result__"
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
         assert "__result__" == traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
     def test_correct_span_names(self):
         cursor = self.cursor
         cursor.rowcount = 0
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
 
         traced_cursor.execute("arg_1", kwarg1="kwarg1")
         self.assert_structure(dict(name="sql.query"))
@@ -289,7 +289,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", service="my_service")
-        traced_cursor = FetchTracedCursor(cursor, cfg, db_tags={"tag": "value_tag"})
+        traced_cursor = FetchTracedCursor(cursor, cfg=cfg, db_tags={"tag": "value_tag"})
 
         def method():
             pass
@@ -313,7 +313,7 @@ class TestFetchTracedCursor(TracerTestCase):
         # implementation with the generic dbapi traced cursor, we had to make sure to add the tag 'sql.rows' that was
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
 
         def method():
             pass
@@ -329,7 +329,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
         cursor = self.cursor
         cursor.rowcount = Unknown()
-        traced_cursor = FetchTracedCursor(cursor, {})
+        traced_cursor = FetchTracedCursor(cursor, cfg={})
 
         def method():
             pass
@@ -341,7 +341,7 @@ class TestFetchTracedCursor(TracerTestCase):
     def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor
         cursor.callproc.return_value = "gme --> moon"
-        traced_cursor = TracedCursor(cursor, {})
+        traced_cursor = TracedCursor(cursor, cfg={})
 
         traced_cursor.callproc("proc_name", "arg_1")
         spans = self.pop_spans()
@@ -370,7 +370,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor = self.cursor
         dbm_propagator = _DBM_Propagator(0, "query")
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagator=dbm_propagator)
-        traced_cursor = FetchTracedCursor(cursor, cfg)
+        traced_cursor = FetchTracedCursor(cursor, cfg=cfg)
 
         # The following operations should not generate DBM comments
         traced_cursor.fetchone()

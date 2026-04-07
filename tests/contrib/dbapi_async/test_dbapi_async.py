@@ -25,7 +25,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
@@ -38,7 +38,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         # By default _dbm_propagator attribute should not be set or have a value of None.
         # DBM context propagation should be opt in.
         assert getattr(cfg, "_dbm_propagator", None) is None
-        traced_cursor = TracedAsyncCursor(cursor, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, cfg=cfg)
         # Ensure dbm comment is not appended to sql statement
         await traced_cursor.execute("SELECT * FROM db;")
         cursor.execute.assert_called_once_with("SELECT * FROM db;")
@@ -55,7 +55,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     async def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
-        traced_cursor = TracedAsyncCursor(cursor, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, cfg=cfg)
 
         # The following operations should generate DBM comments
         await traced_cursor.execute("SELECT * FROM db;")
@@ -76,7 +76,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor.rowcount = 0
         cursor.executemany.return_value = "__result__"
 
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
@@ -86,7 +86,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = "__result__"
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -98,7 +98,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         cfg = IntegrationConfig(Config(), "db-test", service="dbapi_service")
-        async with TracedAsyncCursor(self.cursor, cfg) as cursor:
+        async with TracedAsyncCursor(self.cursor, cfg=cfg) as cursor:
             await cursor.execute("""select 'one' as x""")
             await cursor.execute("""select 'blah'""")
 
@@ -117,7 +117,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchall.return_value = "__result__"
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -126,7 +126,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchmany.return_value = "__result__"
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -134,7 +134,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     async def test_correct_span_names(self):
         cursor = self.cursor
         cursor.rowcount = 0
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
 
         await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         self.assert_structure(dict(name="sql.query"))
@@ -164,7 +164,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     async def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
 
         async def method():
             pass
@@ -187,7 +187,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
-        traced_cursor = TracedAsyncCursor(cursor, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, cfg=cfg)
 
         async def method():
             pass
@@ -200,7 +200,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
     async def test_default_service(self):
         cursor = self.cursor
         cursor.rowcount = 123
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
 
         async def method():
             pass
@@ -214,7 +214,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
-        traced_cursor = TracedAsyncCursor(cursor, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, cfg=cfg)
 
         async def method():
             pass
@@ -231,7 +231,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         cfg = IntegrationConfig(Config(), "db-test")
-        traced_cursor = TracedAsyncCursor(cursor, cfg)
+        traced_cursor = TracedAsyncCursor(cursor, cfg=cfg)
 
         async def method():
             pass
@@ -254,7 +254,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor.rowcount = 0
         cursor.execute.return_value = "__result__"
 
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
@@ -264,7 +264,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor.rowcount = 0
         cursor.executemany.return_value = "__result__"
 
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.executemany("__query__", "arg_1", kwarg1="kwarg1")
         cursor.executemany.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
@@ -273,7 +273,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = "__result__"
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchone("arg_1", kwarg1="kwarg1")
         cursor.fetchone.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -282,7 +282,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchall.return_value = "__result__"
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         cursor.fetchall.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -291,7 +291,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchmany.return_value = "__result__"
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
         assert "__result__" == await traced_cursor.fetchmany("arg_1", kwarg1="kwarg1")
         cursor.fetchmany.assert_called_once_with("arg_1", kwarg1="kwarg1")
 
@@ -299,7 +299,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
     async def test_correct_span_names(self):
         cursor = self.cursor
         cursor.rowcount = 0
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
 
         await traced_cursor.execute("arg_1", kwarg1="kwarg1")
         self.assert_structure(dict(name="sql.query"))
@@ -329,7 +329,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
     async def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
 
         async def method():
             pass
@@ -352,7 +352,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         # implementation with the generic dbapi traced cursor, we had to make sure to add the tag 'sql.rows' that was
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
 
         async def method():
             pass
@@ -369,7 +369,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
 
         cursor = self.cursor
         cursor.rowcount = Unknown()
-        traced_cursor = FetchTracedAsyncCursor(cursor, {})
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg={})
 
         async def method():
             pass
@@ -382,7 +382,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
     async def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor
         cursor.callproc.return_value = "gme --> moon"
-        traced_cursor = TracedAsyncCursor(cursor, {})
+        traced_cursor = TracedAsyncCursor(cursor, cfg={})
 
         await traced_cursor.callproc("proc_name", "arg_1")
         spans = self.pop_spans()
@@ -412,7 +412,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         dbm_propagator = _DBM_Propagator(0, "query")
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagator=dbm_propagator)
-        traced_cursor = FetchTracedAsyncCursor(cursor, cfg)
+        traced_cursor = FetchTracedAsyncCursor(cursor, cfg=cfg)
 
         # The following operations should not generate DBM comments
         await traced_cursor.fetchone()

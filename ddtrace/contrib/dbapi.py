@@ -8,6 +8,7 @@ from typing import Optional
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -49,23 +50,23 @@ def get_version():
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
-    def __init__(self, cursor, pin=None, cfg=None, db_tags: Optional[Mapping[str, str]] = None):
-        # Backward compatibility:
-        # - New style: TracedCursor(cursor, cfg)
-        # - Deprecated style: TracedCursor(cursor, pin, cfg)
-        if cfg is None:
-            cfg = pin
-            pin = None
-
+    def __init__(
+        self,
+        cursor,
+        pin: Optional[Pin] = None,
+        cfg: Optional[Mapping[str, str]] = None,
+        db_tags: Optional[Mapping[str, str]] = None,
+    ):
         if pin is not None:
             deprecate(
                 "The pin parameter is deprecated",
-                message="This parameter has no effect and will be removed in a future version.",
+                message="This parameter has no effect.",
                 category=DDTraceDeprecationWarning,
                 removal_version="5.0.0",
             )
 
         super(TracedCursor, self).__init__(cursor)
+
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
             cfg["_dbapi_span_name_prefix"]
@@ -252,7 +253,7 @@ class TracedConnection(wrapt.ObjectProxy):
         if pin is not None:
             deprecate(
                 "The pin parameter is deprecated",
-                message="This parameter has no effect and will be removed in a future version.",
+                message="This parameter has no effect.",
                 category=DDTraceDeprecationWarning,
                 removal_version="5.0.0",
             )

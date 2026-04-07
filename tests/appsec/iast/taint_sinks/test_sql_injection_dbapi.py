@@ -55,7 +55,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
@@ -78,7 +78,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
@@ -93,7 +93,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
@@ -109,7 +109,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
@@ -129,7 +129,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
