@@ -11,9 +11,9 @@ benchmark-serverless:
     - job: "upload all"
   rules:
     # AIDEV-NOTE: Temporary guard for 4.5 backports while serverless-tools setup fails independently of dd-trace-py changes.
-    - if: $CI_COMMIT_BRANCH == "4.5"
+    - if: $CI_COMMIT_REF_NAME == "4.5"
       when: never
-    - if: $CI_COMMIT_BRANCH =~ /backport-4\.5$/
+    - if: $CI_COMMIT_REF_NAME =~ /backport-4\.5$/
       when: never
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
