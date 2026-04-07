@@ -112,7 +112,7 @@ def override_env(env, replace_os_env=False):
 
 
 @contextlib.contextmanager
-def override_global_config(values):
+def override_global_config(values: dict[str, Any]):
     """
     Temporarily override an global configuration::
 
@@ -175,6 +175,7 @@ def override_global_config(values):
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
         "_model_lab_enabled",
+        "_trace_wrap_span_name_include_class",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
