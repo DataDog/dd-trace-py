@@ -68,23 +68,23 @@ CURRENT_OS = platform.system()
 # And when MinSizeRel or Release is used, we strip the debug symbols from the
 # wheels, see try_strip_symbols() below.
 COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
-if "DD_COMPILE_DEBUG" in os.environ:
+if "DD_COMPILE_DEBUG" in os.environ:  # sc-ignore
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
         "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)  # sc-ignore
 
-FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
+FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")  # sc-ignore
 if FAST_BUILD:
     print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
 else:
     print("INFO: DD_FAST_BUILD not enabled")
 
 if FAST_BUILD:
-    os.environ["DD_COMPILE_ABSEIL"] = "0"
+    os.environ["DD_COMPILE_ABSEIL"] = "0"  # sc-ignore
     # Trade binary size for compilation speed in dev environments by disabling
     # LTO and increasing codegen parallelism. Never used for release wheels.
     os.environ.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
@@ -94,9 +94,9 @@ if FAST_BUILD:
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
 # Retry configuration for downloads (handles GitHub API failures like 503, 429)
-DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
-DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
-DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
+DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))  # sc-ignore
+DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))  # sc-ignore
+DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))  # sc-ignore
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
@@ -109,9 +109,9 @@ DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
 VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
-DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
+DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))  # sc-ignore
 
-BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")  # sc-ignore
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -142,20 +142,20 @@ def interpose_sccache():
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
         # a wrapper
-        os.environ["DD_SCCACHE_PATH"] = str(sccache_path.resolve())
+        os.environ["DD_SCCACHE_PATH"] = str(sccache_path.resolve())  # sc-ignore
         os.environ["RUSTC_WRAPPER"] = str(sccache_path.resolve())
         cc_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CC", ""), "cc", "gcc", "clang"] if shutil.which(cmd)), None
         )
         if cc_path:
-            os.environ["DD_CC_OLD"] = cc_path
+            os.environ["DD_CC_OLD"] = cc_path  # sc-ignore
             os.environ["CC"] = str(sccache_path) + " " + str(cc_path)
 
         cxx_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
         )
         if cxx_path:
-            os.environ["DD_CXX_OLD"] = cxx_path
+            os.environ["DD_CXX_OLD"] = cxx_path  # sc-ignore
             os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
 
 
@@ -442,8 +442,8 @@ class CustomBuildRust(build_rust):
 
 
 class LibraryDownload:
-    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
-    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
+    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))  # sc-ignore
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")  # sc-ignore
 
     name = None
     download_dir = Path.cwd()
@@ -720,7 +720,7 @@ class CleanLibraries(CleanCommand):
 
 
 class CustomBuildExt(build_ext):
-    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")  # sc-ignore
 
     def run(self):
         self.build_rust()
@@ -943,12 +943,12 @@ class CustomBuildExt(build_ext):
         ]
 
         # Add sccache support if available
-        sccache_path = os.getenv("DD_SCCACHE_PATH")
+        sccache_path = os.getenv("DD_SCCACHE_PATH")  # sc-ignore
         if sccache_path:
             cmake_args += [
-                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",
+                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",  # sc-ignore
                 f"-DCMAKE_C_COMPILER_LAUNCHER={sccache_path}",
-                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",
+                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",  # sc-ignore
                 f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
             ]
 
@@ -1100,10 +1100,10 @@ class DebugMetadata:
             for n, v in [
                 ("CARGO_BUILD_JOBS", os.getenv("CARGO_BUILD_JOBS", "unset")),
                 ("CMAKE_BUILD_PARALLEL_LEVEL", os.getenv("CMAKE_BUILD_PARALLEL_LEVEL", "unset")),
-                ("DD_COMPILE_MODE", COMPILE_MODE),
+                ("DD_COMPILE_MODE", COMPILE_MODE),  # sc-ignore
                 ("DD_USE_SCCACHE", SCCACHE_COMPILE),
-                ("DD_FAST_BUILD", FAST_BUILD),
-                ("DD_CMAKE_INCREMENTAL_BUILD", CustomBuildExt.INCREMENTAL),
+                ("DD_FAST_BUILD", FAST_BUILD),  # sc-ignore
+                ("DD_CMAKE_INCREMENTAL_BUILD", CustomBuildExt.INCREMENTAL),  # sc-ignore
             ]:
                 print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
@@ -1340,7 +1340,7 @@ else:
 
 
 cython_exts = []
-if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
+if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):  # sc-ignore
     cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
@@ -1397,7 +1397,7 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             "PY_MICRO_VERSION": sys.version_info.micro,
             "PY_VERSION_HEX": sys.hexversion,
         },
-        force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
+        force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",  # sc-ignore
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
         cache=True,

@@ -955,7 +955,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_METRICS_EXPORTER"] = "otlp"
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
-    env["OTEL_UNSUPPORTED_CONFIG"] = "value"
+    env["OTEL_UNSUPPORTED_CONFIG"] = "value"  # sc-ignore
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)

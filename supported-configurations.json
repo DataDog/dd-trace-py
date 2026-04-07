@@ -1226,6 +1226,13 @@
         "default": null
       }
     ],
+    "DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "DD_DJANGO_CACHE_SERVICE_NAME": [
       {
         "implementation": "A",
@@ -1962,6 +1969,13 @@
       }
     ],
     "DD_IAST_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
+    "DD_IAST_DEDUPLICATE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -3680,6 +3694,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TELEMETRY_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
       }
     ],
     "DD_TELEMETRY_PORT": [

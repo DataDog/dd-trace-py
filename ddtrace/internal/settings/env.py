@@ -82,6 +82,7 @@ class EnvConfig(MutableMapping):
         return os.environ[key]
 
     def __setitem__(self, key: str, value: str) -> None:
+        _validate_key(key)
         os.environ[key] = value
 
     def __delitem__(self, key: str) -> None:
