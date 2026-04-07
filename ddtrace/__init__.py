@@ -28,6 +28,9 @@ from .version import __version__
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
+# Register tracing subscribers before DSM handlers so spans exist when DSM handlers run.
+import ddtrace._trace.subscribers  # noqa: E402, F401
+
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: F401
 
