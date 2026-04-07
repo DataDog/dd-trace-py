@@ -1483,6 +1483,84 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 pass
 
 
+def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
+    _start_span(ctx)
+
+    span = ctx.span
+    client = ctx.get_item("client")
+    request_params = ctx.get_item("request_params")
+    request = ctx.get_item("request")
+    request_data = ctx.get_item("request_data")
+
+    _set_azure_cosmos_request_tags(span, client, request_params, request, request_data)
+
+
+def _set_azure_cosmos_request_tags(
+    span,
+    client,
+    request_params,
+    request,
+    request_data,
+) -> None:
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(db.SYSTEM, "cosmosdb")
+    span._set_attribute(COMPONENT, config.azure_cosmos.integration_name)
+    span._set_attribute(net.TARGET_HOST, client.url_connection)
+    span._set_attribute(http.USER_AGENT, client._user_agent)
+    connection_mode = client.connection_policy.ConnectionMode
+    if connection_mode == 0:
+        span._set_attribute("cosmosdb.connection.mode", "gateway")
+    elif connection_mode == 1:
+        span._set_attribute("cosmosdb.connection.mode", "direct")
+    else:
+        span._set_attribute("cosmosdb.connection.mode", "other")
+
+    resource_link = request.url
+    parsed = parse.urlsplit(resource_link)
+    if parsed.path:
+        resource_link = parsed.path
+
+    span.resource = request_params.operation_type + " " + resource_link
+    if (
+        request_params.operation_type == "Create"
+        and request_params.resource_type == "dbs"
+        and (request_data.get("id") is not None)
+    ):
+        span._set_attribute(db.NAME, request_data["id"])
+
+    if resource_link:
+        if resource_link.startswith("/") and len(resource_link) > 1:
+            resource_link = resource_link[1:]
+
+        parts = resource_link.split("/")
+
+        if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
+            span._set_attribute(db.NAME, parts[1])
+            if len(parts) >= 4:
+                if parts[2].lower() == "colls" and parts[3].lower() != "":
+                    span._set_attribute("cosmosdb.container", parts[3])
+
+
+def _on_azure_cosmos_request_finish(
+    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
+):
+    span = ctx.span
+    sub_status = ctx.get_item("sub_status_code")
+    _, exception, _ = exc_info
+
+    if sub_status:
+        span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+    if exception:
+        sub_status = getattr(exception, "sub_status", None)
+        if sub_status:
+            span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+        status_code = getattr(exception, "status_code", None)
+        if status_code:
+            span._set_attribute(http.STATUS_CODE, status_code)
+
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1532,6 +1610,7 @@ def listen():
     core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("context.started.azure_cosmos.request", _on_azure_cosmos_request_start)
     core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
     core.on("azure.durable_functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
@@ -1683,6 +1762,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.azure_cosmos.request", _on_azure_cosmos_request_finish)
 
 
 listen()
