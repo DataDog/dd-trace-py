@@ -6,6 +6,7 @@ benchmark-serverless:
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
+    ref: 7b51a92c8c9e73c6a5037ef9a365c7576ee4660b
   needs:
     - job: "upload all"
   rules:
