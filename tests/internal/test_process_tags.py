@@ -3,20 +3,23 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.internal import process_tags
-from ddtrace.internal.constants import PROCESS_TAGS
-from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
-from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import normalize_tag_value
-from tests.subprocesstest import run_in_subprocess
-from tests.utils import TracerTestCase
+from tests.utils import override_global_config
 from tests.utils import process_tag_reload
 
 
 TEST_SCRIPT_PATH = "/path/to/test_script.py"
 TEST_WORKDIR_PATH = "/path/to/workdir"
+
+
+@pytest.fixture(autouse=True)
+def _restore_process_tags():
+    original = process_tags.process_tags
+    original_list = process_tags.process_tags_list
+    yield
+    process_tags.process_tags = original
+    process_tags.process_tags_list = original_list
 
 
 @pytest.mark.parametrize(
@@ -82,104 +85,123 @@ def test_compute_process_tag_excluded_values(excluded_value):
     assert result is None
 
 
-class TestProcessTags(TracerTestCase):
-    def setUp(self):
-        super(TestProcessTags, self).setUp()
-        self._original_process_tags = process_tags.process_tags
-        self._original_process_tags_list = process_tags.process_tags_list
+@pytest.mark.snapshot
+def test_process_tags_activated(tracer):
+    with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+        process_tag_reload()
 
-    def tearDown(self):
-        process_tags.process_tags = self._original_process_tags
-        process_tags.process_tags_list = self._original_process_tags_list
-        super().tearDown()
-
-    @pytest.mark.snapshot
-    def test_process_tags_activated(self):
-        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            process_tag_reload()
-
-            with self.tracer.trace("parent"):
-                with self.tracer.trace("child"):
-                    pass
-
-    @pytest.mark.snapshot
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="foobar"))
-    def test_process_tags_user_defined_service(self):
-        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            process_tag_reload()
-
-            with self.tracer.trace("parent"):
-                with self.tracer.trace("child"):
-                    pass
-
-    @pytest.mark.snapshot
-    def test_process_tags_edge_case(self):
-        with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            process_tag_reload()
-
-            with self.tracer.trace("span"):
+        with tracer.trace("parent"):
+            with tracer.trace("child"):
                 pass
 
-    @pytest.mark.snapshot
-    def test_process_tags_error(self):
-        with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            with self.override_global_config(dict(_telemetry_enabled=False)):
-                with patch("ddtrace.internal.process_tags.log") as mock_log:
-                    process_tag_reload()
 
-                    with self.tracer.trace("span"):
-                        pass
+@pytest.mark.snapshot
+@pytest.mark.subprocess(env=dict(DD_SERVICE="foobar"))
+def test_process_tags_user_defined_service():
+    from unittest.mock import patch
 
-                    # Check if debug log was called
-                    assert mock_log.debug.call_count == 2
-                    call_args1 = mock_log.debug.call_args_list[0][0]
-                    call_args2 = mock_log.debug.call_args_list[1][0]
+    from tests.utils import process_tag_reload
+    from tests.utils import scoped_tracer
 
-                    assert "failed to get process tag" in call_args1[0], (
-                        f"Expected error message not found. Got: {call_args1[0]}"
-                    )
-                    assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
-
-                    assert "failed to get process tag" in call_args2[0], (
-                        f"Expected error message not found. Got: {call_args2[0]}"
-                    )
-                    assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
-
-    @pytest.mark.snapshot
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
-    def test_process_tags_partial_flush(self):
-        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+    with scoped_tracer() as tracer:
+        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
             process_tag_reload()
 
-            with self.override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
-                with self.tracer.trace("parent"):
-                    with self.tracer.trace("child1"):
-                        pass
-                    with self.tracer.trace("child2"):
-                        pass
+            with tracer.trace("parent"):
+                with tracer.trace("child"):
+                    pass
 
-    @run_in_subprocess()
-    def test_process_tags_without_reload(self):
-        with self.tracer.trace("test"):
+
+@pytest.mark.snapshot
+def test_process_tags_edge_case(tracer):
+    with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+        process_tag_reload()
+
+        with tracer.trace("span"):
             pass
 
-        span = self.get_spans()[0]
+
+@pytest.mark.snapshot
+def test_process_tags_error(tracer):
+    with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+        with override_global_config(dict(_telemetry_enabled=False)):
+            with patch("ddtrace.internal.process_tags.log") as mock_log:
+                process_tag_reload()
+
+                with tracer.trace("span"):
+                    pass
+
+                assert mock_log.debug.call_count == 2
+                call_args1 = mock_log.debug.call_args_list[0][0]
+                call_args2 = mock_log.debug.call_args_list[1][0]
+
+                assert "failed to get process tag" in call_args1[0], (
+                    f"Expected error message not found. Got: {call_args1[0]}"
+                )
+                assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
+
+                assert "failed to get process tag" in call_args2[0], (
+                    f"Expected error message not found. Got: {call_args2[0]}"
+                )
+                assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
+
+
+@pytest.mark.snapshot
+@pytest.mark.subprocess(env=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
+def test_process_tags_partial_flush():
+    from unittest.mock import patch
+
+    from tests.utils import override_global_config
+    from tests.utils import process_tag_reload
+    from tests.utils import scoped_tracer
+
+    with scoped_tracer() as tracer:
+        with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+            process_tag_reload()
+
+            with override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
+                with tracer.trace("parent"):
+                    with tracer.trace("child1"):
+                        pass
+                    with tracer.trace("child2"):
+                        pass
+
+
+@pytest.mark.subprocess()
+def test_process_tags_without_reload():
+    from ddtrace.internal.constants import PROCESS_TAGS
+    from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
+    from tests.utils import scoped_tracer
+
+    with scoped_tracer() as tracer:
+        with tracer.trace("test"):
+            pass
+
+        span = tracer._span_aggregator.writer.spans[0]
 
         assert span is not None
         assert span._has_attribute(PROCESS_TAGS)
 
-        process_tags = span._get_str_attribute(PROCESS_TAGS)
-        assert ENTRYPOINT_BASEDIR_TAG in process_tags
-        assert ENTRYPOINT_NAME_TAG in process_tags
-        assert ENTRYPOINT_TYPE_TAG in process_tags
-        assert ENTRYPOINT_WORKDIR_TAG in process_tags
+        process_tags_meta = span._get_str_attribute(PROCESS_TAGS)
+        assert ENTRYPOINT_BASEDIR_TAG in process_tags_meta
+        assert ENTRYPOINT_NAME_TAG in process_tags_meta
+        assert ENTRYPOINT_TYPE_TAG in process_tags_meta
+        assert ENTRYPOINT_WORKDIR_TAG in process_tags_meta
 
-    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False"))
-    def test_process_tags_deactivated(self):
-        with self.tracer.trace("test"):
+
+@pytest.mark.subprocess(env=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False"))
+def test_process_tags_deactivated():
+    from ddtrace.internal.constants import PROCESS_TAGS
+    from tests.utils import scoped_tracer
+
+    with scoped_tracer() as tracer:
+        with tracer.trace("test"):
             pass
 
-        span = self.get_spans()[0]
+        span = tracer._span_aggregator.writer.spans[0]
 
         assert span is not None
         assert not span._has_attribute(PROCESS_TAGS)
