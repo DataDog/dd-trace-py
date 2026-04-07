@@ -167,8 +167,6 @@ class TestLLMObsClaudeAgentSdk:
             metadata={
                 "_dd": {
                     "agent_manifest": expected_agent_manifest(),
-                    "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                    "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
                 },
             },
             token_metrics={
@@ -412,8 +410,6 @@ class TestLLMObsClaudeAgentSdk:
             metadata={
                 "_dd": {
                     "agent_manifest": expected_agent_manifest(),
-                    "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                    "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
                 },
             },
             token_metrics={
