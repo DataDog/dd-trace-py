@@ -1,0 +1,3 @@
+fixes:
+  - |
+    internal: A crash that could occur post-fork in fork-heavy applications has been fixed.
