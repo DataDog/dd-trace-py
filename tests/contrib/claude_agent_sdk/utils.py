@@ -8,6 +8,7 @@ from claude_agent_sdk import AssistantMessage
 from claude_agent_sdk import ResultMessage
 from claude_agent_sdk import SystemMessage
 from claude_agent_sdk import TextBlock
+from claude_agent_sdk import ToolResultBlock
 from claude_agent_sdk import ToolUseBlock
 from claude_agent_sdk import UserMessage
 
@@ -191,6 +192,23 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_GREP_TOOL_ASSISTANT,
     MOCK_RESULT_MESSAGE,
 ]
+
+MOCK_TOOL_RESULT_READ_ID = "toolu_01MultiTurnReadResult"
+MOCK_TOOL_RESULT_USER_READ = UserMessage(
+    content=[ToolResultBlock(tool_use_id=MOCK_READ_TOOL_ID, content="myhost.local")]
+)
+MOCK_FINAL_ASSISTANT_TEXT = "The hostname is myhost.local"
+MOCK_FINAL_ASSISTANT = create_mock_assistant_message(MOCK_FINAL_ASSISTANT_TEXT)
+MOCK_MULTI_TURN_RESULT_MESSAGE = create_mock_result_message(result=MOCK_FINAL_ASSISTANT_TEXT)
+
+MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_TOOL_USE_ASSISTANT,        # AssistantMessage with ToolUseBlock → LLM span #1 + tool span
+    MOCK_TOOL_RESULT_USER_READ,     # UserMessage with ToolResultBlock → finishes tool span
+    MOCK_FINAL_ASSISTANT,           # AssistantMessage with text → LLM span #2
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
 
 MOCK_STRUCTURED_OUTPUT = {"answer": 4, "unit": "integer"}
 MOCK_STRUCTURED_RESULT_MESSAGE = create_mock_result_message(

@@ -37,8 +37,24 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     ) -> None:
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
+        elif operation == "llm":
+            self._llmobs_set_llm_tags(span, response)
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
+
+    def _llmobs_set_llm_tags(self, span: Span, response: Optional[Any]) -> None:
+        model = (_get_attr(response, "model", "") or "") if response is not None else ""
+        output_messages: list[Message] = []
+        if response is not None:
+            content = _get_attr(response, "content", []) or []
+            output_messages = self._parse_content_blocks(content, "assistant")
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            model_name=model,
+            model_provider="anthropic",
+            output_messages=output_messages or [Message(content="")],
+        )
 
     def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
         tool_input = kwargs.get("tool_input", {})

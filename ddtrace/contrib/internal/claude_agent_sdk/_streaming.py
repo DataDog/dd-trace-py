@@ -76,11 +76,36 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.instance = instance
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
+        self.current_llm_span = None
+
+    def _create_llm_span(self) -> None:
+        self.current_llm_span = self.integration.trace(
+            "claude_agent_sdk.llm",
+            submit_to_llmobs=True,
+            span_name="claude_agent_sdk.llm",
+            instance=self.instance,
+        )
+
+    def _finalize_llm_span(self, chunk: Any) -> None:
+        if self.current_llm_span is None:
+            return
+        span = self.current_llm_span
+        self.current_llm_span = None
+        self.integration.llmobs_set_tags(span, args=[], kwargs={}, response=chunk, operation="llm")
+        span.finish()
 
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
+        chunk_type = type(chunk).__name__
 
-        if type(chunk).__name__ == "ResultMessage" and self.instance and self.context is None:
+        if chunk_type == "AssistantMessage":
+            # Open and immediately close an LLM span so that tool spans created
+            # below are siblings of it (children of the agent span), not children of the LLM span.
+            # This mirrors the pattern in DataDog/dd-source#387760.
+            self._create_llm_span()
+            self._finalize_llm_span(chunk)
+
+        if chunk_type == "ResultMessage" and self.instance and self.context is None:
             self.context = await _retrieve_context(self.instance)
 
         # Handle tool use and result blocks for tool span creation
@@ -134,6 +159,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
     def finalize_stream(self, exception=None):
         try:
+            if self.current_llm_span is not None:
+                self._finalize_llm_span(None)
+
             model = _extract_model_from_response(self.chunks)
             if model:
                 self.primary_span._set_attribute("claude_agent_sdk.request.model", model)

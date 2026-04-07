@@ -7,11 +7,14 @@ from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
@@ -23,11 +26,25 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        # LLM span is emitted before agent span; find it by name
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -44,8 +61,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_with_options(self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans):
         prompt = "Test prompt with options"
@@ -54,11 +70,24 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt, options=options):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -79,8 +108,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_with_structured_output(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_structured_output, test_spans
@@ -89,11 +117,24 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -110,8 +151,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_error_no_output(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_error, test_spans
@@ -124,6 +164,7 @@ class TestLLMObsClaudeAgentSdk:
 
         span = test_spans.pop_traces()[0][0]
         assert span.error == 1
+        # Error fires before any AssistantMessage arrives → no LLM span created
         assert len(llmobs_events) == 1
 
         expected_event = _expected_llmobs_non_llm_span_event(
@@ -148,11 +189,24 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in mock_client.receive_messages():
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -178,8 +232,7 @@ class TestLLMObsClaudeAgentSdk:
             },
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_with_read_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_use, test_spans
@@ -189,10 +242,34 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = test_spans.pop_traces()[0]
-        assert len(llmobs_events) == 2
-
         agent_span = spans[0]
-        tool_span = spans[1]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        assert len(llmobs_events) == 3
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "Read",
+                            "arguments": {"file_path": "/etc/hostname"},
+                            "tool_id": MOCK_READ_TOOL_ID,
+                            "type": "tool_use",
+                        }
+                    ],
+                }
+            ],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
 
         expected_tool_event = _expected_llmobs_non_llm_span_event(
             tool_span,
@@ -202,7 +279,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={"tool_id": MOCK_READ_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[0] == expected_tool_event
+        assert llmobs_events[1] == expected_tool_event
 
         expected_agent_event = _expected_llmobs_non_llm_span_event(
             agent_span,
@@ -233,7 +310,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[1] == expected_agent_event
+        assert llmobs_events[2] == expected_agent_event
 
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_bash_tool, test_spans
@@ -243,10 +320,34 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = test_spans.pop_traces()[0]
-        assert len(llmobs_events) == 2
-
         agent_span = spans[0]
-        tool_span = spans[1]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        assert len(llmobs_events) == 3
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "Bash",
+                            "arguments": MOCK_BASH_TOOL_INPUT,
+                            "tool_id": MOCK_BASH_TOOL_ID,
+                            "type": "tool_use",
+                        }
+                    ],
+                }
+            ],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
 
         expected_tool_event = _expected_llmobs_non_llm_span_event(
             tool_span,
@@ -256,7 +357,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={"tool_id": MOCK_BASH_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[0] == expected_tool_event
+        assert llmobs_events[1] == expected_tool_event
 
         expected_agent_event = _expected_llmobs_non_llm_span_event(
             agent_span,
@@ -287,7 +388,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[1] == expected_agent_event
+        assert llmobs_events[2] == expected_agent_event
 
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_grep_tool, test_spans
@@ -297,10 +398,34 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = test_spans.pop_traces()[0]
-        assert len(llmobs_events) == 2
-
         agent_span = spans[0]
-        tool_span = spans[1]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        assert len(llmobs_events) == 3
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "Grep",
+                            "arguments": MOCK_GREP_TOOL_INPUT,
+                            "tool_id": MOCK_GREP_TOOL_ID,
+                            "type": "tool_use",
+                        }
+                    ],
+                }
+            ],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
 
         expected_tool_event = _expected_llmobs_non_llm_span_event(
             tool_span,
@@ -310,7 +435,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={"tool_id": MOCK_GREP_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[0] == expected_tool_event
+        assert llmobs_events[1] == expected_tool_event
 
         expected_agent_event = _expected_llmobs_non_llm_span_event(
             agent_span,
@@ -341,7 +466,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-        assert llmobs_events[1] == expected_agent_event
+        assert llmobs_events[2] == expected_agent_event
 
     async def test_llmobs_query_with_async_iterable_prompt(
         self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
@@ -353,11 +478,24 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt_generator()):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": "Hello", "role": "user"}, {"content": "What is 2+2?", "role": "user"}]),
             output_value=safe_json(
@@ -374,8 +512,7 @@ class TestLLMObsClaudeAgentSdk:
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_client_query_with_async_iterable_prompt(self, mock_client, llmobs_events, test_spans):
         async def prompt_generator():
@@ -386,11 +523,24 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in mock_client.receive_messages():
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": "4", "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json(
                 [
@@ -421,5 +571,78 @@ class TestLLMObsClaudeAgentSdk:
             },
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
+        assert llmobs_events[1] == expected_agent_event
 
-        assert llmobs_events[0] == expected_event
+    async def test_llmobs_multi_turn_produces_two_llm_spans(
+        self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_use_with_followup, test_spans
+    ):
+        """Multi-turn: AssistantMessage(tool) → UserMessage(result) → AssistantMessage(text)
+        should produce two LLM spans + one tool span + one agent span."""
+        prompt = "Read /etc/hostname and tell me the hostname."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        # 2 LLM spans + 1 tool span + 1 agent span = 4 events
+        assert len(llmobs_events) == 4
+        assert len(llm_spans) == 2
+
+        # Both LLM spans are children of the agent span
+        for llm_span in llm_spans:
+            assert llm_span.parent_id == agent_span.span_id
+
+        # Tool span is a child of the agent span (sibling of LLM spans)
+        assert tool_span.parent_id == agent_span.span_id
+
+        # First LLM span: tool call output
+        expected_llm1_event = _expected_llmobs_llm_span_event(
+            llm_spans[0],
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "Read",
+                            "arguments": {"file_path": "/etc/hostname"},
+                            "tool_id": MOCK_READ_TOOL_ID,
+                            "type": "tool_use",
+                        }
+                    ],
+                }
+            ],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm1_event
+
+        # Tool span
+        expected_tool_event = _expected_llmobs_non_llm_span_event(
+            tool_span,
+            span_kind="tool",
+            input_value=safe_json({"file_path": "/etc/hostname"}),
+            output_value="myhost.local",
+            metadata={"tool_id": MOCK_READ_TOOL_ID},
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[1] == expected_tool_event
+
+        # Second LLM span: text response
+        expected_llm2_event = _expected_llmobs_llm_span_event(
+            llm_spans[1],
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            output_messages=[{"content": MOCK_FINAL_ASSISTANT_TEXT, "role": "assistant"}],
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[2] == expected_llm2_event
+
+        # Agent span (last event)
+        assert llmobs_events[3]["meta"]["span"]["kind"] == "agent"
