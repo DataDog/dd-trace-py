@@ -740,10 +740,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            if flask_version > (2, 0):
-                json_data = request.json
-            else:
-                json_data = json.loads(request.data)
+            json_data = request.json
             value = json_data.get("json_body")
             assert value == "master"
 
@@ -807,10 +804,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            if flask_version > (2, 0):
-                json_data = request.json
-            else:
-                json_data = json.loads(request.data)
+            json_data = request.json
             value = json_data.get("body").get("body2").get("body3")
             assert value == "master"
             assert is_pyobject_tainted(value)
@@ -873,10 +867,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            if flask_version > (2, 0):
-                json_data = request.json
-            else:
-                json_data = json.loads(request.data)
+            json_data = request.json
             value = json_data.get("body").get("body2").get("body3")[3]
             assert value == "master"
             assert is_pyobject_tainted(value)
@@ -939,10 +930,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
 
-            if flask_version > (2, 0):
-                json_data = request.json
-            else:
-                json_data = json.loads(request.data)
+            json_data = request.json
             value = json_data.get("body").get("body2").get("body3")[3].get("body4")
             assert value == "master"
             assert is_pyobject_tainted(value)
@@ -1018,10 +1006,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     else:
                         assert not is_pyobject_tainted(data), f"{parent_key}.{data} taint error"
 
-            if flask_version > (2, 0):
-                request_json = request.json
-            else:
-                request_json = json.loads(request.data)
+            request_json = request.json
 
             iterate_json(request_json)
 
@@ -1148,10 +1133,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            if flask_version > (2, 0):
-                json_data = request.json
-            else:
-                json_data = json.loads(request.data)
+            json_data = request.json
             value = json_data.get("json_body")
             assert value == "master"
 
