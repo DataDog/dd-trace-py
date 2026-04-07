@@ -120,9 +120,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
+        raw_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
             args, kwargs, 0, "message", optional=True
         )
+        # AIDEV-NOTE: In pydantic_ai 1.x, execute_tool_call receives a ValidatedToolCall (which
+        # has .call: ToolCallPart and .tool: ToolsetTool) rather than a bare ToolCallPart.
+        # Detect and unwrap it so the rest of the tag logic works uniformly.
+        if raw_call is not None and hasattr(raw_call, "args_valid"):
+            if tool_instance is None:
+                tool_instance = getattr(raw_call, "tool", None)
+            tool_call = getattr(raw_call, "call", raw_call)
+        else:
+            tool_call = raw_call
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         tool_id = ""
