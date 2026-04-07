@@ -40,14 +40,11 @@ def config_key(payload: Payload) -> int:
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
-    def __init__(self) -> None:
-        """Initialize the APM tracing callback with empty configuration state."""
-        self._config_map: dict[str, Payload] = {}
-
-    def _get_chained_lib_config(self) -> t.ChainMap:
+    @staticmethod
+    def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""
         # Get items in insertion order, then sort by precedence while preserving order for ties
-        items_with_order = [(i, p) for i, p in enumerate(self._config_map.values())]
+        items_with_order = [(i, p) for i, p in enumerate(config_map.values())]
 
         return ChainMap(
             *(
@@ -67,13 +64,8 @@ class APMTracingCallback(RCCallback):
             )
         )
 
-    def __call__(self, payloads: t.Sequence[Payload]) -> None:
-        """Process APM tracing configuration payloads.
-
-        Args:
-            payloads: Sequence of configuration payloads to process
-        """
-        self._config_map = {}
+    def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
+        config_map: dict[str, Payload] = {}
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -81,9 +73,9 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
-            if payload.content is None and payload.metadata.id in self._config_map:
+            if payload.content is None and payload.metadata.id in config_map:
                 log.debug("Deleting config %s", payload.metadata.id)
-                self._config_map.pop(payload.metadata.id)
+                config_map.pop(payload.metadata.id)
                 continue
 
             service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
@@ -98,9 +90,17 @@ class APMTracingCallback(RCCallback):
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
-            self._config_map[payload.metadata.id] = payload
+            config_map[payload.metadata.id] = payload
+        return self._get_chained_lib_config(config_map)
 
-        dispatch("apm-tracing.rc", (dict(self._get_chained_lib_config()), config))
+    def __call__(self, payloads: t.Sequence[Payload]) -> None:
+        """Process APM tracing configuration payloads.
+
+        Args:
+            payloads: Sequence of configuration payloads to process
+        """
+        chain = self._process_payloads(payloads)
+        dispatch("apm-tracing.rc", (dict(chain), config))
 
 
 def post_preload():

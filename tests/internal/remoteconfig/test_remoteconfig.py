@@ -501,30 +501,22 @@ def test_apm_tracing_precedence_ordering(remote_config_worker):
 
         # Send all payloads to the callback
         all_payloads = [service_payload, env_payload, cluster_payload, wildcard_payload]
-        callback(all_payloads)
-
         # Get the chained configuration
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads(all_payloads)
 
         # The first (highest precedence) config should be from the service-specific payload
         assert chained_config["tracing_enabled"] == "service_config"
 
         # Test that removing the service-specific config promotes the env config
-        callback._config_map.clear()
-        callback([env_payload, cluster_payload, wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([env_payload, cluster_payload, wildcard_payload])
         assert chained_config["tracing_enabled"] == "env_config"
 
         # Test that removing the env config promotes the cluster config
-        callback._config_map.clear()
-        callback([cluster_payload, wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([cluster_payload, wildcard_payload])
         assert chained_config["tracing_enabled"] == "cluster_config"
 
         # Test that only wildcard config remains at the end
-        callback._config_map.clear()
-        callback([wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([wildcard_payload])
         assert chained_config["tracing_enabled"] == "wildcard_config"
 
     finally:
@@ -579,11 +571,7 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
             "sampling_rules_config",
         )
 
-        # Apply the sampling rules configuration
-        callback([sampling_rules_payload])
-
-        # Get the chained configuration and verify sampling rules are set
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([sampling_rules_payload])
         assert "tracing_sampling_rules" in chained_config
         sampling_rules = chained_config["tracing_sampling_rules"]
         assert len(sampling_rules) == 2
@@ -604,11 +592,9 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
             "none_sampling_rules_config",
         )
 
-        # Apply the None sampling rules configuration
-        callback([none_sampling_rules_payload, sampling_rules_payload])
-
-        # Get the chained configuration and verify sampling rules are now None
-        chained_config = callback._get_chained_lib_config()
+        # Same service_target → tie-break by payload index: higher index sorts first in ChainMap
+        # (see APMTracingCallback._get_chained_lib_config), so put the None override last.
+        chained_config = callback._process_payloads([sampling_rules_payload, none_sampling_rules_payload])
         assert "tracing_sampling_rules" in chained_config
         assert chained_config["tracing_sampling_rules"] is None
 
