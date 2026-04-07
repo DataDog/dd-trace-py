@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run all hook unit tests under hooks/tests/.
+set -euo pipefail
+
+for test_script in hooks/tests/test-*.sh; do
+    sh "$test_script"
+done
