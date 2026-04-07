@@ -176,7 +176,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
                 score = _get_attr(node_with_score, "score", None)
                 doc = Document(text=text)
                 if score is not None:
-                    doc["score"] = float(score)
+                    try:
+                        doc["score"] = float(score)
+                    except (TypeError, ValueError):
+                        log.debug("Failed to convert score to float: %s", score)
                 node_id = _get_attr(node_with_score, "node_id", None)
                 if node_id is not None:
                     doc["id"] = str(node_id)
