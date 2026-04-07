@@ -1010,6 +1010,9 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
             )
         if not any(tool_definition.values()):
             continue
+        if _get_attr(tool, "defer_loading", False):
+            tool_definition["description"] = ""
+            tool_definition["schema"] = {}
         tool_definitions.append(tool_definition)
     return tool_definitions
 

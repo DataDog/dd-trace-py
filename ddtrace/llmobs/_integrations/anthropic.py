@@ -271,8 +271,11 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         tool_definitions = []
         for tool in tools:
+            is_deferred = bool(_get_attr(tool, "defer_loading", False))
             tool_def = ToolDefinition(
-                name=tool.get("name", ""), description=tool.get("description", ""), schema=tool.get("input_schema", {})
+                name=tool.get("name", ""),
+                description="" if is_deferred else tool.get("description", ""),
+                schema={} if is_deferred else tool.get("input_schema", {}),
             )
             tool_definitions.append(tool_def)
         return tool_definitions
