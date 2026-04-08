@@ -1,4 +1,9 @@
+from collections.abc import Awaitable
+from collections.abc import Callable
+from collections.abc import Mapping
 import json
+from typing import Any
+from typing import Optional
 
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
@@ -11,6 +16,7 @@ from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
@@ -20,14 +26,16 @@ import ddtrace.vendor.xmltodict as xmltodict
 
 logger = get_logger(__name__)
 
+_ASGIReceive = Callable[[], Awaitable[Optional[dict[str, Any]]]]
 
-async def _on_asgi_request_parse_body(receive, headers):
+
+async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[str, str]) -> tuple[_ASGIReceive, Any]:
     if asm_config._asm_enabled:
         # This must not be imported globally due to 3rd party patching timeline
         import asyncio
 
         more_body = True
-        body_parts = []
+        body_parts: list[bytes] = []
         try:
             while more_body:
                 data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
@@ -42,7 +50,7 @@ async def _on_asgi_request_parse_body(receive, headers):
             return receive, None
         body = b"".join(body_parts)
 
-        async def receive_wrapped(once=[True]):
+        async def receive_wrapped(once: list[bool] = [True]) -> Optional[dict[str, Any]]:
             if once[0]:
                 once[0] = False
                 return {"type": "http.request", "body": body, "more_body": more_body}
@@ -68,7 +76,7 @@ async def _on_asgi_request_parse_body(receive, headers):
     return receive, None
 
 
-def _asgi_make_block_content(ctx, url):
+def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -109,7 +117,7 @@ def _asgi_make_block_content(ctx, url):
     return status, resp_headers, content
 
 
-def listen():
+def listen() -> None:
     core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
 

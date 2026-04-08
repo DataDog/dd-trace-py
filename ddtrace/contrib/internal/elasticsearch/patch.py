@@ -209,7 +209,7 @@ def _get_perform_request_coro(transport):
             try:
                 result = yield func(*args, **kwargs)
             except transport.TransportError as e:
-                span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
+                span._set_attribute(http.STATUS_CODE, getattr(e, "status_code", 500))
                 span.error = 1
                 raise
 
@@ -235,7 +235,7 @@ def _get_perform_request_coro(transport):
                 log.debug("Unexpected exception", exc_info=True)
 
             if status:
-                span.set_tag(http.STATUS_CODE, status)
+                span._set_attribute(http.STATUS_CODE, status)
 
             return
 

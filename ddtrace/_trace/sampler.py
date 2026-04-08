@@ -145,11 +145,21 @@ class DatadogSampler:
             json_rules = json.loads(rules)
             for rule in json_rules:
                 if "sample_rate" not in rule:
-                    log.error("No sample_rate provided for sampling rule: %s. Skipping.", rule)
+                    log.error(
+                        "No sample_rate provided for sampling rule: %s. Skipping.",
+                        rule,
+                        extra={"send_to_telemetry": False},
+                    )
                     continue
                 sampling_rules.append(SamplingRule(**rule))
         except (JSONDecodeError, ValueError):
-            log.error("Failed to apply all sampling rules. Rules=%s, Applied=%s", rules, sampling_rules, exc_info=True)
+            log.error(
+                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
+                rules,
+                sampling_rules,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
+            )
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:

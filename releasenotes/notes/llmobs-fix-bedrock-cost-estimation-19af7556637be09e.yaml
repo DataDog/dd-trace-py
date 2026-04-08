@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes ``model_name`` and ``model_provider`` reported on AWS Bedrock LLM spans as the ``model_id`` full model identifier value (e.g., ``"amazon.nova-lite-v1:0"``) and ``"amazon_bedrock"`` respectively. Bedrock spans' ``model_name`` and `model_provider`` now correctly match backend pricing data, which enables features including cost tracking.

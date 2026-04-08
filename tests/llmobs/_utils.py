@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -13,10 +13,9 @@ except ImportError:
     vcr = None
 
 import ddtrace
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -73,7 +72,7 @@ def get_bedrock_vcr():
     )
 
 
-def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
+def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decorator=False):
     if tags is None:
         tags = {}
     expected_tags = [
@@ -92,8 +91,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    if span._get_ctx_item(INTEGRATION):
-        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
+    if is_decorator:
+        expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -122,6 +121,9 @@ def _expected_llmobs_llm_span_event(
     error_stack=None,
     span_links=False,
     tool_definitions=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -142,6 +144,7 @@ def _expected_llmobs_llm_span_event(
     error_stack: error stack
     span_links: whether there are span links present on this span.
     tool_definitions: list of tool definitions that were available to the LLM
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -154,6 +157,9 @@ def _expected_llmobs_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
+        name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -188,10 +194,12 @@ def _expected_llmobs_llm_span_event(
         meta_dict.pop("input")
     if not meta_dict["output"]:
         meta_dict.pop("output")
-    if model_name is not None:
-        meta_dict.update({"model_name": model_name})
-    if model_provider is not None:
-        meta_dict.update({"model_provider": model_provider})
+    if span_kind in ("llm", "embedding"):
+        meta_dict["model_name"] = model_name if model_name is not None else ""
+        meta_dict["model_provider"] = (model_provider or "custom").lower()
+    elif model_name is not None:
+        meta_dict["model_name"] = model_name
+        meta_dict["model_provider"] = (model_provider or "custom").lower()
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
@@ -217,6 +225,9 @@ def _expected_llmobs_non_llm_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -233,6 +244,7 @@ def _expected_llmobs_non_llm_span_event(
     span_links: whether there are span links present on this span.
     prompt_tracking_instrumentation_method: prompt tracking source tag ('auto' for auto-instrumented)
     prompt_multimodal: whether prompt contains multimodal inputs (True if present)
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -245,6 +257,9 @@ def _expected_llmobs_non_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
+        name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -280,17 +295,25 @@ def _llmobs_base_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
-    expected_tags = _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id)
+    expected_tags = _expected_llmobs_tags(
+        span, tags=tags, error=error, session_id=session_id, is_decorator=is_decorator
+    )
     if prompt_tracking_instrumentation_method:
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
+    if parent_id is None:
+        llmobs_parent = _get_nearest_llmobs_ancestor(span)
+        parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
-        "parent_id": _get_llmobs_parent_id(span),
-        "name": _get_span_name(span),
+        "parent_id": parent_id,
+        "name": name or _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
@@ -310,18 +333,6 @@ def _llmobs_base_span_event(
     if span_links:
         span_event["span_links"] = mock.ANY
     return span_event
-
-
-def _get_llmobs_parent_id(span: Span):
-    if span._get_ctx_item(PARENT_ID_KEY):
-        return span._get_ctx_item(PARENT_ID_KEY)
-    if not span._parent:
-        return "undefined"
-    parent = span._parent
-    while parent is not None:
-        if parent.span_type == SpanTypes.LLM:
-            return str(parent.span_id)
-        parent = parent._parent
 
 
 def _expected_llmobs_eval_metric_event(

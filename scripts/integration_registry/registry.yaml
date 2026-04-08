@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.2
+      max: 3.13.4
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -135,6 +135,16 @@ integrations:
       min: 6.105.0
       max: 6.105.0
 
+- integration_name: azure_cosmos
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-cosmos
+  tested_versions_by_dependency:
+    azure-cosmos:
+      min: 4.9.0
+      max: 4.15.0
+
 - integration_name: azure_durable_functions
   is_external_package: true
   is_tested: true
@@ -144,10 +154,10 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
     azure-functions-durable:
       min: 1.2.1
-      max: 1.4.0
+      max: 1.5.0
 
 - integration_name: azure_eventhubs
   is_external_package: true
@@ -167,7 +177,7 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
 
 - integration_name: azure_servicebus
   is_external_package: true
@@ -371,7 +381,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.124.4
+      max: 0.135.3
 
 - integration_name: flask
   is_external_package: true
@@ -553,6 +563,24 @@ integrations:
       min: 1.65.4
       max: 1.80.16
 
+- integration_name: llama_index
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+    - llama-index
+    - llama-index-core
+    - llama_index
+  tested_versions_by_dependency:
+    llama-index:
+      min: 0.11.23
+      max: 0.14.18
+    llama-index-core:
+      min: 0.11.23
+      max: 0.14.18
+    llama_index:
+      min: 0.11.23
+      max: 0.14.18
+
 - integration_name: logbook
   is_external_package: true
   is_tested: true
@@ -617,13 +645,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.4
-      max: 3.10.0
+      max: 3.10.1
     mlflow-skinny:
       min: 3.9.0
-      max: 3.10.0
+      max: 3.10.1
     mlflow-tracing:
       min: 3.9.0
-      max: 3.10.0
+      max: 3.10.1
 
 - integration_name: molten
   is_external_package: true
@@ -863,7 +891,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 24.6.0
+      max: 23.12.2
 
 - integration_name: selenium
   is_external_package: true

@@ -1,6 +1,5 @@
 # coding: utf-8
 from collections import defaultdict
-import os
 from typing import Optional
 from typing import Union
 
@@ -9,6 +8,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
+    return span._get_numeric_attribute(_SPAN_MEASURED_KEY) == 1
 
 
 """
@@ -89,7 +89,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._enabled: bool = True
         self._agent_url = agent_url or agent.config.trace_agent_url
