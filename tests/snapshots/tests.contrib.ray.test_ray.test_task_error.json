@@ -10,29 +10,30 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6904f51400000000",
+      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "629c5196ecd37d39eb26d139f7629609aa8991c7eac7f8a364b552c4",
+      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "f3eca0ec3aa740d9b664919291660d03",
+      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.ai_obs.enabled": 1,
-      "_dd.djm.enabled": 1,
-      "_dd.filter.kept": 1,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.ai_obs.enabled": 1.0,
+      "_dd.djm.enabled": 1.0,
+      "_dd.filter.kept": 1.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 605
+      "_sampling_priority_v1": 2.0,
+      "process_id": 605.0
     },
-    "duration": 13672958,
-    "start": 1761932564841285385
+    "duration": 6522708,
+    "start": 1775577709900788461
   },
      {
        "name": "task.execute",
@@ -46,27 +47,24 @@
        "meta": {
          "component": "ray",
          "error.message": "foo",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 57, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 131, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 73, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 62, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 75, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
          "error.type": "builtins.ValueError",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "629c5196ecd37d39eb26d139f7629609aa8991c7eac7f8a364b552c4",
+         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
          "ray.task.status": "error",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-         "runtime-id": "f3eca0ec3aa740d9b664919291660d03",
          "span.kind": "consumer"
        },
        "metrics": {
-         "_dd.ai_obs.enabled": 1,
-         "_dd.djm.enabled": 1,
-         "_dd.filter.kept": 1,
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "_sampling_priority_v1": 2,
-         "process_id": 605
+         "_dd.ai_obs.enabled": 1.0,
+         "_dd.djm.enabled": 1.0,
+         "_dd.filter.kept": 1.0,
+         "_dd.measured": 1.0,
+         "_sampling_priority_v1": 2.0
        },
-       "duration": 2393708,
-       "start": 1761932564850504510
+       "duration": 2229292,
+       "start": 1775577709903289502
      }],
 [
   {
@@ -80,29 +78,30 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6904f51400000000",
+      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "629c5196ecd37d39eb26d139f7629609aa8991c7eac7f8a364b552c4",
+      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "f3eca0ec3aa740d9b664919291660d03",
+      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.ai_obs.enabled": 1,
-      "_dd.djm.enabled": 1,
-      "_dd.filter.kept": 1,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.ai_obs.enabled": 1.0,
+      "_dd.djm.enabled": 1.0,
+      "_dd.filter.kept": 1.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 605
+      "_sampling_priority_v1": 2.0,
+      "process_id": 605.0
     },
-    "duration": 3147833,
-    "start": 1761932564855450135
+    "duration": 2548458,
+    "start": 1775577709907725086
   },
      {
        "name": "task.execute",
@@ -116,25 +115,22 @@
        "meta": {
          "component": "ray",
          "error.message": "foo",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/span_manager.py\", line 57, in long_running_ray_span\n    yield span\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/patch.py\", line 131, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 73, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/ray/core/remote_function.py\", line 62, in _wrap_task_execution\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/ray/test_ray.py\", line 75, in add_one\n    raise ValueError(\"foo\")\nValueError: foo\n",
          "error.type": "builtins.ValueError",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "629c5196ecd37d39eb26d139f7629609aa8991c7eac7f8a364b552c4",
+         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
          "ray.task.status": "error",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-         "runtime-id": "f3eca0ec3aa740d9b664919291660d03",
          "span.kind": "consumer"
        },
        "metrics": {
-         "_dd.ai_obs.enabled": 1,
-         "_dd.djm.enabled": 1,
-         "_dd.filter.kept": 1,
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "_sampling_priority_v1": 2,
-         "process_id": 605
+         "_dd.ai_obs.enabled": 1.0,
+         "_dd.djm.enabled": 1.0,
+         "_dd.filter.kept": 1.0,
+         "_dd.measured": 1.0,
+         "_sampling_priority_v1": 2.0
        },
-       "duration": 789333,
-       "start": 1761932564856092760
+       "duration": 593625,
+       "start": 1775577709908309252
      }]]
