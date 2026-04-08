@@ -210,15 +210,19 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
+                # Prevents .pyc write races when xdist workers run subprocesses that all
+                # import ddtrace from the same editable install simultaneously.
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         ),
         Venv(
