@@ -58,9 +58,6 @@ def traced_agent_iter(func, instance, args, kwargs):
 
 
 async def traced_tool_manager_call(func, instance, args, kwargs):
-    # AIDEV-NOTE: This is the handle_call path for older pydantic_ai 0.4.x releases where
-    # handle_call was in the agent graph hot path. In pydantic_ai 1.x, handle_call is a
-    # convenience method not called during normal execution — use traced_execute_tool_call.
     tool_call = get_argument_value(args, kwargs, 0, "tool_call", True)
     tool_name = getattr(tool_call, "tool_name", None) or "Pydantic Tool"
     tool_manager_tools = getattr(instance, "tools", {}) or {}
@@ -69,12 +66,10 @@ async def traced_tool_manager_call(func, instance, args, kwargs):
 
 
 async def traced_execute_tool_call(func, instance, args, kwargs):
-    # AIDEV-NOTE: In pydantic_ai 1.x, the agent graph calls execute_tool_call() directly,
-    # bypassing handle_call. args[0] is a ValidatedToolCall wrapping a ToolCallPart.
     validated = get_argument_value(args, kwargs, 0, "validated", True)
     if validated is None:
         return await func(*args, **kwargs)
-    # Skip output tools — they are structural (used for structured output), not user-defined function tools
+    # skip output tools — they are used for structured output, not user-defined function tools
     tool_instance = getattr(validated, "tool", None)
     tool_def = getattr(tool_instance, "tool_def", None)
     if tool_def and getattr(tool_def, "kind", None) == "output":
@@ -116,7 +111,7 @@ def patch():
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)
-    if PYDANTIC_AI_VERSION >= (1, 0, 0):
+    if PYDANTIC_AI_VERSION >= (1, 63, 0):
         wrap(pydantic_ai, "agent.ToolManager.execute_tool_call", traced_execute_tool_call)
     elif PYDANTIC_AI_VERSION >= (0, 4, 4):
         wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call)
@@ -134,7 +129,7 @@ def unpatch():
 
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.agent.Agent, "run_stream")
-    if PYDANTIC_AI_VERSION >= (1, 0, 0):
+    if PYDANTIC_AI_VERSION >= (1, 63, 0):
         unwrap(pydantic_ai.agent.ToolManager, "execute_tool_call")
     elif PYDANTIC_AI_VERSION >= (0, 4, 4):
         unwrap(pydantic_ai.agent.ToolManager, "handle_call")

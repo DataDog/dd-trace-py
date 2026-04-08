@@ -119,14 +119,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_tool(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
+        try:
+            from pydantic_ai.tool_manager import ValidatedToolCall as _ValidatedToolCall
+        except ImportError:
+            _ValidatedToolCall = None
         tool_instance = kwargs.get("instance", None)
         raw_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
             args, kwargs, 0, "message", optional=True
-        )
-        # AIDEV-NOTE: In pydantic_ai 1.x, execute_tool_call receives a ValidatedToolCall (which
-        # has .call: ToolCallPart and .tool: ToolsetTool) rather than a bare ToolCallPart.
-        # Detect and unwrap it so the rest of the tag logic works uniformly.
-        if raw_call is not None and hasattr(raw_call, "args_valid"):
+        ) or get_argument_value(args, kwargs, 0, "validated", optional=True)
+        # unwrap ValidatedToolCall into tool_instance and tool_call for newer versions of Pydantic AI
+        if _ValidatedToolCall is not None and isinstance(raw_call, _ValidatedToolCall):
             if tool_instance is None:
                 tool_instance = getattr(raw_call, "tool", None)
             tool_call = getattr(raw_call, "call", raw_call)
