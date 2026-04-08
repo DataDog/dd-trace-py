@@ -29,6 +29,7 @@ libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v28
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.4", optional = true }
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.4" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v27.0.0" }
+libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "22687bb" }
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "22687bb" }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "22687bb" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.4", optional = true, features = [
