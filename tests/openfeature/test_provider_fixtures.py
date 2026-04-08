@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.flag_evaluation import Reason
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -128,6 +129,14 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
         f"Flag '{flag_key}' with context (targetingKey='{targeting_key}', attributes={attributes}) "
         f"returned {result.value}, expected {expected_value}"
     )
+
+    # Assert reason if present in fixture
+    expected_reason = expected_result.get("reason")
+    if expected_reason is not None:
+        assert result.reason == Reason(expected_reason), (
+            f"Flag '{flag_key}' with context (targetingKey='{targeting_key}', attributes={attributes}) "
+            f"returned reason {result.reason}, expected {expected_reason}"
+        )
 
 
 class TestFixtureSpecificCases:
