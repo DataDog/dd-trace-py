@@ -62,6 +62,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     ray_config = _get_ray_integration_config()
+    if not ray_config.trace_submission:
+        core.dispatch_event(RayContextInjectionEvent(kwargs=kwargs))
+        return wrapped(*args, **kwargs)
 
     parent_context = _get_active_context() or _extract_tracing_context_from_env()
 
