@@ -50,6 +50,7 @@ config._add(
         redact_entrypoint_paths=asbool(env.get("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
+        trace_submission=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS", default=False, modifier=asbool),
     ),
 )
 
