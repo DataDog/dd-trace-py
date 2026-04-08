@@ -173,10 +173,15 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
+
+        from ddtrace.internal.native_runtime import NativeRuntime
+
+        self._native_runtime = NativeRuntime() if config._trace_writer_native else None
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
+            native_runtime=self._native_runtime,
         )
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
