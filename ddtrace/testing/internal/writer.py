@@ -1,11 +1,11 @@
 from abc import ABC
 from abc import abstractmethod
 import logging
+import os
 import threading
 import typing as t
 import uuid
 
-from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -123,7 +123,7 @@ def _get_min_flush_events() -> t.Optional[int]:
     Returns None (the default) to disable threshold-based flushing — events are
     only sent on the 60-second periodic timer or on shutdown.
     """
-    raw = env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    raw = os.environ.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
     if raw is None:
         return None
     try:
