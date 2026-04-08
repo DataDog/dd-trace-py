@@ -17,6 +17,7 @@ endif()
 
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../cmake")
 include(AbseilDep)
 
 # Find Python (be flexible about what's available in build environments)

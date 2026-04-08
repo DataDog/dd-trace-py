@@ -33,6 +33,7 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../cmake")
 include(AbseilDep)
 
 include_directories(".")
