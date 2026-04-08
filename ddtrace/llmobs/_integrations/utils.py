@@ -985,25 +985,55 @@ def openai_set_meta_tags_from_response(
 MAX_TOOL_SCHEMA_DEPTH = 10
 
 
-def _tool_schema_depth(obj: Any, current: int = 0) -> int:
+def _tool_schema_depth(obj: Any) -> int:
     """Return the maximum nesting depth of a tool schema object."""
-    if isinstance(obj, dict):
-        if not obj:
-            return current
-        return max(_tool_schema_depth(v, current + 1) for v in obj.values())
-    if isinstance(obj, list):
-        if not obj:
-            return current
-        return max(_tool_schema_depth(item, current + 1) for item in obj)
-    return current
+    max_depth = 0
+    stack = [(obj, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > max_depth:
+            max_depth = depth
+        if isinstance(node, dict):
+            for v in node.values():
+                stack.append((v, depth + 1))
+        elif isinstance(node, list):
+            for item in node:
+                stack.append((item, depth + 1))
+    return max_depth
+
+
+def _truncate_schema_to_depth(obj: Any, max_depth: int) -> Any:
+    """Return a copy of obj with any container fields beyond `max_depth` levels replaced with empty containers."""
+    if not isinstance(obj, (dict, list)):
+        return obj
+    root: Any = {} if isinstance(obj, dict) else []
+    stack = [(obj, root, max_depth)]
+    while stack:
+        source, dest, remaining = stack.pop()
+        items = source.items() if isinstance(source, dict) else enumerate(source)
+        for key, val in items:
+            if isinstance(val, (dict, list)):
+                child: Any = {} if isinstance(val, dict) else []
+                if isinstance(dest, list):
+                    dest.append(child)
+                else:
+                    dest[key] = child
+                if remaining > 1:
+                    stack.append((val, child, remaining - 1))
+            else:
+                if isinstance(dest, list):
+                    dest.append(val)
+                else:
+                    dest[key] = val
+    return root
 
 
 def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
     """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
     if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
         logger.warning(
-            "LLMObs: dropping tool %r from span metadata because its schema exceeds the maximum "
-            "allowed nesting depth (%d). Deeply nested tool schemas can cause span drops in the "
+            "LLMObs: truncating tool %r schema to %d levels of nesting because its depth exceeds "
+            "the maximum allowed. Deeply nested tool schemas can cause span drops in the "
             "LLMObs backend.",
             name,
             MAX_TOOL_SCHEMA_DEPTH,
@@ -1046,8 +1076,9 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
             tool_definition["schema"] = {}
-        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", tool_definition.get("schema") or {}):
-            tool_definition["schema"] = {}
+        schema = tool_definition.get("schema") or {}
+        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", schema):
+            tool_definition["schema"] = _truncate_schema_to_depth(schema, MAX_TOOL_SCHEMA_DEPTH)
         tool_definitions.append(tool_definition)
     return tool_definitions
 

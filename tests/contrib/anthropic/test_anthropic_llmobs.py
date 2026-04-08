@@ -1688,11 +1688,12 @@ class TestLLMObsAnthropic:
             },
         ]
 
-    def test_tool_with_deep_schema_has_schema_dropped(
+    def test_tool_with_deep_schema_has_schema_truncated(
         self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
     ):
-        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should have their schema replaced with {}
-        while preserving name and description. Tools with shallow schemas are unaffected.
+        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
+        replacing over-limit containers with empty containers while preserving name, description,
+        and all fields within the limit. Tools with shallow schemas are unaffected.
         """
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
@@ -1727,6 +1728,29 @@ class TestLLMObsAnthropic:
             {
                 "name": "deep_tool",
                 "description": "A tool with a deeply nested schema",
-                "schema": {},
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "l1": {
+                            "type": "object",
+                            "properties": {
+                                "l2": {
+                                    "type": "object",
+                                    "properties": {
+                                        "l3": {
+                                            "type": "object",
+                                            "properties": {
+                                                "l4": {
+                                                    "type": "object",
+                                                    "properties": {"l5": {}},
+                                                }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                        }
+                    },
+                },
             },
         ]
