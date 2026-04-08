@@ -72,6 +72,10 @@ jobs:
 
       - uses: ./.github/actions/setup-ci-deps
 
+      - name: Install ddtrace from pre-built wheel
+        run: |
+          curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
+
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
