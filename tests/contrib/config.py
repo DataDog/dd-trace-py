@@ -8,6 +8,9 @@ import os
 # default config for backing services
 # NOTE: defaults may be duplicated in the .env file; update both or
 # simply write down a function that parses the .env file
+# AIDEV-NOTE: This file is imported by wait-for-services.py in a lightweight
+# riot env where ddtrace/envier may not be installed. Do NOT import from
+# ddtrace here; use os.environ/os.getenv directly instead.
 
 AZURE_COSMOS_EMULATOR_CONFIG = {
     "host": "127.0.0.1",
