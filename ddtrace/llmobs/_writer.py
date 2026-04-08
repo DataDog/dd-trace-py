@@ -859,22 +859,24 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
 
     def experiment_eval_post(
-        self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+        attributes: dict[str, JSONType] = {
+            "scope": "experiments",
+            "metrics": cast(list[JSONType], events),
+            "tags": cast(list[JSONType], tags),
+        }
+        if spans:
+            attributes["spans"] = cast(list[JSONType], spans)
         resp = self.request(
             "POST",
             path,
-            body={
-                "data": {
-                    "type": "experiments",
-                    "attributes": {
-                        "scope": "experiments",
-                        "metrics": cast(list[JSONType], events),
-                        "tags": tags,
-                    },
-                }
-            },
+            body={"data": {"type": "experiments", "attributes": attributes}},
         )
         if resp.status not in (200, 202):
             raise ValueError(

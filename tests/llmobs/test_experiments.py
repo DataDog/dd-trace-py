@@ -2461,7 +2461,7 @@ def test_experiment_run_without_task_raises(llmobs):
 
 
 def test_experiment_rerun_without_task_succeeds(llmobs):
-    """rerun_evaluators() after pull() emits a new replay span and links eval metrics to the original span."""
+    """rerun_evaluators() after pull() preserves original span_id/trace_id and re-emits spans with new timestamp."""
     row = {
         "record_id": "r1",
         "idx": 0,
@@ -2485,32 +2485,41 @@ def test_experiment_rerun_without_task_succeeds(llmobs):
     # Manually set _id so rerun guard passes (normally set by _setup_experiment in run())
     exp._experiment._id = "mock-experiment-id"
 
-    posted_metrics = []
+    call_kwargs = {}
 
-    def capture_metrics(experiment_id, events, tags):
-        posted_metrics.extend(events)
+    def capture_call(experiment_id, events, tags, spans=None):
+        call_kwargs["events"] = events
+        call_kwargs["spans"] = spans
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_metrics
+        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_call
     ):
         new_result = exp.rerun_evaluators()
 
     assert new_result is not prior_result
     result_row = new_result["runs"][0].rows[0]
-    # A new replay span was created — span_id is different from the original "abc"
-    assert result_row["span_id"] != "abc"
+    # Original span_id / trace_id are preserved — no new span created
+    assert result_row["span_id"] == "abc"
+    assert result_row["trace_id"] == "def"
     # Output is preserved from the pulled data
     assert result_row["output"] == {"answer": "Paris"}
-    # Eval metrics must reference the ORIGINAL span/trace IDs
-    assert len(posted_metrics) > 0
-    for metric in posted_metrics:
+    # Eval metrics reference the original span/trace IDs
+    assert len(call_kwargs["events"]) > 0
+    for metric in call_kwargs["events"]:
         assert metric["span_id"] == "abc"
         assert metric["trace_id"] == "def"
+    # Span re-emission payload is included with original IDs and a new timestamp
+    assert call_kwargs["spans"] is not None
+    assert len(call_kwargs["spans"]) == 1
+    assert call_kwargs["spans"][0]["span_id"] == "abc"
+    assert call_kwargs["spans"][0]["trace_id"] == "def"
+    assert call_kwargs["spans"][0]["start_ns"] != MOCK_TIMESTAMP_NS
 
 
 MOCK_PULL_RESPONSE = {
     "data": {
         "id": "mock-experiment-id",
+        "type": "experiment_events",
         "attributes": {
             "spans": [
                 {
@@ -2523,13 +2532,14 @@ MOCK_PULL_RESPONSE = {
                         "output": {"answer": "Paris"},
                         "expected_output": {"answer": "Paris"},
                         "metadata": {"dataset_record_index": 0, "experiment_name": "test-exp"},
-                        "error": {"type": None, "message": None, "stack": None},
+                        "error": {},
                     },
                     "eval_metrics": [
                         {
                             "label": "correctness",
                             "metric_type": "score",
                             "score_value": 0.9,
+                            "timestamp_ms": MOCK_TIMESTAMP_NS // 1_000_000,
                             "assessment": "pass",
                             "reasoning": "Correct",
                         }
@@ -2538,8 +2548,7 @@ MOCK_PULL_RESPONSE = {
             ],
             "summary_metrics": [],
         },
-    },
-    "meta": {"after": ""},
+    }
 }
 
 
@@ -2549,7 +2558,7 @@ def test_experiment_pull_by_id(llmobs):
     exp._experiment._id = "mock-experiment-id"
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
     ) as mock_get:
         exp.pull()
 
@@ -2569,7 +2578,7 @@ def test_experiment_pull_by_name(llmobs):
     assert exp._experiment._id is None
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
     ) as mock_get:
         exp.pull()
 
@@ -2587,7 +2596,7 @@ def test_experiment_pull_sets_id_from_response(llmobs):
     assert exp._experiment._id is None
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
     ):
         exp.pull()
 
@@ -2600,7 +2609,7 @@ def test_experiment_pull_parses_eval_metrics(llmobs):
     exp._experiment._id = "mock-experiment-id"
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
     ):
         exp.pull()
 
@@ -2616,6 +2625,7 @@ def test_experiment_pull_no_eval_metrics(llmobs):
     response_no_evals = {
         "data": {
             "id": "mock-experiment-id",
+            "type": "experiment_events",
             "attributes": {
                 "spans": [
                     {
@@ -2628,20 +2638,20 @@ def test_experiment_pull_no_eval_metrics(llmobs):
                             "output": {"answer": "A"},
                             "expected_output": None,
                             "metadata": {"dataset_record_index": 0},
-                            "error": {"type": None, "message": None, "stack": None},
+                            "error": {},
                         },
+                        "eval_metrics": [],
                     }
                 ],
                 "summary_metrics": [],
             },
-        },
-        "meta": {"after": ""},
+        }
     }
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
     exp._experiment._id = "mock-experiment-id"
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=response_no_evals
+        llmobs._instance._dne_client, "experiment_events_get", return_value=response_no_evals
     ) as mock_get:
         exp.pull(include_eval_metrics=False)
 
@@ -2650,37 +2660,45 @@ def test_experiment_pull_no_eval_metrics(llmobs):
 
 
 def test_experiment_pull_then_rerun(llmobs):
-    """pull() + rerun_evaluators(): replay spans are emitted, eval metrics reference original IDs."""
+    """pull() + rerun_evaluators(): original span_id/trace_id preserved, spans re-emitted with new timestamp."""
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_results_get", return_value=MOCK_PULL_RESPONSE
+        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
     ):
         exp.pull()
 
     assert exp.result is not None
     assert exp._experiment._id == "mock-experiment-id"
 
-    posted_metrics = []
+    call_kwargs = {}
 
-    def capture_metrics(experiment_id, events, tags):
-        posted_metrics.extend(events)
+    def capture_call(experiment_id, events, tags, spans=None):
+        call_kwargs["events"] = events
+        call_kwargs["spans"] = spans
 
     with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_metrics
+        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_call
     ):
         new_result = exp.rerun_evaluators()
 
     result_row = new_result["runs"][0].rows[0]
-    # A replay span was created — span_id is different from the pulled "abc123"
-    assert result_row["span_id"] != "abc123"
+    # Original span_id / trace_id are preserved — no new span created
+    assert result_row["span_id"] == "abc123"
+    assert result_row["trace_id"] == "def456"
     # Output is preserved from pulled data
     assert result_row["output"] == {"answer": "Paris"}
-    # Eval metrics must reference the ORIGINAL pulled span_id and trace_id
-    assert len(posted_metrics) > 0
-    for metric in posted_metrics:
+    # Eval metrics reference the original span/trace IDs
+    assert len(call_kwargs["events"]) > 0
+    for metric in call_kwargs["events"]:
         assert metric["span_id"] == "abc123"
         assert metric["trace_id"] == "def456"
+    # Span re-emission payload is included with original IDs and a new timestamp
+    assert call_kwargs["spans"] is not None
+    assert len(call_kwargs["spans"]) == 1
+    assert call_kwargs["spans"][0]["span_id"] == "abc123"
+    assert call_kwargs["spans"][0]["trace_id"] == "def456"
+    assert call_kwargs["spans"][0]["start_ns"] != MOCK_TIMESTAMP_NS
 
 
 @pytest.mark.parametrize(

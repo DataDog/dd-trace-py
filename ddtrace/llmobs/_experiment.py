@@ -1128,10 +1128,7 @@ class _TaskResultRequired(TypedDict):
 
 
 class TaskResult(_TaskResultRequired, total=False):
-    # Set when emitting replay spans after pull() so that eval metrics can
-    # reference the original span rather than the newly-created replay span.
-    original_span_id: str
-    original_trace_id: str
+    pass
 
 
 class EvaluationResult(TypedDict):
@@ -1266,6 +1263,19 @@ def _task_results_from_previous(rows: list[ExperimentRowResult]) -> "list[TaskRe
         }
         for row in rows
     ]
+
+
+def _row_to_span_payload(row: "ExperimentRowResult", new_timestamp_ns: int) -> dict:
+    """Build a minimal span dict for re-emission in the experiment_eval_post body.
+
+    The original span_id / trace_id are preserved; only the timestamp changes so
+    the backend registers a new iteration without duplicating span identity.
+    """
+    return {
+        "span_id": row["span_id"],
+        "trace_id": row["trace_id"],
+        "start_ns": new_timestamp_ns,
+    }
 
 
 def _parse_experiment_result(response: dict) -> "ExperimentResult":
@@ -2412,70 +2422,6 @@ class Experiment:
                     "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
                 )
 
-    async def _replay_pulled_row(
-        self,
-        row: ExperimentRowResult,
-        run: "_ExperimentRunInfo",
-        semaphore: asyncio.Semaphore,
-    ) -> TaskResult:
-        """Emit a duplicate experiment span for a previously pulled row.
-
-        Creates an identical span event with a new timestamp, preserving all original
-        input/output/metadata. The original span_id and trace_id are stored in
-        ``original_span_id`` / ``original_trace_id`` so that eval metrics can be linked
-        back to the original span rather than the newly-created replay span.
-        """
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            raise ValueError("LLMObs is not enabled.")
-        async with semaphore:
-            row_metadata = row.get("metadata") or {}
-            record_id = row.get("record_id") or ""
-            tags: dict[str, str] = {
-                **self._tags,
-                "experiment_id": str(self._id),
-            }
-            if record_id:
-                tags["dataset_record_id"] = str(record_id)
-
-            with self._llmobs_instance._experiment(
-                name=self.name,
-                experiment_id=str(self._id),
-                run_id=str(run._id),
-                run_iteration=run._run_iteration,
-                experiment_name=self.name,
-                project_name=self._project_name,
-                project_id=self._project_id,
-                dataset_name=row_metadata.get("dataset_name"),
-            ) as span:
-                span_context = self._llmobs_instance.export_span(span=span)
-                if span_context:
-                    new_span_id = span_context.get("span_id", "")
-                    new_trace_id = span_context.get("trace_id", "")
-                else:
-                    new_span_id, new_trace_id = "", ""
-
-                self._llmobs_instance.annotate(
-                    span,
-                    input_data=row.get("input") or {},
-                    output_data=row.get("output"),
-                    tags=tags,
-                )
-                span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, row.get("expected_output"))
-                if row_metadata:
-                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, row_metadata)
-
-                return {
-                    "idx": row["idx"],
-                    "span_id": new_span_id,
-                    "trace_id": new_trace_id,
-                    "timestamp": span.start_ns,
-                    "output": row.get("output"),
-                    "metadata": row_metadata,
-                    "error": row.get("error") or {"type": None, "message": None, "stack": None},
-                    "original_span_id": row.get("span_id", ""),
-                    "original_trace_id": row.get("trace_id", ""),
-                }
-
     async def _run_task(
         self,
         jobs: int,
@@ -3058,7 +3004,7 @@ class SyncExperiment:
             run1 = df[df[("run_iteration", "")] == 1]
             df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
 
-        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run or pulled).
         :raises ImportError: if ``pandas`` is not installed.
         :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
         """
@@ -3072,7 +3018,7 @@ class SyncExperiment:
 
         if self.result is None:
             raise ValueError(
-                "No result found. Call run() before as_dataframe()."
+                "No result found. Call run() or pull() before as_dataframe()."
             )
 
         frames = []
@@ -3265,21 +3211,10 @@ class SyncExperiment:
         async def _run() -> ExperimentResult:
             run = _ExperimentRunInfo(0)
 
-            # When no dataset is loaded (pull workflow): emit replay spans that are
-            # identical to the originals but carry a new timestamp. Original span_id /
-            # trace_id are stored as original_span_id / original_trace_id so that eval
-            # metrics can be linked back to the source span.
-            # When a dataset IS loaded (same-session rerun): preserve original IDs directly.
-            if self._experiment._dataset is None:
-                semaphore = asyncio.Semaphore(jobs)
-                replay_coros = [
-                    self._experiment._replay_pulled_row(row, run, semaphore)
-                    for row in rows_to_eval
-                ]
-                task_results: list[TaskResult] = list(await asyncio.gather(*replay_coros))
-                task_results.sort(key=lambda t: t["idx"])
-            else:
-                task_results = _task_results_from_previous(rows_to_eval)
+            # Preserve original span_id / trace_id for both the pull workflow (no dataset)
+            # and same-session rerun (dataset loaded). Span re-emission with a new timestamp
+            # is handled by passing span payloads to experiment_eval_post() below.
+            task_results = _task_results_from_previous(rows_to_eval)
 
             # Re-execute failed rows — creates new spans only for these
             if rows_to_retry:
@@ -3326,33 +3261,29 @@ class SyncExperiment:
             ]
             evaluations = list(await asyncio.gather(*eval_coros))
 
-            # Post eval metrics to the original experiment — no status change, no new experiment.
-            # When replay spans were created (pull workflow), eval metrics must reference the
-            # *original* span/trace IDs so they are linked to the source span on the backend.
+            # Post eval metrics alongside span re-emission payloads. Each span payload
+            # carries the original span_id / trace_id with a new timestamp, which causes
+            # the backend to register a new iteration without duplicating span identity.
             if self._experiment._llmobs_instance:
                 pending_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
                 for task_result, evaluation in zip(task_results, evaluations):
                     if evaluation:
-                        original_span_id = task_result.get("original_span_id")
-                        original_trace_id = task_result.get("original_trace_id")
-                        if original_span_id or original_trace_id:
-                            # Replay path: override span/trace IDs for metric linkage
-                            metrics_task_result: TaskResult = {
-                                **task_result,
-                                "span_id": original_span_id or task_result["span_id"],
-                                "trace_id": original_trace_id or task_result["trace_id"],
-                            }
-                        else:
-                            metrics_task_result = task_result
                         pending_metrics.extend(
-                            self._experiment._generate_metrics_for_record(metrics_task_result, evaluation)
+                            self._experiment._generate_metrics_for_record(task_result, evaluation)
                         )
                 if pending_metrics:
+                    new_timestamp_ns = time.time_ns()
+                    span_payloads = [
+                        _row_to_span_payload(row, new_timestamp_ns)
+                        for row in rows_to_eval
+                        if row.get("span_id")
+                    ]
                     try:
                         self._experiment._llmobs_instance._dne_client.experiment_eval_post(
                             cast(str, self._experiment._id),
                             pending_metrics,
                             convert_tags_dict_to_list(self._experiment._tags),
+                            spans=span_payloads if span_payloads else None,
                         )
                     except Exception:
                         logger.debug("Failed to post eval metrics for re-run", exc_info=True)
