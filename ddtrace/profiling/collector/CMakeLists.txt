@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 include(FetchContent)
+include(CheckIPOSupported)
 
 project(_memalloc)
 
@@ -79,6 +80,12 @@ endif()
 
 # Create the shared library with the full name
 add_library(${FULL_EXTENSION_NAME} SHARED ${SOURCE_FILES})
+
+# Enable LTO (Link Time Optimization) if the compiler supports it
+check_ipo_supported(RESULT ipo_supported)
+if(ipo_supported)
+    set_property(TARGET ${FULL_EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 # Set properties to prevent CMake from adding any prefix or suffix
 set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES PREFIX "" SUFFIX "")
