@@ -19,6 +19,14 @@ def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str
     - *ext_entries* — list of ``(name, hash, target_path)`` from ``#EXTHASH:`` lines
     - *dep_entries* — list of ``(name, config_hash, install_dir)`` from ``#SHAREDEPINFO:`` lines
     """
+    # Older setuptools (Python ≤3.10) installs setup_requires into .eggs/ each
+    # time setup.py is invoked.  If .eggs/ is left from a prior call the rename
+    # of dist-info → EGG-INFO fails with ENOTEMPTY.  Remove it before each
+    # invocation so every call starts with a clean slate.
+    eggs_dir = ROOT / ".eggs"
+    if eggs_dir.exists():
+        shutil.rmtree(eggs_dir)
+
     output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
     ext_entries: list[tuple[str, str, str]] = []
     dep_entries: list[tuple[str, str, Path]] = []
