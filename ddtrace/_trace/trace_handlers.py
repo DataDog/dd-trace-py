@@ -259,11 +259,11 @@ def _set_inferred_proxy_tags(span, status_code):
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if ERROR_MSG in span._meta.keys():
+            if span._has_attribute(ERROR_MSG):
                 inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if ERROR_TYPE in span._meta.keys():
+            if span._has_attribute(ERROR_TYPE):
                 inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if ERROR_STACK in span._meta.keys():
+            if span._has_attribute(ERROR_STACK):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
@@ -546,7 +546,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -834,12 +834,12 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
-        span._metrics[redisx.ARGS_LEN] = len(args)
+        span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
                 # PERF: avoid extra overhead from checks in Span.set_metric
-                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
