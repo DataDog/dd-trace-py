@@ -1,6 +1,5 @@
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import _BASE_SERVICE_KEY
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import config
 
 from . import schematize_service_name
