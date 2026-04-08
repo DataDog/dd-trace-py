@@ -344,7 +344,7 @@ class SpanTestCase(TracerTestCase):
         # through native storage. Internally, bit 31 of the native u32 flags field
         # acts as a "flags present" sentinel: None->0, Some(f)->f|0x8000_0000.
         s = Span(name="test.span")
-        s.set_link(trace_id=1, span_id=10)           # flags=None
+        s.set_link(trace_id=1, span_id=10)  # flags=None
         s.set_link(trace_id=2, span_id=20, flags=0)  # flags=0 (explicitly set)
         s.set_link(trace_id=3, span_id=30, flags=1)  # flags=1
 
@@ -364,8 +364,8 @@ class SpanTestCase(TracerTestCase):
         s.set_link(trace_id=1, span_id=20, flags=-1)
 
         links = s._get_links()
-        assert links[0].flags == 0             # 0x1_0000_0000 truncated to 0; sentinel set then stripped -> 0
-        assert links[1].flags == 0x7FFF_FFFF   # -1 -> 0xFFFF_FFFF; sentinel strip -> 0x7FFF_FFFF
+        assert links[0].flags == 0  # 0x1_0000_0000 truncated to 0; sentinel set then stripped -> 0
+        assert links[1].flags == 0x7FFF_FFFF  # -1 -> 0xFFFF_FFFF; sentinel strip -> 0x7FFF_FFFF
 
     def test_span_pointers(self):
         s = Span(name="test.span")
