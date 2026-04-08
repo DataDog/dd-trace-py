@@ -95,6 +95,13 @@ Azure Functions
 .. automodule:: ddtrace.contrib.internal.azure_functions
 
 
+.. _azure_cosmos:
+
+Azure CosmosDB
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.azure_cosmos
+
+
 .. _azure_durable_functions:
 
 Azure Durable Functions
@@ -366,6 +373,12 @@ Mako
 MCP
 ^^^
 .. automodule:: ddtrace.contrib.internal.mcp
+
+.. _mlflow:
+
+MLflow
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.mlflow
 
 
 .. _mariadb:

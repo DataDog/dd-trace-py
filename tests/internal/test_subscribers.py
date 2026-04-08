@@ -28,7 +28,7 @@ def reset_event_hub():
 
 
 @dataclass
-class TestEvent(Event):
+class SubscriberEvent(Event):
     event_name = "test.subscriber.event"
 
 
@@ -36,15 +36,17 @@ def test_base_subscriber():
     """Test that a direct BaseSubscriber receives dispatched events."""
 
     class DirectSubscriber(Subscriber):
-        event_names = (TestEvent.event_name,)
+        event_names = (SubscriberEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
-    core.dispatch_event(TestEvent())
+    core.dispatch_event(SubscriberEvent())
 
-    assert called == [TestEvent.event_name], "subscriber should be called once with the event name; got %r" % (called,)
+    assert called == [SubscriberEvent.event_name], "subscriber should be called once with the event name; got %r" % (
+        called,
+    )
 
 
 def test_base_subscriber_inheritance():
@@ -56,13 +58,13 @@ def test_base_subscriber_inheritance():
             called.append("parent")
 
     class ChildSubscriber(ParentSubscriber):
-        event_names = (TestEvent.event_name,)
+        event_names = (SubscriberEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append("child")
 
-    core.dispatch_event(TestEvent())
+    core.dispatch_event(SubscriberEvent())
 
     assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
 
@@ -71,24 +73,24 @@ def test_base_subscriber_multiple_event_names():
     """Test that a Subscriber can register for and handle multiple events."""
 
     @dataclass
-    class TestEventOne(Event):
+    class SubscriberEventOne(Event):
         event_name = "test.subscriber.event.one"
 
     @dataclass
-    class TestEventTwo(Event):
+    class SubscriberEventTwo(Event):
         event_name = "test.subscriber.event.two"
 
     class MultiEventSubscriber(Subscriber):
-        event_names = (TestEventOne.event_name, TestEventTwo.event_name)
+        event_names = (SubscriberEventOne.event_name, SubscriberEventTwo.event_name)
 
         @classmethod
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
 
-    core.dispatch_event(TestEventOne())
-    core.dispatch_event(TestEventTwo())
+    core.dispatch_event(SubscriberEventOne())
+    core.dispatch_event(SubscriberEventTwo())
 
-    assert called == [TestEventOne.event_name, TestEventTwo.event_name], (
+    assert called == [SubscriberEventOne.event_name, SubscriberEventTwo.event_name], (
         "subscriber should listen to both events in dispatch order; got %r" % (called,)
     )
 
@@ -186,8 +188,8 @@ def test_base_tracing_subscriber(test_spans):
     assert span.service == "my-service"
     assert span.span_type == "custom"
     assert span.name == "test.subscriber.span"
-    assert span._meta[COMPONENT] == "test-component"
-    assert span._meta[SPAN_KIND] == "internal"
+    assert span._get_str_attribute(COMPONENT) == "test-component"
+    assert span._get_str_attribute(SPAN_KIND) == "internal"
     assert span.resource == "/api/endpoint"
 
 
@@ -243,7 +245,7 @@ def test_span_context_event_with_custom_fields(test_spans):
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
     assert span.name == "op.arg"
-    assert span._metrics["http.status_code"] == 200
+    assert span._get_str_attribute("http.status_code") == "200"
 
 
 def test_span_context_event_inheritance(test_spans):
@@ -287,9 +289,9 @@ def test_span_context_event_inheritance(test_spans):
 
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
-    assert span._meta["http.url"] == "http://example.com"
-    assert span._meta["http.method"] == "GET"
-    assert span._meta[COMPONENT] == "http"
+    assert span._get_str_attribute("http.url") == "http://example.com"
+    assert span._get_str_attribute("http.method") == "GET"
+    assert span._get_str_attribute(COMPONENT) == "http"
 
 
 def test_span_context_event_with_exception(test_spans):
@@ -314,8 +316,8 @@ def test_span_context_event_with_exception(test_spans):
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
     assert span.error == 1
-    assert span._meta["error.type"] == "builtins.ValueError"
-    assert span._meta["error.message"] == "test error"
+    assert span._get_str_attribute("error.type") == "builtins.ValueError"
+    assert span._get_str_attribute("error.message") == "test error"
 
 
 def test_span_parent_child_default(test_spans):

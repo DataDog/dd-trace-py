@@ -1,14 +1,16 @@
 from collections import ChainMap
 from enum import Enum
-import os
+from typing import Any
 from typing import Optional
 
 from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
+from ddtrace.internal.settings.env import dd_environ
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
+ENV_CONFIG = dd_environ
 
 
 class ValueSource(str, Enum):
@@ -19,6 +21,27 @@ class ValueSource(str, Enum):
     DEFAULT = "default"
     UNKNOWN = "unknown"
     OTEL_ENV_VAR = "otel_env_var"
+
+
+class _ParsedValues:
+    """Namespace of original *scalar* parsed config values, populated at initialization time.
+
+    Holds only the flat ``EnvVariable`` and ``DerivedVariable`` items defined
+    directly on the config class.  Nested sub-config instances are not included;
+    their original values are accessible through the sub-config's own ``parsed``
+    namespace instead::
+
+        # correct
+        config.parsed.enabled
+        config.span.parsed.enabled
+
+        # wrong – span is not a scalar and is not present here
+        config.parsed.span.enabled
+    """
+
+    def __getattr__(self, name: str) -> Any:
+        msg = f"No such configuration item: {name}"
+        raise AttributeError(msg)
 
 
 class DDConfig(Env):
@@ -32,13 +55,20 @@ class DDConfig(Env):
     ) -> None:
         self.fleet_source = FLEET_CONFIG
         self.local_source = LOCAL_CONFIG
-        self.env_source = os.environ
+        self.env_source = ENV_CONFIG
 
         # Order of precedence: provided source < local stable config < environment variables < fleet stable config
         full_source = ChainMap(self.fleet_source, self.env_source, self.local_source, source or {})
 
         # Parse the configuration and initialize the values
         super().__init__(source=full_source, parent=parent, dynamic=dynamic)
+
+        # Shallow pass: cache each direct config item's parsed value before any
+        # runtime overrides can be applied.  Nested sub-config instances handle
+        # their own `parsed` namespace.
+        self.parsed: _ParsedValues = _ParsedValues()
+        for name, e in type(self).items(include_derived=True):
+            setattr(self.parsed, name, getattr(self, name))
 
         # Initialize the value sources
         self._value_source = {}

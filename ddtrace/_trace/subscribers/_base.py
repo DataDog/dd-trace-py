@@ -24,12 +24,12 @@ def _finish_span(
     ctx: core.ExecutionContext[TracingEventType],
     exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
-    """
-    Finish the span in the context.
-    If no span is present, do nothing.
+    """Finish the span in the context.
 
-    Reimplementing finish span here prevents circular import. Once every integration
-    adopted events API, trace_handlers _finish_span should be completely removed.
+    If no span is present, do nothing.
+    Reimplementing finish span here prevents circular import with trace_handlers.
+    Once every integration adopts the events API, trace_handlers._finish_span
+    should be completely removed.
     """
     span = ctx.span
     if not span:
@@ -88,7 +88,10 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
 
     span = tracer.start_span(event.span_name, **span_kwargs)
 
-    span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
+    span._set_attribute(COMPONENT, event.component)
+    span._set_attribute(SPAN_KIND, event.span_kind)
+    for _k, _v in event.tags.items():
+        span._set_attribute(_k, _v)
 
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)

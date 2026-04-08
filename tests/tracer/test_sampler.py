@@ -369,6 +369,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "xyz", "name": "abc"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -383,6 +384,7 @@ def test_sampling_rule_init_via_env():
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
                 [],
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -400,6 +402,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "my-service", "name": "my-name"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -889,3 +892,32 @@ def span():
 def test_trace_tag(span, sampling_mechanism, expected):
     span._set_sampling_decision_maker(sampling_mechanism)
     assert span.context._meta["_dd.p.dm"] == expected
+
+
+@pytest.mark.parametrize(
+    "sample_rate,expected_ksr",
+    [
+        (1.0, "1"),
+        (0.5, "0.5"),
+        (0.000001, "0.000001"),
+        (0.0000001, "0"),
+        (0.0000005, "0.000001"),
+        (0.7654321, "0.765432"),
+    ],
+    ids=[
+        "rate_1_strips_trailing_zeros",
+        "simple_rate",
+        "six_decimal_precision_boundary",
+        "below_precision_rounds_to_zero",
+        "rounds_up_to_one_millionth",
+        "truncation_at_six_decimals",
+    ],
+)
+def test_ksr_formatting(span, sample_rate, expected_ksr):
+    """_dd.p.ksr is formatted with up to 6 decimal digits, trailing zeros stripped, no scientific notation."""
+    from ddtrace.internal.sampling import KNUTH_SAMPLE_RATE_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.sampling import _set_sampling_tags
+
+    _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr

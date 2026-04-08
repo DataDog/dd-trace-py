@@ -12,6 +12,7 @@ from ddtrace.internal.constants import ENTITY_ID_HEADER_NAME
 from ddtrace.internal.constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
 from ddtrace.internal.constants import EXTERNAL_ENV_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -174,7 +175,7 @@ def update_headers(headers: dict) -> None:
 
     # Get the external environment info from the environment variable and add it
     # to the headers
-    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
+    external_info = env.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
     if external_info:
         headers.update(
             {

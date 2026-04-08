@@ -71,6 +71,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_process_tags(process_tags);
+        Ok(slf.into())
+    }
+
     fn set_tracer_version(mut slf: PyRefMut<'_, Self>, version: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_tracer_version(version);
         Ok(slf.into())
@@ -158,6 +163,24 @@ impl TraceExporterBuilderPy {
 
     fn enable_health_metrics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_health_metrics();
+        Ok(slf.into())
+    }
+
+    fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
         Ok(slf.into())
     }
 

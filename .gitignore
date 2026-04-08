@@ -157,9 +157,12 @@ pip_cache_shared_venvs/
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/worktrees/
 
 # Riot
 .riot/venv*
+.riot/envs/
+.riot/.build.lock
 .riot/requirements/*.in
 
 # Benchmarks
@@ -183,6 +186,7 @@ ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
 ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
 # Those folders are required for tests/appsec/iast_packages/test_packages.py
 template_venv/
+template_venv.lock
 cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml

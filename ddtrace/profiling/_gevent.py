@@ -155,9 +155,11 @@ def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
-        _parent_greenlet_count[parent_id] -= 1
-        if _parent_greenlet_count[parent_id] <= 0:
-            del _parent_greenlet_count[parent_id]
+        remaining = _parent_greenlet_count.get(parent_id, 0) - 1
+        if remaining <= 0:
+            _parent_greenlet_count.pop(parent_id, None)
+        else:
+            _parent_greenlet_count[parent_id] = remaining
 
 
 def untrack_greenlet(gl: _Greenlet) -> None:
@@ -212,7 +214,11 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
-    if isinstance(current_greenlet, greenlet):
+    # NOTE: We specifically use `type(...) is ...` here instead of
+    # `isinstance`, as gevent.Greenlet inherits from the low level
+    # C `greenlet` class, so isinstance would be True for every
+    # greenlet type.
+    if type(current_greenlet) is greenlet:
         current_greenlet = gevent.hub.get_hub()
     current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
@@ -225,11 +231,14 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         try:
             objects = args[0]
         except IndexError:
-            objects = kwargs.get("args", [])
+            objects = kwargs.get("objects")
+
+        if objects is None:
+            objects = []
 
         if greenlets := [_ for _ in objects if isinstance(_, (greenlet, gevent.Greenlet))]:
             current_greenlet = gevent.getcurrent()
-            if isinstance(current_greenlet, greenlet):
+            if type(current_greenlet) is greenlet:
                 current_greenlet = gevent.hub.get_hub()
             current_greenlet_id: int = thread.get_ident(current_greenlet)
             for g in greenlets:
