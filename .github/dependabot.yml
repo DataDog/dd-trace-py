@@ -13,3 +13,8 @@ updates:
       gh-actions-packages:
         patterns:
           - "*"
+
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "monthly"
