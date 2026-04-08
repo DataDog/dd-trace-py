@@ -1158,6 +1158,7 @@ class CustomBuildExt(build_ext):
         # re-download from GitHub.
         cmake_args += [
             f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+            f"-DCMAKE_MODULE_PATH={HERE / 'cmake'}",
         ]
 
         # Forward the install path of every successfully pre-built shared dep so
