@@ -1,6 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
 import logging
+import os
 import threading
 import typing as t
 import uuid
@@ -31,10 +32,12 @@ EventSerializer = t.Callable[[TSerializable], Event]
 
 
 class BaseWriter(ABC):
-    def __init__(self) -> None:
+    def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
+        self._flush_now = threading.Event()
         self.flush_interval_seconds = 60
+        self.min_flush_events = min_flush_events
         self.events: list[Event] = []
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
@@ -42,6 +45,15 @@ class BaseWriter(ABC):
     def put_event(self, event: Event) -> None:
         with self.lock:
             self.events.append(event)
+            buffer_len = len(self.events)
+
+        # NOTE: When min_flush_events is set, flush synchronously on the
+        # calling thread.  A signal-based approach (waking the daemon thread)
+        # is not sufficient because os._exit() / SIGKILL can kill the process
+        # before the daemon thread gets scheduled.  Synchronous flush guarantees
+        # the data reaches the backend before the calling code can crash.
+        if self.min_flush_events is not None and buffer_len >= self.min_flush_events:
+            self.flush()
 
     def pop_events(self) -> list[Event]:
         with self.lock:
@@ -57,6 +69,7 @@ class BaseWriter(ABC):
     def signal_finish(self) -> None:
         log.debug("Signalling for %s writer thread to finish", self.__class__.__name__)
         self.should_finish.set()
+        self._flush_now.set()
 
     def wait_finish(self) -> None:
         self.task.join()
@@ -64,7 +77,8 @@ class BaseWriter(ABC):
 
     def _periodic_task(self) -> None:
         while True:
-            self.should_finish.wait(timeout=self.flush_interval_seconds)
+            self._flush_now.wait(timeout=self.flush_interval_seconds)
+            self._flush_now.clear()
             log.debug("Flushing %s events in background task", self.__class__.__name__)
             self.flush()
 
@@ -99,11 +113,32 @@ class BaseWriter(ABC):
             return [pack]
 
 
+def _get_min_flush_events() -> t.Optional[int]:
+    """Read the minimum number of buffered events before triggering an early flush.
+
+    Uses DD_TRACE_PARTIAL_FLUSH_MIN_SPANS for backwards compatibility with the
+    old CI Visibility plugin, which used the same env var (via the APM tracer's
+    SpanAggregator) to control how eagerly test events were sent.
+
+    Returns None (the default) to disable threshold-based flushing — events are
+    only sent on the 60-second periodic timer or on shutdown.
+    """
+    raw = os.environ.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+        return value if value > 0 else None
+    except (ValueError, TypeError):
+        log.warning("Invalid value for DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r; threshold-based flushing disabled", raw)
+        return None
+
+
 class TestOptWriter(BaseWriter):
     __test__ = False
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
-        super().__init__()
+        super().__init__(min_flush_events=_get_min_flush_events())
 
         self.metadata: dict[str, dict[str, str]] = {
             "*": {
@@ -179,7 +214,7 @@ class TestCoverageWriter(BaseWriter):
     __test__ = False
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
-        super().__init__()
+        super().__init__(min_flush_events=_get_min_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
 
