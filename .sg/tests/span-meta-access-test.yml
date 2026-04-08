@@ -1,0 +1,18 @@
+id: span-meta-access
+valid:
+  - span._set_attribute("key", "value")
+  - span._get_str_attribute("key")
+  - span._get_str_attributes()
+  - span._has_attribute("key")
+  - span._remove_attribute("key")
+  - context._meta["key"]
+  - ctx._meta.get("key")
+  - span.context._meta["key"]
+invalid:
+  - span._meta["key"]
+  - span._meta.get("key")
+  - span._meta["key"] = "value"
+  - self._meta[key]
+  - |
+    s = tracer.trace("op")
+    s._meta["key"] = "value"
