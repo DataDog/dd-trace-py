@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-import logging
 import os
 import typing as t
 from unittest.mock import Mock
@@ -283,7 +282,7 @@ class TestSessionManagerGitHandling:
 
         mock_warning.assert_any_call("Error calling git binary, skipping metadata upload")
 
-    def test_upload_git_data_aborts_when_search_commits_fails(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_upload_git_data_aborts_when_search_commits_fails(self) -> None:
         session_manager = SessionManager.__new__(SessionManager)
         session_manager.api_client = Mock()
         session_manager.api_client.get_known_commits.return_value = None
@@ -293,19 +292,17 @@ class TestSessionManagerGitHandling:
 
         with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
             with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                with caplog.at_level(logging.WARNING, logger="ddtrace.testing"):
+                with patch("ddtrace.testing.internal.session_manager.log") as mock_log:
                     session_manager.upload_git_data()
 
         session_manager.api_client.get_known_commits.assert_called_once_with(["commit-1", "commit-2"])
         mock_git.get_filtered_revisions.assert_not_called()
         mock_git.pack_objects.assert_not_called()
         session_manager.api_client.send_git_pack_file.assert_not_called()
-        assert "search_commits failed, aborting git metadata upload" in caplog.text
+        mock_log.warning.assert_called_with("search_commits failed, aborting git metadata upload")
         mock_telemetry.get.return_value.record_git_pack_data.assert_called_once_with(0, 0)
 
-    def test_upload_git_data_aborts_when_search_commits_fails_after_unshallow(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_upload_git_data_aborts_when_search_commits_fails_after_unshallow(self) -> None:
         session_manager = SessionManager.__new__(SessionManager)
         session_manager.api_client = Mock()
         session_manager.api_client.get_known_commits.side_effect = [[], None]
@@ -318,7 +315,7 @@ class TestSessionManagerGitHandling:
 
         with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
             with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                with caplog.at_level(logging.WARNING, logger="ddtrace.testing"):
+                with patch("ddtrace.testing.internal.session_manager.log") as mock_log:
                     session_manager.upload_git_data()
 
         assert session_manager.api_client.get_known_commits.call_args_list == [
@@ -328,5 +325,5 @@ class TestSessionManagerGitHandling:
         mock_git.get_filtered_revisions.assert_not_called()
         mock_git.pack_objects.assert_not_called()
         session_manager.api_client.send_git_pack_file.assert_not_called()
-        assert "search_commits failed after unshallow, aborting git metadata upload" in caplog.text
+        mock_log.warning.assert_called_with("search_commits failed after unshallow, aborting git metadata upload")
         mock_telemetry.get.return_value.record_git_pack_data.assert_called_once_with(0, 0)
