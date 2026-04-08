@@ -1,5 +1,5 @@
-use libdd_data_pipeline::shared_runtime::SharedRuntimeError as DataPipelineSharedRuntimeError;
 use libdd_data_pipeline::trace_exporter::error::TraceExporterError;
+use libdd_shared_runtime::SharedRuntimeError as NativeSharedRuntimeError;
 use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr};
 
 create_exception!(
@@ -99,17 +99,8 @@ impl From<TraceExporterError> for TraceExporterErrorPy {
     }
 }
 
-pub fn shared_runtime_error_to_pyerr(error: DataPipelineSharedRuntimeError) -> PyErr {
+pub fn shared_runtime_error_to_pyerr(error: NativeSharedRuntimeError) -> PyErr {
     SharedRuntimeError::new_err(error.to_string())
-}
-
-pub fn shared_runtime_errors_to_pyerr(errors: Vec<DataPipelineSharedRuntimeError>) -> PyErr {
-    let message = errors
-        .iter()
-        .map(|error| error.to_string())
-        .collect::<Vec<_>>()
-        .join("; ");
-    SharedRuntimeError::new_err(format!("Multiple shared runtime errors: {message}"))
 }
 
 pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {

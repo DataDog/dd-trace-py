@@ -1,22 +1,22 @@
+use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::sync::Arc;
 use std::time::Duration;
 mod exceptions;
-use exceptions::{
-    shared_runtime_error_to_pyerr, shared_runtime_errors_to_pyerr, TraceExporterErrorPy,
-};
+use exceptions::{shared_runtime_error_to_pyerr, TraceExporterErrorPy};
 
 #[pyclass(name = "SharedRuntime")]
 pub struct SharedRuntimePy {
-    inner: Option<Arc<libdd_data_pipeline::shared_runtime::SharedRuntime>>,
+    inner: Option<Arc<SharedRuntime>>,
 }
 
 impl SharedRuntimePy {
-    fn try_as_ref(&self) -> PyResult<&Arc<libdd_data_pipeline::shared_runtime::SharedRuntime>> {
+    fn try_as_ref(&self) -> PyResult<&Arc<SharedRuntime>> {
         self.inner.as_ref().ok_or(PyValueError::new_err(
             "SharedRuntime has already been consumed",
         ))
@@ -29,16 +29,14 @@ impl SharedRuntimePy {
     fn new() -> PyResult<Self> {
         Ok(Self {
             inner: Some(Arc::new(
-                libdd_data_pipeline::shared_runtime::SharedRuntime::new()
-                    .map_err(shared_runtime_error_to_pyerr)?,
+                SharedRuntime::new().map_err(shared_runtime_error_to_pyerr)?,
             )),
         })
     }
 
     fn before_fork(&self) -> PyResult<()> {
-        self.try_as_ref()?
-            .before_fork()
-            .map_err(shared_runtime_errors_to_pyerr)
+        self.try_as_ref()?.before_fork();
+        Ok(())
     }
 
     fn after_fork_parent(&self) -> PyResult<()> {
@@ -267,7 +265,7 @@ impl TraceExporterBuilderPy {
                 self.builder
                     .take()
                     .ok_or(PyValueError::new_err("Builder has already been consumed"))?
-                    .build()
+                    .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
         };
@@ -282,7 +280,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter>,
+    inner: Option<TraceExporter<NativeCapabilities>>,
 }
 
 #[pymethods]
@@ -321,23 +319,6 @@ impl TraceExporterPy {
 
     fn drop(&mut self) -> PyResult<()> {
         drop(self.inner.take());
-        Ok(())
-    }
-
-    fn run_worker(&self) -> PyResult<()> {
-        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
-            "TraceExporter has already been consumed",
-        ))?;
-        match exporter.run_worker() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
-        }
-    }
-
-    fn stop_worker(&self) -> PyResult<()> {
-        if let Some(exporter) = self.inner.as_ref() {
-            exporter.stop_worker();
-        }
         Ok(())
     }
 

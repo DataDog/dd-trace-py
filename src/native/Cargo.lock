@@ -578,6 +578,7 @@ dependencies = [
  "datadog-remote-config",
  "datadog-tracer-flare",
  "libc",
+ "libdd-capabilities-impl",
  "libdd-common 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v30.0.0)",
  "libdd-crashtracker",
  "libdd-data-pipeline",
