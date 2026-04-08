@@ -777,7 +777,7 @@ class TestAPIClientGetKnownCommits:
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -814,7 +814,7 @@ class TestAPIClientGetKnownCommits:
 
         assert "Error getting known commits from API" in caplog.text
 
-        assert commits == []
+        assert commits is None
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_known_commits_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -850,7 +850,7 @@ class TestAPIClientGetKnownCommits:
         assert "Failed to parse search_commits data" in caplog.text
         assert "'data'" in caplog.text
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -1056,7 +1056,7 @@ class TestAPIClientGetSkippableTests:
 
 
 @pytest.fixture
-def packfile(tmpdir: t.Any) -> Path:
+def packfile(tmpdir: t.Any) -> t.Generator[Path, None, None]:
     path = Path(str(tmpdir)) / "file.pack"
     path.write_text("twelve bytes")
     yield path
