@@ -42,12 +42,10 @@ class TestApiSecurityManager:
     def mock_environment(self) -> ASM_Environment:
         # Create a mock environment with required attributes
         env = MagicMock()
-        entry_span = MagicMock(spec=Span)
-        entry_span._meta = {}
+        entry_span = Span("test")
         env.span = MagicMock(spec=Span)
         env.entry_span = entry_span
         env.span.context.sampling_priority = None
-        entry_span.context.sampling_priority = None
         env.waf_addresses = {}
         env.waf_callable = MagicMock()
         env.blocked = None
@@ -80,7 +78,7 @@ class TestApiSecurityManager:
         Expects that _should_collect_schema is not called.
         """
         entry_span = mock_environment.entry_span
-        entry_span._meta = {api_manager.COLLECTED[0][1]: "some_value"}
+        entry_span._set_attribute(api_manager.COLLECTED[0][1], "some_value")
 
         api_manager._schema_callback(mock_environment)
         api_manager._should_collect_schema.assert_not_called()
@@ -124,8 +122,7 @@ class TestApiSecurityManager:
         mock_environment.waf_callable.assert_called_once()
         mock_report_api_security.assert_called_with(True, 1, "test")
 
-        assert len(entry_span._meta) == 1
-        assert "_dd.appsec.s.req.body" in entry_span._meta
+        assert entry_span._has_attribute("_dd.appsec.s.req.body")
 
     @pytest.mark.parametrize("should_collect_return", [True, False, None])
     @pytest.mark.parametrize("sampling_priority", [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP])
@@ -207,8 +204,7 @@ class TestApiSecurityManager:
 
         entry_span = mock_environment.entry_span
         # Verify all schemas are stored in span metadata
-        assert len(entry_span._meta) == 7
-        for meta in [
+        expected_schemas = [
             "_dd.appsec.s.req.body",
             "_dd.appsec.s.req.headers",
             "_dd.appsec.s.req.cookies",
@@ -216,8 +212,10 @@ class TestApiSecurityManager:
             "_dd.appsec.s.req.path_params",
             "_dd.appsec.s.res.headers",
             "_dd.appsec.s.res.body",
-        ]:
-            assert meta in entry_span._meta
+        ]
+        assert len(entry_span._get_str_attributes()) == 7
+        for meta in expected_schemas:
+            assert entry_span._has_attribute(meta)
 
         mock_report_api_security.assert_called_with(True, 7, "test")
 
@@ -239,7 +237,7 @@ class TestApiSecurityManager:
 
             mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
-            assert len(entry_span._meta) == 0
+            assert len(entry_span._get_str_attributes()) == 0
             mock_report_api_security.assert_called_with(True, 0, "test")
 
     def test_schema_callback_parse_response_body_disabled(
@@ -261,7 +259,7 @@ class TestApiSecurityManager:
             call_args = mock_environment.waf_callable.call_args[0][0]
             assert "RESPONSE_BODY" not in call_args
 
-            assert len(mock_environment.entry_span._meta) == 0
+            assert len(mock_environment.entry_span._get_str_attributes()) == 0
             mock_report_api_security.assert_called_with(True, 0, "test")
 
     def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
@@ -278,7 +276,7 @@ class TestApiSecurityManager:
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
 
-            mock_environment.entry_span.get_tag = lambda name: "/span-endpoint" if name == http.ENDPOINT else None
+            mock_environment.entry_span.set_tag(http.ENDPOINT, "/span-endpoint")
             mock_environment.waf_addresses = {
                 SPAN_DATA_NAMES.REQUEST_ROUTE: None,
                 SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
@@ -304,10 +302,7 @@ class TestApiSecurityManager:
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
 
-            def get_tag(name):
-                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
-
-            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.entry_span.set_tag(http.URL, "https://ddtrace.dog/span-endpoint")
             mock_environment.waf_addresses = {
                 SPAN_DATA_NAMES.REQUEST_ROUTE: None,
                 SPAN_DATA_NAMES.REQUEST_METHOD: "GET",
@@ -334,10 +329,7 @@ class TestApiSecurityManager:
             manager._appsec_processor = MagicMock()
             manager._asm_context = MagicMock()
 
-            def get_tag(name):
-                return "https://ddtrace.dog/span-endpoint" if name == http.URL else None
-
-            mock_environment.entry_span.get_tag = get_tag
+            mock_environment.entry_span.set_tag(http.URL, "https://ddtrace.dog/span-endpoint")
             mock_environment.waf_addresses = {
                 SPAN_DATA_NAMES.REQUEST_ROUTE: None,
                 SPAN_DATA_NAMES.REQUEST_METHOD: "GET",

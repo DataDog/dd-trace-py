@@ -625,7 +625,12 @@ class LibraryDownloader(BuildPyCommand):
         if self.editable_mode:
             IS_EDITABLE = True
 
-        CleanLibraries.remove_artifacts()
+        if not self.editable_mode:
+            CleanLibraries.remove_artifacts()
+        else:
+            # For editable installs: preserve .so files so ext_cache restorations survive,
+            # but still wipe the WAF download dir so version bumps are picked up.
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
@@ -1275,9 +1280,9 @@ if not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec._iast._stacktrace",
+                "ddtrace.appsec._shared._stacktrace",
                 sources=[
-                    "ddtrace/appsec/_iast/_stacktrace.c",
+                    "ddtrace/appsec/_shared/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
