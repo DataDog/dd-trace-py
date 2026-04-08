@@ -1,5 +1,6 @@
 """Tests for ddtrace.testing.internal.writer module."""
 
+import typing as t
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -31,7 +32,7 @@ from tests.testing.mocks import mock_test_suite
 class _ConcreteWriter(BaseWriter):
     """Minimal concrete subclass for testing BaseWriter."""
 
-    def __init__(self, min_flush_events: int = 0) -> None:
+    def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
         super().__init__(min_flush_events=min_flush_events)
         self.sent_batches: list[list[Event]] = []
 
@@ -46,7 +47,7 @@ class TestBaseWriterMinFlushEvents:
     """Tests for BaseWriter.min_flush_events threshold flush."""
 
     def test_no_flush_when_disabled(self) -> None:
-        writer = _ConcreteWriter(min_flush_events=0)
+        writer = _ConcreteWriter(min_flush_events=None)
         writer.put_event(Event(n=1))
         writer.put_event(Event(n=2))
 
@@ -87,13 +88,13 @@ class TestBaseWriterMinFlushEvents:
 class TestGetMinFlushEvents:
     """Tests for _get_min_flush_events env var parsing."""
 
-    def test_default_is_zero(self) -> None:
+    def test_default_is_none(self) -> None:
         with patch.dict("os.environ", {}, clear=False):
             # Remove the var if it exists
             import os
 
             os.environ.pop("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
-            assert _get_min_flush_events() == 0
+            assert _get_min_flush_events() is None
 
     def test_reads_env_var(self) -> None:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5"}):
@@ -103,13 +104,17 @@ class TestGetMinFlushEvents:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"}):
             assert _get_min_flush_events() == 1
 
-    def test_negative_clamped_to_zero(self) -> None:
+    def test_negative_returns_none(self) -> None:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
-            assert _get_min_flush_events() == 0
+            assert _get_min_flush_events() is None
 
-    def test_invalid_value_returns_zero(self) -> None:
+    def test_zero_returns_none(self) -> None:
+        with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "0"}):
+            assert _get_min_flush_events() is None
+
+    def test_invalid_value_returns_none(self) -> None:
         with patch.dict("os.environ", {"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
-            assert _get_min_flush_events() == 0
+            assert _get_min_flush_events() is None
 
 
 class TestEvent:
