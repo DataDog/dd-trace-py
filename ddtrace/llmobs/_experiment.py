@@ -2594,6 +2594,7 @@ class SyncExperiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
     ) -> None:
+        self.result: Optional[ExperimentResult] = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -2637,13 +2638,61 @@ class SyncExperiment:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
+            result = asyncio.run(coro)
         else:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                result = pool.submit(asyncio.run, coro).result()
+        self.result = result
+        return result
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        """Return all runs stacked into a single MultiIndex DataFrame.
+
+        Rows from every run in ``self.result["runs"]`` are concatenated in
+        run-iteration order. Two extra top-level column groups are prepended:
+
+        - ``("run_id", "")``        — UUID of the run (str)
+        - ``("run_iteration", "")`` — 1-based run counter (int)
+
+        These columns let callers filter or group by run:
+
+        .. code-block:: python
+
+            df = experiment.as_dataframe()
+            run1 = df[df[("run_iteration", "")] == 1]
+            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        if self.result is None:
+            raise ValueError(
+                "No result found. Call run() before as_dataframe()."
+            )
+
+        frames = []
+        for run in self.result.get("runs", []):
+            df = run.as_dataframe()
+            df.insert(0, ("run_id", ""), str(run.run_id))
+            df.insert(1, ("run_iteration", ""), run.run_iteration)
+            df.columns = pd.MultiIndex.from_tuples(df.columns)
+            frames.append(df)
+
+        if not frames:
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)
 
     @property
     def url(self) -> str:
