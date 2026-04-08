@@ -3,7 +3,11 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
+from typing import TYPE_CHECKING
 from typing import Optional
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native_runtime import NativeRuntime
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
@@ -306,6 +310,7 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
+        native_runtime: Optional["NativeRuntime"] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -318,7 +323,10 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
-        self.writer = create_trace_writer(response_callback=self._agent_response_callback)
+        self.writer = create_trace_writer(
+            response_callback=self._agent_response_callback,
+            native_runtime=native_runtime,
+        )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()

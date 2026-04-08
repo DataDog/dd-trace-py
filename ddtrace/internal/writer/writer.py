@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-import functools
 import gzip
 import os
 import sys
@@ -11,10 +10,8 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TextIO
-import weakref
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -57,6 +54,7 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace.internal.native_runtime import NativeRuntime
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -109,28 +107,6 @@ class NoEncodableSpansError(Exception):
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
 
-
-def make_weak_method_hook(bound_method):
-    """
-    Wrap a bound method so that it is called via a weakref to its instance.
-    If the instance has been garbage-collected, the hook is a no-op.
-    """
-    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
-        raise TypeError("make_weak_method_hook expects a bound method")
-
-    instance = bound_method.__self__
-    func = bound_method.__func__
-    instance_ref = weakref.ref(instance)
-
-    @functools.wraps(func)
-    def hook(*args, **kwargs):
-        inst = instance_ref()
-        if inst is None:
-            # The instance was garbage-collected
-            return
-        return func(inst, *args, **kwargs)
-
-    return hook
 
 
 def _human_size(nbytes: float) -> str:
@@ -850,6 +826,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
+        native_runtime: "NativeRuntime" = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -921,24 +898,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
-        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
-        self._fork_hook = before_fork_hook
-        forksafe.register_before_fork(before_fork_hook)
+        if native_runtime is None:
+            raise ValueError("NativeWriter requires a NativeRuntime instance")
+        self._native_runtime = native_runtime
 
         self._exporter = self._create_exporter()
-
-    def before_fork_hook(self):
-        """
-        This hook is used to shut down the native runtime before forking when the service is not running.
-        When the PeriodicService is running, the native runtime is shut down by the PeriodicThread logic.
-        """
-        if self.status != service.ServiceStatus.RUNNING:
-            self._exporter.stop_worker()
-
-    def __del__(self):
-        if hasattr(self, "_fork_hook") and self._fork_hook:
-            forksafe.unregister_before_fork(self._fork_hook)
 
     @staticmethod
     def _parse_otlp_headers() -> list:
@@ -1010,6 +974,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id())
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
+        builder.set_shared_runtime(self._native_runtime.shared_runtime)
 
         return builder.build()
 
@@ -1047,6 +1012,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
+            native_runtime=self._native_runtime,
         )
 
     def _downgrade(self, status, client):
@@ -1250,21 +1216,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native threads should be stopped even if the writer is not running
         finally:
             self._exporter.stop_worker()
-            if self._fork_hook:
-                forksafe.unregister_before_fork(self._fork_hook)
-                self._fork_hook = None
-
-    def _start_service(self, *args, **kwargs):
-        super()._start_service(*args, **kwargs)
-
-        def _before_fork(worker: periodic.PeriodicThread) -> None:
-            super(periodic.PeriodicThread, worker)._before_fork()
-            super(periodic.PeriodicThread, worker).join()
-            self._exporter.stop_worker()
-
-        assert self._worker is not None  # nosec
-
-        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
 
     def on_shutdown(self):
         try:
@@ -1318,7 +1269,10 @@ def _use_sync_mode() -> bool:
     )
 
 
-def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+def create_trace_writer(
+    response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    native_runtime: Optional["NativeRuntime"] = None,
+) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
 
@@ -1351,6 +1305,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             response_callback=response_callback,
             stats_opt_out=asm_config._apm_opt_out,
             otlp_endpoint=otlp_endpoint,
+            native_runtime=native_runtime,
         )
     else:
         headers: dict[str, str] = {}
