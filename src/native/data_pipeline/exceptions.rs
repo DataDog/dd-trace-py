@@ -127,6 +127,9 @@ pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "SerializationError",
         m.py().get_type::<SerializationError>(),
     )?;
-    m.add("SharedRuntimeError", m.py().get_type::<SharedRuntimeError>())?;
+    m.add(
+        "SharedRuntimeError",
+        m.py().get_type::<SharedRuntimeError>(),
+    )?;
     Ok(())
 }
