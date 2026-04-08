@@ -309,7 +309,17 @@ class _ProfiledLock:
                 try:
                     instance_dict: dict[str, Any] = vars(value)
                 except TypeError:
-                    # Built-in types or __slots__-only objects have no __dict__.
+                    # No __dict__ (built-in or __slots__-only). Slot attributes are backed
+                    # by C-level member_descriptors, not arbitrary user descriptors, so
+                    # getattr is safe here.
+                    for klass in type(value).__mro__:
+                        for attribute in getattr(klass, "__slots__", ()):
+                            if not attribute.startswith("__"):
+                                try:
+                                    if getattr(value, attribute) is self:
+                                        return attribute
+                                except AttributeError:
+                                    pass
                     continue
 
                 for attribute, attr_val in instance_dict.items():
