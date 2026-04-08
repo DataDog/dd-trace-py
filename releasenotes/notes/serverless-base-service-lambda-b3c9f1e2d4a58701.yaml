@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    serverless: Set ``_dd.base_service`` correctly for AWS Lambda spans by using
+    ``AWS_LAMBDA_FUNCTION_NAME`` as the default service name when ``DD_SERVICE`` is not
+    configured. Previously, ``BaseServiceProcessor`` skipped processing entirely in Lambda
+    environments, preventing service remapping rules from working on Lambda spans.
