@@ -1,11 +1,9 @@
 use anyhow;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use libdd_common::Endpoint;
 use libdd_crashtracker::{
     register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
@@ -92,23 +90,25 @@ impl CrashtrackerConfigurationPy {
         test_token: Option<String>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
-        let mut endpoint = endpoint.map(Endpoint::from_slice);
-        if let (Some(ref mut ep), Some(token)) = (endpoint.as_mut(), test_token) {
-            ep.test_token = Some(Cow::Owned(token));
+        let mut builder = CrashtrackerConfiguration::builder()
+            .additional_files(additional_files)
+            .create_alt_stack(create_alt_stack)
+            .use_alt_stack(use_alt_stack)
+            .timeout(Duration::from_millis(timeout_ms))
+            .resolve_frames(resolve_frames)
+            .demangle_names(true);
+        if let Some(url) = endpoint {
+            builder = builder.endpoint_url(url);
+        }
+        if let Some(token) = test_token {
+            builder = builder.endpoint_test_token(&token);
+        }
+        if let Some(path) = unix_socket_path {
+            builder = builder.unix_socket_path(path);
         }
 
         Ok(Self {
-            config: Some(CrashtrackerConfiguration::new(
-                additional_files,
-                create_alt_stack,
-                use_alt_stack,
-                endpoint,
-                resolve_frames,
-                libdd_crashtracker::default_signals(),
-                Some(Duration::from_millis(timeout_ms)),
-                unix_socket_path,
-                true, /* demangle_names */
-            )?),
+            config: Some(builder.build()?),
         })
     }
 }

@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
