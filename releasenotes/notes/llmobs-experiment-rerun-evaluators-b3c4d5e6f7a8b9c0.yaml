@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    LLM Observability: Add ``SyncExperiment.rerun_evaluators()`` to re-run evaluators on the
+    stored task outputs from a previous experiment run without re-executing the task function.
+    Reads from ``experiment.result`` (set by ``run()`` or a future ``pull()``) and returns a
+    new ``ExperimentResult`` with fresh evaluations while preserving original span IDs,
+    trace IDs, inputs, and outputs.
+    The ``missing_task_strategy`` parameter controls behavior when prior rows contain errors:
+    ``"raise"`` (default) raises immediately, ``"skip"`` omits the row, and ``"retry"``
+    re-executes the task for that row.
+    ``task`` and ``dataset`` are now optional when creating an experiment via
+    ``LLMObs.experiment()``, enabling a workflow where you pull prior results and
+    re-score them with updated evaluators without needing to re-run the task.
+    Calling ``run()`` without providing ``task`` and ``dataset`` raises a ``ValueError``.

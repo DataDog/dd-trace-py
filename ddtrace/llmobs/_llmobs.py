@@ -1275,9 +1275,9 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: TaskType,
-        dataset: Dataset,
-        evaluators: Sequence[EvaluatorType],
+        task: Optional[TaskType] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[EvaluatorType] = (),
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
@@ -1307,8 +1307,9 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
-        _validate_task_signature(task, is_async=False)
-        if not isinstance(dataset, Dataset):
+        if task is not None:
+            _validate_task_signature(task, is_async=False)
+        if dataset is not None and not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
