@@ -101,7 +101,9 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         """
         input_value = kwargs.get("input", "")
 
-        _annotate_llmobs_span_data(span, kind="agent", input_value=input_value)
+        output_value = str(response) if not span.error and response is not None else ""
+
+        _annotate_llmobs_span_data(span, kind="agent", input_value=input_value, output_value=output_value)
 
     def _llmobs_set_tool_tags(
         self,
