@@ -46,7 +46,7 @@ standard_blocklist = [
     "ddtrace.appsec._iast._ast.iastpatch",
     "ddtrace.appsec._iast._taint_tracking._native",
     "ddtrace.appsec._iast._taint_tracking._vendor",
-    "ddtrace.appsec._iast._stacktrace",
+    "ddtrace.appsec._shared._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
     "ddtrace.internal.datadog.profiling.stack._stack",
