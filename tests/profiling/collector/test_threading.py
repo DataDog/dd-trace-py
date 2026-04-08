@@ -11,9 +11,9 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
+from unittest import mock  # type: ignore[import-untyped]
 import uuid
 
-import mock
 import pytest
 
 from ddtrace import ext
@@ -414,8 +414,8 @@ def test_rlock_gevent_tasks() -> None:
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
+    from unittest import mock
 
-    import mock
     import pytest
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -1183,6 +1183,61 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                     ),
                 ],
             )
+
+    def test_find_name_slots_object(self) -> None:
+        """Regression: _find_name resolves lock names on __slots__-based objects.
+
+        Objects with __slots__ have no __dict__, so the slots inspection path
+        in _find_name must be used. Previously, the TypeError from vars() was
+        caught and the name resolution was skipped entirely.
+        """
+
+        class SlottedHolder:
+            __slots__ = ("my_lock",)
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = SlottedHolder(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", (
+                    f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
+                )
+
+    def test_crashing_descriptor_does_not_crash(self) -> None:
+        """Regression: _find_name must not crash when an object has a descriptor that raises.
+
+        Ray's get_actor_name descriptor crashes when accessed from a non-actor
+        worker context. The old dir()+getattr() approach would invoke it and
+        crash. The fix uses __dict__ to avoid invoking class-level descriptors.
+        """
+
+        class CrashingDescriptor:
+            def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
+                raise RuntimeError("Simulated Ray descriptor crash")
+
+        class HolderWithCrashingDescriptor:
+            dangerous_attr = CrashingDescriptor()
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = HolderWithCrashingDescriptor(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                # Must not raise, even though accessing dangerous_attr crashes
+                found_name = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
 
     def test_private_lock(self) -> None:
         # Store reference to class for later qualname access
