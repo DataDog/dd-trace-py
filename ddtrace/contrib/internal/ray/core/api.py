@@ -3,14 +3,10 @@ import sys
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.contrib._events.ray import RayCoreAPIEvent
-from ddtrace.contrib.internal.ray.constants import RAY_JOB_NAME
 from ddtrace.contrib.internal.ray.core.utils import _extract_tracing_context_from_env
+from ddtrace.contrib.internal.ray.core.utils import _get_ray_service_name
 from ddtrace.internal import core
-from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
-
-
-RAY_SERVICE_NAME = env.get(RAY_JOB_NAME)
 
 
 def traced_get(wrapped, instance, args, kwargs):
@@ -26,7 +22,7 @@ def traced_get(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             api_name="ray.get",
             is_long_running=True,
             timeout_s=timeout,
@@ -51,7 +47,7 @@ def traced_put(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             api_name="ray.put",
             is_long_running=False,
             put_value_type=str(type(put_value).__name__),
@@ -78,7 +74,7 @@ def traced_wait(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             api_name="ray.wait",
             is_long_running=True,
             timeout_s=timeout,
