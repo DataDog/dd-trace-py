@@ -1,6 +1,7 @@
-import os
 import typing as t
 import uuid
+
+from ddtrace.internal.settings import env
 
 from .. import forksafe
 
@@ -24,8 +25,8 @@ def _generate_runtime_id() -> str:
 _RUNTIME_ID: str = _generate_runtime_id()
 # Seeded from env vars when this process was spawned (multiprocessing spawn/forkserver).
 # For fork-based processes these are set by _set_runtime_id() via the forksafe hook.
-_ANCESTOR_RUNTIME_ID: t.Optional[str] = os.environ.get(_ENV_ROOT_SESSION_ID)
-_PARENT_RUNTIME_ID: t.Optional[str] = os.environ.get(_ENV_PARENT_SESSION_ID)
+_ANCESTOR_RUNTIME_ID: t.Optional[str] = env.get(_ENV_ROOT_SESSION_ID)
+_PARENT_RUNTIME_ID: t.Optional[str] = env.get(_ENV_PARENT_SESSION_ID)
 # IMPORTANT: Do not change t.Set to set until minimum Python version is 3.11+
 # Module-level set[...] in Python 3.10 affects import timing. See packages.py for details.
 _ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006

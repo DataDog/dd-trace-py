@@ -20,6 +20,9 @@ class BaseProduct(Product):
     def post_preload(self) -> None:
         self.post_preloaded = True
 
+    def enabled(self) -> bool:
+        return True
+
     def start(self) -> None:
         self.started = True
 
@@ -100,7 +103,7 @@ def test_product_manager_start():
     assert a.started
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess()
 def test_product_manager_restart():
     import os
 
@@ -118,6 +121,9 @@ def test_product_manager_restart():
 
         def __init__(self) -> None:
             self.started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
+
+        def enabled(self) -> bool:
+            return True
 
         def post_preload(self) -> None:
             self.post_preloaded = True
@@ -149,25 +155,20 @@ def test_product_manager_restart():
 
 
 def test_product_manager_is_enabled():
-    class ProductWithConfig:
-        def __init__(self, enabled):
-            self.config = type("Config", (), {"enabled": enabled})()
+    class DisabledProduct(BaseProduct):
+        def enabled(self) -> bool:
+            return False
 
     # Test when product doesn't exist
     manager = ProductManagerTest({})
     assert not manager.is_enabled("nonexistent")
 
-    # Test when product exists but has no config
-    product_no_config = BaseProduct()
-    manager = ProductManagerTest({"no_config": product_no_config})
-    assert not manager.is_enabled("no_config")
-
     # Test when product exists and is enabled
-    enabled_product = ProductWithConfig(True)
+    enabled_product = BaseProduct()
     manager = ProductManagerTest({"enabled": enabled_product})
     assert manager.is_enabled("enabled")
 
     # Test when product exists but is disabled
-    disabled_product = ProductWithConfig(False)
+    disabled_product = DisabledProduct()
     manager = ProductManagerTest({"disabled": disabled_product})
     assert not manager.is_enabled("disabled")

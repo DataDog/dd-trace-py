@@ -88,7 +88,10 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
 
     span = tracer.start_span(event.span_name, **span_kwargs)
 
-    span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
+    span._set_attribute(COMPONENT, event.component)
+    span._set_attribute(SPAN_KIND, event.span_kind)
+    for _k, _v in event.tags.items():
+        span._set_attribute(_k, _v)
 
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)

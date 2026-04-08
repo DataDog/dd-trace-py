@@ -48,10 +48,10 @@ jobs:
           python-version: "3.14"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Install system dependencies
         run: |
@@ -60,9 +60,9 @@ jobs:
 
       - uses: ./.github/actions/setup-ci-deps
 
-      - name: Install ddtrace
+      - name: Install ddtrace from pre-built wheel
         run: |
-          pip install -e .
+          curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
       - run: python scripts/freshvenvs.py generate
 
@@ -71,7 +71,7 @@ jobs:
 
       - run: git diff
 
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
           scope: DataDog/dd-trace-py

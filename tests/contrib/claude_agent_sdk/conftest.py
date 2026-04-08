@@ -12,6 +12,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENC
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_config
@@ -99,6 +100,12 @@ def mock_internal_client_bash_tool(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_grep_tool(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_GREP_TOOL_RESPONSE_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_structured_output(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE):
         yield
 
 
