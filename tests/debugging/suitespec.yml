@@ -14,4 +14,3 @@ suites:
       - '@remoteconfig'
       - '@tracing'
       - tests/debugging/*
-    runner: riot
