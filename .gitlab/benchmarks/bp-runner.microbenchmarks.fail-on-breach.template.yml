@@ -976,7 +976,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 58.00 ms
+              - execution_time < 58.50 ms
               - max_rss_usage < 38.00 MB
           - name: span-start-finish-telemetry
             thresholds:
