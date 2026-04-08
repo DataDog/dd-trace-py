@@ -48,7 +48,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"MySQLdb": ">=2.0"}
+    return {"mysqldb": "*"}
 
 
 def patch():
