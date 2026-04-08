@@ -722,3 +722,92 @@ def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_
     llm_event = llmobs_events[0]
     assert llm_event["meta"]["span"]["kind"] == "llm"
     assert llm_event["meta"]["model_name"] == "test-model"
+
+
+class TestLLMObsBridgeTagsProcessor:
+    """Tests for LLMObsBridgeTagsProcessor — propagates bridge tags to partial-flush batches."""
+
+    def test_bridge_tags_propagated_to_non_root_spans(self, llmobs, tracer):
+        """Non-root spans should carry llmobs_trace_id matching the local root."""
+        with tracer.trace("root") as root:
+            with llmobs.workflow("wf"):
+                pass
+            child = tracer.start_span("gen_ai.completion", child_of=root, activate=False)
+            child.finish()
+
+        assert root.get_tag("llmobs_trace_id") is not None
+        assert child.get_tag("llmobs_trace_id") == root.get_tag("llmobs_trace_id")
+        assert child.get_tag("llmobs_parent_id") == root.get_tag("llmobs_parent_id")
+
+    def test_bridge_tags_processor_copies_from_local_root(self, llmobs, tracer):
+        """LLMObsBridgeTagsProcessor.process_trace copies tags from _local_root to untagged spans."""
+        from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
+
+        processor = LLMObsBridgeTagsProcessor()
+        with tracer.trace("root") as root:
+            with llmobs.workflow("wf"):
+                pass
+            child = tracer.start_span("gen_ai.completion", child_of=root, activate=False)
+            child.finish()
+
+        # Remove the tag to simulate a span that hasn't been through the processor
+        del child._meta["llmobs_trace_id"]
+        del child._meta["llmobs_parent_id"]
+        assert child.get_tag("llmobs_trace_id") is None
+
+        processor.process_trace([child])
+
+        assert child.get_tag("llmobs_trace_id") == root.get_tag("llmobs_trace_id")
+        assert child.get_tag("llmobs_parent_id") == root.get_tag("llmobs_parent_id")
+
+    def test_bridge_tags_not_overwritten_if_already_set(self, llmobs, tracer):
+        """A span that already has llmobs_trace_id should not be overwritten."""
+        from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
+
+        processor = LLMObsBridgeTagsProcessor()
+        with tracer.trace("root") as root:
+            with llmobs.workflow("wf"):
+                pass
+            child = tracer.start_span("gen_ai.completion", child_of=root, activate=False)
+            child.set_tag("llmobs_trace_id", "original-value")
+            child.finish()
+
+        processor.process_trace([child])
+
+        assert child.get_tag("llmobs_trace_id") == "original-value"
+
+    def test_bridge_tags_not_set_without_llmobs_context(self, llmobs, tracer):
+        """Spans in traces with no LLMObs spans should not receive bridge tags."""
+        from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
+
+        processor = LLMObsBridgeTagsProcessor()
+        with tracer.trace("root") as root:
+            child = tracer.start_span("some_span", child_of=root, activate=False)
+            child.finish()
+
+        processor.process_trace([child])
+
+        assert child.get_tag("llmobs_trace_id") is None
+
+    def test_bridge_tags_propagated_via_dd_processor_on_partial_flush(self, llmobs, tracer):
+        """Integration: bridge tags appear on spans in a simulated partial-flush batch."""
+        from ddtrace.llmobs._bridge_tags_processor import LLMObsBridgeTagsProcessor
+
+        processor = LLMObsBridgeTagsProcessor()
+        with tracer.trace("root") as root:
+            with llmobs.workflow("wf"):
+                pass
+            children = []
+            for i in range(3):
+                c = tracer.start_span(f"gen_ai.step.{i}", child_of=root, activate=False)
+                c.finish()
+                children.append(c)
+            for c in children:
+                del c._meta["llmobs_trace_id"]
+                del c._meta["llmobs_parent_id"]
+            processor.process_trace(children)
+
+        expected_trace_id = root.get_tag("llmobs_trace_id")
+        assert expected_trace_id is not None
+        for c in children:
+            assert c.get_tag("llmobs_trace_id") == expected_trace_id
