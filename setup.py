@@ -1014,23 +1014,12 @@ class CustomBuildExt(build_ext):
 
         cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
 
-        cmake_args = [
+        cmake_args = self._base_cmake_args() + [
             f"-S{dep.cmake_dir}",
             f"-B{cmake_build_dir}",
-            f"-DCMAKE_BUILD_TYPE={COMPILE_MODE}",
             f"-DCMAKE_INSTALL_PREFIX={dep.install_dir}",
             "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
         ]
-
-        sccache_path = os.getenv("DD_SCCACHE_PATH")
-        if sccache_path:
-            cmake_args += [
-                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",
-                f"-DCMAKE_C_COMPILER_LAUNCHER={sccache_path}",
-                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",
-                f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
-            ]
 
         if CURRENT_OS == "Darwin":
             archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
@@ -1125,41 +1114,51 @@ class CustomBuildExt(build_ext):
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
+    @staticmethod
+    def _base_cmake_args(build_type: t.Optional[str] = None) -> list:
+        """CMake arguments shared by every invocation: build type, download cache, sccache.
+
+        Both ``_build_shared_dep`` and ``_get_common_cmake_args`` use this so the two
+        call-sites stay in sync without duplicating the logic.
+        """
+        args = [
+            f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
+            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+        ]
+        sccache_path = os.getenv("DD_SCCACHE_PATH")
+        if sccache_path:
+            args += [
+                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",
+                f"-DCMAKE_C_COMPILER_LAUNCHER={sccache_path}",
+                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",
+                f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
+            ]
+        return args
+
     def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
         """Get common CMake arguments used by both libdd_wrapper and extensions."""
         # Use base_prefix (not prefix) to get the actual Python installation path even when in a venv
         # Resolve symlinks so CMake can find include/lib directories relative to the real installation
         python_root = Path(sys.base_prefix).resolve()
 
-        cmake_args = [
+        cmake_args = self._base_cmake_args(build_type) + [
             f"-S{source_dir}",
             f"-B{build_dir}",
             f"-DPython3_ROOT_DIR={python_root}",
             f"-DPython3_EXECUTABLE={sys.executable}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
-            f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
             f"-DLIB_INSTALL_DIR={output_dir}",
             f"-DEXTENSION_NAME={extension_name}",
             f"-DEXTENSION_SUFFIX={self.suffix}",
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
+            f"-DCMAKE_MODULE_PATH={HERE / 'cmake'}",
         ]
         # Pass DD_WRAPPER_DIR for ddup/stack/memalloc cmake builds to find libdd_wrapper
         if hasattr(self, "wrapper_output_dir"):
             cmake_args += [
                 f"-DDD_WRAPPER_DIR={self.wrapper_output_dir}",
             ]
-
-        # Point FetchContent downloads at the persistent download cache so CMake
-        # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
-        # The cache dir is shared with other downloaded build dependencies and is
-        # preserved between CI runs. FETCHCONTENT_BASE_DIR defaults to a path
-        # inside the ephemeral cmake build dir, so without this every build would
-        # re-download from GitHub.
-        cmake_args += [
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
-            f"-DCMAKE_MODULE_PATH={HERE / 'cmake'}",
-        ]
 
         # Forward the install path of every successfully pre-built shared dep so
         # each consuming extension's CMakeLists.txt can use find_package() instead
@@ -1168,16 +1167,6 @@ class CustomBuildExt(build_ext):
         for dep in SHARED_DEPS:
             if dep.name in built:
                 cmake_args += [f"-D{dep.cmake_var}={dep.install_dir}"]
-
-        # Add sccache support if available
-        sccache_path = os.getenv("DD_SCCACHE_PATH")
-        if sccache_path:
-            cmake_args += [
-                f"-DCMAKE_C_COMPILER={os.getenv('DD_CC_OLD', shutil.which('cc'))}",
-                f"-DCMAKE_C_COMPILER_LAUNCHER={sccache_path}",
-                f"-DCMAKE_CXX_COMPILER={os.getenv('DD_CXX_OLD', shutil.which('c++'))}",
-                f"-DCMAKE_CXX_COMPILER_LAUNCHER={sccache_path}",
-            ]
 
         return cmake_args
 
