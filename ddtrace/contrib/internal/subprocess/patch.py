@@ -585,9 +585,12 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         # differ in edge cases and _may_ interact oddly with ``preexec_fn`` or other
         # POSIX-specific process setup.
         current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
-        env = dict(os.environ.copy() if current_env is None else current_env)
-        env.update(get_runtime_propagation_envs())
-        args, kwargs = set_argument_value(args, kwargs, 10, "env", env, override_unset=True)
+        if current_env is None:
+            child_env = os.environ.copy()  # ast-grep-ignore: os-environ-fix-access
+        else:
+            child_env = current_env
+        child_env.update(get_runtime_propagation_envs())
+        args, kwargs = set_argument_value(args, kwargs, 10, "env", child_env, override_unset=True)
 
     if should_trace_subprocess():
         try:
