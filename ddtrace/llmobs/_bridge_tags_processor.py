@@ -1,4 +1,3 @@
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
@@ -14,7 +13,7 @@ class LLMObsBridgeTagsProcessor(TraceProcessor):
     disconnecting OTel gen_ai spans from the correct LLMObs trace.
     """
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         for span in trace:
             if span.get_tag("llmobs_trace_id") is None:
                 local_root = span._local_root
