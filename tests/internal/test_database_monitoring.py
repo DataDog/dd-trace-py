@@ -148,8 +148,7 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
         injected_sql = modified_args[0]
 
         assert "ddsh" not in injected_sql
-        assert PROPAGATED_HASH not in dbspan._metrics
-        assert PROPAGATED_HASH not in dbspan._meta
+        assert not dbspan._has_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -182,15 +181,15 @@ def test_dbm_propagating_base_hash_when_activated():
         injected_sql = modified_args[0]
         ddsh_value = None
 
-        assert PROPAGATED_HASH in dbspan._meta
+        assert dbspan._has_attribute(PROPAGATED_HASH)
         assert "ddsh" in injected_sql
 
         match = re.search(r"ddsh='(\d+)'", injected_sql)
         if match:
             ddsh_value = match.group(1)
 
-        assert dbspan._meta[PROPAGATED_HASH] == str(process_tags.base_hash)
-        assert ddsh_value == dbspan._meta[PROPAGATED_HASH]
+        assert dbspan._get_str_attribute(PROPAGATED_HASH) == str(process_tags.base_hash)
+        assert ddsh_value == dbspan._get_str_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -223,7 +222,7 @@ def test_dbm_not_propagating_when_process_tags_disabled():
         injected_sql = modified_args[0]
 
         assert "ddsh" not in injected_sql
-        assert PROPAGATED_HASH not in dbspan._metrics
+        assert not dbspan._has_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(

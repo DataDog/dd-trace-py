@@ -49,6 +49,7 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -61,8 +62,8 @@ config._add(
     "unittest",
     dict(
         _default_service="unittest",
-        operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
+        operation_name=env.get("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
+        strict_naming=asbool(env.get("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
     ),
 )
 
@@ -148,7 +149,9 @@ def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, 
     global _global_skipped_elements
     _global_skipped_elements += 1
 
-    test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+    test_module_span._set_attribute(
+        test.ITR_TEST_SKIPPING_COUNT, (test_module_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0) + 1
+    )
     test_module_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
     test_module_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 

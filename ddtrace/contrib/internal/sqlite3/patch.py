@@ -1,4 +1,3 @@
-import os
 import sqlite3
 import sqlite3.dbapi2
 
@@ -12,6 +11,7 @@ from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -25,7 +25,7 @@ config._add(
         _default_service=schematize_service_name("sqlite"),
         _dbapi_span_name_prefix="sqlite",
         _dbapi_span_operation_name=schematize_database_operation("sqlite.query", database_provider="sqlite"),
-        trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

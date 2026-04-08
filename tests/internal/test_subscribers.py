@@ -188,8 +188,8 @@ def test_base_tracing_subscriber(test_spans):
     assert span.service == "my-service"
     assert span.span_type == "custom"
     assert span.name == "test.subscriber.span"
-    assert span._meta[COMPONENT] == "test-component"
-    assert span._meta[SPAN_KIND] == "internal"
+    assert span._get_str_attribute(COMPONENT) == "test-component"
+    assert span._get_str_attribute(SPAN_KIND) == "internal"
     assert span.resource == "/api/endpoint"
 
 
@@ -245,7 +245,7 @@ def test_span_context_event_with_custom_fields(test_spans):
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
     assert span.name == "op.arg"
-    assert span._metrics["http.status_code"] == 200
+    assert span._get_str_attribute("http.status_code") == "200"
 
 
 def test_span_context_event_inheritance(test_spans):
@@ -289,9 +289,9 @@ def test_span_context_event_inheritance(test_spans):
 
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
-    assert span._meta["http.url"] == "http://example.com"
-    assert span._meta["http.method"] == "GET"
-    assert span._meta[COMPONENT] == "http"
+    assert span._get_str_attribute("http.url") == "http://example.com"
+    assert span._get_str_attribute("http.method") == "GET"
+    assert span._get_str_attribute(COMPONENT) == "http"
 
 
 def test_span_context_event_with_exception(test_spans):
@@ -316,8 +316,8 @@ def test_span_context_event_with_exception(test_spans):
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
     assert span.error == 1
-    assert span._meta["error.type"] == "builtins.ValueError"
-    assert span._meta["error.message"] == "test error"
+    assert span._get_str_attribute("error.type") == "builtins.ValueError"
+    assert span._get_str_attribute("error.message") == "test error"
 
 
 def test_span_parent_child_default(test_spans):

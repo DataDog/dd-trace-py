@@ -1,5 +1,10 @@
+from collections.abc import Mapping
 import io
 import json
+from typing import Any
+from typing import Callable
+from typing import MutableMapping
+from typing import Optional
 
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
@@ -19,9 +24,12 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -30,7 +38,7 @@ logger = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _get_content_length(environ):
+def _get_content_length(environ: Mapping[str, Any]) -> Optional[int]:
     content_length = environ.get("CONTENT_LENGTH")
     transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
 
@@ -44,14 +52,23 @@ def _get_content_length(environ):
 
 
 def _on_request_span_modifier(
-    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
-):
+    _ctx: ExecutionContext,
+    _flask_config: IntegrationConfig,
+    request: Any,
+    environ: MutableMapping[str, Any],
+    _HAS_JSON_MIXIN: bool,
+    _flask_version: object,
+    _flask_version_str: str,
+    _exception_type: type[BaseException],
+) -> Optional[Any]:
     req_body = None
     if asm_config._asm_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
         wsgi_input = environ.get("wsgi.input", "")
 
         # Copy wsgi input if not seekable
+        seekable = False
+        body = b""
         if wsgi_input:
             try:
                 seekable = wsgi_input.seekable()
@@ -67,7 +84,8 @@ def _on_request_span_modifier(
                     body = wsgi_input.read()
                 else:
                     content_length = _get_content_length(environ)
-                    body = wsgi_input.read(content_length) if content_length else b""
+                    if content_length:
+                        body = wsgi_input.read(content_length)
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:
@@ -93,11 +111,11 @@ def _on_request_span_modifier(
                 if seekable:
                     wsgi_input.seek(0)
                 else:
-                    environ["wsgi.input"] = io.BytesIO(body)
+                    environ["wsgi.input"] = io.BytesIO(initial_bytes=body)
     return req_body
 
 
-def _on_flask_blocked_request(span):
+def _on_flask_blocked_request(span: Span) -> None:
     span._set_attribute(http.STATUS_CODE, "403")
     request = core.find_item("flask_request")
     try:
@@ -116,11 +134,21 @@ def _on_flask_blocked_request(span):
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
-def _on_start_response_blocked(ctx, flask_config, response_headers, status):
-    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
+def _on_start_response_blocked(
+    ctx: ExecutionContext,
+    flask_config: IntegrationConfig,
+    response_headers: list[tuple[str, str]],
+    status: int,
+) -> None:
+    trace_utils.set_http_meta(
+        ctx["req_span"], flask_config, status_code=status, response_headers=dict(response_headers)
+    )
 
 
-def _make_block_response():
+_BlockedViewResponse = tuple[str, int, Mapping[str, str]]
+
+
+def _make_block_response() -> tuple[str, int, Mapping[str, str]]:
     """Build a blocked response as a tuple (body, status, headers).
 
     Returning a tuple avoids Flask's error handling (handle_exception,
@@ -134,11 +162,11 @@ def _make_block_response():
     block_id = block_config.block_id if block_config else "(default)"
     status = block_config.status_code if block_config else 403
     if block_config and block_config.type == "none":
-        return b"", status, {"location": block_config.location}
+        return "", status, {"location": block_config.location}
     return http_utils._get_blocked_template(ctype, block_id), status, {"content-type": ctype}
 
 
-def _on_wrapped_view(kwargs):
+def _on_wrapped_view(kwargs: Mapping[str, object]) -> Optional[Callable[[], _BlockedViewResponse]]:
     callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
     if asm_config._asm_enabled and in_asm_context():
@@ -151,7 +179,7 @@ def _on_wrapped_view(kwargs):
     return callback_block
 
 
-def _flask_block_request_callable(span):
+def _flask_block_request_callable(span: Span) -> None:
     import flask
     from werkzeug.exceptions import abort
 
@@ -171,7 +199,7 @@ def _flask_block_request_callable(span):
         abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=status))
 
 
-def _on_pre_tracedrequest(ctx):
+def _on_pre_tracedrequest(ctx: ExecutionContext) -> None:
     import functools
 
     if asm_config._asm_enabled:
@@ -180,14 +208,16 @@ def _on_pre_tracedrequest(ctx):
             block_request()
 
 
-def _on_block_decided(callback):
+def _on_block_decided(callback: Callable[[], Any]) -> None:
     if not asm_config._asm_enabled:
         return
 
     core.on("flask.block.request.content", callback, "block_requested")
 
 
-def _wsgi_make_block_content(ctx, construct_url):
+def _wsgi_make_block_content(
+    ctx: ExecutionContext, construct_url: Callable[[MutableMapping[str, str]], str]
+) -> tuple[int, list[tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -226,7 +256,7 @@ def _wsgi_make_block_content(ctx, construct_url):
     return status, resp_headers, content
 
 
-def listen():
+def listen() -> None:
     core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
