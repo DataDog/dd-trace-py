@@ -3,6 +3,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
 import itertools
+import json
 import os
 from re import Match
 from re import Pattern
@@ -16,6 +17,7 @@ from typing import Text
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -44,9 +46,11 @@ from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_utils import taint_structure
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
@@ -1460,6 +1464,22 @@ def ospathsplitroot_aspect(*args: Any, **kwargs: Any) -> Any:
             iast_propagation_error_log("_aspect_ospathsplitroot", e)
 
     return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]
+
+
+def json_loads_aspect(*args: Any, **kwargs: Any) -> Any:
+    obj = json.loads(*args, **kwargs)
+    try:
+        if is_iast_request_enabled():
+            ranges = get_tainted_ranges(args[0])
+            if ranges and obj:
+                source = ranges[0].source
+                if isinstance(obj, (dict, list)):
+                    obj = taint_structure(obj, source.origin, source.origin)
+                elif isinstance(obj, IAST.TEXT_TYPES):
+                    obj = taint_pyobject(obj, source.name, source.value, source.origin)
+    except Exception as e:
+        iast_propagation_error_log("json_loads_aspect", e)
+    return obj
 
 
 def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
