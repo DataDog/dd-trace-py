@@ -76,33 +76,18 @@ if __name__ == "__main__":
     assert status == 0, (out, err)
 
 
-@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_base_service_runs_in_lambda(ddtrace_run_python_code_in_subprocess, schema_version):
-    code = """
-import sys
-import pytest
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": [None, "v0", "v1"]},
+    env={"AWS_LAMBDA_FUNCTION_NAME": "my-lambda-func"},
+)
+def test_base_service_runs_in_lambda():
+    import os
 
-from ddtrace.constants import _BASE_SERVICE_KEY
-from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.trace import Span
-from tests.internal.service_name.test_processor import processor
+    from ddtrace.constants import _BASE_SERVICE_KEY
+    from ddtrace.internal.schema.processor import BaseServiceProcessor
+    from ddtrace.trace import Span
 
-def test(processor):
-    fake_trace = [
-        Span("op", service="some-other-service", resource="res"),
-    ]
+    processor = BaseServiceProcessor()
+    fake_trace = [Span("op", service="some-other-service", resource="res")]
     processor.process_trace(fake_trace)
-    assert fake_trace[0].get_tag(_BASE_SERVICE_KEY) == "my-lambda-func", (
-        "_dd.base_service should be set in Lambda environments"
-    )
-
-if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
-    """
-
-    env = os.environ.copy()
-    env["AWS_LAMBDA_FUNCTION_NAME"] = "my-lambda-func"
-    if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, (out, err)
+    assert fake_trace[0].get_tag(_BASE_SERVICE_KEY) == os.environ["AWS_LAMBDA_FUNCTION_NAME"]
