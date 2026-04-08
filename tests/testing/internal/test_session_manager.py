@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import logging
 import os
 import typing as t
 from unittest.mock import Mock
@@ -292,7 +293,8 @@ class TestSessionManagerGitHandling:
 
         with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
             with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                session_manager.upload_git_data()
+                with caplog.at_level(logging.WARNING, logger="ddtrace.testing"):
+                    session_manager.upload_git_data()
 
         session_manager.api_client.get_known_commits.assert_called_once_with(["commit-1", "commit-2"])
         mock_git.get_filtered_revisions.assert_not_called()
@@ -316,7 +318,8 @@ class TestSessionManagerGitHandling:
 
         with patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git):
             with patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry:
-                session_manager.upload_git_data()
+                with caplog.at_level(logging.WARNING, logger="ddtrace.testing"):
+                    session_manager.upload_git_data()
 
         assert session_manager.api_client.get_known_commits.call_args_list == [
             call(["commit-1"]),
