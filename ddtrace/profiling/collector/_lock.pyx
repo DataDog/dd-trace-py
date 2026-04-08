@@ -295,6 +295,9 @@ class _ProfiledLock:
         cdef str name
         cdef str attribute
         cdef object value
+        cdef object instance_dict
+        cdef object klass
+        cdef object attr_val
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -303,23 +306,22 @@ class _ProfiledLock:
                 return name
 
             if config.lock.name_inspect_dir:
-                # Use vars (instance __dict__) rather than dir + getattr to avoid invoking
+                # Use __dict__ rather than dir + getattr to avoid invoking
                 # arbitrary descriptors. Some third-party descriptors (e.g. Ray's get_actor_name)
                 # crash the process when accessed from a non-actor worker context.
-                try:
-                    instance_dict: dict[str, Any] = vars(value)
-                except TypeError:
+                instance_dict = getattr(value, "__dict__", None)
+                if instance_dict is None:
                     # No __dict__ (built-in or __slots__-only). Slot attributes are backed
                     # by C-level member_descriptors, not arbitrary user descriptors, so
                     # getattr is safe here.
                     for klass in type(value).__mro__:
-                        for attribute in getattr(klass, "__slots__", ()):
-                            if not attribute.startswith("__"):
-                                try:
-                                    if getattr(value, attribute) is self:
-                                        return attribute
-                                except AttributeError:
-                                    pass
+                        available_attributes = (
+                            a for a in getattr(klass, "__slots__", ()) if not a.startswith("__")
+                        )
+                        for attribute in available_attributes:
+                            if getattr(value, attribute, None) is self:
+                                return attribute
+
                     continue
 
                 for attribute, attr_val in instance_dict.items():
