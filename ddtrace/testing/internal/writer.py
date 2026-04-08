@@ -32,7 +32,7 @@ EventSerializer = t.Callable[[TSerializable], Event]
 
 
 class BaseWriter(ABC):
-    def __init__(self, min_flush_events: int = 0) -> None:
+    def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
         self._flush_now = threading.Event()
@@ -52,7 +52,7 @@ class BaseWriter(ABC):
         # is not sufficient because os._exit() / SIGKILL can kill the process
         # before the daemon thread gets scheduled.  Synchronous flush guarantees
         # the data reaches the backend before the calling code can crash.
-        if self.min_flush_events and buffer_len >= self.min_flush_events:
+        if self.min_flush_events is not None and buffer_len >= self.min_flush_events:
             self.flush()
 
     def pop_events(self) -> list[Event]:
@@ -113,21 +113,25 @@ class BaseWriter(ABC):
             return [pack]
 
 
-def _get_min_flush_events() -> int:
+def _get_min_flush_events() -> t.Optional[int]:
     """Read the minimum number of buffered events before triggering an early flush.
 
     Uses DD_TRACE_PARTIAL_FLUSH_MIN_SPANS for backwards compatibility with the
     old CI Visibility plugin, which used the same env var (via the APM tracer's
     SpanAggregator) to control how eagerly test events were sent.
 
-    A value of 0 (the default) disables threshold-based flushing — events are
+    Returns None (the default) to disable threshold-based flushing — events are
     only sent on the 60-second periodic timer or on shutdown.
     """
+    raw = env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    if raw is None:
+        return None
     try:
-        value = int(env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "0"))
-        return max(value, 0)
+        value = int(raw)
+        return value if value > 0 else None
     except (ValueError, TypeError):
-        return 0
+        log.warning("Invalid value for DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r; threshold-based flushing disabled", raw)
+        return None
 
 
 class TestOptWriter(BaseWriter):
