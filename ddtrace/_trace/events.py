@@ -26,10 +26,10 @@ class TracingEvent(Event):
     component: str = field()
     integration_config: IntegrationConfig = field()
 
-    # operation_name must be either provided:
-    # - At event instantiation if constant
-    # - At post init if depending on some runtime values
-    operation_name: Optional[str] = field(default=None)
+    # operation_name must be provided at __post_init__.
+    # This allows to deal with constant and non constant operation name
+    # while still enforcing the value
+    operation_name: str = field(init=False)
 
     tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
