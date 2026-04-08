@@ -25,9 +25,11 @@ from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
+from ..constants import DEFAULT_JOB_NAME
 from ..constants import RAY_ACTOR_ID
 from ..constants import RAY_HOSTNAME
 from ..constants import RAY_JOB_ID
+from ..constants import RAY_JOB_NAME
 from ..constants import RAY_METADATA_PREFIX
 from ..constants import RAY_NODE_ID
 from ..constants import RAY_SUBMISSION_ID
@@ -86,6 +88,10 @@ def _extract_tracing_context_from_env() -> Optional[Context]:
             }
         )
     return None
+
+
+def _get_ray_service_name() -> str:
+    return env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
 
 
 def _set_dist_ai_metrics(span: Span) -> None:
