@@ -114,8 +114,8 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        self._meta: dict[str, str] = {}
-        self._metrics: dict[str, NumericType] = {}
+        self._meta: dict[str, str] = {}  # ast-grep-ignore: span-meta-access
+        self._metrics: dict[str, NumericType] = {}  # ast-grep-ignore: span-metrics-access
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
@@ -144,9 +144,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         with self.context:
             for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])
+                self._meta.setdefault(tag, self.context._meta[tag])  # ast-grep-ignore: span-meta-access
             for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])
+                self._metrics.setdefault(metric, self.context._metrics[metric])  # ast-grep-ignore: span-metrics-access
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -195,8 +195,8 @@ class Span(SpanData):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:
-                    del self._local_root._metrics[key]
+                if self._local_root._has_attribute(key):
+                    self._local_root._remove_attribute(key)
 
     def _set_sampling_decision_maker(
         self,
@@ -258,9 +258,9 @@ class Span(SpanData):
             return
 
         try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -282,71 +282,76 @@ class Span(SpanData):
         if key == http.STATUS_CODE:
             value = str(value)
         if isinstance(value, str):
-            self._meta[key] = value
-            if key in self._metrics:
-                del self._metrics[key]
+            self._meta[key] = value  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         elif isinstance(value, (int, float)):
             if math.isnan(value) or math.isinf(value):
                 log.debug("ignoring not real attribute %s:%s", key, value)
                 return
-            self._metrics[key] = value
-            if key in self._meta:
-                del self._meta[key]
+            self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
+            if key in self._meta:  # ast-grep-ignore: span-meta-access
+                del self._meta[key]  # ast-grep-ignore: span-meta-access
         elif isinstance(value, bytes):
-            self._meta[key] = value.decode("utf-8", errors="replace")
-            if key in self._metrics:
-                del self._metrics[key]
+            self._meta[key] = value.decode("utf-8", errors="replace")  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         else:
             try:
-                self._meta[key] = str(value)
+                self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
             except Exception:
                 if config._raise:
                     raise
                 log.warning("Failed to convert attribute '%s' to str, ignoring it", key, exc_info=True)
                 return
-            if key in self._metrics:
-                del self._metrics[key]
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
 
     def _has_attribute(self, key: str) -> bool:
         """Return whether the given attribute exists."""
-        return key in self._meta or key in self._metrics
+        return key in self._meta or key in self._metrics  # ast-grep-ignore: span-meta-access,span-metrics-access
+
+    def _remove_attribute(self, key: str) -> None:
+        """Remove the given attribute if it exists."""
+        self._meta.pop(key, None)  # ast-grep-ignore: span-meta-access
+        self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
 
     def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
         """Return the given attribute or None if it doesn't exist."""
-        if key in self._meta:
-            return self._meta[key]
-        elif key in self._metrics:
-            return self._metrics[key]
+        if key in self._meta:  # ast-grep-ignore: span-meta-access
+            return self._meta[key]  # ast-grep-ignore: span-meta-access
+        elif key in self._metrics:  # ast-grep-ignore: span-metrics-access
+            return self._metrics[key]  # ast-grep-ignore: span-metrics-access
         else:
             return None
 
     def _get_str_attribute(self, key: str) -> Optional[str]:
         """Return the string attribute for the given key, or None if it doesn't exist."""
-        return self._meta.get(key)
+        return self._meta.get(key)  # ast-grep-ignore: span-meta-access
 
     def _get_numeric_attribute(self, key: str) -> Optional[NumericType]:
         """Return the numeric attribute for the given key, or None if it doesn't exist."""
-        return self._metrics.get(key)
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
 
     def _get_attributes(self) -> Mapping[str, Union[str, NumericType]]:
         """Return all attributes (both string and numeric) as a single mapping."""
-        return {**self._meta, **self._metrics}
+        return {**self._meta, **self._metrics}  # ast-grep-ignore: span-meta-access,span-metrics-access
 
     def _get_str_attributes(self) -> Mapping[str, str]:
         """Return all string attributes."""
-        return self._meta
+        return self._meta  # ast-grep-ignore: span-meta-access
 
     def _get_numeric_attributes(self) -> Mapping[str, NumericType]:
         """Return all numeric attributes."""
-        return self._metrics
+        return self._metrics  # ast-grep-ignore: span-metrics-access
 
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
-        return self._meta.get(key, None)
+        return self._meta.get(key, None)  # ast-grep-ignore: span-meta-access
 
     def get_tags(self) -> dict[str, str]:
         """Return all tags."""
-        return self._meta.copy()
+        return self._meta.copy()  # ast-grep-ignore: span-meta-access
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -382,9 +387,9 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
-        self._metrics[key] = value
+        if key in self._meta:  # ast-grep-ignore: span-meta-access
+            del self._meta[key]  # ast-grep-ignore: span-meta-access
+        self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -396,7 +401,7 @@ class Span(SpanData):
 
     def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
-        return self._metrics.get(key)
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
 
     def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
         """Add an errortracking related callback to the on_finish_callback array"""
@@ -404,7 +409,7 @@ class Span(SpanData):
 
     def get_metrics(self) -> dict[str, NumericType]:
         """Return all metrics."""
-        return self._metrics.copy()
+        return self._metrics.copy()  # ast-grep-ignore: span-metrics-access
 
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
@@ -420,7 +425,7 @@ class Span(SpanData):
             if limit is None:
                 limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._meta[ERROR_STACK] = tb
+            self._meta[ERROR_STACK] = tb  # ast-grep-ignore: span-meta-access
 
     def _get_traceback(
         self,
@@ -489,18 +494,18 @@ class Span(SpanData):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._meta[ERROR_TYPE] = exc_type_str
+        self._meta[ERROR_TYPE] = exc_type_str  # ast-grep-ignore: span-meta-access
 
         try:
-            self._meta[ERROR_MSG] = str(exc_val)
+            self._meta[ERROR_MSG] = str(exc_val)  # ast-grep-ignore: span-meta-access
         except Exception:
             # An exception can occur if a custom Exception overrides __str__
             # If this happens str(exc_val) won't work, so best we can do is print the class name
             # Otherwise, don't try to set an error message
             if exc_val and hasattr(exc_val, "__class__"):
-                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+                self._meta[ERROR_MSG] = exc_val.__class__.__name__  # ast-grep-ignore: span-meta-access
 
-        self._meta[ERROR_STACK] = tb
+        self._meta[ERROR_STACK] = tb  # ast-grep-ignore: span-meta-access
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
@@ -702,8 +707,8 @@ class Span(SpanData):
             f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
-            f"tags={self._meta}, "
-            f"metrics={self._metrics}, "
+            f"tags={self._meta}, "  # ast-grep-ignore: span-meta-access
+            f"metrics={self._metrics}, "  # ast-grep-ignore: span-metrics-access
             f"links={self._get_links()}, "
             f"events={self._get_events()}, "
             f"context={self.context}, "
