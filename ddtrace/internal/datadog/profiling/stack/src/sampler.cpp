@@ -196,7 +196,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Perform the sample.
         // When max_threads_per_sample is set, we collect all threads first, then apply
         // reservoir sampling (Algorithm R) to select a uniform random subset, and only
         // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
@@ -253,7 +252,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             size_t fallback_idx = sample_count;
             for (size_t i = 0; i < sample_count; i++) {
+                // The lock is acquired per iteration rather than for the whole loop so that new
+                // threads can register (which also needs this lock) between stack unwinds. Holding
+                // it for the entire loop would block thread registration for the full sampling cycle.
                 const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+
                 // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
                 // here by thread_id. Under extreme thread churn a pthread_t could theoretically
                 // be reused between snapshot collection and this lookup (old thread exits, new
@@ -268,6 +271,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         if (fb_it != echion->thread_info_map().end()) {
                             thread_candidates[i] = thread_candidates[fallback_idx];
                             it = fb_it;
+                            // Advance so this candidate isn't reused on the next fallback search
                             fallback_idx++;
                             break;
                         }

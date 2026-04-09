@@ -54,7 +54,7 @@ class Sampler
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
-    std::minstd_rand rng{ 0x9e3779b9U };
+    std::minstd_rand rng{ std::random_device{}() };
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
