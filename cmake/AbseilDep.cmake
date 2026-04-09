@@ -32,15 +32,38 @@ else()
     message(STATUS "Release/RelWithDebInfo/MinSizeRel mode: fetching and building abseil")
     # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
     # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
-    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
-    set(FETCHCONTENT_UPDATES_DISCONNECTED
-        ON
-        CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        absl
-        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-        GIT_TAG 20250127.1
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE)
-    FetchContent_MakeAvailable(absl)
+    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py). Resolve FETCHCONTENT_BASE_DIR
+    # so we know where to clone abseil.
+    if(NOT DEFINED FETCHCONTENT_BASE_DIR)
+        set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/_deps")
+    endif()
+    set(_absl_src_dir "${FETCHCONTENT_BASE_DIR}/absl-src")
+    set(_absl_bin_dir "${FETCHCONTENT_BASE_DIR}/absl-build")
+
+    # Only clone if the source directory is not already present (disconnected / cached build support — equivalent to
+    # FETCHCONTENT_UPDATES_DISCONNECTED).
+    if(NOT EXISTS "${_absl_src_dir}/.git")
+        set(_absl_max_attempts 3)
+        set(_absl_attempt 0)
+        set(_absl_success FALSE)
+        while(NOT _absl_success AND _absl_attempt LESS _absl_max_attempts)
+            math(EXPR _absl_attempt "${_absl_attempt} + 1")
+            message(STATUS "Cloning abseil (attempt ${_absl_attempt}/${_absl_max_attempts})...")
+            execute_process(
+                COMMAND git clone --depth 1 --branch 20250127.1 --progress https://github.com/abseil/abseil-cpp.git
+                        "${_absl_src_dir}" RESULT_VARIABLE _absl_result)
+            if(_absl_result EQUAL 0)
+                set(_absl_success TRUE)
+            elseif(_absl_attempt LESS _absl_max_attempts)
+                message(WARNING "Abseil clone attempt ${_absl_attempt} failed (exit ${_absl_result}), retrying...")
+                file(REMOVE_RECURSE "${_absl_src_dir}")
+            else()
+                message(FATAL_ERROR "Failed to clone abseil after ${_absl_max_attempts} attempts.")
+            endif()
+        endwhile()
+    else()
+        message(STATUS "Using cached abseil source at ${_absl_src_dir}")
+    endif()
+
+    add_subdirectory("${_absl_src_dir}" "${_absl_bin_dir}" EXCLUDE_FROM_ALL)
 endif()
