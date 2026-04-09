@@ -1,4 +1,3 @@
-import asyncio
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -184,10 +183,19 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 )
 
 
+def _get_asyncio():
+    # asyncio must NOT be imported at module level — this module is
+    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
+    # event loop on some platforms.  See test_lazyimport.py.
+    import asyncio
+
+    return asyncio
+
+
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not asyncio.iscoroutinefunction(task):
+    if is_async and not _get_asyncio().iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters
@@ -1499,6 +1507,7 @@ class LLMObs(Service):
         experiment._evaluators = evaluators
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        asyncio = _get_asyncio()
         try:
             asyncio.get_running_loop()
         except RuntimeError:
