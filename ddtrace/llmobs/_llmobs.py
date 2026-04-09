@@ -158,7 +158,7 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {
+SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
     "openai": "openai",
@@ -173,7 +173,10 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
-    # requests/concurrent frameworks for distributed injection/extraction
+}
+
+# requests/concurrent frameworks for distributed injection/extraction
+_INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -1539,9 +1542,12 @@ class LLMObs(Service):
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
-        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+        module_name = SUPPORTED_LLMOBS_INTEGRATIONS.get(
+            integration, _INTEGRATIONS_W_PROPAGATION_SUPPORT.get(integration)
+        )
+        if module_name is None:
             return False
-        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+        return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -1797,9 +1803,12 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
+        llm_integrations: list[str] = list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(
+            _INTEGRATIONS_W_PROPAGATION_SUPPORT.values()
+        )
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
             integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
-            for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
+            for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
@@ -1808,7 +1817,7 @@ class LLMObs(Service):
         dd_patch_modules = _env.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
-            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in llm_integrations}
         )
         patch(raise_errors=True, **integrations_to_patch)
         llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
