@@ -75,6 +75,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -157,23 +158,6 @@ from ddtrace.version import __version__
 
 log = get_logger(__name__)
 
-
-SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
-    "anthropic": "anthropic",
-    "bedrock": "botocore",
-    "openai": "openai",
-    "langchain": "langchain",
-    "google_adk": "google_adk",
-    "google_genai": "google_genai",
-    "vertexai": "vertexai",
-    "langgraph": "langgraph",
-    "litellm": "litellm",
-    "crewai": "crewai",
-    "openai_agents": "openai_agents",
-    "mcp": "mcp",
-    "pydantic_ai": "pydantic_ai",
-    "claude_agent_sdk": "claude_agent_sdk",
-}
 
 # requests/concurrent frameworks for distributed injection/extraction
 _INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {

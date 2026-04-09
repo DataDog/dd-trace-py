@@ -45,7 +45,7 @@ def post_preload() -> None:
     from ddtrace import config
     from ddtrace.internal.module import is_module_installed
     from ddtrace.internal.telemetry import telemetry_writer
-    from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
+    from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 
     llm_oneclick_supported: bool = False
     if config._remote_config_enabled:
