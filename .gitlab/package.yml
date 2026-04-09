@@ -68,6 +68,8 @@ variables:
       .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
+  rules:
+    - when: never
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: [ "arch:${ARCH_TAG}" ]
@@ -85,6 +87,8 @@ variables:
     - .gitlab/scripts/build-sdist.sh
 
 "build linux":
+  rules:
+    - when: never
   extends: .build_base
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
@@ -118,6 +122,8 @@ variables:
     - .gitlab/scripts/build-wheel.sh
 
 "build linux serverless":
+  rules:
+    - when: never
   extends: "build linux"
   parallel:
     matrix:
@@ -130,20 +136,11 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
         DD_SERVERLESS_BUILD: "1"
 
-"build macos":
+.build_macos_base:
   extends: .build_base
-  tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
-  parallel:
-    matrix:
-      # amd64 runners are slower
-      - ARCH_TAG: "amd64"
-        PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
-      - ARCH_TAG: "arm64"
-        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
   script: |
     set -euo pipefail
@@ -160,8 +157,48 @@ variables:
     done
     sccache --show-stats
 
+"build macos amd64":
+  rules:
+    - when: never
+  extends: .build_macos_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  variables:
+    ARCH_TAG: "amd64"
+  parallel:
+    matrix:
+      # amd64 runners are slower
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
+
+"build macos arm64":
+  extends: .build_macos_base
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-6fb8511f-106729702"
+  tags: [ "macos:sonoma-tart" ]
+  variables:
+    ARCH_TAG: "arm64"
+    PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
+  script: |
+    # Tart VMs default to zsh which doesn't word-split variable expansions
+    setopt shwordsplit 2>/dev/null || true
+    set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+    sccache --show-stats
+
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -177,6 +214,8 @@ variables:
 
 # All manylinux2014 wheels
 "upload manylinux2014":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -195,6 +234,8 @@ variables:
 
 # Only the limited artifacts needed by downstream serverless jobs
 "upload serverless":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux serverless"
@@ -224,6 +265,8 @@ variables:
 
 
 "test sdist":
+  rules:
+    - when: never
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
@@ -245,6 +288,8 @@ variables:
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
 "build windows":
+  rules:
+    - when: never
   stage: package
   tags: ["windows-v2:2022"]
   parallel:
@@ -265,6 +310,8 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -289,6 +336,8 @@ variables:
       - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
@@ -322,6 +371,8 @@ download_dependency_wheels:
       - "pywheels-dep/"
 
 "upload all":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
   script:
@@ -343,17 +394,14 @@ download_dependency_wheels:
     - job: "build linux"
       artifacts: true
   rules:
-    # Automatically run on releases/RCs
-    - if: !reference [.is_release]
-      when: on_success
-    # Manual trigger for any other pipeline
-    - when: manual
-      allow_failure: true
+    - when: never
   script:
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -376,6 +424,8 @@ download_dependency_wheels:
 # Aggregates all Windows wheel artifacts
 # DEV: "ddtrace package" has a limit of 50 jobs it can depend on
 "collect windows wheels":
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
@@ -403,10 +453,13 @@ download_dependency_wheels:
       - "pywheels/*.tar.gz"
 
 "ddtrace package":
+  rules:
+    - when: never
   extends: .package_base
   needs:
     - "build linux"
-    - "build macos"
+    - "build macos amd64"
+    - "build macos arm64"
     - "build sdist"
     - "collect windows wheels"
     - "package version"
@@ -414,6 +467,8 @@ download_dependency_wheels:
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
+  rules:
+    - when: never
   extends: .package_base
   needs:
     - "build linux serverless"

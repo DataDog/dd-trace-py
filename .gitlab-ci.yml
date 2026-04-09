@@ -51,16 +51,17 @@ workflow:
 
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
-  - local: ".gitlab/one-pipeline.locked.yml"
-  - local: ".gitlab/services.yml" # Include early so others can use the definitions
+  # AIDEV-NOTE: Temporarily disabled includes for tart runner validation
+  # - local: ".gitlab/one-pipeline.locked.yml"
+  # - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
-  - local: ".gitlab/release.yml"
+  # - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/debugging-exploration.yml"
+  # - local: ".gitlab/debugging-exploration.yml"
   - local: ".gitlab/multi-os-tests.yml"
-  - local: ".gitlab/benchmarks/serverless.yml"
-  - local: ".gitlab/native.yml"
-  - local: ".gitlab/fuzz.yml"
+  # - local: ".gitlab/benchmarks/serverless.yml"
+  # - local: ".gitlab/native.yml"
+  # - local: ".gitlab/fuzz.yml"
 
 "pipeline variables":
   stage: .pre
@@ -76,7 +77,10 @@ include:
     reports:
       dotenv: pipeline_variables.env
 
+# AIDEV-NOTE: Temporarily disabled for tart runner validation
 tests-gen:
+  rules:
+    - when: never
   stage: tests
   extends: .testrunner
   variables:
@@ -104,16 +108,13 @@ tests-gen:
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
+ rules:
+   - when: never
  stage: tests
  needs: [ tests-gen ]
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
- # Allow the child job to fail if explicitly asked
- rules:
-   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-     allow_failure: true
-   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
@@ -121,6 +122,8 @@ run-tests-trigger:
    strategy: depend
 
 serverless lambda tests:
+  rules:
+    - when: never
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python
@@ -140,8 +143,9 @@ serverless lambda tests:
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
     SKIP_E2E_TESTS: "true"
 
-# Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
+  rules:
+    - when: never
   extends: .testrunner
   stage: tests
   needs: []
@@ -157,6 +161,8 @@ serverless lambda tests:
       echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
 
 microbenchmarks:
+  rules:
+    - when: never
   stage: benchmarks
   needs:
     - job: tests-gen
@@ -182,8 +188,9 @@ microbenchmarks:
     DD_DISABLE_VPA: true
 
 apm-sdk-benchmarks:
+  rules:
+    - when: never
   stage: benchmarks
-  when: manual
   allow_failure: true
   needs:
     - job: "upload all"
@@ -194,6 +201,8 @@ apm-sdk-benchmarks:
     TARGET_REF: $CI_PIPELINE_ID
 
 macrobenchmarks:
+  rules:
+    - when: never
   stage: benchmarks
   needs:
     - job: "build linux"
@@ -226,6 +235,8 @@ macrobenchmarks:
       allow_failure: true
 
 check_new_flaky_tests:
+  rules:
+    - when: never
   stage: tests
   needs: ["run-tests-trigger"]
   extends: .testrunner
@@ -234,20 +245,10 @@ check_new_flaky_tests:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  rules:
-    - if: !reference [.is_main]
-      when: never
-    - if: !reference [.is_release]
-      when: never
-    - if: !reference [.is_release_branch]
-      when: never
-    - if: !reference [.is_gh_merge_queue]
-      when: never
-    - if: !reference [.is_devflow_merge_queue]
-      when: never
-    - when: on_success
 
 codeql-scan:
+  rules:
+    - when: never
   timeout: 30m
   stage: tests
   needs: []
@@ -283,12 +284,14 @@ codeql-scan:
 
 requirements_json_test:
   rules:
-    - when: on_success
+    - when: never
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
 check_requirements_lockfiles:
+  rules:
+    - when: never
   stage: tests
   needs: []
   extends: .testrunner
@@ -300,6 +303,8 @@ check_requirements_lockfiles:
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
 check_ci_dependencies:
+  rules:
+    - when: never
   stage: tests
   needs: []
   extends: .testrunner
@@ -307,6 +312,8 @@ check_ci_dependencies:
     - scripts/check-ci-dependencies
 
 codeowners:
+  rules:
+    - when: never
   stage: tests
   needs: []
   tags: ["arch:amd64"]
@@ -357,6 +364,8 @@ codeowners:
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
 
 detect_circular_imports:
+  rules:
+    - when: never
   stage: tests
   needs: []
   extends: .testrunner
@@ -383,6 +392,8 @@ detect_circular_imports:
 
 
 package-oci:
+  rules:
+    - when: never
   needs:
     - job: "package version"
       artifacts: true
@@ -394,8 +405,6 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: !reference [.is_release]
-      when: on_success
     - when: never
   needs:
     - job: release_pypi_prod
@@ -405,6 +414,8 @@ promote-oci-to-prod:
       artifacts: true
 
 promote-oci-to-prod-beta:
+  rules:
+    - when: never
   stage: release
   needs:
     - job: package-oci
@@ -413,6 +424,8 @@ promote-oci-to-prod-beta:
       artifacts: true
 
 promote-oci-to-staging:
+  rules:
+    - when: never
   stage: release
   needs:
     - job: package-oci
@@ -423,8 +436,6 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: !reference [.is_release]
-      when: on_success
     - when: never
   needs:
     - job: release_pypi_prod
@@ -433,30 +444,26 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  rules:
+    - when: never
   needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
 
 system_tests:
+  rules:
+    - when: never
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
   needs: []
   rules:
-    # Always deploy on main nightly builds
-    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
-      when: always
-    # Original rules from one-pipeline.yml
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - when: manual
-      allow_failure: true
+    - when: never
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
   rules:
-    - when: manual
-      allow_failure: true
+    - when: never
   trigger:
     project: DataDog/debugger-demos
     branch: main
@@ -474,21 +481,13 @@ deploy_to_di_backend:manual:
 # uploaded to S3 for this commit.
 prof-correctness:
   stage: shared-pipeline
+  rules:
+    - when: never
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: ["arch:amd64"]
   needs:
     - job: "upload all"
   allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
-        - .gitlab-ci.yml
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-    - when: manual
-      allow_failure: true
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
@@ -505,7 +504,8 @@ prof-correctness:
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
 
 lib_injection_tests:
-  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  rules:
+    - when: never
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
@@ -558,35 +558,7 @@ profiling_native:
   extends: .profiling_native_base
   retry: 2
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
-        - .gitlab-ci.yml
-        # Native source files by extension (C, C++, Cython, CMake modules)
-        - ddtrace/internal/datadog/profiling/**/*.cpp
-        - ddtrace/internal/datadog/profiling/**/*.cc
-        - ddtrace/internal/datadog/profiling/**/*.h
-        - ddtrace/internal/datadog/profiling/**/*.hpp
-        - ddtrace/internal/datadog/profiling/**/*.pyx
-        - ddtrace/internal/datadog/profiling/**/*.cmake
-        - ddtrace/profiling/**/*.cpp
-        - ddtrace/profiling/**/*.cc
-        - ddtrace/profiling/**/*.h
-        - ddtrace/profiling/**/*.hpp
-        - ddtrace/profiling/**/*.pyx
-        # Build/test config files (not matchable by extension alone)
-        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
-        - ddtrace/internal/datadog/profiling/**/*.sh
-        - ddtrace/internal/datadog/profiling/**/*.supp
-        - ddtrace/profiling/**/CMakeLists.txt
-        # Rust source (build_standalone.sh compiles Rust first; CMake links
-        # against generated FFI headers from src/native/target/.../include/)
-        - src/native/**/*.rs
-        - src/native/**/*.toml
-        - src/native/**/Cargo.lock
-        # Top-level build config
-        - setup.py
-        - pyproject.toml
+    - when: never
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
