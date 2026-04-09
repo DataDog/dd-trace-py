@@ -29,6 +29,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -597,7 +598,7 @@ class TracerTestCases(TracerTestCase):
             )
             span_keys = list(span.get_tags().keys())
             span_keys.sort()
-            assert span_keys == ["runtime-id", "usr.id"]
+            assert span_keys == [_SERVICE_SOURCE, "runtime-id", "usr.id"]
             assert span.get_tag(user.ID)
             assert span.get_tag(user.EMAIL) is None
             assert span.get_tag(user.SESSION_ID) is None
@@ -1016,6 +1017,20 @@ def test_detect_agentless_env_with_lambda():
     assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter), (
         f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
     )
+
+
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func"))
+def test_service_name_defaults_to_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "my-lambda-func"
+
+
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func", DD_SERVICE="override-svc"))
+def test_dd_service_takes_precedence_over_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "override-svc"
 
 
 def test_tracer_set_runtime_tags():

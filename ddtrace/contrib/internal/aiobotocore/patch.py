@@ -7,6 +7,7 @@ from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -120,9 +121,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
-        service=ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
         span_type=SpanTypes.HTTP,
     ) as span:
+        set_service_and_source(
+            span,
+            ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            config.aiobotocore,
+        )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
 
         # set span.kind tag equal to type of request
