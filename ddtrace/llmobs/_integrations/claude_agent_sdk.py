@@ -56,7 +56,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             content = _get_attr(response, "content", []) or []
             output_messages = self.parse_content_blocks("assistant", content)
             if _get_attr(response, "usage", None):
-                metrics = self._extract_result_message(response)
+                metrics = self._extract_usage(response)
         input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
         _annotate_llmobs_span_data(
             span,
@@ -227,7 +227,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 if not stop_reason:
                     stop_reason = _get_attr(msg, "stop_reason", "") or ""
                 if not metrics:
-                    metrics = self._extract_result_message(msg)
+                    metrics = self._extract_usage(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
                     output_messages.append(Message(content=str(result), role="assistant"))
@@ -239,7 +239,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return output_messages or [Message(content="")], metrics, init_system_message, stop_reason
 
-    def _extract_result_message(self, message: Any) -> dict[str, int]:
+    def _extract_usage(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}
         usage = _get_attr(message, "usage", None) or {}
         if usage and isinstance(usage, dict):
