@@ -269,7 +269,6 @@ MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "result",
         "subtype": "success",
-        "stop_reason": "end_turn",
         "duration_ms": 100,
         "duration_api_ms": 90,
         "is_error": False,
