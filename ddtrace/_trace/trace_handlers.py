@@ -5,6 +5,7 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from urllib import parse
 
 import wrapt
@@ -36,7 +37,7 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -175,7 +176,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if ctx.get_item("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -198,7 +199,7 @@ def _finish_span(
         return
 
     integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -258,11 +259,11 @@ def _set_inferred_proxy_tags(span, status_code):
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if ERROR_MSG in span._meta.keys():
+            if span._has_attribute(ERROR_MSG):
                 inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if ERROR_TYPE in span._meta.keys():
+            if span._has_attribute(ERROR_TYPE):
                 inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if ERROR_STACK in span._meta.keys():
+            if span._has_attribute(ERROR_STACK):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
@@ -545,7 +546,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -833,12 +834,12 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
-        span._metrics[redisx.ARGS_LEN] = len(args)
+        span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
                 # PERF: avoid extra overhead from checks in Span.set_metric
-                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
@@ -1483,6 +1484,111 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 pass
 
 
+class _AzureCosmosConnectionPolicyLike(Protocol):
+    """Subset of azure.cosmos ConnectionPolicy used for span tags"""
+
+    ConnectionMode: int
+
+
+class _AzureCosmosClientConnectionLike(Protocol):
+    """Subset of azure.cosmos CosmosClientConnection used for span tags"""
+
+    url_connection: str
+    _user_agent: str
+    connection_policy: _AzureCosmosConnectionPolicyLike
+
+
+class _AzureCosmosRequestObjectLike(Protocol):
+    """Subset of azure.cosmos RequestObject used for span tags"""
+
+    operation_type: str
+    resource_type: str
+
+
+class _AzureCosmosRequestLike(Protocol):
+    """Subset of azure.cosmos HTTP Request used for span tags"""
+
+    url: str
+
+
+def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
+    _start_span(ctx)
+
+    span = ctx.span
+    client = ctx.get_item("client")
+    request_params = ctx.get_item("request_params")
+    request = ctx.get_item("request")
+    request_data = ctx.get_item("request_data")
+
+    _set_azure_cosmos_request_tags(span, client, request_params, request, request_data)
+
+
+def _set_azure_cosmos_request_tags(
+    span: Span,
+    client: _AzureCosmosClientConnectionLike,
+    request_params: _AzureCosmosRequestObjectLike,
+    request: _AzureCosmosRequestLike,
+    request_data: Mapping[str, Any],
+) -> None:
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(db.SYSTEM, "cosmosdb")
+    span._set_attribute(COMPONENT, config.azure_cosmos.integration_name)
+    span._set_attribute(net.TARGET_HOST, client.url_connection)
+    span._set_attribute(http.USER_AGENT, client._user_agent)
+    connection_mode = client.connection_policy.ConnectionMode
+    if connection_mode == 0:
+        span._set_attribute("cosmosdb.connection.mode", "gateway")
+    elif connection_mode == 1:
+        span._set_attribute("cosmosdb.connection.mode", "direct")
+    else:
+        span._set_attribute("cosmosdb.connection.mode", "other")
+
+    resource_link = request.url
+    parsed = parse.urlsplit(resource_link)
+    if parsed.path:
+        resource_link = parsed.path
+
+    span.resource = request_params.operation_type + " " + resource_link
+    if (
+        request_params.operation_type == "Create"
+        and request_params.resource_type == "dbs"
+        and (request_data.get("id") is not None)
+    ):
+        span._set_attribute(db.NAME, request_data["id"])
+
+    if resource_link:
+        if resource_link.startswith("/") and len(resource_link) > 1:
+            resource_link = resource_link[1:]
+
+        parts = resource_link.split("/")
+
+        if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
+            span._set_attribute(db.NAME, parts[1])
+            if len(parts) >= 4:
+                if parts[2].lower() == "colls" and parts[3].lower() != "":
+                    span._set_attribute("cosmosdb.container", parts[3])
+
+
+def _on_azure_cosmos_request_finish(
+    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
+):
+    span = ctx.span
+    sub_status = ctx.get_item("sub_status_code")
+    _, exception, _ = exc_info
+
+    if sub_status:
+        span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+    if exception:
+        sub_status = getattr(exception, "sub_status", None)
+        if sub_status:
+            span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+        status_code = getattr(exception, "status_code", None)
+        if status_code:
+            span._set_attribute(http.STATUS_CODE, status_code)
+
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1532,6 +1638,7 @@ def listen():
     core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("context.started.azure_cosmos.request", _on_azure_cosmos_request_start)
     core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
     core.on("azure.durable_functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
@@ -1627,6 +1734,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1662,6 +1770,7 @@ def listen():
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1681,6 +1790,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.azure_cosmos.request", _on_azure_cosmos_request_finish)
 
 
 listen()

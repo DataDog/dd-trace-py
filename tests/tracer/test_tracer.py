@@ -29,6 +29,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -391,7 +392,7 @@ class TracerTestCases(TracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace("parent") as span:
-            span._metrics["as"] = np.int64(1)  # circumvent the data checks
+            span._metrics["as"] = np.int64(1)  # circumvent the data checks  # ast-grep-ignore: span-metrics-access
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):
@@ -597,7 +598,7 @@ class TracerTestCases(TracerTestCase):
             )
             span_keys = list(span.get_tags().keys())
             span_keys.sort()
-            assert span_keys == ["runtime-id", "usr.id"]
+            assert span_keys == [_SERVICE_SOURCE, "runtime-id", "usr.id"]
             assert span.get_tag(user.ID)
             assert span.get_tag(user.EMAIL) is None
             assert span.get_tag(user.SESSION_ID) is None

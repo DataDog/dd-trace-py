@@ -100,8 +100,12 @@ def check_file(filepath: pathlib.Path) -> list[tuple[int, int]]:
 
 
 def main() -> int:
-    contrib_path = pathlib.Path("ddtrace")
-    python_files = list(contrib_path.rglob("*.py"))
+    if len(sys.argv) > 1:
+        # File paths provided (e.g., from pre-commit hook)
+        python_files = [pathlib.Path(f) for f in sys.argv[1:] if f.endswith(".py")]
+    else:
+        # Default: scan all of ddtrace/
+        python_files = list(pathlib.Path("ddtrace").rglob("*.py"))
 
     total_errors = 0
 

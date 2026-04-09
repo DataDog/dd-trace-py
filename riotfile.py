@@ -210,15 +210,19 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
+                # Prevents .pyc write races when xdist workers run subprocesses that all
+                # import ddtrace from the same editable install simultaneously.
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         ),
         Venv(
@@ -352,7 +356,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +365,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
@@ -567,11 +572,12 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
@@ -589,6 +595,14 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    env={
+                        # Python 3.12+ emits a DeprecationWarning when os.fork() is called
+                        # from a multi-threaded process. The forksafe tests intentionally
+                        # fork from a multi-threaded subprocess (ddtrace starts background
+                        # threads on import), so suppress the warning to avoid spurious
+                        # stderr output that causes @pytest.mark.subprocess() to fail.
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         # pkg_resources was removed in v82.0.0
@@ -3099,6 +3113,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
@@ -3190,16 +3216,6 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
-            },
-        ),
-        Venv(
-            name="mlflow",
-            command="pytest {cmdargs} tests/contrib/mlflow",
-            pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "mlflow[default]": ["~=3.9.0", latest],
-                # pkg_resources was removed in v82.0.0
-                "setuptools": "<82",
             },
         ),
         Venv(
@@ -3322,6 +3338,17 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="azure_cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_cosmos",
+            pys=select_pys(),
+            pkgs={
+                "azure.cosmos": ["~=4.9.0", latest],
+                "pytest-asyncio": "==0.23.7",
+                "aiohttp": latest,
+                "six": latest,
+            },
+        ),
+        Venv(
             name="azure_eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3345,6 +3372,17 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
+            },
+        ),
+        Venv(
+            name="azure_functions:cosmos",
+            command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.cosmos": ["~=4.9.0", latest],
+                "azure.storage.blob": latest,
+                "aiohttp": latest,
             },
         ),
         Venv(
@@ -3439,28 +3477,26 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
+                    command="pytest -n auto {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
                         "google-cloud-aiplatform": latest,
                         "boto3": latest,
                         "pytest-asyncio": "==0.21.1",
-                        "ragas": "==0.1.21",
+                        "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
                     },
                     venvs=[
                         Venv(
                             pys=["3.9"],
-                            command="pytest {cmdargs} tests/llmobs",
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10", max_version="3.13"),
-                            command="pytest {cmdargs} tests/llmobs",
                             pkgs={
                                 "deepeval": latest,  # deepeval and pydantic-evals only supported on Python 3.10+
-                                # 1.31+ passes prompt_cache_retention to openai which requires openai>=2.0
-                                "pydantic-evals": "<1.31",
+                                "pydantic-evals": ">=1.31",
                             },
                         ),
                     ],
@@ -3468,9 +3504,10 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
@@ -4405,6 +4442,27 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.10"),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_litellm_guardrail",
+            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.78.5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
+                    },
                 ),
             ],
         ),

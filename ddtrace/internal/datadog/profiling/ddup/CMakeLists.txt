@@ -17,9 +17,12 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include(AnalysisFunc)
 
-# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
-# via NATIVE_EXTENSION_LOCATION
-set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+# Link against the pre-built libdd_wrapper shared library.
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+else()
+    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
+endif()
 
 # Import the pre-built library as an imported target
 add_library(dd_wrapper SHARED IMPORTED)
@@ -55,6 +58,7 @@ add_custom_command(
 add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 
 add_ddup_config(${EXTENSION_NAME})
+
 # Cython generates code that produces errors for the following, so relax compile options
 target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
 
@@ -82,6 +86,7 @@ elseif(UNIX)
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 endif()
+
 target_include_directories(
     ${EXTENSION_NAME}
     PRIVATE ../dd_wrapper/include

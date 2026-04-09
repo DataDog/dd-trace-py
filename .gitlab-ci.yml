@@ -15,12 +15,16 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "baa899e768859fce1be7e98cc2518d810745d65a"
+  SYSTEM_TESTS_REF: "5ede8c7064df9245bf0323d7e027e92fc8740a9e"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
+
+  # One pipeline injection package size ratchet
+  OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
 
 default:
   interruptible: true
@@ -121,9 +125,9 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: main 
   needs:
-    - job: "upload manylinux2014"
+    - job: "upload serverless"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -552,6 +556,7 @@ lib_injection_tests:
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
   extends: .profiling_native_base
+  retry: 2
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"

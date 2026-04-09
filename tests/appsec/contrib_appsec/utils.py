@@ -233,7 +233,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             url = f"/?{query_params}"
             response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
             assert self.status(response) == 200
-            assert get_entry_span_metric("_dd.appsec.waf.timeouts") > 0, (entry_span()._meta, entry_span()._metrics)
+            assert get_entry_span_metric("_dd.appsec.waf.timeouts") > 0, (
+                entry_span()._get_str_attributes(),
+                entry_span()._get_numeric_attributes(),
+            )
             args_list = [
                 (args[0].value, args[1].value) + args[2:]
                 for args, kwargs in mocked.add_metric.call_args_list
@@ -800,15 +803,14 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     def test_request_suspicious_request_block_match_uri_lfi(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri
     ):
-        if interface.name in ("fastapi",):
-            raise pytest.skip(f"TODO: fix {interface.name}")
+        # On FastAPI with older Starlette/httpx, the TestClient doesn't expose _transport
+        # so we can't inject raw_path into the ASGI scope to test path traversal detection.
+        if interface.name == "fastapi" and not getattr(interface.client, "_transport", None):
+            pytest.skip("TestClient too old to support raw_path injection")
 
         with override_global_config(dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)):
             self.update_tracer(interface)
             interface.client.get(uri)
-            # FastAPI normalizes /waf/../ to /, so URL check is skipped for it
-            if interface.name not in ("fastapi",):
-                assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}{uri}"
             assert get_entry_span_tag(http.METHOD) == "GET"
             if asm_enabled:
                 self.check_single_rule_triggered("crs-930-110", entry_span)
@@ -1642,16 +1644,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
-                    ("urlopen_string", "urlopen"),
-                    ("urlopen_request", "urlopen"),
-                    ("requests", "request"),
-                    ("httpx", "get"),
-                    ("httpx_async", "get"),
+                    ("urlopen_string", "do_open"),
+                    ("urlopen_request", "do_open"),
+                    ("requests", "urlopen"),
+                    ("httpx", "send"),
+                    ("httpx_async", "send"),
                 ],
                 repeat=2,
             )
         ]
-        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("dispatch",))]
+        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("rasp",))]
         + [
             (
                 "shell_injection",
@@ -1703,14 +1705,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         def validate_top_function(trace):
             # Validate that the stack trace contains an expected function near the top.
-            # Several cases to handle:
-            # - Properly cropped stacks: expected function at frame 0 (endswith match)
-            # - Qualified names (Python 3.11+): e.g. "RaspHandler._handle" contains "rasp"
-            # - Intermediate ddtrace frames: search first 6 frames
-            # - Untrimmed httpx stacks: report_stack at frame 0 — skip validation
-            if trace["frames"][0]["function"] == "report_stack":
-                return True
-            for frame in trace["frames"][:6]:
+            # The crop mechanism removes most ddtrace frames, but some integration
+            # wrappers (e.g. with_traced_module) may remain. Check first 3 frames:
+            # - frame 0: the caller right above the crop point
+            # - frame 1-2: allow for integration wrappers or qualified names
+            for frame in trace["frames"][:3]:
                 fname = frame["function"]
                 fname_lower = fname.lower()
                 if any(fname.endswith(tf) or tf.lower() in fname_lower for tf in top_functions) or (
@@ -1891,8 +1890,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
             else:
                 assert get_entry_span_tag("usr.id") is None
-                assert not any(tag.startswith("appsec.events.users.login") for tag in entry_span()._meta)
-                assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._meta)
+                assert not any(
+                    tag.startswith("appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+                )
+                assert not any(
+                    tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+                )
             # check for fingerprints when user events
             if asm_enabled:
                 assert (st := get_entry_span_tag(asm_constants.FINGERPRINTING.HEADER)) is not None, (
@@ -1995,7 +1998,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert get_entry_span_tag("appsec.events.users.login.success.track") == "true"
                 assert get_entry_span_tag("usr.id") == user_id, (user_id, get_entry_span_tag("usr.id"))
-                assert any(tag.startswith("appsec.events.users.login") for tag in entry_span()._meta)
+                assert any(tag.startswith("appsec.events.users.login") for tag in entry_span()._get_str_attributes())
                 assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") == "true"
                 assert any(
                     t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_success") == t[2][0]
@@ -2003,7 +2006,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 ), telemetry_calls
 
             # no auto instrumentation
-            assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._meta)
+            assert not any(
+                tag.startswith("_dd_appsec.events.users.login") for tag in entry_span()._get_str_attributes()
+            )
 
             # check for fingerprints when user events
             if asm_enabled:
@@ -2026,15 +2031,21 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
             # metadata
             success = "success" if status_code == 200 else "failure"
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", entry_span()._meta
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", (
+                entry_span()._get_str_attributes()
+            )
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
-                entry_span()._meta
+                entry_span()._get_str_attributes()
             )
             assert (
                 get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
-            ), entry_span()._meta
+            ), entry_span()._get_str_attributes()
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])

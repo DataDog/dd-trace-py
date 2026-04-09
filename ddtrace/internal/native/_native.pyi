@@ -76,8 +76,9 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
-        endpoint: Optional[str],
-        unix_socket_path: Optional[str],
+        endpoint: Optional[str] = None,
+        unix_socket_path: Optional[str] = None,
+        test_token: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -347,6 +348,27 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
+        """
+        ...
     def build(self) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
@@ -587,17 +609,44 @@ class SpanEvent:
     def __iter__(self) -> Iterator[tuple[str, Any]]: ...
     def __reduce__(self) -> tuple: ...
 
-class SpanLinkData:
+class SpanLink:
+    SPAN_POINTER_KIND: str
+    trace_id: int
+    span_id: int
+    tracestate: Optional[str]
+    flags: Optional[int]
+    attributes: dict[str, Any]
+    _dropped_attributes: int
+
     def __init__(
         self,
         trace_id: int,
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
         _dropped_attributes: int = 0,
-    ): ...
+        _skip_validation: bool = False,
+    ) -> None: ...
+    @property
+    def name(self) -> Any: ...
+    @property
+    def kind(self) -> Optional[Any]: ...
+    def to_dict(self) -> dict[str, Any]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __reduce__(self) -> tuple: ...
+    @classmethod
+    def _SpanPointer(
+        cls,
+        pointer_kind: str,
+        pointer_direction: Any,
+        pointer_hash: str,
+        extra_attributes: Optional[dict[str, Any]] = None,
+    ) -> "SpanLink": ...
 
+def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
+def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
