@@ -2,7 +2,6 @@ import mysql.connector
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
@@ -77,9 +76,4 @@ def patch_conn(conn):
         t: _convert_to_string(getattr(conn, a, None)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""
     }
     tags[db.SYSTEM] = "mysql"
-    pin = Pin(tags=tags)
-
-    # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
-    pin.onto(wrapped)
-    return wrapped
+    return TracedConnection(conn, cfg=config.mysql, db_tags=tags)
