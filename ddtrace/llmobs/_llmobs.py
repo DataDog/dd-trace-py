@@ -126,6 +126,7 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -183,19 +184,10 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 )
 
 
-def _get_asyncio():
-    # asyncio must NOT be imported at module level — this module is
-    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
-    # event loop on some platforms.  See test_lazyimport.py.
-    import asyncio
-
-    return asyncio
-
-
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not _get_asyncio().iscoroutinefunction(task):
+    if is_async and not get_asyncio().iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters
@@ -1507,7 +1499,7 @@ class LLMObs(Service):
         experiment._evaluators = evaluators
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
-        asyncio = _get_asyncio()
+        asyncio = get_asyncio()
         try:
             asyncio.get_running_loop()
         except RuntimeError:
