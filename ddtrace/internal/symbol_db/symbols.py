@@ -373,7 +373,7 @@ class Scope:
                 _ for _ in (cls._get_from(_, data) for _ in code.co_consts if isinstance(_, CodeType)) if _ is not None
             ],
             injectible_lines=_line_ranges(ls),
-            has_injectible_lines=bool(ls),
+            has_injectible_lines=True,
         )
 
     @_get_from.register(FunctionType)
