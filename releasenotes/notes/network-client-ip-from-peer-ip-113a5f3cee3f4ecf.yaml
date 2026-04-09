@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where ``network.client.ip`` was set from the request-derived client IP instead of the peer IP.
