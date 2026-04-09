@@ -6,6 +6,7 @@ import time
 from typing import Callable
 from typing import Generator
 from typing import Optional
+import uuid
 
 import ddtrace
 from tests.utils import TestAgentClient
@@ -183,12 +184,36 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
-    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
-    client = TestAgentClient(base_url=base_url, token=None)
+    import http.client as httplib
+    import urllib.parse
+
+    from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+
+    # Generate a unique session token so each concurrent test gets its own isolated
+    # slice of test-agent state.  CrashtrackerConfiguration.test_token causes the Rust
+    # binary to send X-Datadog-Test-Session-Token on every telemetry request, and
+    # TestAgentClient uses the same token to scope clear() and requests() calls.
+    token = str(uuid.uuid4())
+
+    # Also propagate via env var so that tests which launch subprocesses with
+    # ddtrace.auto (e.g. test_crashtracker_preload_*) pick up the token automatically
+    # without any changes to the subprocess code.
+    os.environ["_DD_CRASHTRACKING_TEST_TOKEN"] = token
+    crashtracker_config._test_token = token
+
+    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"
+    parsed = urllib.parse.urlparse(base_url)
+    client = TestAgentClient(base_url=base_url, token=token)
     try:
-        # Reset state before starting the test
+        # The test agent requires an explicit session/start before requests() will
+        # return 200 for a given token.
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/session/start?" + urllib.parse.urlencode({"test_session_token": token}))
+        conn.getresponse()
+        conn.close()
         client.clear()
         yield client
     finally:
-        # Always reset state at the end of the test
         client.clear()
+        del os.environ["_DD_CRASHTRACKING_TEST_TOKEN"]
+        crashtracker_config._test_token = None
