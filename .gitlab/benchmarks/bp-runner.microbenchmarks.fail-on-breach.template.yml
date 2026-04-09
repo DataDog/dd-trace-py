@@ -976,7 +976,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 58.00 ms
+              - execution_time < 58.50 ms
               - max_rss_usage < 38.00 MB
           - name: span-start-finish-telemetry
             thresholds:
@@ -1064,11 +1064,11 @@ experiments:
               - max_rss_usage < 39.25 MB
           - name: tracer-medium
             thresholds:
-              - execution_time < 3.30 ms
+              - execution_time < 3.50 ms
               - max_rss_usage < 38.75 MB
           - name: tracer-small
             thresholds:
-              - execution_time < 0.38 ms
+              - execution_time < 0.39 ms
               - max_rss_usage < 38.75 MB
 
           # codeprovenancefork

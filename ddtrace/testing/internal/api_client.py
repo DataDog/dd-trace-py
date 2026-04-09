@@ -276,7 +276,7 @@ class APIClient:
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
 
-    def get_known_commits(self, latest_commits: list[str]) -> list[str]:
+    def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.search_commits",
             duration="git_requests.search_commits_ms",
@@ -295,7 +295,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch known commits (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
-            return []
+            return None
 
         try:
             result = self.connector.post_json(
@@ -305,7 +305,7 @@ class APIClient:
 
         except Exception as e:
             log.warning("Error getting known commits from API: %s", e)
-            return []
+            return None
 
         try:
             known_commits = [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
@@ -313,7 +313,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse search_commits data: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
-            return []
+            return None
 
         return known_commits
 

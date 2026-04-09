@@ -112,6 +112,7 @@ INTEGRATION_CONFIGS = frozenset(
         "falcon",
         "langgraph",
         "litellm",
+        "llama_index",
         "test_visibility",
         "redis",
         "mako",

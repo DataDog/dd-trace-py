@@ -8,6 +8,7 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -89,9 +90,8 @@ def _connect(func, instance, args, kwargs):
     if not is_tracing_enabled() or not config.mysqldb.trace_connect:
         conn = func(*args, **kwargs)
     else:
-        with tracer.trace(
-            "MySQLdb.connection.connect", service=ext_service(None, config.mysqldb), span_type=SpanTypes.SQL
-        ) as span:
+        with tracer.trace("MySQLdb.connection.connect", span_type=SpanTypes.SQL) as span:
+            set_service_and_source(span, ext_service(None, config.mysqldb), config.mysqldb)
             span._set_attribute(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed
