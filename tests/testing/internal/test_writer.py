@@ -556,8 +556,12 @@ class TestPeriodicTaskExceptionHandling:
         writer._flush_now.set()
         assert writer._send_done.wait(timeout=5), "flush did not complete"
 
+        # Give the thread time to either crash or recover — without the fix,
+        # the unhandled exception kills the thread within this window.
+        writer.task.join(timeout=0.5)
+
         # The thread should still be alive despite the exception.
-        assert writer.task.is_alive()
+        assert writer.task.is_alive(), "daemon thread died after _send_events raised"
 
         # A clean shutdown must complete (not hang).
         writer.signal_finish()
