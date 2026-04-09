@@ -60,15 +60,6 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def get_asyncio():
-    # asyncio must NOT be imported at module level — this module is
-    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
-    # event loop on some platforms.  See test_lazyimport.py.
-    import asyncio
-
-    return asyncio
-
-
 def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
