@@ -980,8 +980,6 @@ def openai_set_meta_tags_from_response(
 
 
 # Maximum nesting depth allowed for a single tool schema
-# hitting EVP's nested field limit:
-# https://datadoghq.atlassian.net/wiki/spaces/EP/pages/1277560173/Platform+Limitations#Storage-Limitations.
 MAX_TOOL_SCHEMA_DEPTH = 10
 
 
