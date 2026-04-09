@@ -1033,7 +1033,7 @@ def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
     if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
         logger.warning(
             "LLMObs: truncating tool %r schema to %d levels of nesting because its depth exceeds "
-            "the maximum allowed. Deeply nested tool schemas can cause span drops in the "
+            "the maximum allowed. Deeply nested tool schemas are not yet supported. "
             "LLMObs backend.",
             name,
             MAX_TOOL_SCHEMA_DEPTH,
