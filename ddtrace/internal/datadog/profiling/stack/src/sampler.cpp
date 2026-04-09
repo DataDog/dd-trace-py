@@ -214,7 +214,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
                 for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                    thread_candidates.push_back({ *tstate, tstate->thread_id });
+                    thread_candidates.push_back(*tstate);
                 });
             });
 
@@ -276,7 +276,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         continue;
                     }
                 }
-                auto success = it->second->sample(*echion, &thread_candidates[i].tstate, effective_wall_time_us);
+                auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }

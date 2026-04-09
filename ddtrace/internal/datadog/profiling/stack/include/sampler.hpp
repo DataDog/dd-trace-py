@@ -18,12 +18,6 @@ class EchionSampler;
 
 namespace Datadog {
 
-struct ThreadCandidate
-{
-    PyThreadState tstate;
-    unsigned long thread_id;
-};
-
 class Sampler
 {
     // This class manages the initialization of echion as well as the sampling thread.
@@ -61,7 +55,7 @@ class Sampler
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     std::minstd_rand rng{ 0x9e3779b9U };
-    std::vector<ThreadCandidate> thread_candidates;
+    std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
     void atfork_child();
