@@ -1954,61 +1954,53 @@ venv = Venv(
                         "httpx": "<0.28.0",
                     },
                 ),
-            ],
-        ),
-        Venv(
-            name="pytest-snapshot",
-            command=(
-                "pytest --no-ddtrace --no-cov {cmdargs}"
-                " tests/contrib/pytest/test_pytest_snapshot.py"
-                " tests/contrib/pytest/test_pytest_snapshot_v2.py"
-                " tests/contrib/pytest/test_pytest_xdist_snapshot.py"
-            ),
-            pkgs={
-                "pytest-randomly": latest,
-                "pytest-xdist": latest,
-            },
-            env={
-                "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-            venvs=[
                 Venv(
-                    pys="3.9",
-                    pkgs={
-                        "msgpack": latest,
-                        "more_itertools": "<8.11.0",
-                        "pytest-mock": "==2.0.0",
-                        "httpx": "<0.28.0",
-                    },
+                    name="pytest-snapshot",
+                    command=(
+                        "pytest --no-ddtrace --no-cov {cmdargs}"
+                        " tests/contrib/pytest/test_pytest_snapshot.py"
+                        " tests/contrib/pytest/test_pytest_snapshot_v2.py"
+                        " tests/contrib/pytest/test_pytest_xdist_snapshot.py"
+                    ),
                     venvs=[
                         Venv(
+                            pys="3.9",
                             pkgs={
-                                "pytest": ["~=6.0"],
-                                "pytest-cov": "==2.9.0",
+                                "msgpack": latest,
+                                "more_itertools": "<8.11.0",
+                                "pytest-mock": "==2.0.0",
+                                "httpx": "<0.28.0",
                             },
+                            venvs=[
+                                Venv(
+                                    pkgs={
+                                        "pytest": ["~=6.0"],
+                                        "pytest-cov": "==2.9.0",
+                                    },
+                                ),
+                                Venv(
+                                    pkgs={
+                                        "pytest": ["~=7.0", latest],
+                                        "pytest-cov": "==2.12.0",
+                                    },
+                                ),
+                            ],
                         ),
                         Venv(
+                            pys=select_pys(min_version="3.10", max_version="3.13"),
                             pkgs={
-                                "pytest": ["~=7.0", latest],
-                                "pytest-cov": "==2.12.0",
+                                "pytest": [
+                                    "~=6.0",
+                                    "~=7.0",
+                                    latest,
+                                ],
+                                "msgpack": latest,
+                                "asynctest": "==0.13.0",
+                                "more_itertools": "<8.11.0",
+                                "httpx": "<0.28.0",
                             },
                         ),
                     ],
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={
-                        "pytest": [
-                            "~=6.0",
-                            "~=7.0",
-                            latest,
-                        ],
-                        "msgpack": latest,
-                        "asynctest": "==0.13.0",
-                        "more_itertools": "<8.11.0",
-                        "httpx": "<0.28.0",
-                    },
                 ),
             ],
         ),
