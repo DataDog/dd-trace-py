@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): This fix resolves a thread-safety issue where concurrent calls to ``start_request_context()``
+    and ``finish_request_context()`` in the IAST taint tracking context array could race on shared
+    slots, causing context slot exhaustion and flaky test failures under pytest-xdist.
