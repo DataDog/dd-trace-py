@@ -514,6 +514,7 @@ import opentelemetry
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
+        {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},

@@ -54,7 +54,7 @@ def post_preload() -> None:
                 llm_oneclick_supported = True
                 break
 
-    telemetry_writer.add_configuration("llmobs_oneclick_supported", llm_oneclick_supported)
+    telemetry_writer.add_configuration("llmobs_oneclick_supported", llm_oneclick_supported, origin="code")
 
 
 def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
