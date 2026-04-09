@@ -9,8 +9,6 @@ Fix: pre-parse AsyncAPIResponse in async callers before sending into the sync
 generator, and inject the traced stream back into the response's parse cache.
 """
 
-import asyncio
-
 import pytest
 
 from ddtrace.contrib.internal.openai.patch import _inject_into_parse_cache
