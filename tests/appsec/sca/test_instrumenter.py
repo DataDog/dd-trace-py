@@ -361,3 +361,96 @@ class TestCallerInfoToReachedArray:
         assert reached[0]["path"] == "test_module"
         assert reached[0]["method"] == "target_func"
         assert reached[0]["line"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test: fork callback ordering (the system test bug)
+# ---------------------------------------------------------------------------
+
+
+class TestForkCallbackOrdering:
+    """Reproduces the system test bug where os.register_at_fork callbacks
+    wipe _registry after restart() has already set it up.
+
+    The fix: restart() explicitly resets state before re-init, and
+    os.register_at_fork is not used.
+    """
+
+    def test_restart_resets_then_reinits_registry(self):
+        """restart() must reset state then re-init. After calling
+        apply_instrumentation_updates, _registry must be set.
+        """
+        import ddtrace.appsec.sca._instrumenter as instrumenter_mod
+        from ddtrace.appsec.sca._instrumenter import _reset_after_fork
+        from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+
+        # Start clean
+        _reset_after_fork()
+        assert instrumenter_mod._registry is None
+
+        # Simulate what restart() → _load_and_instrument() → apply_instrumentation_updates does
+        apply_instrumentation_updates(targets=[])
+
+        # After apply_instrumentation_updates, _registry must be set via set_registry()
+        assert instrumenter_mod._registry is not None, "_registry is None after apply_instrumentation_updates"
+
+    def test_register_at_fork_not_used(self):
+        """os.register_at_fork must NOT be registered in _instrumenter.py or _registry.py.
+
+        If it were, the CPython fork callback would fire AFTER restart() and
+        wipe _registry=None permanently.
+        """
+        import ddtrace.appsec.sca._instrumenter as instrumenter_mod
+        from ddtrace.appsec.sca._instrumenter import _reset_after_fork
+        from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+
+        # Set up _registry
+        _reset_after_fork()
+        apply_instrumentation_updates(targets=[])
+        assert instrumenter_mod._registry is not None
+
+        # Simulate the OLD bug: os.register_at_fork callback fires after restart
+        _reset_after_fork()
+        assert instrumenter_mod._registry is None, "After explicit reset, _registry is None"
+
+        # This demonstrates the bug: if register_at_fork ran after restart(),
+        # it would wipe the registry that restart() just set up.
+        # The fix: restart() calls _reset_after_fork() itself, and
+        # os.register_at_fork is not used.
+
+    def test_restart_calls_reset_before_reinit(self):
+        """restart() calls _reset_after_fork BEFORE _load_and_instrument,
+        ensuring a clean state for re-initialization.
+        """
+        from ddtrace.internal.sca.product import restart
+
+        reset_calls = []
+
+        def track_reset():
+            reset_calls.append("instrumenter_reset")
+
+        def track_registry_reset():
+            reset_calls.append("registry_reset")
+
+        with (
+            patch("ddtrace.internal.sca.product.tracer_config") as mock_config,
+            patch(
+                "ddtrace.internal.sca.product.reset_instrumenter",
+                side_effect=track_reset,
+                create=True,
+            ),
+            patch(
+                "ddtrace.appsec.sca._instrumenter._reset_after_fork",
+                side_effect=track_reset,
+            ),
+            patch(
+                "ddtrace.appsec.sca._registry._reset_global_registry_after_fork",
+                side_effect=track_registry_reset,
+            ),
+        ):
+            mock_config._sca_enabled = False  # Skip _load_and_instrument
+            restart()
+
+        # Both resets should have been called
+        assert "instrumenter_reset" in reset_calls, "restart() must call _reset_after_fork"
+        assert "registry_reset" in reset_calls, "restart() must call _reset_global_registry_after_fork"

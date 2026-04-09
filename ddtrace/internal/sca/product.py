@@ -144,8 +144,25 @@ def stop(join: bool = False) -> None:
 
 
 def restart(join: bool = False) -> None:
-    """Handle fork scenarios by restarting SCA detection in child process."""
+    """Handle fork scenarios by restarting SCA detection in child process.
+
+    AIDEV-NOTE: We explicitly reset the instrumenter and registry state here
+    instead of relying on os.register_at_fork(after_in_child=...).  The
+    CPython fork callbacks run AFTER ddtrace's forksafe mechanism calls
+    restart(), so if we relied on register_at_fork, the cleanup would wipe
+    the state we just set up.  See system_tests_error.md for the full
+    debugging trace.
+    """
     stop(join=join)
+
+    # Reset instrumenter and registry state BEFORE re-initializing.
+    # This must happen here (not in register_at_fork) to ensure correct ordering.
+    from ddtrace.appsec.sca._instrumenter import _reset_after_fork as reset_instrumenter
+    from ddtrace.appsec.sca._registry import _reset_global_registry_after_fork as reset_registry
+
+    reset_instrumenter()
+    reset_registry()
+
     start()
     # Re-instrument after restart (no need to wait for post_preload)
     if tracer_config._sca_enabled:

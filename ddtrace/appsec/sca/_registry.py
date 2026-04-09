@@ -151,8 +151,12 @@ def _reset_global_registry_after_fork() -> None:
     _registry_lock = Lock()
 
 
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_reset_global_registry_after_fork)
+# AIDEV-NOTE: Do NOT use os.register_at_fork here.  ddtrace's forksafe
+# mechanism calls product.restart() which explicitly calls
+# _reset_global_registry_after_fork() before re-initializing.  If we also
+# register with os.register_at_fork, the CPython callback fires AFTER
+# restart() has already set up the new state, wiping _global_registry=None
+# permanently.  See system_tests_error.md for details.
 
 
 def get_global_registry() -> InstrumentationRegistry:
