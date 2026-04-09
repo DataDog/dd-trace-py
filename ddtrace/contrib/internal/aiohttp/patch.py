@@ -90,9 +90,9 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, service, config.aiohttp)
+        set_service_and_source(span, service, config.aiohttp_client)
 
-        if config.aiohttp.distributed_tracing:
+        if config.aiohttp_client.distributed_tracing:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
