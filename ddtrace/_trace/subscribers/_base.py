@@ -10,7 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
@@ -36,7 +36,7 @@ def _finish_span(
         return
 
     integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -88,12 +88,15 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
 
     span = tracer.start_span(event.span_name, **span_kwargs)
 
-    span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
+    span._set_attribute(COMPONENT, event.component)
+    span._set_attribute(SPAN_KIND, event.span_kind)
+    for _k, _v in event.tags.items():
+        span._set_attribute(_k, _v)
 
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:

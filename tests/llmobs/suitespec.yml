@@ -10,6 +10,8 @@ components:
     - ddtrace/contrib/internal/google_genai/*
   vertexai:
     - ddtrace/contrib/internal/vertexai/*
+  llama_index:
+    - ddtrace/contrib/internal/llama_index/*
   langchain:
     - ddtrace/contrib/internal/langchain/*
   litellm:
@@ -90,6 +92,17 @@ suites:
       - '@llmobs'
       - tests/contrib/vertexai/*
       - tests/snapshots/tests.contrib.vertexai.*
+    snapshot: true
+  llama_index:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@llama_index'
+      - '@llmobs'
+      - tests/contrib/llama_index/*
+      - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
   langchain:
     parallelism: 6
@@ -213,4 +226,4 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
     snapshot: true
-    skip: true  # Temporarily disabled
+    skip: true # Temporarily disabled

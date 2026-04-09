@@ -15,6 +15,10 @@ from ddtrace.internal.module import ModuleWatchdog
 
 log = get_logger(__name__)
 
+# Lazy-cached reference to avoid loading _stacktrace (a C extension used only
+# by IAST) when _patch_utils is imported by non-IAST code paths.
+_get_info_frame = None
+
 # Cached paths for relativizing file paths (computed once at import time).
 _CWD = os.path.abspath(os.getcwd())
 _PURELIB_PATH = sysconfig.get_path("purelib") or ""
@@ -52,12 +56,12 @@ def get_caller_frame_info() -> tuple:
 
     Returns (None, None, None, None) when no relevant frame is found.
     """
-    try:
-        from ddtrace.appsec._iast._stacktrace import get_info_frame
-    except ImportError:
-        return None, None, None, None
+    global _get_info_frame
+    if _get_info_frame is None:
+        from ddtrace.appsec._shared._stacktrace import get_info_frame
 
-    frame_info = get_info_frame()
+        _get_info_frame = get_info_frame
+    frame_info = _get_info_frame()
     if not frame_info or frame_info[0] in ("", -1, None):
         return None, None, None, None
 
