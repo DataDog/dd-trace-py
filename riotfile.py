@@ -1902,7 +1902,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -1953,7 +1953,7 @@ venv = Venv(
         ),
         Venv(
             name="testing",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/testing/",
+            command="pytest --no-ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3435,11 +3435,12 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace -n auto {cmdargs} tests/ci_visibility",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
                 "gevent": latest,
             },
             env={
