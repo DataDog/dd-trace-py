@@ -118,7 +118,6 @@ jobs:
 
           echo "branch=${BACKPORT_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "branch-from=$(git rev-parse ${TARGET_BRANCH})" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "target-branch=${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
 
       - name: Push Commit
@@ -129,7 +128,6 @@ jobs:
           target: "DataDog/dd-trace-py"
           create-branch: true
           command: push
-          commits: ${{ steps.create-commit.outputs.commit }}
           force: true
 
       - name: Create PR
