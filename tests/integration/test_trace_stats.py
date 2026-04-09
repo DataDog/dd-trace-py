@@ -17,9 +17,7 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer(tracer):
-    # _recreate() checks config._trace_compute_stats AND config._trace_writer_native
-    # to decide whether to add stats processor. Stats processor is only added if
-    # _trace_writer_native is False and _trace_compute_stats is True.
+    # Recreate tracer with stats enabled
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer._recreate()
         yield tracer
@@ -60,7 +58,6 @@ def send_once_stats_tracer(stats_tracer):
     stats_tracer.trace = original_trace
 
 
-@skip_if_native_writer
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
@@ -124,7 +121,6 @@ def test_stats_report_hostname(get_hostname):
         assert p._hostname == ""
 
 
-@skip_if_native_writer
 def test_periodic_payload_includes_process_tags():
     from unittest import mock
 
