@@ -36,7 +36,7 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -175,7 +175,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if ctx.get_item("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -198,7 +198,7 @@ def _finish_span(
         return
 
     integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -258,11 +258,11 @@ def _set_inferred_proxy_tags(span, status_code):
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if ERROR_MSG in span._meta.keys():
+            if span._has_attribute(ERROR_MSG):
                 inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if ERROR_TYPE in span._meta.keys():
+            if span._has_attribute(ERROR_TYPE):
                 inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if ERROR_STACK in span._meta.keys():
+            if span._has_attribute(ERROR_STACK):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
@@ -545,7 +545,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -833,12 +833,12 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
-        span._metrics[redisx.ARGS_LEN] = len(args)
+        span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
                 # PERF: avoid extra overhead from checks in Span.set_metric
-                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
