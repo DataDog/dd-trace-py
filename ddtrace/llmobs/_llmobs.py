@@ -64,17 +64,24 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SHADOW_INPUT_TOKENS_TAG_KEY
+from ddtrace.llmobs._constants import SHADOW_OUTPUT_TOKENS_TAG_KEY
+from ddtrace.llmobs._constants import SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import SHADOW_TOTAL_TOKENS_TAG_KEY
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -126,6 +133,7 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -495,6 +503,23 @@ class LLMObs(Service):
             if self._export_llmobs:
                 span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
 
+    def _set_shadow_tags(self, span: Span) -> None:
+        """Set shadow token metric tags on APM spans for upsell visibility."""
+        span_kind = get_llmobs_span_kind(span)
+        if span_kind == "llm":
+            span.set_tag(SHADOW_SPAN_KIND_TAG_KEY, "llm")
+        if span_kind in ("llm", "embedding"):
+            metrics = get_llmobs_metrics(span)
+            if metrics:
+                for llmobs_key, shadow_tag in (
+                    (INPUT_TOKENS_METRIC_KEY, SHADOW_INPUT_TOKENS_TAG_KEY),
+                    (OUTPUT_TOKENS_METRIC_KEY, SHADOW_OUTPUT_TOKENS_TAG_KEY),
+                    (TOTAL_TOKENS_METRIC_KEY, SHADOW_TOTAL_TOKENS_TAG_KEY),
+                ):
+                    value = metrics.get(llmobs_key)
+                    if value is not None:
+                        span.set_metric(shadow_tag, value)
+
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
@@ -503,6 +528,7 @@ class LLMObs(Service):
             if span_event is None:
                 return
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._set_shadow_tags(span)
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
