@@ -445,6 +445,8 @@ jobs:
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
+      push_to_test_optimization: true
+      dd_sts_policy: dd-trace-py-system-tests
 
   integration-frameworks-combine-wheels:
     runs-on: ubuntu-latest
@@ -473,20 +475,23 @@ jobs:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
+      push_to_test_optimization: true
+      dd_sts_policy: dd-trace-py-system-tests
 
   tracer-release:
-    # TODO: re-enable once DataDog/system-tests reusable workflow supports dd-sts
-    if: false
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
-    secrets:
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
-      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
+    secrets: inherit
     with:
       library: python
       ref: main
       scenarios_groups: tracer-release
       _system_tests_dev_mode: true
       push_to_test_optimization: true
+      dd_sts_policy: dd-trace-py-system-tests
 
   finished:
     name: system-tests finished
