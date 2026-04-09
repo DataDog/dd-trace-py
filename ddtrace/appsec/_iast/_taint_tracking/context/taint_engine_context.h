@@ -34,6 +34,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -47,6 +48,9 @@ class TaintEngineContext
   private:
     // Fixed capacity array of context maps
     std::vector<TaintedObjectMapTypePtr> request_context_slots;
+    // Protects request_context_slots against concurrent start/finish/clear calls.
+    // Marked mutable so const diagnostic methods can also acquire it.
+    mutable std::mutex slots_mutex_;
     // Parse and clamp capacity from environment
     static size_t assign_request_context_slots_size();
 
@@ -102,9 +106,8 @@ class TaintEngineContext
     TaintedObjectPtr get_tainted_object_from_request_context_slot(PyObject* tainted_object);
 
     // Create a context map for the current request. Returns the index (slot)
-    // of the created map when successful. If capacity is saturated, the
-    // returned optional may encode an invalid value (implementation detail),
-    // and callers should treat that as failure to allocate a slot.
+    // of the created map when successful, or std::nullopt if all slots are
+    // occupied (capacity saturated).
     std::optional<size_t> start_request_context();
 
     // Introspection helpers
@@ -117,16 +120,7 @@ class TaintEngineContext
     // Return the number of free slots (i.e., nullptr entries) in the
     // request_context_slots array. Intended for tests and diagnostics to
     // validate concurrency behavior under stress.
-    size_t debug_context_array_free_slots_number() const
-    {
-        size_t free_count = 0;
-        for (const auto& slot : request_context_slots) {
-            if (slot == nullptr) {
-                ++free_count;
-            }
-        }
-        return free_count;
-    }
+    size_t debug_context_array_free_slots_number() const;
 };
 
 extern std::unique_ptr<TaintEngineContext> taint_engine_context;

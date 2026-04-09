@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    tracing: The ``pin`` parameter in ``ddtrace.contrib.dbapi.TracedConnection``,
+    ``ddtrace.contrib.dbapi.TracedCursor``, and ``ddtrace.contrib.dbapi_async.TracedAsyncConnection``
+    is deprecated and will be removed in version 5.0.0.
+    To manage configuration of DB tracing please use integration configuration and environment variables.

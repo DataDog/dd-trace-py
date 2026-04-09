@@ -1,10 +1,10 @@
 import atexit
 import logging
-import os
 from pathlib import Path
 import re
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
@@ -55,7 +55,7 @@ class SessionManager:
 
         self.is_user_provided_service: bool
 
-        dd_service = os.environ.get("DD_SERVICE")
+        dd_service = env.get("DD_SERVICE")
         if dd_service:
             self.is_user_provided_service = True
             self.service = dd_service
@@ -63,9 +63,9 @@ class SessionManager:
             self.is_user_provided_service = False
             self.service = _get_service_name_from_git_repo(self.env_tags) or DEFAULT_SERVICE_NAME
 
-        self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
+        self.is_auto_injected = bool(env.get("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.getenv("_CI_DD_ENV", os.getenv("DD_ENV", None))
+        self.env = env.get("_CI_DD_ENV", env.get("DD_ENV", None))
         if self.env is None:
             self.env = self.connector_setup.default_env()
 
@@ -294,7 +294,7 @@ class SessionManager:
         test.set_codeowners(codeowners)
 
     def _get_test_session_name(self) -> str:
-        if session_name := os.environ.get("DD_TEST_SESSION_NAME"):
+        if session_name := env.get("DD_TEST_SESSION_NAME"):
             return session_name
 
         if job_name := self.env_tags.get(CITag.JOB_NAME):
@@ -312,7 +312,11 @@ class SessionManager:
 
         latest_commits = git.get_latest_commits()
         backend_commits = self.api_client.get_known_commits(latest_commits)
-        # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+        if backend_commits is None:
+            log.warning("search_commits failed, aborting git metadata upload")
+            TelemetryAPI.get().record_git_pack_data(0, 0)
+            return
+
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         if len(commits_not_in_backend) == 0:
@@ -326,7 +330,11 @@ class SessionManager:
                 log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
-                # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+                if backend_commits is None:
+                    log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                    TelemetryAPI.get().record_git_pack_data(0, 0)
+                    return
+
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
                 log.warning("Failed to unshallow repository, continuing to send pack data")
@@ -358,31 +366,31 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        if not asbool(os.environ.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
             log.debug("Test Impact Analysis is disabled by environment variable")
             self.settings.itr_enabled = False
 
-        if not asbool(os.environ.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
             self.settings.early_flake_detection.enabled = False
 
-        if not asbool(os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
             log.debug("TIA test skipping is disabled by environment variable")
             self.settings.skipping_enabled = False
 
         # Other overrides.
         # These variables default to false, and if explicitly given a true value, enable a feature.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
 
-        if asbool(os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+        if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
             log.debug("Code coverage report upload is enabled by environment variable")
             self.settings.coverage_report_upload_enabled = True
 
