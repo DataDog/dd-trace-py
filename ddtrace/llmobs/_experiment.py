@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC
 from abc import abstractmethod
-import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -21,6 +22,8 @@ from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+
+from ddtrace.llmobs._utils import get_asyncio
 
 
 try:
@@ -65,6 +68,7 @@ if TYPE_CHECKING:
     from ddtrace.llmobs.types import ExportedLLMObsSpan
 
 logger = get_logger(__name__)
+
 
 JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], Mapping[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
@@ -859,6 +863,7 @@ if PydanticEvaluator is not None:
             expected_output: Optional[JSONType] = None,
             duration: Optional[float] = None,
         ) -> EvaluatorResult:
+            asyncio = get_asyncio()
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -2113,11 +2118,12 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore,  # type: ignore[attr-defined]
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         async with semaphore:
@@ -2233,6 +2239,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2269,11 +2276,12 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: asyncio.Semaphore,
+        semaphore,  # type: ignore[attr-defined]
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> EvaluationResult:
+        asyncio = get_asyncio()
         idx = task_result["idx"]
         input_data = record["input_data"]
         output_data = task_result["output"]
@@ -2396,6 +2404,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
@@ -2412,6 +2421,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2493,6 +2503,7 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         (
             inputs,
             outputs,
@@ -2765,6 +2776,7 @@ class SyncExperiment:
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
+        asyncio = get_asyncio()
         coro = self._experiment.run(
             jobs=jobs,
             raise_errors=raise_errors,
