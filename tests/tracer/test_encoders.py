@@ -1046,8 +1046,8 @@ def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any])
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
-    span._meta = meta  # type: ignore
-    span._metrics = metrics  # type: ignore
+    span._meta = meta  # type: ignore  # ast-grep-ignore: span-meta-access
+    span._metrics = metrics  # type: ignore  # ast-grep-ignore: span-metrics-access
 
     trace = [span]
     encoder.put(trace)
