@@ -1057,6 +1057,40 @@ experiments:
               - execution_time < 2.50 ms
               - max_rss_usage < 38.75 MB
 
+          # telemetrydependencies
+          - name: telemetrydependencies-first-100-deps-sca-off
+            thresholds:
+              - execution_time < 2.00 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-first-100-deps-sca-on
+            thresholds:
+              - execution_time < 2.50 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-first-1000-deps-sca-off
+            thresholds:
+              - execution_time < 15.00 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-first-1000-deps-sca-on
+            thresholds:
+              - execution_time < 17.50 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-idle-1000-deps-sca-off
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-idle-1000-deps-sca-on
+            thresholds:
+              - execution_time < 1.00 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-cve-registration-1000-deps
+            thresholds:
+              - execution_time < 5.00 ms
+              - max_rss_usage < 38.00 MB
+          - name: telemetrydependencies-sca-hits-1000-deps
+            thresholds:
+              - execution_time < 6.00 ms
+              - max_rss_usage < 38.00 MB
+
           # tracer
           - name: tracer-large
             thresholds:
