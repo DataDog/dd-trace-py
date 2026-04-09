@@ -1539,6 +1539,12 @@ class TestAPIClientUploadCoverageReport:
         assert "Successfully uploaded coverage report" in caplog.text
 
         # Verify telemetry was recorded
+        mock_telemetry.with_request_metric_names.assert_called_once_with(
+            count="coverage_upload.request",
+            duration="coverage_upload.request_ms",
+            response_bytes="coverage_upload.response_bytes",
+            error="coverage_upload.request_errors",
+        )
         assert mock_telemetry.with_request_metric_names.return_value.record_request.called
 
     def test_upload_coverage_report_with_ci_tags(self, mock_telemetry: Mock) -> None:

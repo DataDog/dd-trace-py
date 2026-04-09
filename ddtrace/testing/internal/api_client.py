@@ -451,7 +451,7 @@ class APIClient:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="coverage_upload.request",
             duration="coverage_upload.request_ms",
-            response_bytes="coverage_upload.request_bytes",  # FIXME: Request bytes != response bytes
+            response_bytes="coverage_upload.response_bytes",
             error="coverage_upload.request_errors",
         )
 
