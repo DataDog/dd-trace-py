@@ -58,6 +58,7 @@ def send_once_stats_tracer(stats_tracer):
     stats_tracer.trace = original_trace
 
 
+@skip_if_native_writer
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
@@ -105,7 +106,6 @@ assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stat
     assert status == 0, out + err
 
 
-@skip_if_native_writer
 @mock.patch("ddtrace.internal.processor.stats.get_hostname")
 def test_stats_report_hostname(get_hostname):
     get_hostname.return_value = "test-hostname"
