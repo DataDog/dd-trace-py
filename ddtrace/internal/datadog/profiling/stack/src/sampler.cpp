@@ -351,15 +351,6 @@ stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
     stack_postfork_cleanup();
-
-    // The fork handler is registered at library load time to make sure it
-    // is registered before dd_wrapper's.
-    // The rationale is that both stack and dd_wrapper have post-fork hooks;
-    // and stack needs dd_wrapper's hooks to have completed as it needs the
-    // Profile object to have been reset and be ready for use, and post-fork
-    // hooks are executed in LIFO order.
-    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
-    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
@@ -368,6 +359,7 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
