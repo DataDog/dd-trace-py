@@ -22,6 +22,32 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
+DEEP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "l1": {
+            "type": "object",
+            "properties": {
+                "l2": {
+                    "type": "object",
+                    "properties": {
+                        "l3": {
+                            "type": "object",
+                            "properties": {
+                                "l4": {
+                                    "type": "object",
+                                    "properties": {"l5": {"type": "string"}},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+    },
+}
+
+
 if vcr:
     logs_vcr = vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
