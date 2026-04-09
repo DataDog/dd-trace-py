@@ -269,10 +269,13 @@ def _inject_into_parse_cache(api_response, traced_value):
       - OpenAI SDK >=2.0 (``openai>=2.0.0``): ``_parsed_by_type`` dict keyed by ``_cast_to``
       - OpenAI SDK 1.x (``openai>=1.0,<2``): single ``_parsed`` attribute
     """
-    if hasattr(api_response, "_parsed_by_type"):
-        api_response._parsed_by_type[api_response._cast_to] = traced_value
-    elif hasattr(api_response, "_parsed"):
-        api_response._parsed = traced_value
+    try:
+        if hasattr(api_response, "_parsed_by_type"):
+            api_response._parsed_by_type[api_response._cast_to] = traced_value
+        elif hasattr(api_response, "_parsed"):
+            api_response._parsed = traced_value
+    except Exception:
+        pass
 
 
 async def _maybe_preparse_async_response(resp, err):
