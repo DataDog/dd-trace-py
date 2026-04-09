@@ -10,10 +10,10 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_INPUT_TOKENS_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_OUTPUT_TOKENS_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_SPAN_KIND_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_TOTAL_TOKENS_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -700,10 +700,10 @@ def test_shadow_token_tags_set_on_llm_span(llmobs, llmobs_events):
     with llmobs.llm(model_name="test-model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
 
-    assert span.get_metric(SHADOW_INPUT_TOKENS_TAG_KEY) == 10
-    assert span.get_metric(SHADOW_OUTPUT_TOKENS_TAG_KEY) == 20
-    assert span.get_metric(SHADOW_TOTAL_TOKENS_TAG_KEY) == 30
-    assert span.get_tag(SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+    assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 10
+    assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) == 20
+    assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 30
+    assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "llm"
 
 
 def test_shadow_token_tags_set_on_embedding_span(llmobs, llmobs_events):
@@ -711,10 +711,10 @@ def test_shadow_token_tags_set_on_embedding_span(llmobs, llmobs_events):
     with llmobs.embedding(model_name="test-model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 15, "total_tokens": 15})
 
-    assert span.get_metric(SHADOW_INPUT_TOKENS_TAG_KEY) == 15
-    assert span.get_metric(SHADOW_OUTPUT_TOKENS_TAG_KEY) is None
-    assert span.get_metric(SHADOW_TOTAL_TOKENS_TAG_KEY) == 15
-    assert span.get_tag(SHADOW_SPAN_KIND_TAG_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 15
+    assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 15
+    assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) is None
 
 
 def test_shadow_token_tags_not_set_on_non_llm_spans(llmobs, llmobs_events):
@@ -722,10 +722,10 @@ def test_shadow_token_tags_not_set_on_non_llm_spans(llmobs, llmobs_events):
     with llmobs.workflow("my-workflow") as span:
         pass
 
-    assert span.get_metric(SHADOW_INPUT_TOKENS_TAG_KEY) is None
-    assert span.get_metric(SHADOW_OUTPUT_TOKENS_TAG_KEY) is None
-    assert span.get_metric(SHADOW_TOTAL_TOKENS_TAG_KEY) is None
-    assert span.get_tag(SHADOW_SPAN_KIND_TAG_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) is None
+    assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) is None
 
 
 def test_shadow_token_tags_partial_metrics(llmobs, llmobs_events):
@@ -733,10 +733,20 @@ def test_shadow_token_tags_partial_metrics(llmobs, llmobs_events):
     with llmobs.llm(model_name="test-model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 5})
 
-    assert span.get_metric(SHADOW_INPUT_TOKENS_TAG_KEY) == 5
-    assert span.get_metric(SHADOW_OUTPUT_TOKENS_TAG_KEY) is None
-    assert span.get_metric(SHADOW_TOTAL_TOKENS_TAG_KEY) is None
-    assert span.get_tag(SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+    assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 5
+    assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+    assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) is None
+    assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+
+
+def test_shadow_token_tags_zero_values(llmobs, llmobs_events):
+    """Test that zero token values are set as shadow tags (not treated as falsy)."""
+    with llmobs.llm(model_name="test-model") as span:
+        llmobs.annotate(span=span, metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+
+    assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 0
+    assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) == 0
+    assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 0
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):

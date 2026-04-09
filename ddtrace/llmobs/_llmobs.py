@@ -76,10 +76,10 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SHADOW_INPUT_TOKENS_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_OUTPUT_TOKENS_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_SPAN_KIND_TAG_KEY
-from ddtrace.llmobs._constants import SHADOW_TOTAL_TOKENS_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
@@ -507,14 +507,14 @@ class LLMObs(Service):
         """Set shadow token metric tags on APM spans for upsell visibility."""
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
-            span.set_tag(SHADOW_SPAN_KIND_TAG_KEY, "llm")
+            span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, "llm")
         if span_kind in ("llm", "embedding"):
             metrics = get_llmobs_metrics(span)
             if metrics:
                 for llmobs_key, shadow_tag in (
-                    (INPUT_TOKENS_METRIC_KEY, SHADOW_INPUT_TOKENS_TAG_KEY),
-                    (OUTPUT_TOKENS_METRIC_KEY, SHADOW_OUTPUT_TOKENS_TAG_KEY),
-                    (TOTAL_TOKENS_METRIC_KEY, SHADOW_TOTAL_TOKENS_TAG_KEY),
+                    (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),
+                    (OUTPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY),
+                    (TOTAL_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY),
                 ):
                     value = metrics.get(llmobs_key)
                     if value is not None:
