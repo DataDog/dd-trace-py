@@ -970,7 +970,9 @@ class CustomBuildExt(build_ext):
         # cached on disk, so subsequent builds reuse them.
         # FETCHCONTENT_BASE_DIR defaults to a path inside the ephemeral cmake
         # build dir, so without this every build would re-download from GitHub.
-        ext_cache_key = Path(extension_name).stem  # e.g. "_native.cpython-314-darwin.so" -> "_native.cpython-314-darwin"
+        ext_cache_key = Path(
+            extension_name
+        ).stem  # e.g. "_native.cpython-314-darwin.so" -> "_native.cpython-314-darwin"
         cmake_args += [
             f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps' / ext_cache_key}",
         ]
