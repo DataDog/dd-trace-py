@@ -103,7 +103,9 @@ def _get_tests_api_response(
     tests_body: t.Optional[dict] = None,
     page_info: t.Optional[dict] = None,
 ):
-    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}}
+    response: dict[str, t.Any] = {
+        "data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}
+    }
 
     if tests_body is not None:
         response["data"]["attributes"]["tests"].update(tests_body)
@@ -170,7 +172,7 @@ class TestTestVisibilityAPIClientBase:
 
     default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
-    default_configurations = {
+    default_configurations: dict[str, str | dict[str, str]] = {
         "os.architecture": "arm64",
         "os.platform": "PlatForm",
         "os.version": "9.8.a.b",
@@ -198,12 +200,12 @@ class TestTestVisibilityAPIClientBase:
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
-                api_key,
+                api_key,  # type: ignore[arg-type]
                 dd_site,
                 agentless_url,
                 dd_service,
                 dd_env,
-                client_timeout,
+                client_timeout,  # type: ignore[arg-type]
             )
         # no-dd-sa:python-best-practices/if-return-no-else
         else:
@@ -211,10 +213,10 @@ class TestTestVisibilityAPIClientBase:
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
-                agent_url,
+                agent_url,  # type: ignore[arg-type]
                 dd_service,
                 dd_env,
-                client_timeout,
+                client_timeout,  # type: ignore[arg-type]
                 evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH_V4,
             )
 

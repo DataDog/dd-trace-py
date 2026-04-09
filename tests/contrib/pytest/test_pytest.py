@@ -72,7 +72,7 @@ def _get_spans_from_list(
         if span.get_tag("type") != target_type:
             continue
 
-        if name is not None and span.get_tag(target_name) != name:
+        if name is not None and span.get_tag(target_name) != name:  # type: ignore[arg-type]
             continue
 
         if status is not None and span.get_tag("test.status") != status:
@@ -96,6 +96,11 @@ class PytestTestCaseBase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+        # AIDEV-NOTE: Anchor the pytester monkeypatch CWD *before* any test body
+        # runs. Tests that call os.chdir() directly before testdir.chdir() would
+        # otherwise corrupt the saved CWD used during fixture teardown, leaking
+        # wrong working directories to subsequent tests in the same xdist worker.
+        testdir.chdir()
 
     @pytest.fixture(autouse=True)
     def _dummy_check_enabled_features(self):

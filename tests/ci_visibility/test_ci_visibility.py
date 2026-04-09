@@ -6,8 +6,8 @@ import re
 import socket
 import textwrap
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -152,6 +152,11 @@ def test_ci_visibility_service_enable_without_service(tracer):
         mock.patch(
             "ddtrace.internal.ci_visibility.recorder._extract_repository_name_from_url", return_value="test-repo"
         ),
+        # AIDEV-NOTE: Patch DEFAULT_SPAN_SERVICE_NAME to None to prevent xdist worker env leakage.
+        # When running under pytest-xdist, the outer worker sets _DD_PYTEST_XDIST_INFERRED_SERVICE
+        # which freezes DEFAULT_SPAN_SERVICE_NAME at import time, causing Config().service to be
+        # non-None and override the expected service value derived from the repository URL.
+        mock.patch("ddtrace.internal.settings._config.DEFAULT_SPAN_SERVICE_NAME", None),
     ):
         with _patch_dummy_writer():
             CIVisibility.enable(tracer=tracer)
