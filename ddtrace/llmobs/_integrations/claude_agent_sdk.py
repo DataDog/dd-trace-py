@@ -38,24 +38,32 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
         elif operation == "llm":
-            self._llmobs_set_llm_tags(span, response)
+            self._llmobs_set_llm_tags(span, response, kwargs)
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
 
-    def _llmobs_set_llm_tags(self, span: Span, response: Optional[Any]) -> None:
+    def extract_llm_input_messages(self, args: list, kwargs: dict, span: Span) -> list[Message]:
+        """Return the user prompt as input messages for the first LLM span."""
+        return self._extract_input_messages(
+            get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span
+        )
+
+    def _llmobs_set_llm_tags(self, span: Span, response: Optional[Any], kwargs: dict[str, Any] = None) -> None:
         model = (_get_attr(response, "model", "") or "") if response is not None else ""
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         if response is not None:
             content = _get_attr(response, "content", []) or []
-            output_messages = self._parse_content_blocks(content, "assistant")
+            output_messages = self.parse_content_blocks("assistant", content)
             if _get_attr(response, "usage", None):
                 metrics = self._extract_result_message(response)
+        input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
         _annotate_llmobs_span_data(
             span,
             kind="llm",
             model_name=model,
             model_provider="anthropic",
+            input_messages=input_messages or None,
             output_messages=output_messages or [Message(content="")],
             metrics=metrics or None,
         )
@@ -141,7 +149,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return [Message(content="", role="user")]
 
-    def _parse_content_blocks(self, content: Any, role: str) -> list[Message]:
+    def parse_content_blocks(self, role: str, content: Any) -> list[Message]:
         """Parses content which can be a string or a list of content blocks
         (TextBlock, ToolUseBlock, etc.) into a list of messages.
         """
@@ -205,7 +213,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             msg_type = type(msg).__name__
             if msg_type == "AssistantMessage":
                 content = _get_attr(msg, "content", []) or []
-                output_messages.extend(self._parse_content_blocks(content, "assistant"))
+                output_messages.extend(self.parse_content_blocks("assistant", content))
             elif msg_type == "SystemMessage":
                 data = _get_attr(msg, "data", {}) or {}
                 if data:
@@ -214,7 +222,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     output_messages.append(Message(content=content, role="system"))
             elif msg_type == "UserMessage":
                 content = _get_attr(msg, "content", "") or ""
-                output_messages.extend(self._parse_content_blocks(content, "user"))
+                output_messages.extend(self.parse_content_blocks("user", content))
             elif msg_type == "ResultMessage":
                 if not stop_reason:
                     stop_reason = _get_attr(msg, "stop_reason", "") or ""

@@ -39,6 +39,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -82,6 +83,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -129,6 +131,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -176,6 +179,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name="",
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "", "role": ""}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -213,6 +217,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -266,6 +271,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[
                 {
                     "content": "",
@@ -344,6 +350,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[
                 {
                     "content": "",
@@ -422,6 +429,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[
                 {
                     "content": "",
@@ -502,6 +510,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": "Hello", "role": "user"}, {"content": "What is 2+2?", "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -547,6 +556,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": "Hello", "role": "user"}, {"content": "What is 2+2?", "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -617,6 +627,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[
                 {
                     "content": "",
@@ -646,12 +657,34 @@ class TestLLMObsClaudeAgentSdk:
         )
         assert llmobs_events[1] == expected_tool_event
 
-        # Second LLM span: text response
+        # Second LLM span: full growing context (prompt + turn-1 response + tool result)
         expected_llm2_event = _expected_llmobs_llm_span_event(
             llm_spans[1],
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[
+                {"content": prompt, "role": "user"},
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "Read",
+                            "arguments": {"file_path": "/etc/hostname"},
+                            "tool_id": MOCK_READ_TOOL_ID,
+                            "type": "tool_use",
+                        }
+                    ],
+                },
+                {
+                    "content": "",
+                    "role": "user",
+                    "tool_results": [
+                        {"result": "myhost.local", "tool_id": MOCK_READ_TOOL_ID, "type": "tool_result"}
+                    ],
+                },
+            ],
             output_messages=[{"content": MOCK_FINAL_ASSISTANT_TEXT, "role": "assistant"}],
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
@@ -678,6 +711,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="llm",
             model_name=MOCK_MODEL,
             model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "4", "role": "assistant"}],
             token_metrics=EXPECTED_ASSISTANT_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
