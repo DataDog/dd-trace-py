@@ -23,7 +23,6 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import IS_EVALUATION_TRACE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -219,16 +218,6 @@ def _get_span_name(span: Span) -> str:
         return "{}.{}".format(client_name, span.resource)
     llmobs_data = _get_llmobs_data_metastruct(span)
     return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
-
-
-def mark_as_evaluation_span(span: Span) -> None:
-    """Mark this span's trace as an evaluation trace via context._meta."""
-    span.context._meta[IS_EVALUATION_TRACE] = "1"
-
-
-def _is_evaluation_span(span: Span) -> bool:
-    """Return whether this span belongs to an evaluation trace (e.g. a ragas evaluator run)."""
-    return bool(span.context._meta.get(IS_EVALUATION_TRACE))
 
 
 def _unserializable_default_repr(obj):

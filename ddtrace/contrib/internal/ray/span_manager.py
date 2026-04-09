@@ -15,6 +15,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
@@ -45,8 +46,9 @@ def long_running_ray_span(
 ):
     """Context manager that handles Ray span creation and long-running span lifecycle"""
     with tracer.start_span(
-        name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
+        name=span_name, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
+        set_service_and_source(span, service, config.ray)
         span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)
@@ -169,8 +171,10 @@ class RaySpanManager:
         )
         new_span._set_attribute("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
-        new_span._meta = job_span._meta.copy()
-        new_span._metrics = job_span._metrics.copy()
+        for k, v in job_span._get_str_attributes().items():
+            new_span._set_attribute(k, v)
+        for k, v in job_span._get_numeric_attributes().items():
+            new_span._set_attribute(k, v)
 
         return new_span
 
@@ -190,7 +194,7 @@ class RaySpanManager:
     def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
-            del span._metrics[DD_PARTIAL_VERSION]
+            span._remove_attribute(DD_PARTIAL_VERSION)
 
             span._set_attribute(DD_WAS_LONG_RUNNING, 1)
             span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_FINISHED)

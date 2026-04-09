@@ -1,9 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
-import os
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import TAG_FALSE
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.test_data import Test
@@ -67,8 +67,8 @@ class RetryHandler(ABC):
 class AutoTestRetriesHandler(RetryHandler):
     def __init__(self, session_manager: "SessionManager") -> None:
         super().__init__(session_manager=session_manager)
-        self.max_tests_to_retry_per_session = int(os.getenv("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
-        self.max_retries_per_test = int(os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
+        self.max_tests_to_retry_per_session = int(env.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
+        self.max_retries_per_test = int(env.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
