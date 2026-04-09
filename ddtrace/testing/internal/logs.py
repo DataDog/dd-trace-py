@@ -36,7 +36,7 @@ class LogsWriter(BaseWriter):
     def _encode_events(self, events: list[Event]) -> bytes:
         return json.dumps(events).encode("utf-8")
 
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
         packs = self._split_pack_events(events)
         for pack in packs:
             result = self.connector.request(
@@ -49,8 +49,10 @@ class LogsWriter(BaseWriter):
             self.connector.close()
             if result.error_type:
                 _log.warning("Failed to submit logs to Datadog logs intake: %s", result.error_description)
+                return False
             else:
                 _log.debug("Submitted %d log event(s) to Datadog logs intake", len(events))
+        return True
 
 
 class LogsHandler(logging.Handler):
