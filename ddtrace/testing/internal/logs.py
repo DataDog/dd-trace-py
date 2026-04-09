@@ -46,7 +46,6 @@ class LogsWriter(BaseWriter):
                 headers={"Content-Type": "application/json"},
                 send_gzip=True,
             )
-            self.connector.close()
             if result.error_type:
                 _log.warning("Failed to submit logs to Datadog logs intake: %s", result.error_description)
                 return False

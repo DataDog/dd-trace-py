@@ -738,3 +738,38 @@ class TestCircuitBreaker:
             writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
             result = writer._send_events([Event(type="test")])
             assert result is True
+
+
+class TestOversizedEventWarning:
+    """Regression test: a single event exceeding max_payload_size must log a warning."""
+
+    def test_oversized_single_event_logs_warning(self) -> None:
+        writer = _ConcreteWriter()
+        writer.max_payload_size = 0  # Force every event to be oversized
+
+        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+            packs = writer._split_pack_events([Event(big="data")])
+
+        # Pack is still returned (best-effort send).
+        assert len(packs) == 1
+        mock_log.warning.assert_called_once()
+        assert "exceeds max size" in mock_log.warning.call_args[0][0]
+
+    def test_normal_event_no_warning(self) -> None:
+        writer = _ConcreteWriter()
+        writer.max_payload_size = 1024 * 1024  # 1 MB — plenty
+
+        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+            writer._split_pack_events([Event(n=1)])
+
+        mock_log.warning.assert_not_called()
+
+    def test_splittable_events_no_warning(self) -> None:
+        """Multiple events that individually fit should split cleanly, no warning."""
+        writer = _ConcreteWriter()
+        writer.max_payload_size = 2  # Each event encodes to 1 byte
+
+        with patch("ddtrace.testing.internal.writer.log") as mock_log:
+            writer._split_pack_events([Event(n=1), Event(n=2), Event(n=3)])
+
+        mock_log.warning.assert_not_called()

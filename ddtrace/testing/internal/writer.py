@@ -145,8 +145,15 @@ class BaseWriter(ABC):
             packs = self._split_pack_events(events[0:midpoint])
             packs += self._split_pack_events(events[midpoint:])
             return packs
-        else:
-            return [pack]
+
+        if len(pack) > self.max_payload_size:
+            log.warning(
+                "Single event payload (%d bytes) exceeds max size (%d bytes); sending anyway",
+                len(pack),
+                self.max_payload_size,
+            )
+
+        return [pack]
 
 
 def _get_min_flush_events() -> t.Optional[int]:
@@ -235,8 +242,6 @@ class TestOptWriter(BaseWriter):
                 send_gzip=True,
             )
 
-            self.connector.close()
-
             TelemetryAPI.get().record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
@@ -301,8 +306,6 @@ class TestCoverageWriter(BaseWriter):
             ]
 
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
-
-            self.connector.close()
 
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",
