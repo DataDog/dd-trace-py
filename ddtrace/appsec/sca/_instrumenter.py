@@ -6,7 +6,6 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 
 from __future__ import annotations
 
-import os
 from threading import Lock
 import types
 from types import FunctionType

@@ -6,7 +6,6 @@ target functions to be instrumented for SCA detection.
 
 from dataclasses import dataclass
 from dataclasses import field
-import os
 from threading import Lock
 from types import CodeType
 from typing import NamedTuple
