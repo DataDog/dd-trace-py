@@ -20,9 +20,10 @@ def stats_tracer(tracer):
     # _recreate() checks config._trace_compute_stats AND config._trace_writer_native
     # to decide whether to add stats processor. Stats processor is only added if
     # _trace_writer_native is False and _trace_compute_stats is True.
-    with override_global_config(dict(_trace_compute_stats=True, _trace_writer_native=False)):
+    with override_global_config(dict(_trace_compute_stats=True)):
         tracer._recreate()
         yield tracer
+        tracer.shutdown()
 
 
 class consistent_end_trace(object):
@@ -107,6 +108,7 @@ assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stat
     assert status == 0, out + err
 
 
+@skip_if_native_writer
 @mock.patch("ddtrace.internal.processor.stats.get_hostname")
 def test_stats_report_hostname(get_hostname):
     get_hostname.return_value = "test-hostname"
@@ -122,6 +124,7 @@ def test_stats_report_hostname(get_hostname):
         assert p._hostname == ""
 
 
+@skip_if_native_writer
 def test_periodic_payload_includes_process_tags():
     from unittest import mock
 
