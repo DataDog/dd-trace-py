@@ -274,7 +274,7 @@ def _inject_into_parse_cache(api_response, traced_value):
             api_response._parsed_by_type[api_response._cast_to] = traced_value
         elif hasattr(api_response, "_parsed"):
             api_response._parsed = traced_value
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -293,7 +293,7 @@ async def _maybe_preparse_async_response(resp, err):
                 return await parsed
             # Sync parse() — return the parsed value directly.
             return parsed
-        except Exception:
+        except Exception:  # nosec B110
             # Never let a tracing-internal parse failure propagate;
             # fall through to return the original response unchanged.
             pass
