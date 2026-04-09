@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from ddtrace.appsec.sca._instrumenter import Instrumenter
+from ddtrace.appsec.sca._instrumenter import _first_instr_line
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry
@@ -56,7 +57,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         func = _make_target_function()
-        inject_hook(func, my_hook, func.__code__.co_firstlineno, "test:target")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:target")
 
         result = func(10)
         assert result == 11
@@ -70,7 +71,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         wrapped_func, original = _make_wrapt_wrapped_function()
-        inject_hook(original, my_hook, original.__code__.co_firstlineno, "test:wrapped_target")
+        inject_hook(original, my_hook, _first_instr_line(original.__code__), "test:wrapped_target")
 
         # Call through the wrapper — the wrapper calls original(*args, **kwargs)
         result = wrapped_func(10)
@@ -85,7 +86,7 @@ class TestInjectHookFires:
             call_count.append(1)
 
         func = _make_target_function()
-        inject_hook(func, my_hook, func.__code__.co_firstlineno, "test:once")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:once")
 
         func(1)
         func(2)

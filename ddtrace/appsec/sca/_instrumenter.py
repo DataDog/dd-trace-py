@@ -25,6 +25,30 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _first_instr_line(code) -> int:
+    """Return the line number of the first real bytecode instruction.
+
+    On Python <3.11, co_firstlineno is the ``def`` line, which has no
+    bytecode instructions.  inject_hook needs the first *instruction*
+    line, which is the first line of the function body.
+
+    Handles the cross-version difference:
+    - Python <3.12: starts_line is an int (the absolute line number) or None
+    - Python >=3.12: starts_line is a bool; line_number has the actual int
+    """
+    import dis
+
+    for instr in dis.get_instructions(code):
+        # Python >=3.12: starts_line is bool, line_number is the int
+        line = getattr(instr, "line_number", None)
+        if line is not None:
+            return line
+        # Python <3.12: starts_line is the int line number
+        if instr.starts_line is not None and isinstance(instr.starts_line, int):
+            return instr.starts_line
+    return code.co_firstlineno
+
+
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
 
@@ -179,7 +203,11 @@ class Instrumenter:
                     self.registry.add_target(qualified_name, pending=False)
 
                 original_code = func.__code__
-                first_line = original_code.co_firstlineno
+                # AIDEV-NOTE: co_firstlineno is the `def` line, but on
+                # Python <3.11 the bytecode instructions start on the first
+                # body line (the line after `def`).  Use the first real
+                # instruction line so inject_hook can find a matching line.
+                first_line = _first_instr_line(original_code)
 
                 inject_hook(func, sca_detection_hook, first_line, qualified_name)
 
