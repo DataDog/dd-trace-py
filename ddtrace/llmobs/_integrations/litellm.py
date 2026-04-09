@@ -1,7 +1,7 @@
-import os
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
@@ -158,7 +158,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             return False
         import litellm as _litellm
 
-        if getattr(_litellm, "use_litellm_proxy", False) or os.environ.get("USE_LITELLM_PROXY", "").lower() == "true":
+        if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
             return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
