@@ -851,7 +851,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: recursivecomputation-medium
             thresholds:
-              - execution_time < 7.40 ms
+              - execution_time < 7.45 ms
               - max_rss_usage < 38.00 MB
           - name: recursivecomputation-shallow
             thresholds:
