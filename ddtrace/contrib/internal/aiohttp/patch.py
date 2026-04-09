@@ -36,6 +36,7 @@ config._add(
         disable_stream_timing_for_mem_leak=asbool(
             _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
         ),
+        split_by_domain=asbool(env.get("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
     ),
 )
 
@@ -92,7 +93,7 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
     ) as span:
         set_service_and_source(span, service, config.aiohttp)
 
-        if config.aiohttp.distributed_tracing:
+        if config.aiohttp_client.distributed_tracing:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
