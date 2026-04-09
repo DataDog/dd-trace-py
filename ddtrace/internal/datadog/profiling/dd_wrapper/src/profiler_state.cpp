@@ -163,11 +163,18 @@ ProfilerState::prefork()
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     // upload_lock is now held - will be released in postfork_parent/child
+
+    // Lock the profile mutex so the sampling thread cannot be mid-allocation
+    // inside ddog_prof_Profile_add2 when the child calls ddog_prof_Profile_drop().
+    // Will be released in postfork_parent(); postfork_child() handles it via
+    // placement-new reinit of profile_mtx.
+    profile_state.prefork();
 }
 
 void
 ProfilerState::postfork_parent()
 {
+    profile_state.postfork_parent();
     upload_lock.unlock();
 }
 

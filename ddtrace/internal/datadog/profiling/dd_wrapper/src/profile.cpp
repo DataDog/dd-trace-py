@@ -226,6 +226,23 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
 }
 
 void
+Datadog::Profile::prefork()
+{
+    // Lock the profile mutex before fork to ensure the sampling thread is not
+    // mid-allocation inside ddog_prof_Profile_add2 when the fork happens.
+    // If the sampling thread is currently inside collect(), this will block
+    // until it finishes, guaranteeing the IndexSet<StackTrace> is in a
+    // fully-consistent state before the child calls ddog_prof_Profile_drop().
+    profile_mtx.lock();
+}
+
+void
+Datadog::Profile::postfork_parent()
+{
+    profile_mtx.unlock();
+}
+
+void
 Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
