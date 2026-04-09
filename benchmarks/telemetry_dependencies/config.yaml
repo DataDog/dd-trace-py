@@ -1,0 +1,44 @@
+# First heartbeat — all deps are new
+first-100-deps-sca-off: &first
+  num_deps: 100
+  phase: first
+  sca_enabled: false
+  pct_cve: 5
+  cves_per_dep: 2
+first-100-deps-sca-on:
+  <<: *first
+  sca_enabled: true
+first-1000-deps-sca-off:
+  <<: *first
+  num_deps: 1000
+first-1000-deps-sca-on:
+  <<: *first
+  num_deps: 1000
+  sca_enabled: true
+
+# Idle heartbeat — nothing to report
+idle-1000-deps-sca-off: &idle
+  num_deps: 1000
+  phase: idle
+  sca_enabled: false
+  pct_cve: 5
+  cves_per_dep: 2
+idle-1000-deps-sca-on:
+  <<: *idle
+  sca_enabled: true
+
+# CVE registration — deps have CVEs with reached=[]
+cve-registration-1000-deps:
+  num_deps: 1000
+  phase: cve_registration
+  sca_enabled: true
+  pct_cve: 5
+  cves_per_dep: 2
+
+# SCA hits — deps have reachability findings
+sca-hits-1000-deps:
+  num_deps: 1000
+  phase: sca_hits
+  sca_enabled: true
+  pct_cve: 5
+  cves_per_dep: 2

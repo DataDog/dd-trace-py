@@ -1,0 +1,166 @@
+"""State registry for SCA instrumentation tracking.
+
+Provides thread-safe tracking of instrumentation state for all
+target functions to be instrumented for SCA detection.
+"""
+
+from dataclasses import dataclass
+from dataclasses import field
+import os
+from threading import Lock
+from types import CodeType
+from typing import NamedTuple
+from typing import Optional
+
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
+
+class TargetInfo(NamedTuple):
+    """Immutable snapshot of vulnerability info for a target.
+
+    Cached at registration time and returned from get_target_info
+    without locking or allocation on the hot path.
+    """
+
+    package_name: str
+    cve_ids: tuple
+    line: int
+
+
+@dataclass
+class InstrumentationState:
+    """State for a single instrumented target."""
+
+    qualified_name: str
+    package_name: str = ""
+    cve_ids: list[str] = field(default_factory=list)
+    line: int = 0
+    is_instrumented: bool = False
+    is_pending: bool = False
+    original_code: Optional[CodeType] = None
+    hit_count: int = 0
+    # AIDEV-NOTE: Cached snapshot built at registration time.  Avoids
+    # dict allocation + list copy on every hook invocation (hot path).
+    _cached_info: Optional[TargetInfo] = field(default=None, repr=False, compare=False)
+
+
+class InstrumentationRegistry:
+    """Thread-safe registry of instrumentation state.
+
+    All mutable access is protected by a single lock to avoid
+    the complexity and overhead of per-entry locks.
+
+    AIDEV-NOTE: record_hit and get_target_info are lock-free because they
+    run on the hot path (every instrumented function call).  dict.get is
+    GIL-safe for reference reads, hit_count is diagnostic-only (a rare
+    lost increment is acceptable), and _cached_info is immutable after
+    registration.
+    """
+
+    def __init__(self) -> None:
+        self._targets: dict[str, InstrumentationState] = {}
+        self._lock = Lock()
+
+    def add_target(
+        self,
+        qualified_name: str,
+        pending: bool = False,
+        package_name: str = "",
+        cve_ids: Optional[list[str]] = None,
+        line: int = 0,
+    ) -> None:
+        with self._lock:
+            if qualified_name not in self._targets:
+                ids = cve_ids or []
+                state = InstrumentationState(
+                    qualified_name=qualified_name,
+                    package_name=package_name,
+                    cve_ids=ids,
+                    line=line,
+                    is_pending=pending,
+                    _cached_info=TargetInfo(
+                        package_name=package_name,
+                        cve_ids=tuple(ids),
+                        line=line,
+                    ),
+                )
+                self._targets[qualified_name] = state
+                log.debug("Registered target: %s (pending=%s)", qualified_name, pending)
+
+    def remove_target(self, qualified_name: str) -> None:
+        with self._lock:
+            if qualified_name in self._targets:
+                del self._targets[qualified_name]
+                log.debug("Removed target: %s", qualified_name)
+
+    def has_target(self, qualified_name: str) -> bool:
+        with self._lock:
+            return qualified_name in self._targets
+
+    def is_instrumented(self, qualified_name: str) -> bool:
+        with self._lock:
+            state = self._targets.get(qualified_name)
+            return state.is_instrumented if state else False
+
+    def mark_instrumented(self, qualified_name: str, original_code: CodeType) -> None:
+        with self._lock:
+            state = self._targets.get(qualified_name)
+            if state:
+                state.is_instrumented = True
+                state.is_pending = False
+                state.original_code = original_code
+                log.debug("Marked as instrumented: %s", qualified_name)
+
+    def record_hit(self, qualified_name: str) -> None:
+        # No lock: hit_count is diagnostic only; GIL makes dict.get safe
+        # and a rare lost increment on hit_count is acceptable.
+        state = self._targets.get(qualified_name)
+        if state:
+            state.hit_count += 1
+
+    def get_target_info(self, qualified_name: str) -> Optional[TargetInfo]:
+        """Get vulnerability info for a target (used by the SCA hook).
+
+        Returns the cached TargetInfo snapshot without locking or allocation.
+        """
+        # No lock: _cached_info is immutable after registration and
+        # dict.get is GIL-safe for reference reads.
+        state = self._targets.get(qualified_name)
+        if state:
+            return state._cached_info
+        return None
+
+    def clear(self) -> None:
+        with self._lock:
+            self._targets.clear()
+            log.debug("Cleared all targets from registry")
+
+
+# Global singleton registry
+_global_registry: Optional[InstrumentationRegistry] = None
+_registry_lock = Lock()
+
+
+def _reset_global_registry_after_fork() -> None:
+    """Reset global registry and lock after fork to prevent stale state and deadlocks."""
+    global _global_registry, _registry_lock
+    _global_registry = None
+    _registry_lock = Lock()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_global_registry_after_fork)
+
+
+def get_global_registry() -> InstrumentationRegistry:
+    """Get or create global registry instance."""
+    global _global_registry
+
+    with _registry_lock:
+        if _global_registry is None:
+            _global_registry = InstrumentationRegistry()
+            log.debug("Created global InstrumentationRegistry")
+        return _global_registry
