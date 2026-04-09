@@ -5,17 +5,13 @@ Reproduces the system test bug where `reached` stays empty after calling
 a vulnerable function through ddtrace's wrapt-patched wrappers.
 """
 
-import json
-from types import FunctionType
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from ddtrace.appsec.sca._instrumenter import Instrumenter
-from ddtrace.appsec.sca._instrumenter import sca_detection_hook
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry
-from ddtrace.internal.telemetry.dependency import ReachabilityMetadata
 from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
 
@@ -198,7 +194,9 @@ class TestSCADetectionHookIntegration:
             result = wrapt_wrapper(42)
 
         assert result == 84
-        assert len(attach_calls) == 1, f"Expected 1 attach call, got {len(attach_calls)}: hook did not fire through wrapt"
+        assert len(attach_calls) == 1, (
+            f"Expected 1 attach call, got {len(attach_calls)}: hook did not fire through wrapt"
+        )
         assert attach_calls[0]["pkg"] == "fakepkg"
         assert attach_calls[0]["cve"] == "CVE-2024-TEST"
 
