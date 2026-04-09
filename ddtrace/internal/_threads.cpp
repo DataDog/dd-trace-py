@@ -798,19 +798,26 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static void
 PeriodicThread_dealloc(PeriodicThread* self)
 {
-    // Since the native thread holds a strong reference to this object, we
-    // can only get here if the thread has actually stopped.
-
     if (self->_state != nullptr && self->_state->is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
     }
 
-    // If we are trying to stop from the same thread, then we are still running.
-    // This should happen rarely, so we don't worry about the memory leak this
-    // will cause.
-    if (self->_thread != NULL && self->_thread->get_id() == std::this_thread::get_id())
-        return;
+    // DEV: With the current design, this dealloc can be triggered by the
+    // periodic thread itself: PyRef (in the inner lambda scope) calls
+    // Py_DECREF(self) while the GIL is still held by GILGuard. If refcount
+    // hits zero, we arrive here from within the thread. This is safe because:
+    //
+    // 1. The GIL is held (GILGuard is still alive), so Py_XDECREF is safe.
+    // 2. The thread is always detached at creation, so destroying _thread
+    //    (non-joinable std::thread) is a no-op regardless of which thread
+    //    calls it.
+    // 3. After dealloc returns, the lambda only calls stopped_event->set()
+    //    via its captured shared_ptr — it never accesses self again.
+    // 4. GILGuard::~GILGuard (which runs after PyRef::~PyRef) only accesses
+    //    its own _mstate copy, not self.
+    //
+    // Full cleanup is therefore correct in all cases;
 
     // Unmap the PeriodicThread from periodic_threads.
     if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL &&
