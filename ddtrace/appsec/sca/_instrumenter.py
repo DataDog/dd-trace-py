@@ -129,6 +129,18 @@ def sca_detection_hook(qualified_name: str) -> None:
         # Reports the caller's path/line/method, not the target function's.
         caller_path, caller_line, caller_method = _get_caller_info()
 
+        # AIDEV-NOTE: If the native frame walker can't find user code (e.g.,
+        # deep wrapt/gevent stack), fall back to the target's own qualified
+        # name so the backend knows the function was reached.  Without this,
+        # add_metadata's `if path` guard silently drops the finding and
+        # reached stays [].
+        if not caller_path:
+            # Use "module.path:Class.method" as path, the method part after ":"
+            parts = qualified_name.split(":", 1)
+            caller_path = parts[0] if parts else qualified_name
+            caller_method = parts[1] if len(parts) > 1 else ""
+            caller_line = 0
+
         for cve_id in target_info.cve_ids:
             writer.attach_dependency_metadata(target_info.package_name, cve_id, caller_path, caller_method, caller_line)
 
