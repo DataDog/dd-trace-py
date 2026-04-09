@@ -200,6 +200,10 @@ ProfilerState::postfork_child()
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
         initialized_.store(false, std::memory_order_release);
+
+        // profile_mtx was locked in prefork; must call postfork_child on all exit
+        // paths to unlock it, even on failure.
+        profile_state.postfork_child();
         return;
     }
 
@@ -207,6 +211,10 @@ ProfilerState::postfork_child()
     if (!init_interned_strings()) {
         std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
         initialized_.store(false, std::memory_order_release);
+
+        // profile_mtx was locked in prefork; must call postfork_child on all exit
+        // paths to unlock it, even on failure.
+        profile_state.postfork_child();
         return;
     }
 
