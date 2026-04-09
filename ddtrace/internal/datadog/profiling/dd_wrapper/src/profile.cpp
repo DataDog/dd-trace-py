@@ -245,7 +245,11 @@ Datadog::Profile::postfork_parent()
 void
 Datadog::Profile::postfork_child()
 {
-    new (&profile_mtx) std::mutex();
+    // Unlock before reinitializing: prefork() left profile_mtx locked.
+    // Calling pthread_mutex_init on a locked mutex is UB and confuses TSan;
+    // unlocking first makes the transition clean for both the runtime and TSan.
+    profile_mtx.unlock();
+
     // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
 
