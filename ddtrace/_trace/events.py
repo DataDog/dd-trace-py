@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from dataclasses import field
+from enum import Enum
 from typing import TYPE_CHECKING
 from typing import ClassVar
+from typing import Mapping
 from typing import Optional
 
 from ddtrace.internal.core.events import Event
@@ -13,11 +15,17 @@ if TYPE_CHECKING:
     from ddtrace._trace.provider import ActiveTrace
 
 
+class TracingEvents(Enum):
+    SPAN_LIFECYCLE = "span.lifecycle"
+
+
 @dataclass
 class TracingEvent(Event):
     """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
     on any TracingEvent. Its purpose is to be used with core.context_with_event.
     """
+
+    event_name = TracingEvents.SPAN_LIFECYCLE.value
 
     span_type: ClassVar[str]
     span_kind: ClassVar[str]
@@ -43,3 +51,38 @@ class TracingEvent(Event):
     resource: Optional[str] = None
     measured: bool = True
     activate_distributed_headers: bool = False
+
+    @classmethod
+    def create(
+        cls,
+        component: str,
+        integration_config: "IntegrationConfig",
+        operation_name: str,
+        span_type: str,
+        span_kind: str,
+        tags: Optional[Mapping[str, str]] = None,
+        activate: bool = True,
+        use_active_context: bool = True,
+        service: Optional[str] = None,
+        distributed_context: Optional["ActiveTrace"] = None,
+        resource: Optional[str] = None,
+        measured: bool = True,
+        activate_distributed_headers: bool = False,
+    ) -> "TracingEvent":
+        """Create a TracingEvent instance without defining a subclass."""
+        event = cls(
+            component=component,
+            integration_config=integration_config,
+            operation_name=operation_name,
+            tags=dict(tags or {}),
+            activate=activate,
+            use_active_context=use_active_context,
+            service=service,
+            distributed_context=distributed_context,
+            resource=resource,
+            measured=measured,
+            activate_distributed_headers=activate_distributed_headers,
+        )
+        setattr(event, "span_type", span_type)
+        setattr(event, "span_kind", span_kind)
+        return event
