@@ -102,9 +102,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         chunk_type = type(chunk).__name__
 
         if chunk_type == "AssistantMessage":
-            # Close the LLM span that was opened at init (or after previous tool results).
-            # Its duration covers the real time waiting for this assistant response.
-            # Tool spans are created after this so they remain siblings of the LLM span.
             self._finalize_llm_span(chunk)
 
         if chunk_type == "ResultMessage" and self.instance and self.context is None:
@@ -124,7 +121,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 tool_input = getattr(block, "input", {})
 
                 tool_span = self.integration.trace(
-                    tool_name,
+                    "claude_agent_sdk.tool",
                     submit_to_llmobs=True,
                     span_name=f"claude_agent_sdk.tool.{tool_name}",
                 )
