@@ -196,6 +196,18 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "runnable_lambda":
             self._llmobs_set_meta_tags_from_runnable_lambda(span, args, kwargs, response)
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation not in ("llm", "chat") or response is None or span.error:
+            return
+        input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
+        if total_tokens > 0:
+            metrics = {
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: total_tokens,
+            }
+            self._apply_shadow_metrics(span, metrics, "llm")
+
     def _set_links(self, span: Span) -> None:
         """
         Sets span links for the given LangChain span, by doing the following:

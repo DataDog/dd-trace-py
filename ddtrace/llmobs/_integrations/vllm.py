@@ -132,6 +132,14 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        data = kwargs.get("request_data")
+        if data is None:
+            return
+        span_kind = "embedding" if operation == "embedding" else "llm"
+        metrics = self._build_metrics(data)
+        self._apply_shadow_metrics(span, metrics, span_kind)
+
     def _llmobs_set_tags(
         self,
         span: Span,
