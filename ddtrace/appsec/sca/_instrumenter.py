@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from threading import Lock
+import types
 from types import FunctionType
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _first_instr_line(code) -> int:
+def _first_instr_line(code: types.CodeType) -> int:
     """Return the line number of the first real bytecode instruction.
 
     On Python <3.11, co_firstlineno is the ``def`` line, which has no
