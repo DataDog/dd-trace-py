@@ -654,11 +654,11 @@ def test_wrapping_context_deepcopy():
     route_copy = copy.deepcopy(route)
 
     assert route_copy.ctx is not wc
-    assert hasattr(route_copy.ctx, "_storage_stack")
+    assert hasattr(route_copy.ctx, "_storage")
     assert hasattr(route_copy.ctx, "_trampoline_lock")
     # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
     # to run inside a wrapped call). This verifies the copied context's
-    # _storage_stack is a new, working ContextVar.
+    # _storage is a new, working ContextVar.
     BaseWrappingContext.__enter__(route_copy.ctx)
     try:
         route_copy.ctx.set("k", 99)
