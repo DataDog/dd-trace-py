@@ -68,6 +68,45 @@ log = get_logger(__name__)
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _function_has_class_scope(f: Callable) -> bool:
+    """Return True if ``f`` is a method defined directly on a class (not a nested local function)."""
+    qualname_parts = f.__qualname__.split(".")
+    return len(qualname_parts) > 1 and qualname_parts[-2] != "<locals>"
+
+
+def _wrap_span_name_with_class(f: Callable) -> str:
+    """Return the span name for ``f`` including the class scope, stripping any ``<locals>`` prefix."""
+    qualname_parts = f.__qualname__.split(".")
+    try:
+        local_scope_index = len(qualname_parts) - 1 - qualname_parts[::-1].index("<locals>")
+    except ValueError:
+        scoped_qualname = f.__qualname__
+    else:
+        scoped_qualname = ".".join(qualname_parts[local_scope_index + 1 :])
+    return f"{f.__module__}.{scoped_qualname}"
+
+
+def _default_wrap_span_name(f: Callable) -> str:
+    # Functions defined in local scopes always use the plain name.
+    if not _function_has_class_scope(f):
+        return f"{f.__module__}.{f.__name__}"
+
+    if config._trace_wrap_span_name_include_class:
+        return _wrap_span_name_with_class(f)
+
+    deprecate(
+        prefix="The default span name for @tracer.wrap on methods does not include the class name",
+        message=(
+            "In a future major release the span name will be "
+            f"'{_wrap_span_name_with_class(f)}' instead of '{f.__module__}.{f.__name__}'. "
+            "Opt in now by setting DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true."
+        ),
+        removal_version="5.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return f"{f.__module__}.{f.__name__}"
+
+
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> list[SpanProcessor]:
@@ -820,8 +859,7 @@ class Tracer(object):
         """
 
         def wrap_decorator(f: AnyCallable) -> AnyCallable:
-            # FIXME[matt] include the class name for methods.
-            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+            span_name = name if name else _default_wrap_span_name(f)
 
             # detect if the the given function is a coroutine and/or a generator
             # to use the right decorator; this initial check ensures that the

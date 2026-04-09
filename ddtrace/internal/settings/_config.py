@@ -683,6 +683,12 @@ class Config(object):
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
+        # When True, the default span name for @tracer.wrap() on methods includes the class name.
+        # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
+        self._trace_wrap_span_name_include_class = _get_config(
+            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
+        )
+
         # Resource renaming
         self._trace_resource_renaming_enabled = _get_config(
             "DD_TRACE_RESOURCE_RENAMING_ENABLED", default=False, modifier=asbool
