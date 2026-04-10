@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.skip(reason="This is flaky in CI")
 @pytest.mark.subprocess(
@@ -52,7 +54,7 @@ def test_asyncio_mixed_workload() -> None:
     main()
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 

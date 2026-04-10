@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.subprocess(
     env=dict(
@@ -48,7 +50,7 @@ def test_sample_count():
         loop.run_until_complete(maintask)
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
 
     found_at_least_one_with_more_samples_than_sampling_events = False
