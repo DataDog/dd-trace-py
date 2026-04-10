@@ -390,6 +390,11 @@ class BackendConnector(threading.local):
             else:
                 break
 
+        if result.error_type:
+            log.warning(
+                "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
+            )
+
         return result
 
     def get_json(
@@ -541,5 +546,6 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
 
     def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
         sock.connect(self.path)
         self.sock = sock

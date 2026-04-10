@@ -40,6 +40,10 @@ EventSerializer = t.Callable[[TSerializable], Event]
 
 
 class BaseWriter(ABC):
+    # After this many consecutive failed flushes (each already retried internally),
+    # stop sending and drop events until the backend recovers.
+    _MAX_CONSECUTIVE_FAILURES = 3
+
     def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
@@ -47,6 +51,7 @@ class BaseWriter(ABC):
         self.flush_interval_seconds = 60
         self.min_flush_events = min_flush_events
         self.events: list[Event] = []
+        self._consecutive_failures = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
 
@@ -88,7 +93,10 @@ class BaseWriter(ABC):
             self._flush_now.wait(timeout=self.flush_interval_seconds)
             self._flush_now.clear()
             log.debug("Flushing %s events in background task", self.__class__.__name__)
-            self.flush()
+            try:
+                self.flush()
+            except Exception:
+                log.exception("Unexpected error flushing %s events", self.__class__.__name__)
 
             if self.should_finish.is_set():
                 break
@@ -96,12 +104,40 @@ class BaseWriter(ABC):
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
-        if events := self.pop_events():
-            log.debug("Sending %d events for %s", len(events), self.__class__.__name__)
-            self._send_events(events)
+        events = self.pop_events()
+        if not events:
+            return
+
+        # Circuit breaker: after repeated failures, drop events but probe
+        # periodically (every _MAX_CONSECUTIVE_FAILURES flushes) to detect recovery.
+        if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+            if (self._consecutive_failures + 1) % self._MAX_CONSECUTIVE_FAILURES != 0:
+                log.debug(
+                    "Dropping %d %s event(s): backend unreachable",
+                    len(events),
+                    self.__class__.__name__,
+                )
+                self._consecutive_failures += 1
+                return
+            log.debug("Probing backend after %d consecutive failures", self._consecutive_failures)
+
+        log.debug("Sending %d events for %s", len(events), self.__class__.__name__)
+        if self._send_events(events):
+            if self._consecutive_failures > 0:
+                log.info("%s: backend connectivity restored", self.__class__.__name__)
+            self._consecutive_failures = 0
+        else:
+            self._consecutive_failures += 1
+            if self._consecutive_failures == self._MAX_CONSECUTIVE_FAILURES:
+                log.warning(
+                    "%s: backend unreachable after %d consecutive failures, will drop events until recovery",
+                    self.__class__.__name__,
+                    self._consecutive_failures,
+                )
 
     @abstractmethod
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
+        """Send events to the backend. Return True if all events were sent successfully."""
         pass
 
     @abstractmethod
@@ -117,8 +153,15 @@ class BaseWriter(ABC):
             packs = self._split_pack_events(events[0:midpoint])
             packs += self._split_pack_events(events[midpoint:])
             return packs
-        else:
-            return [pack]
+
+        if len(pack) > self.max_payload_size:
+            log.warning(
+                "Single event payload (%d bytes) exceeds max size (%d bytes); sending anyway",
+                len(pack),
+                self.max_payload_size,
+            )
+
+        return [pack]
 
 
 def _get_min_flush_events() -> t.Optional[int]:
@@ -192,7 +235,7 @@ class TestOptWriter(BaseWriter):
         }
         return msgpack_packb(payload)
 
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
         # NOTE: In payload-files mode (Bazel), write events as JSON files to
         # TEST_UNDECLARED_OUTPUTS_DIR/payloads/tests/ instead of sending over HTTP.
         # CI/Git/OS/runtime tags are already absent (stripped by env_tags.py in PR 3).
@@ -205,7 +248,7 @@ class TestOptWriter(BaseWriter):
                     payload={"version": 1, "metadata": self.metadata, "events": events},
                     kind="tests",
                 )
-            return
+            return True
 
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
@@ -221,8 +264,6 @@ class TestOptWriter(BaseWriter):
                 send_gzip=True,
             )
 
-            self.connector.close()
-
             TelemetryAPI.get().record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
@@ -230,6 +271,11 @@ class TestOptWriter(BaseWriter):
                 events_count=len(events),
                 error=result.error_type,
             )
+
+            if result.error_type:
+                return False
+
+        return True
 
 
 class TestCoverageWriter(BaseWriter):
@@ -259,7 +305,7 @@ class TestCoverageWriter(BaseWriter):
     def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
 
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
         # NOTE: In payload-files mode (Bazel), write coverage as JSON files to
         # TEST_UNDECLARED_OUTPUTS_DIR/payloads/coverage/ instead of sending over HTTP.
         offline = get_offline_mode()
@@ -271,7 +317,7 @@ class TestCoverageWriter(BaseWriter):
                     payload={"version": 2, "coverages": events},
                     kind="coverage",
                 )
-            return
+            return True
 
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
@@ -296,8 +342,6 @@ class TestCoverageWriter(BaseWriter):
 
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
-            self.connector.close()
-
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",
                 payload_size=len(pack),
@@ -305,6 +349,11 @@ class TestCoverageWriter(BaseWriter):
                 events_count=len(events),
                 error=result.error_type,
             )
+
+            if result.error_type:
+                return False
+
+        return True
 
 
 def _write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
