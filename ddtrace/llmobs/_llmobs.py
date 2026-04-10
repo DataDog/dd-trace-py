@@ -874,7 +874,8 @@ class LLMObs(Service):
                 cls._instance._link_tracker.on_openai_agent_span_finish,
             )
 
-            atexit.register(cls.disable)
+            if config._tracer_atexit_hooks_enabled:
+                atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug(
