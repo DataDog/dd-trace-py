@@ -1,8 +1,15 @@
-import grpc
+try:
+    import grpc
+except ImportError:
+    grpc = None
 
 
-GRPC_PIN_MODULE_SERVER = grpc.Server
-GRPC_PIN_MODULE_CLIENT = grpc.Channel
+if grpc is not None:
+    GRPC_PIN_MODULE_SERVER = grpc.Server
+    GRPC_PIN_MODULE_CLIENT = grpc.Channel
+else:
+    GRPC_PIN_MODULE_SERVER = type("GrpcServerPlaceholder", (), {})
+    GRPC_PIN_MODULE_CLIENT = type("GrpcChannelPlaceholder", (), {})
 GRPC_METHOD_PATH_KEY = "grpc.method.path"
 GRPC_METHOD_PACKAGE_SERVICE_KEY = "rpc.service"
 GRPC_METHOD_PACKAGE_KEY = "grpc.method.package"
