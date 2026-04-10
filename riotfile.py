@@ -97,6 +97,12 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
+    # AIDEV-NOTE: pyo3 0.27.x (max Python 3.14) is used by several transitive deps
+    # (e.g. rpds-py) that ship only as source dists for Python 3.15. This flag tells
+    # pyo3-build-config to proceed using the stable ABI, allowing those packages to
+    # build until they ship pre-built 3.15 wheels or upgrade to pyo3 0.28+.
+    # Harmless on Python 3.9-3.14 (pyo3 natively supports those, so the flag is a no-op).
+    "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
