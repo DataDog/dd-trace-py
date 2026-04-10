@@ -53,6 +53,7 @@ endif()
 # Library sources
 add_library(
     dd_wrapper SHARED
+    src/code_object_cache.cpp
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
@@ -71,8 +72,9 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
+# Disable -Wold-style-cast for files that include Python C API headers (which use old-style casts)
 set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+set_source_files_properties(src/code_object_cache.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 

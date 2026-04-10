@@ -5,6 +5,8 @@
 #include <Python.h>
 #include <frameobject.h>
 
+#include "code_object_cache.hpp"
+
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
 #include "pymacro.hpp"
@@ -205,23 +207,40 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // Python 3.9+: PyFrame_GetCode() returns a new reference
         PyCodeObject* code = PyFrame_GetCode(f);
 
-        std::string_view name_sv = "<unknown>";
-        std::string_view filename_sv = "<unknown>";
-
         if (code != nullptr) {
-            // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(PY311_AND_LATER)
-            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-            PyObject* name_obj = code->co_name;
-#endif
-            name_sv = unicode_to_string_view(name_obj);
-            filename_sv = unicode_to_string_view(code->co_filename);
-        }
+            // look up the cached function_id for this code object.
+            // Cache key is the code object's address
+            auto& fn_cache = CodeObjectFunctionCache::instance();
+            auto maybe_fn_id = fn_cache.get(reinterpret_cast<PyObject*>(code));
 
-        // Push frame to Sample (leaf to root order)
-        // push_frame copies the strings immediately into its StringArena
-        push_frame(name_sv, filename_sv, 0, lineno_val);
+            if (!maybe_fn_id) {
+                // Cache miss: intern strings and function, then populate the cache.
+#if defined(PY311_AND_LATER)
+                PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+                PyObject* name_obj = code->co_name;
+#endif
+                auto maybe_name_id = intern_string(unicode_to_string_view(name_obj));
+                auto maybe_file_id = intern_string(unicode_to_string_view(code->co_filename));
+
+                if (maybe_name_id && maybe_file_id) {
+                    auto interned = intern_function(*maybe_name_id, *maybe_file_id);
+                    if (interned) {
+                        fn_cache.insert(reinterpret_cast<PyObject*>(code), *interned);
+                        maybe_fn_id = interned;
+                    }
+                }
+            }
+
+            if (maybe_fn_id) {
+                push_frame(*maybe_fn_id, 0, lineno_val);
+            }
+            // If maybe_fn_id is still nullopt, the frame is silently dropped
+            // same as the existing error path in push_frame_impl().
+        } else {
+            // code == nullptr: preserve original behavior of pushing unknown frame.
+            push_frame("<unknown>", "<unknown>", 0, lineno_val);
+        }
 
         // Python 3.9+: PyFrame_GetBack() and PyFrame_GetCode() return new references.
         PyFrameObject* back = PyFrame_GetBack(f);
@@ -312,12 +331,30 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
 
         PyCodeObject* code = (node->tb_frame != nullptr) ? PyFrame_GetCode(node->tb_frame) : nullptr;
         if (code != nullptr) {
+            auto& fn_cache = CodeObjectFunctionCache::instance();
+            auto maybe_fn_id = fn_cache.get(reinterpret_cast<PyObject*>(code));
+
+            if (!maybe_fn_id) {
 #if defined(PY311_AND_LATER)
-            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+                PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
 #else
-            PyObject* name_obj = code->co_name;
+                PyObject* name_obj = code->co_name;
 #endif
-            push_frame(unicode_to_string_view(name_obj), unicode_to_string_view(code->co_filename), 0, lineno);
+                auto maybe_name_id = intern_string(unicode_to_string_view(name_obj));
+                auto maybe_file_id = intern_string(unicode_to_string_view(code->co_filename));
+
+                if (maybe_name_id && maybe_file_id) {
+                    auto interned = intern_function(*maybe_name_id, *maybe_file_id);
+                    if (interned) {
+                        fn_cache.insert(reinterpret_cast<PyObject*>(code), *interned);
+                        maybe_fn_id = interned;
+                    }
+                }
+            }
+
+            if (maybe_fn_id) {
+                push_frame(*maybe_fn_id, 0, lineno);
+            }
             Py_DECREF(code);
         }
     }
@@ -834,11 +871,18 @@ Datadog::Sample::profile_borrow()
 void
 Datadog::Sample::postfork_child()
 {
+    // CodeObjectFunctionCache::instance().postfork_child() is called from
+    // ProfilerState::postfork_child() (the pthread_atfork child handler), which
+    // runs before this function and before the ProfilesDictionary is recreated.
     ProfilerState::get().profile_state.postfork_child();
 }
 
 void
 Datadog::Sample::cleanup()
 {
+    // CodeObjectFunctionCache is not cleared here.
+    // The ProfilesDictionary persists across profile uploads by design, so function_id values remain valid
+    // for the entire process lifetime. The cache is only invalidated on fork (ProfilerState::postfork_child())
+    // when the dictionary is recreated.
     ProfilerState::get().profile_state.cleanup();
 }
