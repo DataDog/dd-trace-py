@@ -154,3 +154,21 @@ class LLMOBS_STRUCT:
     MODEL_PROVIDER: Final = "model_provider"
     INTENT: Final = "intent"
     CONFIG: Final = "config"
+
+
+SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+    "google_adk": "google_adk",
+    "google_genai": "google_genai",
+    "vertexai": "vertexai",
+    "langgraph": "langgraph",
+    "litellm": "litellm",
+    "crewai": "crewai",
+    "openai_agents": "openai_agents",
+    "mcp": "mcp",
+    "pydantic_ai": "pydantic_ai",
+    "claude_agent_sdk": "claude_agent_sdk",
+}
