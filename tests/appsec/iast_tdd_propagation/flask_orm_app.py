@@ -3,7 +3,6 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 
 import importlib
-import os
 import sys
 
 from flask import Flask
@@ -19,10 +18,12 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+from ddtrace.internal.settings import env
 
-orm = os.getenv("FLASK_ORM", "sqlite")
 
-port = int(os.getenv("FLASK_RUN_PORT", 8000))
+orm = env.get("FLASK_ORM", "sqlite")
+
+port = int(env.get("FLASK_RUN_PORT", 8000))
 
 orm_impl = importlib.import_module(f"{orm}_impl")
 
