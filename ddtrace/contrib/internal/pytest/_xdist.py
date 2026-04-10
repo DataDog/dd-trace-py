@@ -20,20 +20,15 @@ from ddtrace.internal.utils.formats import asbool
 log = get_logger(__name__)
 
 # xdist-related constants
-# AIDEV-NOTE: PYTEST_XDIST_WORKER_VALUE is frozen at import time and must NOT be used
-# for session-level worker detection — it stays set to the outer worker id for the entire
-# process lifetime when inline_run() is called inside an outer xdist worker.
-# Use is_xdist_worker_env() for any live check that must reflect the current environment.
-PYTEST_XDIST_WORKER_VALUE = env.get("PYTEST_XDIST_WORKER")
 XDIST_UNSET = "UNSET"
 
 
 def is_xdist_worker_env() -> bool:
-    """Return True if the current process is currently running as an xdist worker.
+    """Return True if the current process is running as an xdist worker.
 
-    Unlike PYTEST_XDIST_WORKER_VALUE (frozen at import time), this reads os.environ
-    live, so it returns the correct answer even when inline_run() is called inside
-    an outer xdist worker that has cleared PYTEST_XDIST_WORKER from the environment.
+    Reads os.environ live so it returns the correct answer even when inline_run()
+    is called inside an outer xdist worker that has cleared PYTEST_XDIST_WORKER
+    from the environment.
     """
     return env.get("PYTEST_XDIST_WORKER") is not None
 
