@@ -39,7 +39,7 @@ def _read_env_data_file() -> dict[str, str]:
     ``DD_TEST_OPTIMIZATION_ENV_DATA_FILE``.  This replaces local Git CLI
     enrichment in payload-files mode.
     """
-    path = os.environ.get(DD_TEST_OPTIMIZATION_ENV_DATA_FILE)
+    path = env.get(DD_TEST_OPTIMIZATION_ENV_DATA_FILE)
     if not path:
         return {}
     try:

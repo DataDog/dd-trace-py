@@ -19,6 +19,7 @@ import logging
 import os
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSION
@@ -47,12 +48,12 @@ def resolve_rlocation(path: str) -> str:
     if os.path.exists(path):
         return path
 
-    if runfiles_dir := os.environ.get("RUNFILES_DIR"):
+    if runfiles_dir := env.get("RUNFILES_DIR"):
         candidate = os.path.join(runfiles_dir, path)
         if os.path.exists(candidate):
             return candidate
 
-    if manifest_file := os.environ.get("RUNFILES_MANIFEST_FILE"):
+    if manifest_file := env.get("RUNFILES_MANIFEST_FILE"):
         try:
             with open(manifest_file) as f:
                 for line in f:
@@ -63,7 +64,7 @@ def resolve_rlocation(path: str) -> str:
         except OSError:
             pass
 
-    if test_srcdir := os.environ.get("TEST_SRCDIR"):
+    if test_srcdir := env.get("TEST_SRCDIR"):
         candidate = os.path.join(test_srcdir, path)
         if os.path.exists(candidate):
             return candidate
@@ -143,7 +144,7 @@ class OfflineMode:
         self.output_dir: t.Optional[str] = None
 
         # --- manifest mode (input side) ---
-        manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
+        manifest_env = env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
         if manifest_env:
             resolved = resolve_rlocation(manifest_env)
             if _validate_manifest(resolved):
@@ -152,8 +153,8 @@ class OfflineMode:
                 log.debug("Manifest mode enabled: .testoptimization dir = %s", self.test_optimization_dir)
 
         # --- payload-files mode (output side) ---
-        if asbool(os.environ.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
-            output_dir = os.environ.get(TEST_UNDECLARED_OUTPUTS_DIR)
+        if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
+            output_dir = env.get(TEST_UNDECLARED_OUTPUTS_DIR)
             if output_dir:
                 self.payload_files_enabled = True
                 self.output_dir = output_dir
