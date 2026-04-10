@@ -817,7 +817,7 @@ class TestSpan(Span):
             return self.get_tags() == meta
 
         for key, value in meta.items():
-            if self.get_tag(key) is None:
+            if not self._has_attribute(key):
                 return False
             if self.get_tag(key) != value:
                 return False
@@ -867,7 +867,7 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert self.get_tag(key) is not None, "{0} meta does not have property {1!r}".format(self, key)
+                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
                 assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
                     self, key, self.get_tag(key), value
                 )
@@ -888,12 +888,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self.get_metrics() == metrics
+            assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert self.get_metric(key) is not None, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self.get_metric(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.get_metric(key), value
+                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
+                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._get_numeric_attribute(key), value
                 )
 
     def assert_span_event_count(self, count):

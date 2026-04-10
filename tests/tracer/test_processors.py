@@ -460,7 +460,7 @@ def test_trace_128bit_processor(trace_id, tracer):
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root.get_tag(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(chunk_root.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
 @pytest.mark.subprocess(

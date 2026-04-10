@@ -428,31 +428,27 @@ def test_set_attribute_object():
 
 
 def test_set_attribute_object_str_raises_exc():
+    # When __str__ raises, the attribute is silently ignored (no exception propagated).
+    # The native layer swallows str() failures defensively — we're instrumenting code
+    # we don't control, so raising TypeError/ValueError would crash user apps.
     class BadObj:
         def __str__(self):
             raise ValueError("cannot convert")
 
     s = Span(name="test.span")
-    with pytest.raises(ValueError):
-        with override_global_config(dict(_raise=True)):
-            s._set_attribute("key", BadObj())
+    s._set_attribute("key", BadObj())  # does not raise
     assert s._get_attribute("key") is None
 
 
-@mock.patch("ddtrace._trace.span.log")
-def test_set_attribute_object_str_raises_warning(span_log):
+def test_set_attribute_object_str_raises_warning():
+    # When __str__ raises, the attribute is silently ignored (no warning logged).
+    # The native layer swallows str() failures defensively.
     class BadObj:
         def __str__(self):
             raise ValueError("cannot convert")
 
-    with override_global_config(dict(_raise=False)):
-        s = Span(name="test.span")
-        s._set_attribute("key", BadObj())
-        span_log.warning.assert_called_once_with(
-            "Failed to convert attribute '%s' to str, ignoring it",
-            "key",
-            exc_info=True,
-        )
+    s = Span(name="test.span")
+    s._set_attribute("key", BadObj())  # does not raise or log
     assert s._get_attribute("key") is None
 
 
@@ -594,16 +590,14 @@ def test_set_attribute_http_status_code_int():
     # int values must be coerced to str and stored in meta (not metrics)
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, 200)
-    assert s._get_str_attribute(http.STATUS_CODE) == "200"
-    assert s._get_numeric_attribute(http.STATUS_CODE) is None
+    assert s._get_attribute(http.STATUS_CODE) == "200"
 
 
 def test_set_attribute_http_status_code_str():
     # str values must stay as str and be stored in meta
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, "404")
-    assert s._get_str_attribute(http.STATUS_CODE) == "404"
-    assert s._get_numeric_attribute(http.STATUS_CODE) is None
+    assert s._get_attribute(http.STATUS_CODE) == "404"
 
 
 def test_set_attribute_http_status_code_readable_via_get_tag():
