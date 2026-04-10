@@ -204,7 +204,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
+            span._set_attribute("_dd.top_level", 1)  # PERF: avoid setting via Span.set_metric
 
 
 class ServiceNameProcessor(TraceProcessor):
@@ -258,9 +258,9 @@ class TraceTagsProcessor(TraceProcessor):
                 trace_id_hob = _get_64_highest_order_bits_as_hex(trace_id)
                 span._set_attribute(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
-            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+            if span._has_attribute(LAST_DD_PARENT_ID_KEY) and span._parent is not None:
                 # we should only set the last parent id on local root spans
-                del span._meta[LAST_DD_PARENT_ID_KEY]
+                span._remove_attribute(LAST_DD_PARENT_ID_KEY)
 
         return trace
 
@@ -350,7 +350,7 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
@@ -361,7 +361,7 @@ class SpanAggregator(SpanProcessor):
         trace_id = span.trace_id
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if trace_id not in self._traces:
