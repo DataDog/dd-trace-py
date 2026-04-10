@@ -152,7 +152,16 @@ class CIVisibilityTracer(Tracer):
 
 
 class CIVisibility(Service):
-    _instance: Optional["CIVisibility"] = None
+    # AIDEV-NOTE: Stack-based instance registry allows nested pytest sessions
+    # (e.g. outer --ddtrace + inner inline_run()) to each maintain their own
+    # independent CIVisibility instance simultaneously, without stopping the
+    # outer instance.  enable() pushes a new instance; disable() pops the
+    # current one and restores the previous.  _suspend()/_resume() temporarily
+    # remove/restore an instance without stopping it, used by test fixtures that
+    # need a clean slate but must not disrupt a running outer session.
+    _instance_stack: list["CIVisibility"] = []
+    _instance: Optional["CIVisibility"] = None  # always mirrors the top of _instance_stack
+    _atexit_registered: bool = False
     enabled = False
 
     def __init__(
@@ -635,7 +644,9 @@ class CIVisibility(Service):
                 return
 
         try:
-            cls._instance = cls(tracer=tracer, config=config, service=service)
+            instance = cls(tracer=tracer, config=config, service=service)
+            cls._instance_stack.append(instance)
+            cls._instance = instance
             # Register with service registry for other modules to access
             register_ci_visibility_instance(cls._instance)
 
@@ -647,7 +658,9 @@ class CIVisibility(Service):
         cls.enabled = True
 
         cls._instance.start()
-        atexit.register(cls.disable)
+        if not cls._atexit_registered:
+            atexit.register(cls.disable)
+            cls._atexit_registered = True
 
         log.debug("%s enabled", cls.__name__)
         log.info(
@@ -666,39 +679,48 @@ class CIVisibility(Service):
         )
 
     @classmethod
-    def _save_state(cls) -> dict:
-        """Snapshot current singleton state for later restoration.
+    def _suspend(cls) -> Optional["CIVisibility"]:
+        """Temporarily remove the top instance from the stack WITHOUT stopping it.
 
-        Use this to bracket an inner pytest session (e.g. inline_run()) so that
-        the outer session's CIVisibility instance is not disrupted.  Pair with
-        _restore_state() in a try/finally block.
+        Use this to give a nested pytest session (e.g. inline_run()) or a test
+        body a clean-slate view of CIVisibility without disrupting the running
+        outer session.  The caller is responsible for calling _resume() once
+        the nested scope exits.  Pair with _resume() in a try/finally block.
+
+        Unlike _save_state()/_restore_state(), this never calls stop() on the
+        outer instance, so the outer session's tracer and telemetry keep running
+        while the inner session operates independently.
         """
-        from ddtrace.internal.ci_visibility import service_registry
-
-        return {
-            "instance": cls._instance,
-            "enabled": cls.enabled,
-            "registry_instance": service_registry.CI_VISIBILITY_INSTANCE,
-        }
+        if not cls._instance_stack:
+            return None
+        instance = cls._instance_stack.pop()
+        if cls._instance_stack:
+            cls._instance = cls._instance_stack[-1]
+            register_ci_visibility_instance(cls._instance)
+        else:
+            cls._instance = None
+            cls.enabled = False
+            unregister_ci_visibility_instance()
+        # AIDEV-NOTE: _atexit_registered is intentionally left unchanged.
+        # The suspended instance will be resumed by _resume(), at which point
+        # atexit is re-registered if an inner disable() had unregistered it.
+        return instance
 
     @classmethod
-    def _restore_state(cls, state: dict) -> None:
-        """Restore singleton state previously saved by _save_state().
+    def _resume(cls, instance: Optional["CIVisibility"]) -> None:
+        """Re-push an instance previously removed by _suspend().
 
-        This bypasses normal enable()/disable() to avoid side-effects (stopping
-        the tracer, flushing telemetry, etc.) on the outer session's instance.
-        If the saved state had CIVisibility enabled, the atexit handler is
-        re-registered because any inner disable() will have unregistered it.
+        Re-registers the atexit handler if an inner disable() had unregistered it.
         """
-        from ddtrace.internal.ci_visibility import service_registry
-
-        cls._instance = state["instance"]
-        cls.enabled = state["enabled"]
-        service_registry.CI_VISIBILITY_INSTANCE = state["registry_instance"]
-        if cls.enabled:
-            # Re-register the atexit handler: any inner disable() call will have
-            # unregistered it via atexit.unregister(cls.disable).
+        if instance is None:
+            return
+        cls._instance_stack.append(instance)
+        cls._instance = instance
+        cls.enabled = True
+        register_ci_visibility_instance(instance)
+        if not cls._atexit_registered:
             atexit.register(cls.disable)
+            cls._atexit_registered = True
 
     @classmethod
     def disable(cls) -> None:
@@ -706,16 +728,25 @@ class CIVisibility(Service):
             log.debug("%s not enabled", cls.__name__)
             return
         log.debug("Disabling %s", cls.__name__)
-        atexit.unregister(cls.disable)
 
-        # Unregister from service registry first
-        unregister_ci_visibility_instance()
+        instance = cls._instance_stack.pop() if cls._instance_stack else cls._instance
 
-        cls._instance.stop()
-        cls._instance = None
-        cls.enabled = False
+        if cls._instance_stack:
+            # Nested sessions: restore the instance below as the active one.
+            cls._instance = cls._instance_stack[-1]
+            register_ci_visibility_instance(cls._instance)
+            # Leave atexit registered — outer session still needs it.
+        else:
+            atexit.unregister(cls.disable)
+            cls._atexit_registered = False
+            unregister_ci_visibility_instance()
+            cls._instance = None
+            cls.enabled = False
 
-        telemetry.telemetry_writer.periodic(force_flush=True)
+        instance.stop()
+
+        if not cls._instance_stack:
+            telemetry.telemetry_writer.periodic(force_flush=True)
 
         log.debug("%s disabled", cls.__name__)
 

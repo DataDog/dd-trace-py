@@ -157,6 +157,14 @@ def test_ci_visibility_service_enable_without_service(tracer):
         # which freezes DEFAULT_SPAN_SERVICE_NAME at import time, causing Config().service to be
         # non-None and override the expected service value derived from the repository URL.
         mock.patch("ddtrace.internal.settings._config.DEFAULT_SPAN_SERVICE_NAME", None),
+        # AIDEV-NOTE: Patch ci.tags to ensure REPOSITORY_URL is present regardless of the git
+        # environment.  In Docker containers started from a git worktree, `git rev-parse` fails
+        # with "fatal: not a git repository", so ci.tags() returns no REPOSITORY_URL and the
+        # service falls back to the integration default instead of the repo-derived name.
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ci.tags",
+            return_value={ci.git.REPOSITORY_URL: "https://github.com/test/repo.git"},
+        ),
     ):
         with _patch_dummy_writer():
             CIVisibility.enable(tracer=tracer)
@@ -923,6 +931,11 @@ class TestUploadGitMetadata:
         with (
             mock.patch.multiple(
                 CIVisibilityGitClient,
+                # AIDEV-NOTE: _get_git_dir is mocked here so that upload_git_metadata() does not try to
+                # call extract_workspace_path() (which runs git commands) before spawning the worker.
+                # Without this, running in Docker from a git worktree causes "fatal: not a git repository"
+                # and the method immediately sets METADATA_UPLOAD_STATUS.FAILED.
+                _get_git_dir=mock.Mock(return_value="/fake/git/dir"),
                 _is_shallow_repository=mock.Mock(return_value=True),
                 _get_latest_commits=mock.Mock(
                     side_effect=[["latest1", "latest2"], ["latest1", "latest2", "latest3", "latest4"]]

@@ -129,14 +129,16 @@ class PytestTestCaseBase(TracerTestCase):
         When expect_enabled=False (e.g. testing a killswitch), the plugin skips the assertion that CI Visibility
         initialized and the disable/re-enable dance — CI Visibility is left in whatever state the ddtrace plugin set it.
 
-        The outer CIVisibility state is saved before the inner session starts and restored after it completes so that
-        running this test suite with --ddtrace in the outer pytest does not disrupt the outer session's singleton.
+        The outer CIVisibility instance is suspended (removed from the stack without stopping it) before the inner
+        session starts and resumed after it completes, so that running this test suite with --ddtrace in the outer
+        pytest does not disrupt the outer session.  The inner session creates its own instance on a clean stack.
         """
-        # AIDEV-NOTE: Save/restore outer CIVisibility state so that running these
-        # tests with --ddtrace in the outer pytest session does not corrupt the outer
-        # singleton. The inner CIVisibilityPlugin does a disable()/enable() cycle
-        # which would otherwise destroy the outer session's instance.
-        _outer_state = CIVisibility._save_state()
+        # AIDEV-NOTE: Suspend the outer CIVisibility instance (without stopping it) so that
+        # the inner session starts with a clean stack.  The inner CIVisibilityPlugin does a
+        # disable()/enable() cycle that would otherwise pop the outer instance off the stack.
+        # _suspend() removes the outer instance without calling stop(); _resume() pushes it
+        # back after the inner session finishes.
+        _suspended = CIVisibility._suspend()
 
         class CIVisibilityPlugin:
             @staticmethod
@@ -178,7 +180,9 @@ class PytestTestCaseBase(TracerTestCase):
             with _ci_override_env(_test_env, replace_os_env=True):
                 return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
         finally:
-            CIVisibility._restore_state(_outer_state)
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+            CIVisibility._resume(_suspended)
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
         """Execute test script with test tracer."""

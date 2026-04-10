@@ -7,32 +7,25 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
 @pytest.fixture(scope="function", autouse=True)
 def _ci_visibility_isolation():
-    """Save and restore outer CIVisibility singleton state around every test.
+    """Suspend and resume outer CIVisibility instance around every test.
 
     When the ci_visibility suite runs with --ddtrace in the outer pytest session,
-    CIVisibility is already enabled (outer session's instance). Without this fixture,
-    tests that call CIVisibility.enable() receive a silent no-op (instance already exists)
-    and tests that call CIVisibility.disable() destroy the outer session's singleton.
+    CIVisibility is already enabled (outer session's instance).  Without this fixture:
+    - tests that call CIVisibility.enable() receive a silent no-op (already enabled)
+    - tests that call CIVisibility.disable() pop and stop the outer session's instance
 
-    This fixture wraps every test with a save/restore so that:
-    - the test body starts with CIVisibility disabled (clean slate)
+    This fixture wraps every test with a suspend/resume so that:
+    - the test body starts with CIVisibility disabled (clean stack)
     - the test can enable/disable its own instance freely
-    - the outer session's instance is restored on teardown
+    - the outer session's instance is never stopped — it resumes after the test
 
-    The existing per-file _disable_ci_visibility fixtures remain harmless: their
-    pre-yield disable() is a no-op (we already disabled here), and their post-yield
-    disable() cleans up whatever the test left enabled before we restore.
+    Unlike the old save_state/restore_state approach, _suspend() does NOT call
+    stop() on the outer instance, so the outer session's tracer keeps running.
     """
     # AIDEV-NOTE: This fixture must run before the module-level _disable_ci_visibility
     # fixtures defined in individual test files. pytest runs conftest fixtures first,
     # so ordering is guaranteed.
-    state = CIVisibility._save_state()
-    try:
-        if CIVisibility.enabled:
-            CIVisibility.disable()
-    except Exception:  # noqa: E722
-        # no-dd-sa:python-best-practices/no-silent-exception
-        pass
+    suspended = CIVisibility._suspend()
     yield
     try:
         if CIVisibility.enabled:
@@ -40,4 +33,4 @@ def _ci_visibility_isolation():
     except Exception:  # noqa: E722
         # no-dd-sa:python-best-practices/no-silent-exception
         pass
-    CIVisibility._restore_state(state)
+    CIVisibility._resume(suspended)

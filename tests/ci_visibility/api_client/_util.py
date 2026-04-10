@@ -158,16 +158,12 @@ class TestTestVisibilityAPIClientBase:
 
     @pytest.fixture(scope="function", autouse=True)
     def _ci_visibility_isolation(self):
-        # AIDEV-NOTE: Save/restore outer CIVisibility state so that running these
-        # tests with --ddtrace in the outer pytest session does not leak the outer
-        # singleton into test bodies, and test bodies cannot corrupt the outer session.
-        _outer_state = CIVisibility._save_state()
-        try:
-            if CIVisibility.enabled:
-                CIVisibility.disable()
-        except Exception:  # noqa: E722
-            # no-dd-sa:python-best-practices/no-silent-exception
-            pass
+        # AIDEV-NOTE: Suspend/resume outer CIVisibility instance so that running
+        # these tests with --ddtrace in the outer pytest session does not leak the
+        # outer singleton into test bodies, and test bodies cannot corrupt the outer
+        # session.  _suspend() removes the outer instance without stopping it;
+        # _resume() pushes it back after the test.
+        _suspended = CIVisibility._suspend()
         yield
         try:
             if CIVisibility.enabled:
@@ -175,7 +171,7 @@ class TestTestVisibilityAPIClientBase:
         except Exception:  # noqa: E722
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
-        CIVisibility._restore_state(_outer_state)
+        CIVisibility._resume(_suspended)
 
     default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
