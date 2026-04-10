@@ -1,5 +1,4 @@
 import asyncio
-import os
 from threading import Event
 from threading import Lock
 from threading import Thread
@@ -16,6 +15,8 @@ from azure.eventhub.aio import EventHubProducerClient as EventHubProducerClientA
 from azure.eventhub.aio import PartitionContext as PartitionContextAsync
 from azure.eventhub.amqp import AmqpAnnotatedMessage
 import pytest
+
+from ddtrace.internal.settings import env
 
 
 CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
@@ -307,12 +308,12 @@ async def run_test_async(
 
 @pytest.mark.asyncio
 async def test_common():
-    method = os.environ.get("METHOD")
-    buffered_mode = os.environ.get("BUFFERED_MODE") == "True"
-    is_async = os.environ.get("IS_ASYNC") == "True"
-    message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
-    distributed_tracing_enabled = os.environ.get("DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING", "True") == "True"
-    batch_links_enabled = os.environ.get("DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED", "True") == "True"
+    method = env.get("METHOD")
+    buffered_mode = env.get("BUFFERED_MODE") == "True"
+    is_async = env.get("IS_ASYNC") == "True"
+    message_payload_type = env.get("MESSAGE_PAYLOAD_TYPE")
+    distributed_tracing_enabled = env.get("DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING", "True") == "True"
+    batch_links_enabled = env.get("DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED", "True") == "True"
 
     if is_async:
         producer_client = EventHubProducerClientAsync.from_connection_string(

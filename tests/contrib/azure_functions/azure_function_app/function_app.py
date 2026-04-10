@@ -1,9 +1,8 @@
-import os
-
 import azure.functions as func
 import requests
 
 import ddtrace.auto  # noqa: F401
+from ddtrace.internal.settings import env
 
 
 app = func.FunctionApp()
@@ -61,7 +60,7 @@ def http_get_function_name_decorator_order(req: func.HttpRequest) -> func.HttpRe
 @app.route(route="httpgetroot", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
     requests.get(
-        f"http://localhost:{os.environ['AZURE_FUNCTIONS_TEST_PORT']}/api/httpgetchild",
+        f"http://localhost:{env['AZURE_FUNCTIONS_TEST_PORT']}/api/httpgetchild",
         headers={"User-Agent": "python-requests/x.xx.x"},
         timeout=5,
     )

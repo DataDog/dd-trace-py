@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.settings import env
 from tests.utils import override_env
 
 
@@ -77,10 +78,9 @@ def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
-    import os
 
-    env = os.environ.copy()
-    env.update(
+    subenv = env.copy()
+    subenv.update(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "foobar",
             "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
@@ -104,7 +104,7 @@ sys.meta_path = [BlockListFinder()] + sys.meta_path
 import {package}
 """
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0
@@ -144,10 +144,9 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
     # test ensures that none of those imports break.  If this test fails, then
     # either you will need to retain the import that was removed or you must
     # update datadog-lambda-python to support the new import path.
-    import os
 
-    env = os.environ.copy()
-    env.update(
+    subenv = env.copy()
+    subenv.update(
         {
             "AWS_LAMBDA_FUNCTION_NAME": "foobar",
             "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
@@ -157,7 +156,7 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
 
     code = f"from {from_} import {import_}"
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0
