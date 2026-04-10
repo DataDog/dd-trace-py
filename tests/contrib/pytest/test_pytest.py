@@ -128,7 +128,15 @@ class PytestTestCaseBase(TracerTestCase):
 
         When expect_enabled=False (e.g. testing a killswitch), the plugin skips the assertion that CI Visibility
         initialized and the disable/re-enable dance — CI Visibility is left in whatever state the ddtrace plugin set it.
+
+        The outer CIVisibility state is saved before the inner session starts and restored after it completes so that
+        running this test suite with --ddtrace in the outer pytest does not disrupt the outer session's singleton.
         """
+        # AIDEV-NOTE: Save/restore outer CIVisibility state so that running these
+        # tests with --ddtrace in the outer pytest session does not corrupt the outer
+        # singleton. The inner CIVisibilityPlugin does a disable()/enable() cycle
+        # which would otherwise destroy the outer session's instance.
+        _outer_state = CIVisibility._save_state()
 
         class CIVisibilityPlugin:
             @staticmethod
@@ -166,8 +174,11 @@ class PytestTestCaseBase(TracerTestCase):
         if extra_env:
             _test_env.update(extra_env)
 
-        with _ci_override_env(_test_env, replace_os_env=True):
-            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+        try:
+            with _ci_override_env(_test_env, replace_os_env=True):
+                return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+        finally:
+            CIVisibility._restore_state(_outer_state)
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
         """Execute test script with test tracer."""

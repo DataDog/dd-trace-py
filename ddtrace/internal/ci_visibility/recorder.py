@@ -666,6 +666,41 @@ class CIVisibility(Service):
         )
 
     @classmethod
+    def _save_state(cls) -> dict:
+        """Snapshot current singleton state for later restoration.
+
+        Use this to bracket an inner pytest session (e.g. inline_run()) so that
+        the outer session's CIVisibility instance is not disrupted.  Pair with
+        _restore_state() in a try/finally block.
+        """
+        from ddtrace.internal.ci_visibility import service_registry
+
+        return {
+            "instance": cls._instance,
+            "enabled": cls.enabled,
+            "registry_instance": service_registry.CI_VISIBILITY_INSTANCE,
+        }
+
+    @classmethod
+    def _restore_state(cls, state: dict) -> None:
+        """Restore singleton state previously saved by _save_state().
+
+        This bypasses normal enable()/disable() to avoid side-effects (stopping
+        the tracer, flushing telemetry, etc.) on the outer session's instance.
+        If the saved state had CIVisibility enabled, the atexit handler is
+        re-registered because any inner disable() will have unregistered it.
+        """
+        from ddtrace.internal.ci_visibility import service_registry
+
+        cls._instance = state["instance"]
+        cls.enabled = state["enabled"]
+        service_registry.CI_VISIBILITY_INSTANCE = state["registry_instance"]
+        if cls.enabled:
+            # Re-register the atexit handler: any inner disable() call will have
+            # unregistered it via atexit.unregister(cls.disable).
+            atexit.register(cls.disable)
+
+    @classmethod
     def disable(cls) -> None:
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
