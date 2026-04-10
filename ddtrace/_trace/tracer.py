@@ -46,6 +46,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
+from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
@@ -144,8 +145,6 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
-
-        from ddtrace.internal.native_runtime import NativeRuntime
 
         self._native_runtime = NativeRuntime() if config._trace_writer_native else None
         self._span_aggregator = SpanAggregator(
@@ -911,5 +910,7 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+            if self._native_runtime is not None:
+                self._native_runtime.shutdown()
         finally:
             self._shutdown_lock.release()

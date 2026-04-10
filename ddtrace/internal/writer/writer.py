@@ -809,6 +809,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def __init__(
         self,
         intake_url: str,
+        native_runtime: "NativeRuntime",
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
         # Match the payload size since there is no functionality
@@ -825,7 +826,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
-        native_runtime: "NativeRuntime" = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -897,8 +897,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-        if native_runtime is None:
-            raise ValueError("NativeWriter requires a NativeRuntime instance")
         self._native_runtime = native_runtime
 
         self._exporter = self._create_exporter()
