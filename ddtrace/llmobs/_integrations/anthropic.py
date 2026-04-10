@@ -95,7 +95,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
         model_name = span.get_tag("anthropic.request.model")
-        self._apply_shadow_metrics(span, metrics, span_kind, model_name=model_name, model_provider="anthropic")
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider="anthropic",
+            llmobs_enabled=self.llmobs_enabled,
+        )
 
     def _extract_input_message(
         self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None

@@ -72,7 +72,14 @@ class VertexAIIntegration(BaseLLMIntegration):
         metrics = self._extract_metrics_from_response(response) if response is not None else {}
         model_name = span.get_tag("vertexai.request.model")
         model_provider = span.get_tag("vertexai.request.provider")
-        self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            "llm",
+            model_name=model_name,
+            model_provider=model_provider,
+            llmobs_enabled=self.llmobs_enabled,
+        )
 
     def _extract_metrics_from_response(self, response):
         """Extract metrics from the response."""

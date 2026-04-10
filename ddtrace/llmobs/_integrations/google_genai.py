@@ -86,7 +86,14 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
         if response is not None:
             model_name = getattr(response, "model_version", "") or model_name
-        self._apply_shadow_metrics(span, metrics, operation, model_name=model_name, model_provider=provider_name)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            operation,
+            model_name=model_name,
+            model_provider=provider_name,
+            llmobs_enabled=self.llmobs_enabled,
+        )
 
     def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
         config = kwargs.get("config")

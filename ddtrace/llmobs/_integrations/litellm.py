@@ -169,7 +169,14 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         metrics = self._extract_llmobs_metrics(response, span_kind)
-        self._apply_shadow_metrics(span, metrics, span_kind, model_name=model_name, model_provider=model_provider)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            llmobs_enabled=self.llmobs_enabled,
+        )
 
     def _get_span_kind(
         self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None

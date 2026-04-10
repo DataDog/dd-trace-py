@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
@@ -142,15 +143,17 @@ class BaseLLMIntegration:
         span_kind: str,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
+        llmobs_enabled: bool = False,
     ) -> None:
         """Set shadow metric/tag values on the APM span from extracted metrics."""
-        if span_kind == "llm":
-            span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, "llm")
+        if span_kind in ("llm", "embedding"):
+            span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
         if model_name:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
         if span_kind in ("llm", "embedding") and metrics:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if llmobs_enabled else 0)
             for llmobs_key, shadow_key in (
                 (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),
                 (OUTPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY),
