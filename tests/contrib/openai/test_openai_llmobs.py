@@ -19,6 +19,7 @@ from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
+from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
@@ -375,6 +376,96 @@ class TestLLMObsOpenaiV1:
                 output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
                 metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            )
+        )
+
+    def test_chat_completion_multimodal_content(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
+        image_url = (
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+            ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+        )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What\u2019s in this image?"},
+                            {"type": "image_url", "image_url": image_url},
+                            {"type": "input_audio", "input_audio": {"data": "base64data", "format": "wav"}},
+                        ],
+                    }
+                ],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+                output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+                metadata={},
+                token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            )
+        )
+
+    def test_chat_completion_multimodal_lazy_iterator(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Test that iterable message content is materialized to a list before the SDK
+        consumes it, so post-call tag extraction still sees the content.
+        """
+        image_url = (
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+            ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+        )
+        content_parts = [
+            {"type": "text", "text": "What\u2019s in this image?"},
+            {"type": "image_url", "image_url": image_url},
+            {"type": "input_audio", "input_audio": {"data": "base64data", "format": "wav"}},
+        ]
+
+        # Simulate a Pydantic-like lazy iterator as the content value inside a normal dict message.
+        # This is the exact scenario that caused the original bug — ValidatorIterator is iterable
+        # but not a list, so _materialize_message_content must convert it before the SDK consumes it.
+        class LazyIterator:
+            """Mimics Pydantic's ValidatorIterator: iterable, not a list, single-use."""
+
+            def __init__(self, items):
+                self._items = items
+                self._iter = None
+
+            def __iter__(self):
+                self._iter = iter(self._items)
+                return self._iter
+
+            def __next__(self):
+                return next(self._iter)
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[{"role": "user", "content": LazyIterator(content_parts)}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+                output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+                metadata={},
+                token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
@@ -2548,6 +2639,103 @@ MUL: "*"
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Regression test: deferred tools (defer_loading=True) should have description and schema
+        stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
+        full definitions.
+        """
+        deferred_tool = {
+            "type": "function",
+            "function": {
+                "name": "search_logs",
+                "description": "Search Datadog logs",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string", "description": "Search query"}},
+                    "required": ["query"],
+                },
+            },
+            "defer_loading": True,
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
+            model = "gpt-3.5-turbo"
+            client = openai.OpenAI()
+            client.chat.completions.create(
+                tools=[chat_completion_custom_functions[0], deferred_tool],
+                model=model,
+                messages=[{"role": "user", "content": chat_completion_input_description}],
+                user="ddtrace-test",
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            EXPECTED_TOOL_DEFINITIONS[0],
+            {"name": "search_logs", "description": "", "schema": {}},
+        ]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    def test_tool_with_deep_schema_has_schema_truncated(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
+        replacing over-limit containers with empty containers while preserving name, description,
+        and all fields within the limit. Tools with shallow schemas are unaffected.
+        """
+        deep_tool = {
+            "type": "function",
+            "function": {
+                "name": "deep_tool",
+                "description": "A tool with a deeply nested schema",
+                "parameters": DEEP_TOOL_SCHEMA,
+            },
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
+            client = openai.OpenAI()
+            client.chat.completions.create(
+                tools=[chat_completion_custom_functions[0], deep_tool],
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": chat_completion_input_description}],
+                user="ddtrace-test",
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            EXPECTED_TOOL_DEFINITIONS[0],
+            {
+                "name": "deep_tool",
+                "description": "A tool with a deeply nested schema",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "l1": {
+                            "type": "object",
+                            "properties": {
+                                "l2": {
+                                    "type": "object",
+                                    "properties": {
+                                        "l3": {
+                                            "type": "object",
+                                            "properties": {
+                                                "l4": {
+                                                    "type": "object",
+                                                    "properties": {"l5": {}},
+                                                }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                        }
+                    },
+                },
+            },
+        ]
 
 
 @pytest.mark.parametrize(

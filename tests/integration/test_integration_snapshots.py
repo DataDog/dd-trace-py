@@ -249,10 +249,10 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
         logger = logging.getLogger("ddtrace.internal._encoding")
         with mock.patch.object(logger, "warning") as log_warning:
             with tracer.trace("root") as root:
-                root._meta = meta
+                root._meta = meta  # ast-grep-ignore: span-meta-access
                 for _ in range(299):
                     with tracer.trace("child") as child:
-                        child._meta = meta
+                        child._meta = meta  # ast-grep-ignore: span-meta-access
 
             assert log_warning.call_count == 300
             log_warning.assert_called_with(
@@ -275,10 +275,10 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_war
         logger = logging.getLogger("ddtrace.internal._encoding")
         with mock.patch.object(logger, "warning") as log_warning:
             with tracer.trace("root") as root:
-                root._metrics = metrics
+                root._metrics = metrics  # ast-grep-ignore: span-metrics-access
                 for _ in range(299):
                     with tracer.trace("child") as child:
-                        child._metrics = metrics
+                        child._metrics = metrics  # ast-grep-ignore: span-metrics-access
 
             assert log_warning.call_count == expected_warning_count
             log_warning.assert_called_with(
