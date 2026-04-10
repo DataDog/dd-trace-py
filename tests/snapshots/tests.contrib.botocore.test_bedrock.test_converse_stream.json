@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "ConverseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "687f91d900000000",
+      "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
+      "bedrock.request.model_provider": "anthropic",
+      "language": "python",
+      "runtime-id": "010264f12a6742c593eec2d695a7be36"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 28868
+    },
+    "duration": 4498000,
+    "start": 1753190873347670000
+  }]]
