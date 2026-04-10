@@ -10,6 +10,8 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_ENV_DATA_FILE
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_workspace_path
+from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.offline_mode import resolve_rlocation
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
@@ -39,7 +41,6 @@ def _read_env_data_file() -> dict[str, str]:
     ``DD_TEST_OPTIMIZATION_ENV_DATA_FILE``.  This replaces local Git CLI
     enrichment in payload-files mode.
     """
-    from ddtrace.testing.internal.offline_mode import resolve_rlocation
 
     path = env.get(DD_TEST_OPTIMIZATION_ENV_DATA_FILE)
     if not path:
@@ -59,7 +60,6 @@ def get_env_tags() -> dict[str, str]:
     # NOTE: In payload-files mode (Bazel sandbox output), CI/Git/OS/runtime tags
     # must NOT be populated from the local environment or git CLI. Instead, the
     # Bazel rule provides pre-computed context via DD_TEST_OPTIMIZATION_ENV_DATA_FILE.
-    from ddtrace.testing.internal.offline_mode import get_offline_mode
 
     offline = get_offline_mode()
     if offline.payload_files_enabled:

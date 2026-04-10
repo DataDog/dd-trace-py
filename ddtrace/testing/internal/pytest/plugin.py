@@ -26,6 +26,7 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -335,8 +336,6 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        from ddtrace.testing.internal.offline_mode import get_offline_mode
-
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
