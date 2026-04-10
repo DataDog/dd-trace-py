@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.flask.patch import flask_version
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.retry import RetryError
 import tests.appsec.rules as rules
 from tests.webclient import Client
@@ -42,8 +43,8 @@ def flask_command(flask_wsgi_application: str, flask_port: str) -> list[str]:
 
 
 def flask_appsec_good_rules_env(flask_wsgi_application: str) -> dict[str, str]:
-    env = os.environ.copy()
-    env.update(
+    subenv = env.copy()
+    subenv.update(
         {
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",

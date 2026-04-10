@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 
 import fastapi
@@ -11,6 +10,7 @@ import starlette
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -783,13 +783,13 @@ def test_read_homepage(snapshot_client):
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
-    env = os.environ.copy()
+    subenv = env.copy()
     if service_override:
-        env["DD_SERVICE"] = service_override
+        subenv["DD_SERVICE"] = service_override
     if schema_version:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    subenv["DD_TRACE_REQUESTS_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
 

@@ -29,6 +29,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from ddtrace.internal.settings import env
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
@@ -745,7 +746,7 @@ class PytestTestCase(PytestTestCaseBase):
 
     def test_dd_service_name(self):
         """Test dd service name."""
-        if "DD_PYTEST_SERVICE" in os.environ:
+        if "DD_PYTEST_SERVICE" in env:
             self.monkeypatch.delenv("DD_PYTEST_SERVICE")
 
         py_file = self.testdir.makepyfile(

@@ -2,7 +2,6 @@ import functools
 import http.client as httplib
 import importlib
 import json
-import os
 import sys
 from tempfile import NamedTemporaryFile
 from textwrap import dedent
@@ -10,6 +9,7 @@ import unittest
 
 from ddtrace import __version__
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.settings import env
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
@@ -773,10 +773,10 @@ class PatchTestCase(object):
                 )
                 f.flush()
 
-                env = os.environ.copy()
-                env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+                subenv = env.copy()
+                subenv["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=subenv)
 
                 self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
@@ -901,9 +901,9 @@ class PatchTestCase(object):
                 )
                 f.flush()
 
-                env = os.environ.copy()
-                env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
-                env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+                subenv = env.copy()
+                subenv["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
+                subenv["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=subenv)
                 assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()

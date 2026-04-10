@@ -1,7 +1,6 @@
 """Ensure that the tracer works with asynchronous executions within the same ``IOLoop``."""
 
 import asyncio
-import os
 import re
 
 import pytest
@@ -9,6 +8,7 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
+from ddtrace.internal.settings import env
 
 
 @pytest.fixture(autouse=True)
@@ -214,9 +214,9 @@ async def my_function():
 if __name__ == "__main__":
     asyncio.run(my_function())
 """
-    env = os.environ.copy()
-    env["PYTHONASYNCIODEBUG"] = "1"
-    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["PYTHONASYNCIODEBUG"] = "1"
+    out, err, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err + out
 
     pattern = rb"Executing <Task finished name=\'Task-1\' coro=<my_function\(\) done, "

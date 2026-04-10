@@ -1,4 +1,3 @@
-import os
 from typing import Generator  # noqa:F401
 
 import asyncpg
@@ -8,6 +7,7 @@ import pytest
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
@@ -185,10 +185,10 @@ async def test():
 
 asyncio.run(test())
     """
-    env = os.environ.copy()
-    env["DD_ASYNCPG_SERVICE"] = "global-service-name"
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_ASYNCPG_SERVICE"] = "global-service-name"
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert err == b""
 
@@ -214,10 +214,10 @@ async def test():
 
 asyncio.run(test())
     """
-    env = os.environ.copy()
-    env["DD_ASYNCPG_SERVICE"] = "global-service-name"
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_ASYNCPG_SERVICE"] = "global-service-name"
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert err == b""
 
@@ -243,9 +243,9 @@ async def test():
 
 asyncio.run(test())
     """
-    env = os.environ.copy()
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert err == b""
 
@@ -271,9 +271,9 @@ async def test():
 
 asyncio.run(test())
     """
-    env = os.environ.copy()
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert err == b""
 
@@ -300,9 +300,9 @@ async def test():
 
 asyncio.run(test())
     """
-    env = os.environ.copy()
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, err
     assert err == b""
 

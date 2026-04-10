@@ -1,10 +1,10 @@
 import asyncio
-import os
 import random
 
 from sanic import Sanic
 from sanic.response import json
 
+from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
@@ -41,4 +41,4 @@ async def shutdown_tracer(request):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ["SANIC_PORT"]), access_log=False)
+    app.run(host="0.0.0.0", port=int(env["SANIC_PORT"]), access_log=False)

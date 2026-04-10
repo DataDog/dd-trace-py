@@ -58,20 +58,20 @@ def _gunicorn_settings_factory(
     if directory is None:
         directory = os.getcwd()
     if env is None:
-        env = os.environ.copy()
+        subenv = env.copy()
     if import_auto_in_app is not None:
-        env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
-    env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
-    env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
-    env["DD_TRACE_DEBUG"] = str(debug_mode)
+        subenv["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
+    subenv["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
+    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
+    subenv["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
+    subenv["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
+    subenv["DD_TRACE_DEBUG"] = str(debug_mode)
     if dd_service is not None:
-        env["DD_SERVICE"] = dd_service
+        subenv["DD_SERVICE"] = dd_service
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     return GunicornServerSettings(
-        env=env,
+        env=subenv,
         directory=directory,
         app_path=app_path,
         num_workers=num_workers,

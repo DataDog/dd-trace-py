@@ -1,10 +1,11 @@
-import os
 import subprocess
+
+from ddtrace.internal.settings import env
 
 
 def run_uwsgi(cmd):
     def _run(*args):
-        env = os.environ.copy()
-        return subprocess.Popen(cmd + list(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        subenv = env.copy()
+        return subprocess.Popen(cmd + list(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=subenv)
 
     return _run
