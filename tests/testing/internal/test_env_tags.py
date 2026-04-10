@@ -305,7 +305,6 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "not-github",
-        "APPVEYOR_REPO_COMMIT_MESSAGE": None,
         "APPVEYOR_REPO_COMMIT_AUTHOR": "",
     }
 
