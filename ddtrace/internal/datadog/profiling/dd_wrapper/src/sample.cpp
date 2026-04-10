@@ -1,9 +1,13 @@
-#include "sample.hpp"
-
+// AIDEV-NOTE: Python.h must be included first, before any system or project headers.
+// CPython's pyconfig.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE to their current
+// POSIX standard values (202405L on 3.15+). If system headers (included transitively
+// via libdatadog_helpers.hpp → features.h) are pulled in first, they define older
+// values (200809L), and pyconfig.h's later redefinition triggers -Werror on GCC/Clang.
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
