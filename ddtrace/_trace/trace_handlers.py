@@ -5,6 +5,7 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from urllib import parse
 
 import wrapt
@@ -36,7 +37,7 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -175,7 +176,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if ctx.get_item("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -198,7 +199,7 @@ def _finish_span(
         return
 
     integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -1483,6 +1484,33 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 pass
 
 
+class _AzureCosmosConnectionPolicyLike(Protocol):
+    """Subset of azure.cosmos ConnectionPolicy used for span tags"""
+
+    ConnectionMode: int
+
+
+class _AzureCosmosClientConnectionLike(Protocol):
+    """Subset of azure.cosmos CosmosClientConnection used for span tags"""
+
+    url_connection: str
+    _user_agent: str
+    connection_policy: _AzureCosmosConnectionPolicyLike
+
+
+class _AzureCosmosRequestObjectLike(Protocol):
+    """Subset of azure.cosmos RequestObject used for span tags"""
+
+    operation_type: str
+    resource_type: str
+
+
+class _AzureCosmosRequestLike(Protocol):
+    """Subset of azure.cosmos HTTP Request used for span tags"""
+
+    url: str
+
+
 def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
     _start_span(ctx)
 
@@ -1496,11 +1524,11 @@ def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
 
 
 def _set_azure_cosmos_request_tags(
-    span,
-    client,
-    request_params,
-    request,
-    request_data,
+    span: Span,
+    client: _AzureCosmosClientConnectionLike,
+    request_params: _AzureCosmosRequestObjectLike,
+    request: _AzureCosmosRequestLike,
+    request_data: Mapping[str, Any],
 ) -> None:
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     span._set_attribute(db.SYSTEM, "cosmosdb")

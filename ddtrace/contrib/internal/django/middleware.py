@@ -5,6 +5,7 @@ from typing import Any
 from typing import cast
 
 import ddtrace
+from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -181,6 +182,30 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
     return middleware
 
 
+def _make_async_traced_middleware_hook(mw_path: str, hook: str) -> Any:
+    """Create a wrapt-compatible async wrapper for a middleware hook.
+
+    Used instead of bytecode wrapping for async middleware methods, which
+    would otherwise cause 'RuntimeError: coroutine ignored GeneratorExit'
+    on Python 3.13+. Same pattern as traced_get_response_async in response.py.
+    """
+    event_name = f"django.middleware.{hook}"
+
+    async def wrapper(func: FunctionType, instance: Any, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+        resource = f"{func_name(instance)}.{hook}"
+        request = get_argument_value(args, kwargs, 0, "request", optional=True)
+        with core.context_with_data(
+            event_name,
+            span_name="django.middleware",
+            resource=resource,
+            tags={COMPONENT: config_django.integration_name},
+            request=request,
+        ):
+            return await func(*args, **kwargs)
+
+    return wrapper
+
+
 def wrap_middleware_class(mw: type, mw_path: str) -> None:
     for hook in (
         "process_response",
@@ -190,7 +215,13 @@ def wrap_middleware_class(mw: type, mw_path: str) -> None:
     ):
         fn = getattr(mw, hook, None)
         if fn and isfunction(fn) and not is_wrapped(fn):
-            wrap(fn, traced_middleware_wrapper(mw_path, hook))
+            if iscoroutinefunction(fn):
+                # DEV: Cannot use bytecode wrappers for async methods, otherwise
+                # Python 3.13+ raises: RuntimeError: coroutine ignored GeneratorExit
+                if not contrib_trace_utils.iswrapped(mw, hook):
+                    contrib_trace_utils.wrap(mw, hook, _make_async_traced_middleware_hook(mw_path, hook))
+            else:
+                wrap(fn, traced_middleware_wrapper(mw_path, hook))
 
     # Special handling for process_request and process_exception
 
@@ -204,11 +235,22 @@ def wrap_middleware_class(mw: type, mw_path: str) -> None:
         else:
             fn = cast(FunctionType, mw.process_request)
             if not is_wrapped(fn):
-                wrap(fn, traced_middleware_wrapper(mw_path, "process_request"))
+                if iscoroutinefunction(fn):
+                    if not contrib_trace_utils.iswrapped(mw, "process_request"):
+                        contrib_trace_utils.wrap(
+                            mw, "process_request", _make_async_traced_middleware_hook(mw_path, "process_request")
+                        )
+                else:
+                    wrap(fn, traced_middleware_wrapper(mw_path, "process_request"))
 
     if hasattr(mw, "process_exception"):
         fn = cast(FunctionType, mw.process_exception)
-        if not is_wrapped_with(fn, traced_process_exception):
+        if iscoroutinefunction(fn):
+            if not contrib_trace_utils.iswrapped(mw, "process_exception"):
+                contrib_trace_utils.wrap(
+                    mw, "process_exception", _make_async_traced_middleware_hook(mw_path, "process_exception")
+                )
+        elif not is_wrapped_with(fn, traced_process_exception):
             wrap(fn, traced_process_exception)
 
 
