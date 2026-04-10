@@ -1,8 +1,7 @@
-import os
-
 import pytest
 
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.settings import env
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
@@ -64,14 +63,14 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """.format(expected_base_service_name)
 
-    env = os.environ.copy()
+    subenv = env.copy()
     if schema_version is not None:
-        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+        subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
-        env["DD_SERVICE"] = global_service_name
+        subenv["DD_SERVICE"] = global_service_name
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         code,
-        env=env,
+        env=subenv,
     )
     assert status == 0, (out, err)
 

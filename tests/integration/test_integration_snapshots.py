@@ -7,6 +7,7 @@ import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings import env
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
@@ -107,15 +108,13 @@ def test_filters():
 @pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
 @snapshot(async_mode=False)
 def test_synchronous_writer(writer_class):
-    import os
-
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
 
-    if os.environ["writer_class"] == "AgentWriter":
+    if env["writer_class"] == "AgentWriter":
         writer_class = AgentWriter
-    elif os.environ["writer_class"] == "NativeWriter":
+    elif env["writer_class"] == "NativeWriter":
         writer_class = NativeWriter
 
     writer = writer_class(tracer._span_aggregator.writer.intake_url, sync_mode=True)
@@ -312,8 +311,8 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
     else:
         fn = run_python_code_in_subprocess
 
-    env = os.environ.copy()
-    env.update(
+    subenv = env.copy()
+    subenv.update(
         dict(
             DD_ENV="prod",
             DD_SERVICE="my-svc",
@@ -328,7 +327,7 @@ import ddtrace.auto
 from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
-        env=env,
+        env=subenv,
     )
 
 
@@ -463,8 +462,8 @@ except KeyboardInterrupt:
         variants=variants,
     ):
         # Copy environment INSIDE snapshot_context so it includes the test session token
-        env = os.environ.copy()
-        env.update(
+        subenv = env.copy()
+        subenv.update(
             {
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
@@ -476,7 +475,7 @@ except KeyboardInterrupt:
         # Start subprocess - capture stderr to see what it's sending
         proc = subprocess.Popen(
             cmd,
-            env=env,
+            env=subenv,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,  # Capture stderr instead of passing through
         )

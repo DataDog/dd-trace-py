@@ -6,6 +6,8 @@ from textwrap import dedent
 
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 # DEV: This test must pass ALWAYS. If this test fails, it means that something
 # needs to be fixed somewhere. Please DO NOT skip this test under any
@@ -19,7 +21,6 @@ import pytest
     },
 )
 def test_auto():
-    import os
     import sys
 
     import ddtrace.auto  # noqa:F401
@@ -28,7 +29,7 @@ def test_auto():
     assert "socket" not in sys.modules
     assert "subprocess" not in sys.modules
 
-    if os.getenv("DD_REMOTE_CONFIGURATION_ENABLED") == "0":
+    if env.get("DD_REMOTE_CONFIGURATION_ENABLED") == "0":
         # When unloading modules we must have the HTTP clients imported already
         assert "ddtrace.internal.http" in sys.modules
 
@@ -86,16 +87,16 @@ def test_foo():
         import ddtrace
 
         ddtrace_path = str(Path(ddtrace.__file__).parent.parent)
-        env = os.environ.copy()
+        subenv = env.copy()
         # Prepend ddtrace path to PYTHONPATH to ensure we use the local version
-        env["PYTHONPATH"] = ddtrace_path + os.pathsep + env.get("PYTHONPATH", "")
+        subenv["PYTHONPATH"] = ddtrace_path + os.pathsep + subenv.get("PYTHONPATH", "")
 
         result = subprocess.run(
             [sys.executable, "-m", "pytest", str(test_file), "-v"],
             cwd=tmpdir,
             capture_output=True,
             text=True,
-            env=env,
+            env=subenv,
         )
 
         # The test should pass without KeyError

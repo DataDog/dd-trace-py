@@ -29,6 +29,7 @@ from ddtrace.internal.remoteconfig.products.apm_tracing import config_key
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
 from tests.utils import process_tag_reload
@@ -265,11 +266,10 @@ def test_rc_default_products_registered():
     enable the tracer flare feature as well. There should be three products
     registered when DD_REMOTE_CONFIGURATION_ENABLED is True
     """
-    import os
 
     from ddtrace.internal.utils.formats import asbool
 
-    rc_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED"))
+    rc_enabled = asbool(env.get("DD_REMOTE_CONFIGURATION_ENABLED"))
 
     # Import this to trigger the preload
     from ddtrace import config
