@@ -9,22 +9,28 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685dac8b00000000",
+      "_dd.p.tid": "69d8452400000000",
+      "_dd.svc_src": "tests.contrib.google_genai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "b035b0a989074b46b243cfc98f4a290c"
+      "runtime-id": "21ba76601d9a4e14860a7917cccd2927"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.llmobs.input_tokens": 10.0,
+      "_dd.llmobs.output_tokens": 5.0,
+      "_dd.llmobs.total_tokens": 15.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 42317
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
     },
-    "duration": 54000,
-    "start": 1750969483115334000
+    "duration": 121333,
+    "start": 1775781156359319546
   }],
 [
   {
@@ -37,20 +43,26 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685dac8b00000000",
+      "_dd.p.tid": "69d8452400000000",
+      "_dd.svc_src": "tests.contrib.google_genai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "b035b0a989074b46b243cfc98f4a290c"
+      "runtime-id": "21ba76601d9a4e14860a7917cccd2927"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.llmobs.input_tokens": 25.0,
+      "_dd.llmobs.output_tokens": 20.0,
+      "_dd.llmobs.total_tokens": 45.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 42317
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
     },
-    "duration": 26000,
-    "start": 1750969483115498000
+    "duration": 49041,
+    "start": 1775781156359589421
   }]]
