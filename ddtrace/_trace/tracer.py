@@ -32,6 +32,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -470,11 +471,15 @@ class Tracer(object):
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
+        service_source: str = ""
         if service is None:
             if parent:
                 service = parent.service
+                service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = config.service
+                service = service_source = config.service
+        else:
+            service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:
@@ -507,7 +512,7 @@ class Tracer(object):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
+                    span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -524,11 +529,14 @@ class Tracer(object):
 
         if not span._parent:
             span._set_attribute("runtime-id", get_runtime_id())
-            span._metrics[PID] = self._pid
+            span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
+
+        if service and service_source:
+            span._set_attribute(_SERVICE_SOURCE, service_source)
 
         if config.env:
             span._set_attribute(ENV_KEY, config.env)
