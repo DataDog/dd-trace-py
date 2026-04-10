@@ -98,6 +98,26 @@ class EverythingMiddleware:
         return resp
 
 
+class AsyncCallMiddleware:
+    """Class middleware with all async hooks."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    async def __call__(self, request):
+        response = await self.get_response(request)
+        return response
+
+    async def process_view(self, request, view_func, view_args, view_kwargs):
+        pass
+
+    async def process_request(self, request):
+        pass
+
+    async def process_exception(self, request, exception):
+        pass
+
+
 try:
     from django.utils.decorators import async_only_middleware
 

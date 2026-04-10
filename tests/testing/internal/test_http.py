@@ -888,3 +888,63 @@ class TestBackendConnectorSetup:
         assert connector.base_path == "/evp_proxy/v4"
         assert connector.use_gzip is True
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
+
+
+class TestUnixDomainSocketTimeout:
+    """Regression test: Unix domain socket must respect the configured timeout."""
+
+    def test_connect_applies_timeout(self) -> None:
+        conn = UnixDomainSocketHTTPConnection(path="/tmp/nonexistent.sock", host="localhost", port=80, timeout=3.5)
+        with patch("socket.socket") as mock_socket_cls:
+            mock_sock = Mock()
+            mock_socket_cls.return_value = mock_sock
+            conn.connect()
+
+            mock_sock.settimeout.assert_called_once_with(3.5)
+            mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestRequestFailureWarning:
+    """Regression test: request() must log a warning when giving up with an error."""
+
+    @patch("http.client.HTTPSConnection")
+    def test_non_retriable_error_logs_warning(self, mock_https_connection: Mock) -> None:
+        """A 4xx (non-retriable) error should log a warning immediately."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "0"}
+        mock_response.read.return_value = b""
+        mock_response.status = 403
+        mock_response.reason = "Forbidden"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        with patch("ddtrace.testing.internal.http.log") as mock_log:
+            result = connector.request("POST", "/api/v2/citestcycle", data=b"x")
+
+        assert result.error_type == ErrorType.CODE_4XX
+        mock_log.warning.assert_called_once()
+        # Format: "Request %s %s failed after %d attempt(s): %s"
+        assert "403 Forbidden" in mock_log.warning.call_args[0][4]
+
+    @patch("http.client.HTTPSConnection")
+    def test_successful_request_no_warning(self, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "2"}
+        mock_response.read.return_value = b"ok"
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        with patch("ddtrace.testing.internal.http.log") as mock_log:
+            result = connector.request("GET", "/info", is_json_response=False)
+
+        assert result.error_type is None
+        mock_log.warning.assert_not_called()
