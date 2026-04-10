@@ -84,10 +84,17 @@ class TestBackendConnector:
         assert result.parsed_response == {"answer": 42}
         assert result.is_gzip_response is False
         assert result.response_length == 14
+        assert result.request_length == len(b'{"question": 1}')
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None)
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            )
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -128,8 +135,20 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -170,11 +189,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -211,11 +260,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -251,7 +330,13 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_4XX),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_4XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @pytest.mark.parametrize(
@@ -302,11 +387,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -340,11 +455,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -374,7 +519,13 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.UNKNOWN),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.UNKNOWN,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -413,8 +564,20 @@ class TestBackendConnector:
         assert result.parsed_response == {"answer": 42}
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -451,11 +614,41 @@ class TestBackendConnector:
         assert result.error_description == "429 Too Many Requests"
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.RATE_LIMITED),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
