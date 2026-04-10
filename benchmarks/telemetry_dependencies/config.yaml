@@ -1,4 +1,7 @@
 # First heartbeat — all deps are new (SCA on vs off comparison)
+# Only first-heartbeat scenarios are included because idle/sca_hits
+# use the new DependencyTracker API which doesn't exist on main,
+# causing the baseline benchmark to hang.
 first-50-deps-sca-off: &first
   num_deps: 50
   phase: first
@@ -8,19 +11,3 @@ first-50-deps-sca-off: &first
 first-50-deps-sca-on:
   <<: *first
   sca_enabled: true
-
-# Idle heartbeat — nothing to report
-idle-100-deps-sca-on:
-  num_deps: 100
-  phase: idle
-  sca_enabled: true
-  pct_cve: 5
-  cves_per_dep: 2
-
-# SCA hits — deps have reachability findings (covers CVE registration implicitly)
-sca-hits-100-deps:
-  num_deps: 100
-  phase: sca_hits
-  sca_enabled: true
-  pct_cve: 5
-  cves_per_dep: 2
