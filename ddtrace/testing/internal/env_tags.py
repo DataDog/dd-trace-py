@@ -39,9 +39,12 @@ def _read_env_data_file() -> dict[str, str]:
     ``DD_TEST_OPTIMIZATION_ENV_DATA_FILE``.  This replaces local Git CLI
     enrichment in payload-files mode.
     """
+    from ddtrace.testing.internal.offline_mode import resolve_rlocation
+
     path = env.get(DD_TEST_OPTIMIZATION_ENV_DATA_FILE)
     if not path:
         return {}
+    path = resolve_rlocation(path)
     try:
         with open(path) as f:
             data = json.load(f)

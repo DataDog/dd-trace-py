@@ -1,9 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
-import itertools
-import json
 import logging
-import os
 import threading
 import typing as t
 import uuid
@@ -12,7 +9,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
-from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -23,10 +20,6 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
-
-
-# Thread-safe counter for unique payload file names across writer instances.
-_payload_file_counter = itertools.count()
 
 
 log = logging.getLogger(__name__)
@@ -236,20 +229,6 @@ class TestOptWriter(BaseWriter):
         return msgpack_packb(payload)
 
     def _send_events(self, events: list[Event]) -> bool:
-        # NOTE: In payload-files mode (Bazel), write events as JSON files to
-        # TEST_UNDECLARED_OUTPUTS_DIR/payloads/tests/ instead of sending over HTTP.
-        # CI/Git/OS/runtime tags are already absent (stripped by env_tags.py in PR 3).
-        offline = get_offline_mode()
-        if offline.payload_files_enabled:
-            output_dir = offline.payload_output_dir("tests")
-            if output_dir is not None:
-                _write_payload_file(
-                    output_dir=output_dir,
-                    payload={"version": 1, "metadata": self.metadata, "events": events},
-                    kind="tests",
-                )
-            return True
-
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -275,6 +254,28 @@ class TestOptWriter(BaseWriter):
             if result.error_type:
                 return False
 
+        return True
+
+
+class PayloadFileTestOptWriter(TestOptWriter):
+    """TestOptWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Filenames match Go's DDTestRunner
+    naming pattern.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 1, "metadata": self.metadata, "events": events},
+            kind="tests",
+        )
         return True
 
 
@@ -306,19 +307,6 @@ class TestCoverageWriter(BaseWriter):
         return msgpack_packb({"version": 2, "coverages": events})
 
     def _send_events(self, events: list[Event]) -> bool:
-        # NOTE: In payload-files mode (Bazel), write coverage as JSON files to
-        # TEST_UNDECLARED_OUTPUTS_DIR/payloads/coverage/ instead of sending over HTTP.
-        offline = get_offline_mode()
-        if offline.payload_files_enabled:
-            output_dir = offline.payload_output_dir("coverage")
-            if output_dir is not None:
-                _write_payload_file(
-                    output_dir=output_dir,
-                    payload={"version": 2, "coverages": events},
-                    kind="coverage",
-                )
-            return True
-
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -356,29 +344,25 @@ class TestCoverageWriter(BaseWriter):
         return True
 
 
-def _write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
-    """
-    Write a payload dict as a JSON file under ``output_dir``.
+class PayloadFileCoverageWriter(TestCoverageWriter):
+    """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
 
-    Files are named ``{kind}-{timestamp_ns}-{pid}-{seq}.json`` to match the Go
-    implementation (DDTestRunner expects this naming pattern).  The write is
-    atomic: we write to a temp file and rename, so readers never see a partial
-    file.
+    Used in payload-files mode (Bazel).
     """
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-        seq = next(_payload_file_counter)
-        import time
 
-        name = f"{kind}-{time.time_ns()}-{os.getpid()}-{seq}.json"
-        dest = os.path.join(output_dir, name)
-        tmp = dest + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(payload, f)
-        os.replace(tmp, dest)
-        log.debug("Wrote payload file: %s", dest)
-    except Exception as e:
-        log.warning("Error writing payload file to %s: %s", output_dir, e)
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 2, "coverages": events},
+            kind="coverage",
+        )
+        return True
 
 
 def serialize_test_run(test_run: TestRun) -> Event:

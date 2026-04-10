@@ -23,6 +23,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -33,6 +34,8 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
+from ddtrace.testing.internal.writer import PayloadFileTestOptWriter
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 
@@ -50,7 +53,14 @@ class SessionManager:
             self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
         else:
             self.connector_setup = BackendConnectorSetup.detect_setup()
-        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+
+        telemetry_output_dir = offline.payload_output_dir("telemetry")
+        if telemetry_output_dir is not None:
+            self.telemetry_api: TelemetryAPI = PayloadFileTelemetryAPI(
+                connector_setup=self.connector_setup, output_dir=telemetry_output_dir
+            )
+        else:
+            self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.env_tags = get_env_tags()
         if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
@@ -132,8 +142,21 @@ class SessionManager:
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
 
-        self.writer = TestOptWriter(connector_setup=self.connector_setup)
-        self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
+        tests_output_dir = offline.payload_output_dir("tests")
+        if tests_output_dir is not None:
+            self.writer: TestOptWriter = PayloadFileTestOptWriter(
+                connector_setup=self.connector_setup, output_dir=tests_output_dir
+            )
+        else:
+            self.writer = TestOptWriter(connector_setup=self.connector_setup)
+
+        coverage_output_dir = offline.payload_output_dir("coverage")
+        if coverage_output_dir is not None:
+            self.coverage_writer: TestCoverageWriter = PayloadFileCoverageWriter(
+                connector_setup=self.connector_setup, output_dir=coverage_output_dir
+            )
+        else:
+            self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
         self.session = session
         self.session.set_service(self.service)
         self.session.set_itr_attributes(

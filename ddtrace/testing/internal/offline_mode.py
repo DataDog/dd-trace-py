@@ -15,6 +15,8 @@ Two independent modes are controlled by environment variables:
 
 from __future__ import annotations
 
+import itertools
+import json
 import logging
 import os
 import typing as t
@@ -181,7 +183,7 @@ class OfflineMode:
         """
         Return the directory for payload output files under TEST_UNDECLARED_OUTPUTS_DIR.
 
-        ``category`` is either ``"tests"`` or ``"coverage"``.
+        ``category`` is ``"tests"``, ``"coverage"``, or ``"telemetry"``.
         Returns None when payload-files mode is inactive.
         """
         if not self.payload_files_enabled or not self.output_dir:
@@ -198,3 +200,43 @@ def get_offline_mode() -> OfflineMode:
     if _offline_mode is None:
         _offline_mode = OfflineMode()
     return _offline_mode
+
+
+# ---------------------------------------------------------------------------
+# Payload file writing
+# ---------------------------------------------------------------------------
+
+# Thread-safe counter for unique payload file names across writer instances.
+_payload_file_counter = itertools.count()
+
+
+def write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
+    """
+    Write a payload dict as a JSON file under ``output_dir``.
+
+    For tests and coverage, files are named ``{kind}-{ts}-{pid}-{seq}.json``.
+    For telemetry, filenames are ordinal-first (``telemetry-{seq_padded}-{pid}.json``)
+    so they sort lexicographically in emission order for deterministic replay.
+    Both patterns match the Go implementation.
+
+    The write is atomic: we write to a temp file and rename, so readers never
+    see a partial file.
+    """
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        seq = next(_payload_file_counter)
+        import time
+
+        if kind == "telemetry":
+            # Telemetry replay order matters — keep filenames lexicographically ordered by sequence.
+            name = f"{kind}-{seq:020d}-{os.getpid()}.json"
+        else:
+            name = f"{kind}-{time.time_ns()}-{os.getpid()}-{seq}.json"
+        dest = os.path.join(output_dir, name)
+        tmp = dest + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(payload, f)
+        os.replace(tmp, dest)
+        log.debug("Wrote payload file: %s", dest)
+    except Exception as e:
+        log.warning("Error writing payload file to %s: %s", output_dir, e)
