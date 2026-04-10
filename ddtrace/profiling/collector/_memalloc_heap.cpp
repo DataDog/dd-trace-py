@@ -14,23 +14,6 @@
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
-/* Use Abseil's flat_hash_map for tracking sampled allocations.
- * flat_hash_map provides excellent performance with low memory overhead,
- * using the Swiss Tables algorithm from Abseil.
- *
- * We use a conditional compilation to fall back to std::unordered_map
- * when Abseil is not available (e.g., in Debug builds).
- */
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
-#include "absl/container/flat_hash_map.h"
-template<typename K, typename V>
-using HeapMapType = absl::flat_hash_map<K, V>;
-#else
-#include <unordered_map>
-template<typename K, typename V>
-using HeapMapType = std::unordered_map<K, V>;
-#endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
-
 /*
    How heap profiler sampling works:
 
@@ -84,89 +67,13 @@ using HeapMapType = std::unordered_map<K, V>;
    formula if more testing shows us to be too inaccurate.
  */
 
-class heap_tracker_t
-{
-  public:
-    /* Constructor - does not make any C Python API calls */
-    heap_tracker_t(uint32_t sample_size_val);
-    ~heap_tracker_t() = default;
-
-    // Delete copy constructor and assignment operator
-    heap_tracker_t(const heap_tracker_t&) = delete;
-    heap_tracker_t& operator=(const heap_tracker_t&) = delete;
-
-    /* Remove an allocation at the given address, if we are tracking it. This
-     * function accesses the heap tracker data structures. It must be called with the
-     * GIL held and must not make any C Python API calls. The traceback is deleted
-     * internally if found. */
-    void untrack_no_cpython(void* ptr);
-
-    /* Decide whether we should sample an allocation of the given size. Accesses
-     * shared state, and must be called with the GIL held and without making any C
-     * Python API calls. Returns true if we should sample, and sets allocated_memory_val
-     * to the current allocated_memory value. */
-    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
-
-    /* Track an allocation that we decided to sample. This updates shared state and
-     * must be called with the GIL held and without making any C Python API calls.
-     * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
-
-    void export_heap_no_cpython();
-
-    /* Global instance of the heap tracker */
-    static heap_tracker_t* instance;
-
-    /* Traceback pool operations */
-    std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
-                                                                          size_t weighted_size,
-                                                                          uint16_t max_nframe);
-    void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
-
-    /* Reset the heap tracker state after fork in child process */
-    void postfork_child();
-
-  private:
-    uint32_t next_sample_size_no_cpython(uint32_t sample_size);
-
-    /* This function is called from heap_tracker_t::postfork_child() as part of
-       the fork handler to reset the sampling state. */
-    void reset_sampling_state_no_cpython();
-
-    /* Heap profiler sampling interval */
-    uint64_t sample_size;
-
-    /* Per-instance PRNG engine used by next_sample_size_no_cpython.
-     * Declared before current_sample_size so it is initialised first in the
-     * constructor member-initialiser list, allowing next_sample_size_no_cpython
-     * to be called safely during current_sample_size initialisation.
-     * std::minstd_rand stores all state in the object (no global locks), so it
-     * is fork-safe (unlike rand). */
-    std::minstd_rand rng;
-    /* Next heap sample target, in bytes allocated */
-    uint64_t current_sample_size;
-    /* Tracked allocations - using unique_ptr for automatic memory management */
-    HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* Bytes allocated since the last sample was collected */
-    uint64_t allocated_memory;
-
-    /* Debug guard to assert that GIL-protected critical sections are maintained
-     * while accessing the profiler's state */
-    memalloc_gil_debug_check_t gil_guard;
-
-    /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
-    static constexpr size_t POOL_CAPACITY = 128;
-    std::vector<std::unique_ptr<traceback_t>> pool;
-};
-
 // Pool implementation
 // _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
 heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
-    if (!pool.empty()) {
+    if (MEMALLOC_LIKELY(!pool.empty())) {
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
@@ -181,7 +88,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
 void
 heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 {
-    if (!tb) {
+    if (MEMALLOC_UNLIKELY(!tb)) {
         return;
     }
 
@@ -189,7 +96,7 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     tb->sample.clear();
 
     /* Try to return the traceback to the pool */
-    if (pool.size() < POOL_CAPACITY) {
+    if (MEMALLOC_LIKELY(pool.size() < POOL_CAPACITY)) {
         pool.push_back(std::move(tb));
     }
     /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
@@ -225,33 +132,17 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
+    if (MEMALLOC_UNLIKELY(!node.empty())) {
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
 
-bool
-heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
+void
+memalloc_heap_untrack_no_cpython(void* ptr)
 {
-    memalloc_gil_debug_guard_t guard(gil_guard);
-    allocated_memory += size;
-    *allocated_memory_val = allocated_memory;
-
-    /* Check if we have enough sample or not */
-    if (allocated_memory < current_sample_size) {
-        return false;
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->untrack_no_cpython(ptr);
     }
-
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
-        /* TODO(nick) this is vestigial from the original array-based
-         * implementation. Do we actually want this? It gives us bounded memory
-         * use, but the size limit is arbitrary and once we hit the arbitrary
-         * limit our reported numbers will be inaccurate.
-         */
-        return false;
-    }
-
-    return true;
 }
 
 void
@@ -338,31 +229,21 @@ memalloc_heap_tracker_deinit_no_cpython(void)
     delete old_instance;
 }
 
+/* Slow path: called only when should_sample_no_cpython returned true (rare).
+ * allocated_memory_val was already set by the inline fast-path caller. */
 void
-memalloc_heap_untrack_no_cpython(void* ptr)
-{
-    if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->untrack_no_cpython(ptr);
-    }
-}
-
-/* Track a memory allocation in the heap profiler. */
-void
-memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+memalloc_heap_track_slow_path_invokes_cpython(uint16_t max_nframe,
+                                              void* ptr,
+                                              size_t size,
+                                              uint64_t allocated_memory_val,
+                                              PyMemAllocatorDomain domain)
 {
     (void)domain; // Parameter kept for API consistency but not currently used
-    if (!heap_tracker_t::instance) {
-        return;
-    }
-    uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
-        return;
-    }
 
     /* Skip tracking if we're already inside the malloc hook on this thread.
      * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
-    if (!guard) {
+    if (MEMALLOC_UNLIKELY(!guard)) {
         return;
     }
 
@@ -397,7 +278,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        of sample live allocations stays close to the actual heap size */
 
     // Check that instance is valid before creating traceback
-    if (!heap_tracker_t::instance) {
+    if (MEMALLOC_UNLIKELY(!heap_tracker_t::instance)) {
         return;
     }
 
@@ -416,7 +297,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     tb->sample.push_heap(allocated_memory_val);
 
     // Check that instance is still valid after GIL release in constructor
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
@@ -425,7 +306,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 void
 memalloc_heap_no_cpython(void)
 {
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->export_heap_no_cpython();
     }
 }
@@ -433,7 +314,7 @@ memalloc_heap_no_cpython(void)
 void
 memalloc_heap_postfork_child(void)
 {
-    if (heap_tracker_t::instance) {
+    if (MEMALLOC_LIKELY(heap_tracker_t::instance != nullptr)) {
         heap_tracker_t::instance->postfork_child();
     }
 }
