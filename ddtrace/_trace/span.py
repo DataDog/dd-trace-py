@@ -270,24 +270,6 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    # _has_attribute, _remove_attribute, _get_attribute,
-    # _get_str_attribute, _get_numeric_attribute, _get_attributes,
-    # _get_str_attributes, _get_numeric_attributes, _set_default_attributes
-    # are all inherited from SpanData (Rust), operating on native meta/metrics HashMaps.
-
-    def _set_attribute(self, key: str, value: object) -> None:
-        """Set a span attribute, routing str→meta and numeric→metrics.
-
-        Wraps the Rust implementation to handle the _raise=False path:
-        when str(value) raises, log a warning instead of propagating.
-        """
-        try:
-            SpanData._set_attribute(self, key, value)  # type: ignore[arg-type]
-        except Exception:
-            if config._raise:
-                raise
-            log.warning("Failed to convert attribute '%s' to str, ignoring it", key, exc_info=True)
-
     get_tag = SpanData._get_str_attribute  # type: ignore[assignment]
     get_tags = SpanData._get_str_attributes  # type: ignore[assignment]
 

@@ -290,9 +290,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0]._set_attribute(
-                _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
-            )  # PERF: avoid setting via Span.set_metric
+            trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _reset_connection(self) -> None:
         with self._conn_lck:

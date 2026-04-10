@@ -1,7 +1,8 @@
 use pyo3::{
     types::{
         PyAnyMethods as _, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
-        PyInt, PyString, PyStringMethods as _, PyTuple,
+        PyInt, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString,
+        PyStringMethods as _, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, Python,
 };
@@ -471,6 +472,30 @@ impl SpanData {
             self.data.metrics.remove(key_str);
             self.data.meta.insert(k, v);
         }
+        Ok(())
+    }
+
+    /// Set multiple attributes from a dict/mapping, routing each value via `_set_attribute`.
+    ///
+    /// Accepts any Python dict (fast path) or any object that implements the mapping protocol
+    /// (e.g. `collections.OrderedDict`, `types.MappingProxyType`). If the argument supports
+    /// neither, the call is a no-op. Invalid value types follow the same coercion rules as
+    /// `_set_attribute`.
+    #[pyo3(name = "_set_attributes")]
+    fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+        if let Ok(d) = attrs.downcast::<PyDict>() {
+            for (k, v) in d.iter() {
+                self.set_attribute(&k, &v)?;
+            }
+        } else if let Ok(m) = attrs.downcast::<PyMapping>() {
+            for item in m.items()?.iter() {
+                let pair = item.cast::<PyTuple>()?;
+                let k = pair.get_item(0)?;
+                let v = pair.get_item(1)?;
+                self.set_attribute(&k, &v)?;
+            }
+        }
+        // Not a dict or mapping — bail silently.
         Ok(())
     }
 

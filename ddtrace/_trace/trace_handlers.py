@@ -251,7 +251,7 @@ def _on_web_framework_finish_request(
         span.finish()
 
 
-def _set_inferred_proxy_tags(span, status_code):
+def _set_inferred_proxy_tags(span: Span, status_code):
     if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
@@ -259,12 +259,12 @@ def _set_inferred_proxy_tags(span, status_code):
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if span._get_str_attribute(ERROR_MSG) is not None:
-                inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if span._get_str_attribute(ERROR_TYPE) is not None:
-                inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if span._get_str_attribute(ERROR_STACK) is not None:
-                inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+            if (error_msg := span._get_str_attribute(ERROR_MSG)) is not None:
+                inferred_span._set_attribute(ERROR_MSG, error_msg)
+            if (error_type := span._get_str_attribute(ERROR_TYPE)) is not None:
+                inferred_span._set_attribute(ERROR_TYPE, error_type)
+            if (error_stack := span._get_str_attribute(ERROR_STACK)) is not None:
+                inferred_span._set_attribute(ERROR_STACK, error_stack)
 
 
 def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
