@@ -238,7 +238,13 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         if operation not in ("", "llm"):
             return
         metrics = self._extract_usage(response) if not span.error and response is not None else {}
-        self._apply_shadow_metrics(span, metrics, "llm")
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            "llm",
+            model_name=span.get_tag(MODEL),
+            model_provider=span.get_tag(PROVIDER),
+        )
 
     def _extract_input_messages(self, kwargs: dict[str, Any], is_chat: bool) -> list[Message]:
         """Extract input messages for LLM spans (chat or completion)."""

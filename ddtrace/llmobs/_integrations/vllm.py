@@ -138,7 +138,13 @@ class VLLMIntegration(BaseLLMIntegration):
             return
         span_kind = "embedding" if operation == "embedding" else "llm"
         metrics = self._build_metrics(data)
-        self._apply_shadow_metrics(span, metrics, span_kind)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=span.get_tag(TAG_MODEL),
+            model_provider=span.get_tag(TAG_PROVIDER),
+        )
 
     def _llmobs_set_tags(
         self,

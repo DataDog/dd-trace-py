@@ -206,7 +206,13 @@ class LangChainIntegration(BaseLLMIntegration):
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: total_tokens,
             }
-            self._apply_shadow_metrics(span, metrics, "llm")
+            self._apply_shadow_metrics(
+                span,
+                metrics,
+                "llm",
+                model_name=span.get_tag(MODEL),
+                model_provider=span.get_tag(PROVIDER),
+            )
 
     def _set_links(self, span: Span) -> None:
         """

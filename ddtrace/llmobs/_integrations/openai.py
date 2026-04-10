@@ -170,7 +170,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             else operation
         )
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
-        self._apply_shadow_metrics(span, metrics, span_kind)
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        self._apply_shadow_metrics(span, metrics, span_kind, model_name=model_name, model_provider="openai")
 
     @staticmethod
     def _extract_llmobs_metrics_tags(
