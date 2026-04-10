@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Profiling: Fixes lock contention during greenlet stack sampling that could
+    cause resource exhaustion (e.g. PostgreSQL connection pool growth) in gevent
+    applications.
