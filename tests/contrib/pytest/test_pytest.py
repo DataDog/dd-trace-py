@@ -101,6 +101,13 @@ class PytestTestCaseBase(TracerTestCase):
         # otherwise corrupt the saved CWD used during fixture teardown, leaking
         # wrong working directories to subsequent tests in the same xdist worker.
         testdir.chdir()
+        # AIDEV-NOTE: Clear outer xdist worker env vars for the duration of each
+        # test. Tests create CIVisibilityEncoderV01 instances and inline_run sessions
+        # that read PYTEST_XDIST_WORKER at init/import time. If the outer test suite
+        # runs with -n auto, the worker env var leaks and causes the encoder to filter
+        # session spans and inline_run controllers to behave as workers.
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
 
     @pytest.fixture(autouse=True)
     def _dummy_check_enabled_features(self):
