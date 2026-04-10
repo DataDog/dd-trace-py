@@ -34,10 +34,11 @@ def test_before_flush_failure(caplog):
     def call_me():
         raise Exception("LOL")
 
-    # tracer=None avoids flushing the global tracer (which may have spans from other
-    # tests) and prevents a spurious writer error log from polluting caplog.
-    s = scheduler.Scheduler(before_flush=call_me, tracer=None)
-    s.flush()
+    s = scheduler.Scheduler(before_flush=call_me)
+    # Patch ddup.upload so the test only checks scheduler logging behaviour and
+    # doesn't attempt a real upload (which would log a writer error and pollute caplog).
+    with mock.patch("ddtrace.profiling.scheduler.ddup.upload"):
+        s.flush()
     assert caplog.record_tuples == [
         (("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed"))
     ]
