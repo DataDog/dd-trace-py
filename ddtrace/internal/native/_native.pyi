@@ -6,6 +6,8 @@ from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 
+from ddtrace._trace.types import _AttributeValueType
+
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
@@ -603,12 +605,12 @@ class SpanData:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[dict[str, Any]] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
     ) -> None: ...
     def _add_event(
         self,
         name: str,
-        attributes: Optional[Mapping[str, Any]] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ) -> None: ...
     def _get_links(self) -> list["SpanLink"]: ...
@@ -621,7 +623,7 @@ class SpanEvent:
     time_unix_nano: int  # u64 in Rust; always non-negative
     attributes: dict[str, Any]
     def __init__(
-        self, name: str, attributes: Optional[Mapping[str, Any]] = None, time_unix_nano: Optional[int] = None
+        self, name: str, attributes: Optional[Mapping[str, _AttributeValueType]] = None, time_unix_nano: Optional[int] = None
     ): ...
     def __repr__(self) -> str: ...
     def __iter__(self) -> Iterator[tuple[str, Any]]: ...
@@ -640,7 +642,7 @@ class SpanLink:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Mapping[str, Any]] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
         _skip_validation: bool = False,
     ) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...

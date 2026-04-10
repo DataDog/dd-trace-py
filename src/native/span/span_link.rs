@@ -146,11 +146,7 @@ impl SpanLink {
                 },
                 self.flags.into_pyobject(py)?.into_any().unbind(),
                 self.attributes.clone_ref(py).into_any(),
-                <pyo3::Bound<'_, pyo3::types::PyBool> as Clone>::clone(&pyo3::types::PyBool::new(
-                    py, true,
-                ))
-                .unbind()
-                .into_any(), // _skip_validation=True
+                true.into_pyobject(py)?.to_owned().into_any().into(), // _skip_validation=True
             ],
         )?;
         Ok(PyTuple::new(py, &[cls.into_any().unbind(), args.into_any().unbind()])?.unbind())

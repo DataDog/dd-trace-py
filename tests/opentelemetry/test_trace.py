@@ -96,15 +96,17 @@ def test_otel_start_span_with_span_links(oteltracer):
             pass
 
         # assert that span3 has the expected links
+        # DEV: link attributes are stored as strings (pre-encoding to wire format)
         ddspan3 = span3._ddspan
-        for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
+        expected_attrs = [{"attr1": "1", "link.name": "moon"}, {"attr2": "2", "link.name": "tree"}]
+        for span_context, expected in zip((span1_context, span2_context), expected_attrs):
             [link, *others] = [link for link in ddspan3._get_links() if link.span_id == span_context.span_id]
             assert not others
             assert link.trace_id == span_context.trace_id
             assert link.span_id == span_context.span_id
             assert link.tracestate == span_context.trace_state.to_header()
             assert link.flags == span_context.trace_flags
-            assert link.attributes == attributes
+            assert link.attributes == expected
     finally:
         span1.end()
         span2.end()

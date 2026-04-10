@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6650be1d00000000",
-      "events": "[{\"name\": \"Web page unresponsive\",\"time_unix_nano\": 1714536311886000,\"attributes\": {\"error.code\": \"403\",\"unknown values\": [1,[\"h\",\"a\",[false]]]}}]",
+      "events": "[{\"name\": \"Web page unresponsive\",\"time_unix_nano\": 1714536311886000,\"attributes\": {\"error.code\": \"403\",\"unknown values\": [1, \"['h', 'a', [False]]\"]}}]",
       "language": "python",
       "runtime-id": "236113d2484c485fb40ba896b12c1992"
     },

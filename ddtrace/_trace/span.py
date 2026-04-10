@@ -609,7 +609,7 @@ class Span(SpanData):
     def _service_entry_span(self) -> None:
         del self._service_entry_span_value
 
-    def link_span(self, context: Context, attributes: Optional[dict[str, Any]] = None) -> None:
+    def link_span(self, context: Context, attributes: Optional[Mapping[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
             msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
@@ -633,7 +633,7 @@ class Span(SpanData):
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[dict[str, Any]] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self._set_link(
             trace_id,

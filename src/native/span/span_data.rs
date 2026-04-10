@@ -418,11 +418,22 @@ impl SpanData {
         span_id: u64,
         tracestate: Option<&Bound<'_, PyAny>>,
         flags: Option<i64>,
-        attributes: Option<&Bound<'_, PyDict>>,
+        attributes: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
         let attrs = match attributes {
             None => Default::default(),
-            Some(dict) => py_dict_to_link_attrs(py, dict)?,
+            Some(obj) if obj.is_none() => Default::default(),
+            Some(obj) => {
+                if let Ok(dict) = obj.cast_exact::<PyDict>() {
+                    py_dict_to_link_attrs(py, &dict)?
+                } else {
+                    // Accept any mapping (e.g. OTel BoundedAttributes)
+                    let dict = PyDict::new(py);
+                    let mapping = obj.cast::<PyMapping>()?;
+                    dict.update(mapping)?;
+                    py_dict_to_link_attrs(py, &dict)?
+                }
+            }
         };
 
         // DEV: is_span_pointer must be computed before build_native_link, which consumes attrs by value.
