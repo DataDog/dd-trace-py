@@ -40,11 +40,11 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
-from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
 from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
 from ddtrace.contrib.internal.pytest._xdist import XdistHooks
 from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
 from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
+from ddtrace.contrib.internal.pytest._xdist import is_xdist_worker_env
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -328,7 +328,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     take_over_logger_stream_handler()
 
     # Log early initialization details
-    is_worker = PYTEST_XDIST_WORKER_VALUE is not None
+    is_worker = is_xdist_worker_env()
     process_type = "WORKER" if is_worker else "MAIN"
     log.debug("EARLY_INIT: %s process starting pytest_load_initial_conftests_pre_yield", process_type)
 
@@ -421,7 +421,18 @@ def _handle_coverage_patch_early(config):
 
 
 def pytest_configure(config: pytest_Config) -> None:
-    global skip_pytest_runtest_protocol
+    global skip_pytest_runtest_protocol, skipped_suites
+
+    # AIDEV-NOTE: Reset per-session module-level state for every new main-process
+    # session. This is necessary when inline_run() calls pytest.main() inside an
+    # outer xdist worker: the module is already imported, so module-level
+    # initialisations don't re-run. Without this reset, skipped_suites accumulates
+    # entries from previous sessions and skip_pytest_runtest_protocol may stay True.
+    # The hasattr(config, "workerinput") check identifies the main process of the
+    # *current* session (not the outer-run process).
+    if not hasattr(config, "workerinput"):
+        skipped_suites = set()
+        skip_pytest_runtest_protocol = False
 
     if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
@@ -463,8 +474,15 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
-                    # Main process
+                if not hasattr(config, "workerinput"):
+                    # Main process: reset per-session xdist ITR skip counter.
+                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
+                    # When inline_run() is called inside an outer xdist worker, the constant is
+                    # "gw0" for the entire process lifetime, so the reset would never fire and
+                    # pytest.global_worker_itr_results would accumulate across inline_run calls.
+                    # hasattr(config, "workerinput") is the correct check: it is True only for
+                    # worker configs of the *current* session, not for outer-run workers.
                     pytest.global_worker_itr_results = 0
 
         else:
