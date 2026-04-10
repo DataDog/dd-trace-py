@@ -1903,7 +1903,7 @@ venv = Venv(
         Venv(
             name="pytest",
             command=(
-                "pytest --no-ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
+                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
                 " --ignore=tests/contrib/pytest/test_pytest_snapshot.py"
                 " --ignore=tests/contrib/pytest/test_pytest_snapshot_v2.py"
                 " --ignore=tests/contrib/pytest/test_pytest_xdist_snapshot.py"
