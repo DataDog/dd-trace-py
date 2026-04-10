@@ -12,7 +12,7 @@ class TestReachabilityMetadata:
     def test_to_telemetry_dict_serializes_value_as_json_string(self):
         meta = ReachabilityMetadata(
             type="reachability",
-            value={"id": "CVE-2024-1234", "reached": [{"path": "mod.sub", "method": "func", "line": 10}]},
+            value={"id": "CVE-2024-1234", "reached": [{"path": "mod.sub", "symbol": "func", "line": 10}]},
         )
         result = meta.to_telemetry_dict()
         assert result["type"] == "reachability"
@@ -22,7 +22,7 @@ class TestReachabilityMetadata:
         assert isinstance(parsed["reached"], list)
         assert len(parsed["reached"]) == 1
         assert parsed["reached"][0]["path"] == "mod.sub"
-        assert parsed["reached"][0]["method"] == "func"
+        assert parsed["reached"][0]["symbol"] == "func"
         assert parsed["reached"][0]["line"] == 10
 
     def test_sent_tracking(self):
@@ -43,7 +43,7 @@ class TestReachabilityMetadata:
         meta = ReachabilityMetadata(type="reachability", value={"id": "CVE-1", "reached": []})
         assert meta.add_reached_entry("mod.views", "func1", 33) is True
         assert len(meta.value["reached"]) == 1
-        assert meta.value["reached"][0] == {"path": "mod.views", "method": "func1", "line": 33}
+        assert meta.value["reached"][0] == {"path": "mod.views", "symbol": "func1", "line": 33}
         assert meta.is_sent is False
 
     def test_add_reached_entry_max_one(self):
@@ -131,7 +131,7 @@ class TestDependencyEntry:
         assert entry.add_metadata("CVE-1", "mod.views", "func1", 33) is True
         assert len(entry.metadata) == 1
         assert len(entry.metadata[0].value["reached"]) == 1
-        assert entry.metadata[0].value["reached"][0] == {"path": "mod.views", "method": "func1", "line": 33}
+        assert entry.metadata[0].value["reached"][0] == {"path": "mod.views", "symbol": "func1", "line": 33}
 
     def test_add_metadata_duplicate_registration_is_idempotent(self):
         """Registering the same CVE twice does not create duplicates."""

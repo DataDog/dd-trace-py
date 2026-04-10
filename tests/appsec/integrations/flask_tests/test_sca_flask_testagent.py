@@ -205,8 +205,8 @@ class TestSCAFlaskTelemetry:
         # AIDEV-NOTE: path/method/line report the *caller* (user code that
         # invoked the vulnerable function), not the target function itself.
         assert "app.py" in hit["path"], f"Expected caller path containing 'app.py', got: {hit['path']}"
-        assert "sca_test_requests" in hit.get("method", ""), (
-            f"Expected caller method 'sca_test_requests', got: {hit.get('method', '')}"
+        assert "sca_test_requests" in hit.get("symbol", ""), (
+            f"Expected caller symbol 'sca_test_requests', got: {hit.get('symbol', '')}"
         )
         assert hit.get("line", 0) > 0, "Expected a non-zero caller line number"
 

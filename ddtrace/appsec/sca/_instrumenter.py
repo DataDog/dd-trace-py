@@ -52,10 +52,10 @@ def _first_instr_line(code: types.CodeType) -> int:
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
 
-    Returns (path, line, method) where:
+    Returns (path, line, symbol) where:
     - path: relative file path of the caller
     - line: line number in the caller
-    - method: function (or Class.method) name of the caller
+    - symbol: function (or Class.method) name of the caller
 
     AIDEV-NOTE: Delegates to the shared get_caller_frame_info() which uses
     IAST's native C get_info_frame() + rel_path().  SCA just reshapes the
@@ -66,8 +66,8 @@ def _get_caller_info() -> tuple[str, int, str]:
         if not file_name:
             return "", 0, ""
 
-        method = f"{class_name}.{function_name}" if class_name else (function_name or "")
-        return file_name, line_number or 0, method
+        symbol = f"{class_name}.{function_name}" if class_name else (function_name or "")
+        return file_name, line_number or 0, symbol
     except Exception:
         log.debug("Failed to get caller info via get_caller_frame_info", exc_info=True)
         return "", 0, ""
@@ -153,8 +153,8 @@ def sca_detection_hook(qualified_name: str) -> None:
         writer = _get_telemetry_writer()
         # AIDEV-NOTE: Walk the stack to find the user-code frame that called
         # the vulnerable function, similar to IAST's _compute_file_line.
-        # Reports the caller's path/line/method, not the target function's.
-        caller_path, caller_line, caller_method = _get_caller_info()
+        # Reports the caller's path/line/symbol, not the target function's.
+        caller_path, caller_line, caller_symbol = _get_caller_info()
 
         # AIDEV-NOTE: If the native frame walker can't find user code (e.g.,
         # deep wrapt/gevent stack), fall back to the target's own qualified
@@ -162,14 +162,14 @@ def sca_detection_hook(qualified_name: str) -> None:
         # add_metadata's `if path` guard silently drops the finding and
         # reached stays [].
         if not caller_path:
-            # Use "module.path:Class.method" as path, the method part after ":"
+            # Use "module.path:Class.method" as path, the symbol part after ":"
             parts = qualified_name.split(":", 1)
             caller_path = parts[0] if parts else qualified_name
-            caller_method = parts[1] if len(parts) > 1 else ""
+            caller_symbol = parts[1] if len(parts) > 1 else ""
             caller_line = 0
 
         for cve_id in target_info.cve_ids:
-            writer.attach_dependency_metadata(target_info.package_name, cve_id, caller_path, caller_method, caller_line)
+            writer.attach_dependency_metadata(target_info.package_name, cve_id, caller_path, caller_symbol, caller_line)
 
     except Exception:
         log.debug("SCA detection hook error for %s", qualified_name, exc_info=True)

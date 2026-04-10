@@ -349,14 +349,14 @@ class TelemetryWriter(PeriodicService):
         package_name: str,
         cve_id: str,
         path: str,
-        method: str,
+        symbol: str,
         line: int,
     ) -> bool:
         """Attach reachability metadata to an imported dependency.
 
         Delegates to DependencyTracker.attach_metadata().
         """
-        return self._dependency_tracker.attach_metadata(package_name, cve_id, path, method, line)
+        return self._dependency_tracker.attach_metadata(package_name, cve_id, path, symbol, line)
 
     def register_cve_metadata(self, package_name: str, cve_id: str) -> bool:
         """Register a CVE on a dependency with reached=[].

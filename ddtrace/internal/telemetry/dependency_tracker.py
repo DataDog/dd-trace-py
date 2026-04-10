@@ -125,7 +125,7 @@ class DependencyTracker:
         package_name: str,
         cve_id: str,
         path: str,
-        method: str,
+        symbol: str,
         line: int,
     ) -> bool:
         """Attach reachability metadata to an imported dependency.
@@ -141,7 +141,7 @@ class DependencyTracker:
         """
         with self._lock:
             self._ensure_entry(package_name)
-            return attach_reachability_metadata(self._imported_dependencies, package_name, cve_id, path, method, line)
+            return attach_reachability_metadata(self._imported_dependencies, package_name, cve_id, path, symbol, line)
 
     def register_cve(self, package_name: str, cve_id: str) -> bool:
         """Register a CVE on a dependency with reached=[].

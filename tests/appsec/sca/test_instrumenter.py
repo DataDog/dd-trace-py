@@ -145,8 +145,8 @@ class TestSCADetectionHookIntegration:
         mock_writer = MagicMock()
         attach_calls = []
 
-        def capture_attach(pkg, cve, path, method, line):
-            attach_calls.append({"pkg": pkg, "cve": cve, "path": path, "method": method, "line": line})
+        def capture_attach(pkg, cve, path, symbol, line):
+            attach_calls.append({"pkg": pkg, "cve": cve, "path": path, "symbol": symbol, "line": line})
 
         mock_writer.attach_dependency_metadata = capture_attach
 
@@ -186,8 +186,8 @@ class TestSCADetectionHookIntegration:
         # Track calls
         attach_calls = []
         mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, method, line: attach_calls.append(
-            {"pkg": pkg, "cve": cve, "path": path, "method": method, "line": line}
+        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, symbol, line: attach_calls.append(
+            {"pkg": pkg, "cve": cve, "path": path, "symbol": symbol, "line": line}
         )
 
         with patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer):
@@ -259,7 +259,7 @@ class TestCallerInfoToReachedArray:
         reached = meta.value["reached"]
         assert len(reached) == 1, f"Expected 1 reached entry, got {len(reached)}"
         assert reached[0]["path"] == "app/views.py"
-        assert reached[0]["method"] == "MyView.handle"
+        assert reached[0]["symbol"] == "MyView.handle"
         assert reached[0]["line"] == 42
 
     def test_reached_not_empty_when_caller_info_empty_after_fix(self):
@@ -311,7 +311,7 @@ class TestCallerInfoToReachedArray:
         reached = meta.value["reached"]
         assert len(reached) == 1, f"Reached should have fallback entry, got {len(reached)}"
         assert reached[0]["path"] == "test_module"
-        assert reached[0]["method"] == "target_func"
+        assert reached[0]["symbol"] == "target_func"
 
     def test_hook_uses_fallback_when_caller_info_unavailable(self):
         """After fix: when _get_caller_info returns empty, the hook falls back
@@ -359,7 +359,7 @@ class TestCallerInfoToReachedArray:
         # After fix: fallback uses the target's module path and symbol name
         assert len(reached) == 1, f"Expected 1 reached entry with fallback info, got {len(reached)}"
         assert reached[0]["path"] == "test_module"
-        assert reached[0]["method"] == "target_func"
+        assert reached[0]["symbol"] == "target_func"
         assert reached[0]["line"] == 0
 
 

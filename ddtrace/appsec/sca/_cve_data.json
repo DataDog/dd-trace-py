@@ -2,10 +2,10 @@
   "targets": [
     {
       "id": "vuln-001",
-      "target": "requests.sessions:Session.send",
+      "targets": ["requests.sessions:Session.send"],
       "lang": "python",
       "dependency_name": "requests",
-      "package_versions": "<2.32.0",
+      "package_versions": ["<2.32.0"],
       "vulnerability": {
         "id": "CVE-2024-35195",
         "severity": "MEDIUM",
@@ -14,10 +14,10 @@
     },
     {
       "id": "vuln-002",
-      "target": "urllib3._collections:HTTPHeaderDict.__setitem__",
+      "targets": ["urllib3._collections:HTTPHeaderDict.__setitem__"],
       "lang": "python",
       "dependency_name": "urllib3",
-      "package_versions": "<2.2.2",
+      "package_versions": ["<2.2.2"],
       "vulnerability": {
         "id": "CVE-2024-37891",
         "severity": "MEDIUM",
@@ -26,10 +26,10 @@
     },
     {
       "id": "vuln-003",
-      "target": "jinja2.filters:do_xmlattr",
+      "targets": ["jinja2.filters:do_xmlattr"],
       "lang": "python",
       "dependency_name": "jinja2",
-      "package_versions": "<3.1.3",
+      "package_versions": ["<3.1.3"],
       "vulnerability": {
         "id": "CVE-2024-22195",
         "severity": "MEDIUM",
@@ -38,10 +38,10 @@
     },
     {
       "id": "vuln-004",
-      "target": "jinja2.compiler:generate",
+      "targets": ["jinja2.compiler:generate"],
       "lang": "python",
       "dependency_name": "jinja2",
-      "package_versions": "<3.1.5",
+      "package_versions": ["<3.1.5"],
       "vulnerability": {
         "id": "CVE-2024-56201",
         "severity": "HIGH",
@@ -50,10 +50,10 @@
     },
     {
       "id": "vuln-005",
-      "target": "cryptography.hazmat.primitives.serialization.pkcs12:serialize_key_and_certificates",
+      "targets": ["cryptography.hazmat.primitives.serialization.pkcs12:serialize_key_and_certificates"],
       "lang": "python",
       "dependency_name": "cryptography",
-      "package_versions": "<42.0.4",
+      "package_versions": ["<42.0.4"],
       "vulnerability": {
         "id": "CVE-2024-26130",
         "severity": "HIGH",
@@ -62,10 +62,10 @@
     },
     {
       "id": "vuln-006",
-      "target": "cryptography.x509:load_pem_x509_certificate",
+      "targets": ["cryptography.x509:load_pem_x509_certificate"],
       "lang": "python",
       "dependency_name": "cryptography",
-      "package_versions": "<43.0.1",
+      "package_versions": ["<43.0.1"],
       "vulnerability": {
         "id": "CVE-2024-6119",
         "severity": "HIGH",

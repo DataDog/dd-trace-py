@@ -40,7 +40,7 @@ class ReachabilityMetadata:
     def cve_id(self) -> Optional[str]:
         return self.value.get("id")
 
-    def add_reached_entry(self, path: str, method: str, line: int) -> bool:
+    def add_reached_entry(self, path: str, symbol: str, line: int) -> bool:
         """Add a hit entry to the reached list.
 
         Returns True if the entry was added, False if the list is already
@@ -49,7 +49,7 @@ class ReachabilityMetadata:
         reached = self.value["reached"]  # always initialized at construction
         if len(reached) >= self._MAX_REACHED_ENTRIES:
             return False
-        reached.append({"path": path, "method": method, "line": line})
+        reached.append({"path": path, "symbol": symbol, "line": line})
         self._sent = False
         return True
 
@@ -134,7 +134,7 @@ class DependencyEntry:
         for m in self.metadata:
             m._mark_sent()
 
-    def add_metadata(self, cve_id: str, path: str = "", method: str = "", line: int = 0) -> bool:
+    def add_metadata(self, cve_id: str, path: str = "", symbol: str = "", line: int = 0) -> bool:
         """Add or update reachability metadata for a CVE.
 
         AIDEV-NOTE: RFC v3 — one metadata entry per CVE.  If the CVE already
@@ -145,7 +145,7 @@ class DependencyEntry:
         Args:
             cve_id: CVE identifier (required).
             path: Caller file path (empty for registration-only).
-            method: Caller method name (empty for registration-only).
+            symbol: Caller symbol name (empty for registration-only).
             line: Caller line number (0 for registration-only).
 
         Returns:
@@ -161,7 +161,7 @@ class DependencyEntry:
         for existing in self.metadata:
             if existing.cve_id == cve_id:
                 # CVE already registered — add hit if call-site info provided
-                if path and existing.add_reached_entry(path, method, line):
+                if path and existing.add_reached_entry(path, symbol, line):
                     return True
                 return False
 
@@ -169,7 +169,7 @@ class DependencyEntry:
             return False
 
         # Create new metadata entry for this CVE
-        reached = [{"path": path, "method": method, "line": line}] if path else []
+        reached = [{"path": path, "symbol": symbol, "line": line}] if path else []
         meta = ReachabilityMetadata(
             type="reachability",
             value={"id": cve_id, "reached": reached},
@@ -203,7 +203,7 @@ def attach_reachability_metadata(
     package_name: str,
     cve_id: str,
     path: str,
-    method: str,
+    symbol: str,
     line: int,
 ) -> bool:
     """Attach reachability metadata to an already-tracked dependency.
@@ -220,7 +220,7 @@ def attach_reachability_metadata(
         log.debug("Cannot attach metadata: package %r not yet tracked", package_name)
         return False
 
-    return entry.add_metadata(cve_id, path, method, line)
+    return entry.add_metadata(cve_id, path, symbol, line)
 
 
 def register_cve_metadata(
