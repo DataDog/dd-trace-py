@@ -1,0 +1,6 @@
+fixes:
+  - |
+    Fixes an issue where internal background threads could cause crashes or
+    instability in applications that fork (e.g. Gunicorn, uWSGI) or during
+    Python shutdown. Affected applications could experience intermittent crashes
+    or hangs on exit.

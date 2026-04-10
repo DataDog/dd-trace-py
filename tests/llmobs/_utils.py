@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -20,6 +20,32 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
+
+
+DEEP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "l1": {
+            "type": "object",
+            "properties": {
+                "l2": {
+                    "type": "object",
+                    "properties": {
+                        "l3": {
+                            "type": "object",
+                            "properties": {
+                                "l4": {
+                                    "type": "object",
+                                    "properties": {"l5": {"type": "string"}},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+    },
+}
 
 
 if vcr:

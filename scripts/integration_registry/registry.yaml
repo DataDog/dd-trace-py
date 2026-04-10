@@ -429,7 +429,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 1.15.1
+      max: 1.28.1
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -562,6 +562,24 @@ integrations:
     litellm:
       min: 1.65.4
       max: 1.80.16
+
+- integration_name: llama_index
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - llama-index
+  - llama-index-core
+  - llama_index
+  tested_versions_by_dependency:
+    llama-index:
+      min: 0.11.23
+      max: 0.14.18
+    llama-index-core:
+      min: 0.11.23
+      max: 0.14.18
+    llama_index:
+      min: 0.11.23
+      max: 0.14.18
 
 - integration_name: logbook
   is_external_package: true

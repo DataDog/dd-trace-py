@@ -195,10 +195,10 @@ cloned_venvs/
 .gitlab-ci-local/
 
 # Automatically generated fixtures
-tests/appsec/iast/fixtures/aspects/obj_callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
-tests/appsec/iast/fixtures/aspects/callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_callers.py
+tests/appsec/iast/fixtures/aspects/obj_callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_obj_callers*.py
+tests/appsec/iast/fixtures/aspects/callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_callers*.py
 tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 #MacOS files
@@ -219,3 +219,6 @@ src/native/target*
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
+
+# APM AI Toolkit Analysis Logs
+.analysis/
