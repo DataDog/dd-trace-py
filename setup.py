@@ -51,6 +51,15 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
+# Load clean helpers from scripts/clean.py (pure stdlib, no build deps required).
+# This avoids duplicating the clean logic while keeping it runnable as a standalone
+# script without importing setup.py's heavy build-time dependencies.
+import importlib.util as _importlib_util
+
+_clean_spec = _importlib_util.spec_from_file_location("_clean", HERE / "scripts" / "clean.py")
+_clean = _importlib_util.module_from_spec(_clean_spec)
+_clean_spec.loader.exec_module(_clean)
+
 CURRENT_OS = platform.system()
 
 # What's meant by each build mode is similar to that from CMake, except that
@@ -668,68 +677,18 @@ class LibraryDownloader(BuildPyCommand):
 
 
 class CleanLibraries(CleanCommand):
-    @staticmethod
-    def remove_native_extensions():
-        """Remove native extensions and shared libraries installed by setup.py."""
-        for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
-            for path in DDTRACE_DIR.rglob(pattern):
-                # Avoid modifying vendored directories
-                if path.is_file() and not path.is_relative_to(VENDOR_DIR):
-                    try:
-                        path.unlink()
-                    except OSError as e:
-                        print(f"WARNING: could not remove {path}: {e}")
-
-    @staticmethod
-    def remove_artifacts():
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        CleanLibraries.remove_native_extensions()
-
-    @staticmethod
-    def remove_rust_targets():
-        """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
-        # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
-        for target_dir in NATIVE_CRATE.glob("target*"):
-            if target_dir.is_dir():
-                shutil.rmtree(target_dir, True)
-
-    @staticmethod
-    def remove_build_artifacts():
-        """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
-
-        The base distutils clean command does not remove these. They can cause
-        stale metadata and odd behavior on reinstall. Invoked only for
-        ``clean --all`` to give a full reset before a fresh build.
-        """
-        for path in (HERE / "ddtrace.egg-info", HERE / "dist", HERE / ".eggs"):
-            if path.exists():
-                shutil.rmtree(path, True)
-        for egg in HERE.glob("*.egg"):
-            if egg.is_file():
-                egg.unlink(missing_ok=True)
-            elif egg.is_dir():
-                shutil.rmtree(egg, True)
-        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
-        if cmake_deps.exists():
-            shutil.rmtree(cmake_deps, True)
-
-    @staticmethod
-    def remove_build_dir():
-        """Remove the entire build/ tree for a clean slate.
-
-        The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
-        per runtime. We remove build/ wholesale so all build output is cleared.
-        """
-        build_dir = HERE / "build"
-        if build_dir.exists():
-            shutil.rmtree(build_dir, True)
+    remove_native_extensions = staticmethod(_clean.remove_native_extensions)
+    remove_artifacts = staticmethod(_clean.remove_artifacts)
+    remove_rust_targets = staticmethod(_clean.remove_rust_targets)
+    remove_build_artifacts = staticmethod(_clean.remove_build_artifacts)
+    remove_build_dir = staticmethod(_clean.remove_build_dir)
 
     def run(self):
-        CleanLibraries.remove_rust_targets()
-        CleanLibraries.remove_artifacts()
-        CleanLibraries.remove_build_dir()
+        _clean.remove_rust_targets()
+        _clean.remove_artifacts()
+        _clean.remove_build_dir()
         if self.all:
-            CleanLibraries.remove_build_artifacts()
+            _clean.remove_build_artifacts()
 
 
 class CustomBuildExt(build_ext):
