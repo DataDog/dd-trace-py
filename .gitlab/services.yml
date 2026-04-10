@@ -33,6 +33,8 @@
   redis:
     name: registry.ddbuild.io/redis:7.4.6-gbi-jammy
     alias: redis
+    # Disabled RDB persistence to avoid issues with unwritable volume mounts in CI
+    command: ["redis-server", "--save", ""]
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
     alias: valkey
