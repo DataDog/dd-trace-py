@@ -1,8 +1,8 @@
-import os
 from time import sleep
 
 from mock.mock import ANY
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -369,10 +369,10 @@ headers = {
 context = HTTPPropagator.extract(headers)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # Get extraction telemetry metrics
@@ -413,10 +413,10 @@ headers = {}
 HTTPPropagator.inject(context, headers)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # Get injection telemetry metrics
@@ -463,10 +463,10 @@ headers_items = {}
 HTTPPropagator.inject(context_items, headers_items)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
@@ -499,10 +499,10 @@ headers_bytes = {}
 HTTPPropagator.inject(context_bytes, headers_bytes)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
@@ -529,10 +529,10 @@ malformed_headers = {"baggage": "invalid,test=value"}
 HTTPPropagator.extract(malformed_headers)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # Get malformed baggage metrics
