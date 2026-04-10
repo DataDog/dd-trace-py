@@ -146,7 +146,7 @@ class BaseLLMIntegration:
             ):
                 value = metrics.get(llmobs_key)
                 if value is not None:
-                    span.set_metric(shadow_key, value)
+                    span._set_attribute(shadow_key, value)
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
