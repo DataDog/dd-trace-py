@@ -258,11 +258,11 @@ def _set_inferred_proxy_tags(span, status_code):
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if span._has_attribute(ERROR_MSG):
+            if span._get_str_attribute(ERROR_MSG) is not None:
                 inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if span._has_attribute(ERROR_TYPE):
+            if span._get_str_attribute(ERROR_TYPE) is not None:
                 inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if span._has_attribute(ERROR_STACK):
+            if span._get_str_attribute(ERROR_STACK) is not None:
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 

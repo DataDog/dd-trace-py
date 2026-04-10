@@ -149,9 +149,8 @@ def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, 
     global _global_skipped_elements
     _global_skipped_elements += 1
 
-    test_module_span._set_attribute(
-        test.ITR_TEST_SKIPPING_COUNT, (test_module_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0) + 1
-    )
+    current = test_module_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0
+    test_module_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, current + 1)
     test_module_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
     test_module_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 

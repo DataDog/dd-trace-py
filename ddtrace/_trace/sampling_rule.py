@@ -99,13 +99,10 @@ class SamplingRule(object):
         if not self.tags:
             return True
 
-        meta = span._get_str_attributes()
-        metrics = span._get_numeric_attributes()
-        if not meta and not metrics:
-            return False
-
         for tag_key, pattern in self.tags.items():
-            value = meta.get(tag_key, metrics.get(tag_key))
+            str_val = span._get_str_attribute(tag_key)
+            num_val = span._get_numeric_attribute(tag_key) if str_val is None else None
+            value = str_val if str_val is not None else num_val
             if value is None:
                 # If the tag is not present, we failed the match
                 # (Metrics and meta do not support the value None)

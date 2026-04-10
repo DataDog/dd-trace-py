@@ -1106,8 +1106,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _set_keep_rate(self, trace):
         if trace:
-            # PERF: avoid setting via Span.set_metric
-            trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+            trace[0]._set_attribute(
+                _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
+            )  # PERF: avoid setting via Span.set_metric
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:

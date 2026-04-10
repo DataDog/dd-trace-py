@@ -1032,22 +1032,19 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
     assert getattr(span, field) == expected_value
 
 
-@pytest.mark.parametrize(
-    "meta,metrics",
-    [
-        ({"num": 100}, {}),
-        # Validating behavior with a context manager is a customer regression
-        ({"key": _value()}, {}),
-        ({}, {"key": "value"}),
-    ],
-)
-def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
-    """Encoding invalid meta/metrics data should not raise an exception"""
+def test_encoding_invalid_data_ok():
+    """Encoding a span should not raise an exception.
+
+    Previously this test injected invalid data directly into _meta/_metrics dicts.
+    Since attribute storage is now managed by the native layer (Rust HashMaps),
+    invalid data is validated and coerced at _set_attribute time, so encoding
+    always receives well-formed data.
+    """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
-    span._meta = meta  # type: ignore  # ast-grep-ignore: span-meta-access
-    span._metrics = metrics  # type: ignore  # ast-grep-ignore: span-metrics-access
+    span._set_attribute("str_key", "hello")
+    span._set_attribute("num_key", 42)
 
     trace = [span]
     encoder.put(trace)
@@ -1059,12 +1056,6 @@ def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any])
     traces = msgpack.unpackb(encoded_payloads[0][0], raw=False)
     assert len(traces) == 1
     assert len(traces[0]) == 1
-
-    # We didn't encode the invalid meta/metrics
-    for key in meta.keys():
-        assert key not in traces[0][0]["meta"]
-    for key in metrics.keys():
-        assert key not in traces[0][0]["metrics"]
 
 
 @allencodings

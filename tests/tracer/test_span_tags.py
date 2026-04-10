@@ -100,14 +100,13 @@ def test_set_valid_metrics():
     s.set_metric("c", 12.134)  # ast-grep-ignore: span-set-metric
     s.set_metric("d", 1231543543265475686787869123)  # ast-grep-ignore: span-set-metric
     s.set_metric("e", "12.34")  # ast-grep-ignore: span-set-metric
-    expected = {
-        "a": 0,
-        "b": -12,
-        "c": 12.134,
-        "d": 1231543543265475686787869123,
-        "e": 12.34,
-    }
-    assert s.get_metrics() == expected
+    m = s.get_metrics()
+    assert m["a"] == 0
+    assert m["b"] == -12
+    assert m["c"] == 12.134
+    # Large ints lose precision when stored as f64; check approximate equality
+    assert abs(m["d"] - 1231543543265475686787869123) / 1231543543265475686787869123 < 1e-10
+    assert m["e"] == 12.34
 
 
 def test_set_invalid_metric():
@@ -388,11 +387,11 @@ def test_set_attribute_bool():
     s = Span(name="test.span")
     s._set_attribute("t", True)
     s._set_attribute("f", False)
-    # bool is a subclass of int, so stored as numeric
-    assert s._get_attribute("t") is True
-    assert s._get_attribute("f") is False
-    assert s._get_numeric_attribute("t") is True
-    assert s._get_numeric_attribute("f") is False
+    # bool is a subclass of int, so stored as numeric (1.0 / 0.0 in Rust f64 storage)
+    assert s._get_attribute("t") == 1
+    assert s._get_attribute("f") == 0
+    assert s._get_numeric_attribute("t") == 1
+    assert s._get_numeric_attribute("f") == 0
 
 
 def test_set_attribute_bytes():
@@ -592,17 +591,19 @@ def test_set_metric_visible_via_get_attribute():
 
 
 def test_set_attribute_http_status_code_int():
-    # int values must be coerced to str and stored in _meta, not _metrics
+    # int values must be coerced to str and stored in meta (not metrics)
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, 200)
-    assert s._get_attribute(http.STATUS_CODE) == "200"
+    assert s._get_str_attribute(http.STATUS_CODE) == "200"
+    assert s._get_numeric_attribute(http.STATUS_CODE) is None
 
 
 def test_set_attribute_http_status_code_str():
-    # str values must stay as str and be stored in _meta
+    # str values must stay as str and be stored in meta
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, "404")
-    assert s._get_attribute(http.STATUS_CODE) == "404"
+    assert s._get_str_attribute(http.STATUS_CODE) == "404"
+    assert s._get_numeric_attribute(http.STATUS_CODE) is None
 
 
 def test_set_attribute_http_status_code_readable_via_get_tag():
