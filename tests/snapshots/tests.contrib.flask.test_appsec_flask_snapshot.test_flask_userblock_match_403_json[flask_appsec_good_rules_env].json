@@ -109,7 +109,9 @@
          "component": "flask",
          "flask.endpoint": "checkuser",
          "flask.url_rule": "/checkuser/<user_id>",
-         "flask.view_args.user_id": "123456"
+         "flask.view_args.user_id": "123456",
+         "http.client_ip": "127.0.0.1",
+         "network.client.ip": "127.0.0.1"
        },
        "duration": 10926417,
        "start": 1772484727426485384
