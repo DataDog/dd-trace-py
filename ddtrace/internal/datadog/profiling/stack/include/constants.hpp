@@ -10,5 +10,10 @@ constexpr unsigned int g_adaptive_sampling_interval_us = 250000; // 250 ms
 constexpr double g_default_sampling_period_s = g_default_sampling_period_us / 1e6;
 constexpr double g_target_overhead = 0.01; // 1% overhead
 
+// Maximum number of threads to sample per cycle. When the number of threads exceeds this,
+// reservoir sampling (Algorithm R) is used to select a uniform random subset.
+// 0 means no limit (sample all threads).
+constexpr unsigned int g_default_max_threads_per_sample = 25;
+
 // Echion maintains a cache of frames--the size of this cache is specified up-front.
 constexpr unsigned int g_default_echion_frame_cache_size = 1024;
