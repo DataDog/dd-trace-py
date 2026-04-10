@@ -195,6 +195,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh RUNTIME_METRICS_ENABLED
 
+      - name: Run AI_GUARD
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && matrix.weblog-variant == 'flask-poc'
+        run: ./run.sh AI_GUARD
+
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
