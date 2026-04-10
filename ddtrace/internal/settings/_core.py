@@ -6,7 +6,8 @@ from typing import Optional
 from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
-from ddtrace.internal.settings.env import dd_environ
+
+from .env import dd_environ
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()

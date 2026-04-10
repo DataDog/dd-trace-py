@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Build a Windows wheel for dd-trace-py using uv.
+# Build Windows wheels for dd-trace-py using uv.
 # Runs under Git Bash (bash.exe from Git for Windows) on windows-v2:2022 runners.
 #
 # Required env vars:
-#   PYTHON_VERSION   Python version to build for (e.g. "3.12")
+#   PYTHON_VERSIONS  Space-separated list of Python versions to build (e.g. "3.12 3.13 3.14")
 #   WINDOWS_ARCH     Target architecture: "amd64" or "x86" (default: "amd64")
+#
+# MSVC setup runs once per job; all Python versions share the same toolchain.
 
 set -euo pipefail
 
@@ -12,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/build-wheel-helpers.sh"
 
 # ── Windows config ────────────────────────────────────────────────────────────
-PYTHON_VERSION=${PYTHON_VERSION:?PYTHON_VERSION is required}
+PYTHON_VERSIONS=${PYTHON_VERSIONS:?PYTHON_VERSIONS is required (space-separated, e.g. "3.12 3.13 3.14")}
 WINDOWS_ARCH=${WINDOWS_ARCH:-amd64}
 
 case "$WINDOWS_ARCH" in
@@ -20,7 +22,6 @@ case "$WINDOWS_ARCH" in
     amd64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="amd64"   ;;
     *)     echo "ERROR: Unsupported WINDOWS_ARCH=$WINDOWS_ARCH" >&2; exit 1 ;;
 esac
-export UV_PYTHON="cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
 
 # ── Windows overrides ─────────────────────────────────────────────────────────
 
@@ -187,6 +188,13 @@ print(f'cp{ver}-{plat}')
 # Finds (and installs if necessary) VS Build Tools + the VCTools workload.
 # Exports VCVARSALL_PATH and VCVARSALL_ARCH for use by build_wheel.
 # Does NOT import the MSVC environment into the bash session.
+#
+# Flow:
+#   1. Locate vswhere (install VS Build Tools with retries if missing)
+#   2. Find VS installation path (prefer complete installs with VCTools)
+#   3. Probe vcvarsall immediately — fast-path exits here on pre-configured runners
+#   4. Only if the probe fails: install/repair VCTools workload (with retries)
+#   5. Re-probe after install; dump diagnostics on failure
 setup_msvc() {
   section_start "setup_msvc" "Setting up MSVC build environment"
 
@@ -211,22 +219,28 @@ setup_msvc() {
     echo "  (this is slow ~10-20 min; pre-install on runner image to avoid this)"
 
     local vs_installer="${WORK_DIR}/vs_buildtools.exe"
-    if command -v choco &>/dev/null; then
-      choco install visualstudio2022buildtools \
-        --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait" \
-        -y --no-progress
-    else
-      echo "  choco not found; downloading vs_BuildTools.exe from Microsoft..."
-      curl -fsSL "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "$vs_installer"
-      # Use a batch file to avoid MSYS2 quoting issues with paths containing spaces
-      local install_bat install_bat_win vs_installer_win
-      install_bat="${WORK_DIR}/install_vs.bat"
-      install_bat_win=$(cygpath -w "$install_bat")
-      vs_installer_win=$(cygpath -w "$vs_installer")
-      printf '"%s" --quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended\r\n' \
-        "${vs_installer_win}" > "${install_bat}"
-      cmd.exe //c "${install_bat_win}"
-    fi
+    local max_vs_attempts=3
+    for attempt in $(seq 1 $max_vs_attempts); do
+      echo "  VS Build Tools install attempt $attempt of $max_vs_attempts..."
+      if command -v choco &>/dev/null; then
+        choco install visualstudio2022buildtools \
+          --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait" \
+          -y --no-progress && break
+      else
+        echo "  choco not found; downloading vs_BuildTools.exe from Microsoft..."
+        curl -fsSL "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "$vs_installer"
+        local install_bat install_bat_win vs_installer_win
+        install_bat="${WORK_DIR}/install_vs.bat"
+        install_bat_win=$(cygpath -w "$install_bat")
+        vs_installer_win=$(cygpath -w "$vs_installer")
+        printf '"%s" --quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended\r\n' \
+          "${vs_installer_win}" > "${install_bat}"
+        cmd.exe //c "${install_bat_win}" && break
+      fi
+      echo "  install attempt $attempt failed"
+      [[ $attempt -eq $max_vs_attempts ]] && { echo "ERROR: VS Build Tools install failed after $max_vs_attempts attempts" >&2; exit 1; }
+      sleep 15
+    done
     _find_vswhere
     [[ -n "${vswhere:-}" && -f "$vswhere" ]] \
       || { echo "ERROR: vswhere.exe still not found after VS Build Tools install" >&2; exit 1; }
@@ -234,71 +248,152 @@ setup_msvc() {
   echo "Found vswhere.exe: $vswhere"
 
   # ── Get VS installation path ────────────────────────────────────────────────
-  # -all includes "incomplete" installs (installer shell only, no workloads yet).
+  # Prefer installations that already have VCTools to avoid picking a broken/incomplete one.
+  # Fall back to -all (which includes incomplete installs) only if nothing complete is found.
   local vs_path vs_path_unix
-  vs_path=$("$vswhere" -all -products '*' -property installationPath 2>/dev/null | head -1 | tr -d '\r')
+  vs_path=$("$vswhere" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+    -products '*' -property installationPath 2>/dev/null | head -1 | tr -d '\r')
+  if [[ -z "$vs_path" ]]; then
+    echo "No complete VCTools installation found; falling back to -all (may need workload install)"
+    vs_path=$("$vswhere" -all -products '*' -property installationPath 2>/dev/null | head -1 | tr -d '\r')
+  fi
   [[ -n "$vs_path" ]] || { echo "ERROR: No Visual Studio installation found" >&2; exit 1; }
   echo "VS installation path: $vs_path"
   vs_path_unix=$(cygpath -u "${vs_path}" 2>/dev/null || echo "${vs_path//\\//}")
 
-  # ── Ensure VCTools workload is installed ────────────────────────────────────
-  if [[ ! -d "${vs_path_unix}/VC/Tools/MSVC" ]]; then
-    echo "VCTools workload missing — adding it (this may take several minutes)..."
+  local vcvarsall="${vs_path_unix}/VC/Auxiliary/Build/vcvarsall.bat"
+
+  # ── Probe helper ───────────────────────────────────────────────────────────
+  # Writes and runs a batch file that activates vcvarsall and verifies both
+  # cl.exe (compiler) and link.exe (linker, needs Windows SDK on LIB path).
+  # Sets found_arch on success, returns non-zero on failure.
+  local probe_bat probe_bat_win found_arch=""
+  probe_bat="${WORK_DIR}/vcvars_probe.bat"
+  probe_bat_win=$(cygpath -w "${probe_bat}")
+  local arches_to_try=("${VC_ARCH}")
+  [[ "${VC_ARCH}" == "x64_x86" ]] && arches_to_try+=("x86")
+
+  _run_probe() {
+    found_arch=""
+    [[ -f "$vcvarsall" ]] || return 1
+    local vcvarsall_win
+    vcvarsall_win=$(cygpath -w "${vcvarsall}")
+    for try_arch in "${arches_to_try[@]}"; do
+      {
+        printf '@call "%s" %s > NUL 2>&1\r\n' "${vcvarsall_win}" "${try_arch}"
+        printf '@if errorlevel 1 exit /b 1\r\n'
+        printf '@where cl.exe > NUL 2>&1\r\n'
+        printf '@if errorlevel 1 exit /b 1\r\n'
+        printf '@where link.exe > NUL 2>&1\r\n'
+        printf '@if errorlevel 1 exit /b 1\r\n'
+      } > "${probe_bat}"
+      if cmd.exe //c "${probe_bat_win}" > /dev/null 2>&1; then
+        found_arch="${try_arch}"
+        echo "vcvarsall arch: ${found_arch} (cl.exe + link.exe ok)"
+        return 0
+      else
+        echo "vcvarsall arch: ${try_arch} (cl.exe or link.exe not found, skipping)"
+      fi
+    done
+    return 1
+  }
+
+  # ── Fast-path: probe immediately ───────────────────────────────────────────
+  # On pre-configured runners with MSVC already installed, this succeeds and
+  # we skip the workload install entirely.
+  if _run_probe; then
+    echo "MSVC already functional — skipping workload install"
+  else
+    # ── Install/repair VCTools workload ────────────────────────────────────
+    echo "vcvarsall probe failed — attempting to install/repair VCTools workload..."
+    echo "VC/Tools/MSVC: $(ls "${vs_path_unix}/VC/Tools/MSVC" 2>/dev/null | tr '\n' ' ' || echo '(not found)')"
+
+    # Kill any lingering VS installer processes that could hold file locks.
+    taskkill.exe /F /IM setup.exe /T 2>/dev/null || true
+    taskkill.exe /F /IM vs_installer.exe /T 2>/dev/null || true
+    sleep 3
+
     local vs_setup="C:/Program Files (x86)/Microsoft Visual Studio/Installer/setup.exe"
     local vctools_bat vctools_bat_win vs_setup_win vs_path_win
+    local vctools_log="${WORK_DIR}/vctools_install.log"
     vctools_bat="${WORK_DIR}/add_vctools.bat"
     vctools_bat_win=$(cygpath -w "$vctools_bat")
     vs_setup_win=$(cygpath -w "$vs_setup" 2>/dev/null || echo "$vs_setup")
     vs_path_win=$(cygpath -w "$vs_path_unix" 2>/dev/null || echo "$vs_path")
-    printf '"%s" modify --installPath "%s" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet --wait --norestart\r\n' \
-      "${vs_setup_win}" "${vs_path_win}" > "${vctools_bat}"
-    cmd.exe //c "${vctools_bat_win}" || true
-    [[ -d "${vs_path_unix}/VC/Tools/MSVC" ]] \
-      || { echo "ERROR: VCTools workload still missing after install attempt" >&2; exit 1; }
-  fi
-  echo "VC/Tools/MSVC versions: $(ls "${vs_path_unix}/VC/Tools/MSVC" | tr '\n' ' ')"
+    # Use --passive (not --quiet) so the installer writes progress to the log.
+    # --log captures installer diagnostics; shown on failure.
+    printf '"%s" modify --installPath "%s" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait --norestart --log "%s"\r\n' \
+      "${vs_setup_win}" "${vs_path_win}" "$(cygpath -w "${vctools_log}")" > "${vctools_bat}"
 
-  local vcvarsall="${vs_path_unix}/VC/Auxiliary/Build/vcvarsall.bat"
-  [[ -f "$vcvarsall" ]] || { echo "ERROR: vcvarsall.bat not found at: $vcvarsall" >&2; exit 1; }
-  local vcvarsall_win
-  vcvarsall_win=$(cygpath -w "${vcvarsall}")
+    local repaired=false
+    local max_workload_attempts=3
+    for attempt in $(seq 1 $max_workload_attempts); do
+      echo "  VCTools workload repair attempt $attempt of $max_workload_attempts..."
+      local exit_code=0
+      cmd.exe //c "${vctools_bat_win}" || exit_code=$?
+      # Exit code 3010 = reboot required but installation completed — treat as success.
+      if [[ $exit_code -eq 0 || $exit_code -eq 3010 ]]; then
+        repaired=true
+        break
+      fi
+      echo "  repair attempt $attempt failed (exit code: $exit_code)"
+      if [[ -f "$vctools_log" ]]; then
+        echo "  Installer log tail:"
+        tail -20 "$vctools_log" | sed 's/^/    /'
+      fi
+      [[ $attempt -lt $max_workload_attempts ]] && sleep 15
+    done
 
-  # ── Probe for a working vcvarsall arch ─────────────────────────────────────
-  # Test without importing MSVC env into bash: run a batch file that calls
-  # vcvarsall and checks `where cl.exe`.  x64_x86 (cross-compile) requires an
-  # optional component; fall back to x86 (32-bit native tools via WOW64) if it
-  # isn't installed.
-  local probe_bat probe_bat_win found_arch=""
-  probe_bat="${WORK_DIR}/vcvars_probe.bat"
-  probe_bat_win=$(cygpath -w "${probe_bat}")
-
-  local arches_to_try=("${VC_ARCH}")
-  [[ "${VC_ARCH}" == "x64_x86" ]] && arches_to_try+=("x86")
-
-  for try_arch in "${arches_to_try[@]}"; do
-    printf '@call "%s" %s > NUL 2>&1\r\n@if errorlevel 1 exit /b 1\r\n@where cl.exe > NUL 2>&1\r\n' \
-      "${vcvarsall_win}" "${try_arch}" > "${probe_bat}"
-    if cmd.exe //c "${probe_bat_win}" > /dev/null 2>&1; then
-      found_arch="${try_arch}"
-      echo "vcvarsall arch: ${found_arch} (ok)"
-      break
-    else
-      echo "vcvarsall arch: ${try_arch} (cl.exe not found, skipping)"
+    if [[ "$repaired" != "true" ]]; then
+      # Repair exhausted — the existing installation is unrecoverable via setup.exe.
+      # Download and run a fresh vs_BuildTools.exe installer as a last resort.
+      echo "Repair exhausted — falling back to fresh VS Build Tools install..."
+      local vs_installer="${WORK_DIR}/vs_buildtools_fresh.exe"
+      local fresh_bat fresh_bat_win vs_installer_win
+      fresh_bat="${WORK_DIR}/install_vs_fresh.bat"
+      fresh_bat_win=$(cygpath -w "$fresh_bat")
+      vs_installer_win=$(cygpath -w "$vs_installer")
+      if curl -fsSL "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "$vs_installer"; then
+        printf '"%s" --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --log "%s"\r\n' \
+          "${vs_installer_win}" "$(cygpath -w "${vctools_log}")" > "${fresh_bat}"
+        local fresh_exit=0
+        cmd.exe //c "${fresh_bat_win}" || fresh_exit=$?
+        if [[ $fresh_exit -eq 0 || $fresh_exit -eq 3010 ]]; then
+          echo "  Fresh install succeeded (exit code: $fresh_exit)"
+          repaired=true
+        else
+          echo "  Fresh install failed (exit code: $fresh_exit)"
+          if [[ -f "$vctools_log" ]]; then
+            echo "  Installer log tail:"
+            tail -20 "$vctools_log" | sed 's/^/    /'
+          fi
+        fi
+      else
+        echo "  Failed to download vs_BuildTools.exe — no network access?"
+      fi
     fi
-  done
 
-  if [[ -z "${found_arch}" ]]; then
-    echo "ERROR: no working vcvarsall arch found (tried: ${arches_to_try[*]})" >&2
-    # Show vcvarsall output for diagnostics
-    local diag_bat diag_bat_win
-    diag_bat="${WORK_DIR}/vcvars_diag.bat"
-    diag_bat_win=$(cygpath -w "$diag_bat")
-    printf '@echo on\r\ncall "%s" %s\r\n' "${vcvarsall_win}" "${VC_ARCH}" > "${diag_bat}"
-    cmd.exe //c "${diag_bat_win}" || true
-    exit 1
+    [[ "$repaired" == "true" ]] \
+      || { echo "ERROR: VCTools workload install failed — all strategies exhausted" >&2; exit 1; }
+    [[ -d "${vs_path_unix}/VC/Tools/MSVC" ]] \
+      || { echo "ERROR: VCTools workload still missing after install" >&2; exit 1; }
+    echo "VC/Tools/MSVC versions: $(ls "${vs_path_unix}/VC/Tools/MSVC" | tr '\n' ' ')"
+
+    # Re-probe after workload install
+    if ! _run_probe; then
+      # Dump vcvarsall output for diagnostics before failing
+      local diag_bat diag_bat_win
+      diag_bat="${WORK_DIR}/vcvars_diag.bat"
+      diag_bat_win=$(cygpath -w "$diag_bat")
+      printf '@echo on\r\ncall "%s" %s\r\n' "$(cygpath -w "${vcvarsall}")" "${VC_ARCH}" > "${diag_bat}"
+      cmd.exe //c "${diag_bat_win}" || true
+      echo "ERROR: no working vcvarsall arch found after workload install (tried: ${arches_to_try[*]})" >&2
+      exit 1
+    fi
   fi
 
   # Export for use by build_wheel — MSVC env itself stays out of bash.
+  [[ -f "$vcvarsall" ]] || { echo "ERROR: vcvarsall.bat not found at: $vcvarsall" >&2; exit 1; }
   export VCVARSALL_PATH="${vcvarsall}"
   export VCVARSALL_ARCH="${found_arch}"
   echo "VCVARSALL_PATH: ${VCVARSALL_PATH}"
@@ -343,7 +438,7 @@ debug_system_info() {
   echo "HOSTNAME: ${COMPUTERNAME:-unknown}"
   echo "USERNAME: ${USERNAME:-${USER:-unknown}}"
   echo "WINDOWS_ARCH: ${WINDOWS_ARCH}"
-  echo "PYTHON_VERSION: ${PYTHON_VERSION}"
+  echo "PYTHON_VERSIONS: ${PYTHON_VERSIONS}"
 
   echo ""
   echo "=== OS ==="
@@ -409,9 +504,9 @@ debug_system_info() {
     if [[ -d "$vc_tools_dir" ]]; then
       echo "  VC/Tools/MSVC versions: $(ls "$vc_tools_dir" | tr '\n' ' ')"
       local sample_cl
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x64):  ${sample_cl:-NOT FOUND}"
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x86):  ${sample_cl:-NOT FOUND}"
     else
       echo "  VC/Tools/MSVC: NOT FOUND at ${vc_tools_dir}"
@@ -469,10 +564,9 @@ debug_system_info() {
 #                    and other vars that uv/curl depend on).
 #   2. setup_vcredist_x86 — copy x86 CRT DLLs into SysWOW64 (x86 builds only;
 #                           needs vswhere which setup_msvc already found)
-#   3. setup_python — install uv + Python; for x86, CRT DLLs are now present
-#   4. setup_rust   — install Rust toolchain
-#   5. build_wheel  — runs vcvarsall + uv build inside a .bat file; MSVC env
-#                     is scoped to this subprocess only
+#   3. setup_rust   — install Rust toolchain (shared across all Python versions)
+#   4. Per-version loop — setup_python, build_wheel, repair_wheel, finalize,
+#                         test_wheel for each version in PYTHON_VERSIONS
 setup_env
 
 # On Windows GitLab runners, jobs run as the SYSTEM account whose profile is
@@ -501,12 +595,22 @@ mkdir -p "$(cygpath -u "${TEMP}")"
 debug_system_info
 setup_msvc
 setup_vcredist_x86
-setup_python
 setup_rust
-build_wheel
-repair_wheel
-finalize
-test_wheel
+
+for PYTHON_VERSION in ${PYTHON_VERSIONS}; do
+  export PYTHON_VERSION
+  export UV_PYTHON="cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
+
+  # Clear per-build directories so each version starts clean.
+  rm -rf "${BUILT_WHEEL_DIR:?}" "${TMP_WHEEL_DIR:?}" "${WORK_DIR:?}/test_wheel"
+  mkdir -p "${BUILT_WHEEL_DIR}" "${TMP_WHEEL_DIR}"
+
+  setup_python
+  build_wheel
+  repair_wheel
+  finalize
+  test_wheel
+done
 
 if command -v sccache &>/dev/null; then
   sccache --show-stats || true
