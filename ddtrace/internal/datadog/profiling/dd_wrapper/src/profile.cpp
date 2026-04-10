@@ -245,6 +245,13 @@ Datadog::Profile::postfork_parent()
 void
 Datadog::Profile::postfork_child()
 {
+    // Recreate profile_mtx via placement-new to avoid relying on unlock
+    // behaviour of an inherited locked mutex. The mutex was locked in prefork
+    // to quiesce the sampling thread; in the child only one thread exists so it
+    // is safe to reinitialise the primitive here (consistent with every other
+    // mutex in the codebase's postfork_child paths).
+    new (&profile_mtx) std::mutex();
+
     // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
 
@@ -256,7 +263,4 @@ Datadog::Profile::postfork_child()
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error re-initializing profile after fork" << std::endl;
     }
-
-    // Unlock profile_mtx, which was locked by prefork.
-    profile_mtx.unlock();
 }

@@ -355,9 +355,15 @@ stack_init()
     // The fork handler is registered at library load time to make sure it
     // is registered before dd_wrapper's.
     // The rationale is that both stack and dd_wrapper have post-fork hooks;
-    // and stack needs dd_wrapper's hooks to have completed as it needs the
-    // Profile object to have been reset and be ready for use, and post-fork
-    // hooks are executed in LIFO order.
+    // and stack needs dd_wrapper's hooks to have completed because it needs the
+    // Profile object to have been reset and be ready for use.
+    // POSIX specifies that child handlers are called in FIFO (registration) order,
+    // so registering stack's handler FIRST means it runs FIRST in the child.
+    // However, dd_wrapper's prefork locks profile_mtx, which the restarted
+    // sampling thread blocks on; dd_wrapper's postfork_child then reinitialises
+    // profile_mtx (placement-new), unblocking the sampling thread only after the
+    // profile has been safely reset.  The mutex therefore acts as the barrier that
+    // ensures correct sequencing regardless of which child handler runs first.
     // More details in https://github.com/DataDog/dd-trace-py/pull/17183
     pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }

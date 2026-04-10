@@ -166,8 +166,9 @@ ProfilerState::prefork()
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
     // inside ddog_prof_Profile_add2 when the child calls ddog_prof_Profile_drop().
-    // Will be released in postfork_parent(); postfork_child() handles it via
-    // placement-new reinit of profile_mtx.
+    // postfork_parent releases it via unlock; postfork_child releases it
+    // via placement-new reinit of profile_mtx (which implicitly creates a fresh
+    // unlocked mutex, consistent with every other mutex's postfork path).
     profile_state.prefork();
 }
 
