@@ -33,9 +33,8 @@
   redis:
     name: registry.ddbuild.io/redis:7.4.6-gbi-jammy
     alias: redis
-    # Disable RDB persistence (no writable volume in CI) and force IPv4-only bind
-    # to avoid EAFNOSUPPORT errors on pods where IPv6 is disabled
-    command: ["redis-server", "--save", "", "--bind", "127.0.0.1"]
+    # Disable RDB persistence (no writable volume in CI)
+    command: ["--save", "", "--bind", "0.0.0.0"]
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
     alias: valkey
