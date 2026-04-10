@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fix a crash (SIGABRT in ``free()``) that could occur when
+    ``fork()`` was called while the profiling sampling thread was modifying
+    the frame cache. The sampling thread is now stopped before fork via a
+    ``pthread_atfork`` prepare handler and restarted afterwards, ensuring
+    all data structures are in a consistent state during fork.
