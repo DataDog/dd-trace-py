@@ -12,11 +12,6 @@ FrameStack::render(EchionSampler& echion)
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
     for (auto it = this->begin(); it != this->end(); ++it) {
-#if PY_VERSION_HEX >= 0x030c0000
-        if ((*it).get().is_entry)
-            // This is a shim frame so we skip it.
-            continue;
-#endif
         auto& frame = (*it).get();
 
         // Inject native frame BEFORE its Python caller.
