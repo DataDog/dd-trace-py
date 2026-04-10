@@ -31,7 +31,7 @@
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
   redis:
-    name: registry.ddbuild.io/redis:7.0.7
+    name: registry.ddbuild.io/redis:7-alpine
     alias: redis
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
