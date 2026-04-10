@@ -1,9 +1,13 @@
+import sys
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.internal import process_tags
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
 from ddtrace.internal.process_tags import _compute_process_tag
+from ddtrace.internal.process_tags import _get_entrypoint_name
+from ddtrace.internal.process_tags import _get_entrypoint_type
 from ddtrace.internal.process_tags import normalize_tag_value
 from tests.utils import override_global_config
 from tests.utils import process_tag_reload
@@ -83,6 +87,20 @@ def test_normalize_tag(input_tag, expected):
 def test_compute_process_tag_excluded_values(excluded_value):
     result = _compute_process_tag("test_key", lambda: excluded_value)
     assert result is None
+
+
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="sys.orig_argv is not available on Python 3.9")
+def test_get_entrypoint_name_module_mode_uses_orig_argv_when_sys_argv_is_incomplete():
+    with patch("sys.argv", ["-m"]), patch("sys.orig_argv", ["python", "-m", "myapp"]):
+        assert _get_entrypoint_name() == "myapp"
+        assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 9), reason="sys.orig_argv fallback behavior is specific to Python 3.9")
+def test_get_entrypoint_name_module_mode_falls_back_to_main_module_on_py39():
+    with patch("sys.argv", ["-m"]):
+        assert _get_entrypoint_name() == "__main__"
+        assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
 
 
 @pytest.mark.snapshot

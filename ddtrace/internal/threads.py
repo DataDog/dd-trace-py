@@ -3,7 +3,6 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
-from ddtrace.internal._threads import _detach_stopped_threads
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.logger import get_logger
 
@@ -196,11 +195,3 @@ def _before_fork() -> None:
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
-
-    # Detach threads that stopped naturally before the fork. In the parent their
-    # OS thread handles are guaranteed valid (a joinable thread's descriptor is
-    # not recycled until it is explicitly joined or detached), so detaching is
-    # safe here. This leaves joinable() == False on all stopped handles so that
-    # the child inherits non-joinable handles and dealloc never needs to make an
-    # OS call on them.
-    _detach_stopped_threads()

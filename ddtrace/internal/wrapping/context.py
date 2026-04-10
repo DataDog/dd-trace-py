@@ -1,6 +1,5 @@
 from abc import ABC
 from contextvars import ContextVar
-from contextvars import Token
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import sys
@@ -310,19 +309,14 @@ class BaseWrappingContext(ABC):
         )
 
     def __enter__(self) -> "BaseWrappingContext":
-        token: Token = self._storage.set({})
-
-        # Store the reset token inside the new dict so that _pop_storage can
-        # restore the previous dict without a separate stack. This relies on
-        # ContextVar.set/reset for per-invocation isolation, which is safe
-        # across async context copies.
-        t.cast(dict, self._storage.get())["__dd_wrapping_context_token__"] = token
+        prev = self._storage.get()
+        self._storage.set({"__dd_wrapping_context_prev__": prev})
 
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
         storage = t.cast(dict, self._storage.get())
-        self._storage.reset(storage.pop("__dd_wrapping_context_token__"))
+        self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
         return storage
 
     def __return__(self, value: T) -> T:
