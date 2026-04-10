@@ -1,25 +1,25 @@
 # First heartbeat — all deps are new (SCA on vs off comparison)
-first-200-deps-sca-off: &first
-  num_deps: 200
+first-50-deps-sca-off: &first
+  num_deps: 50
   phase: first
   sca_enabled: false
   pct_cve: 5
   cves_per_dep: 2
-first-200-deps-sca-on:
+first-50-deps-sca-on:
   <<: *first
   sca_enabled: true
 
 # Idle heartbeat — nothing to report
-idle-200-deps-sca-on:
-  num_deps: 200
+idle-100-deps-sca-on:
+  num_deps: 100
   phase: idle
   sca_enabled: true
   pct_cve: 5
   cves_per_dep: 2
 
 # SCA hits — deps have reachability findings (covers CVE registration implicitly)
-sca-hits-200-deps:
-  num_deps: 200
+sca-hits-100-deps:
+  num_deps: 100
   phase: sca_hits
   sca_enabled: true
   pct_cve: 5

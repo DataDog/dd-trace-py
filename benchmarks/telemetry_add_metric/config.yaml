@@ -7,10 +7,10 @@
   <<: *count
   num_metrics: 1
   per_metric: 100
-100-count-metrics-100-times:
+50-count-metrics-10-times:
   <<: *count
-  num_metrics: 100
-  per_metric: 100
+  num_metrics: 50
+  per_metric: 10
 
 # Gauge metrics
 1-gauge-metric-1-times: &gauge
@@ -21,9 +21,9 @@
   <<: *gauge
   num_metrics: 1
   per_metric: 100
-100-gauge-metrics-100-times:
+50-gauge-metrics-10-times:
   <<: *gauge
-  num_metrics: 100
+  num_metrics: 50
   per_metric: 10
 
 # Distribution metrics
@@ -35,9 +35,9 @@
   <<: *distribution
   num_metrics: 1
   per_metric: 100
-100-distribution-metrics-100-times:
+50-distribution-metrics-10-times:
   <<: *distribution
-  num_metrics: 100
+  num_metrics: 50
   per_metric: 10
 
 # Rate metrics
@@ -49,9 +49,9 @@
   <<: *rate
   num_metrics: 1
   per_metric: 100
-100-rate-metrics-100-times:
+50-rate-metrics-10-times:
   <<: *rate
-  num_metrics: 100
+  num_metrics: 50
   per_metric: 10
 
 # Flush
@@ -62,6 +62,6 @@ flush-1-metric: &flush
 flush-100-metrics:
   <<: *flush
   num_metrics: 100
-flush-1000-metrics:
+flush-500-metrics:
   <<: *flush
-  num_metrics: 1000
+  num_metrics: 500
