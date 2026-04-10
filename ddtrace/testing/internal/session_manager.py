@@ -312,7 +312,11 @@ class SessionManager:
 
         latest_commits = git.get_latest_commits()
         backend_commits = self.api_client.get_known_commits(latest_commits)
-        # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+        if backend_commits is None:
+            log.warning("search_commits failed, aborting git metadata upload")
+            TelemetryAPI.get().record_git_pack_data(0, 0)
+            return
+
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         if len(commits_not_in_backend) == 0:
@@ -326,7 +330,11 @@ class SessionManager:
                 log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
-                # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+                if backend_commits is None:
+                    log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                    TelemetryAPI.get().record_git_pack_data(0, 0)
+                    return
+
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
                 log.warning("Failed to unshallow repository, continuing to send pack data")

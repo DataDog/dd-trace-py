@@ -3113,6 +3113,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
@@ -3143,9 +3155,10 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,

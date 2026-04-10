@@ -27,7 +27,7 @@ class LlmRequestEvent(TracingEvent):
     span_kind = SpanKind.CLIENT
 
     provider: str = event_field()
-    model: str = event_field()
+    model: Optional[str] = event_field(default=None)
     llmobs_integration: "BaseLLMIntegration" = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
@@ -40,5 +40,5 @@ class LlmRequestEvent(TracingEvent):
     span_type: Optional[str] = field(init=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        self.span_name = f"{self.component}.request"
+        self.operation_name = f"{self.component}.request"
         self.span_type = SpanTypes.LLM if (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled) else None
