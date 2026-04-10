@@ -3221,11 +3221,12 @@ venv = Venv(
         ),
         Venv(
             name="ray_serve",
-            command="pytest {cmdargs} tests/contrib/ray/serve",
+            command="pytest {cmdargs} tests/contrib/ray_serve",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
-                "ray[serve]": [latest],
+                "protobuf": "==4.25.8",
+                "ray[serve]": ["~=2.46.0", latest],
             },
         ),
         Venv(

@@ -52,7 +52,16 @@ def _get_proxy_request_route_pattern(instance, proxy_request: ProxyRequest) -> s
     if not matched_route:
         return None
 
-    return proxy_router.match_route_pattern(matched_route[0], asgi_scope)
+    route_prefix = matched_route[0]
+
+    # match_route_pattern allow to show templated route for instance
+    # /name/foo -> /name/{name}
+    # match_route_pattern is not available in ray 2.46.0, therefore we will only be
+    # able to show the route_prefix to prevent high cardinality resource name
+    match_route_pattern = getattr(proxy_router, "match_route_pattern", None)
+    if callable(match_route_pattern):
+        return match_route_pattern(route_prefix, asgi_scope)
+    return route_prefix
 
 
 def _get_ingress_endpoint_method_name(scope: Mapping[str, object] | None) -> str | None:

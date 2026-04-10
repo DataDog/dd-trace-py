@@ -8,7 +8,6 @@ from typing import Callable
 from ddtrace.contrib._events.ray import RayContextInjectionEvent
 from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
-from ddtrace.contrib.internal.ray.serve import RAY_SERVE_REPLICA_METHOD_DENYLIST
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -16,6 +15,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
+from ..constants import RAY_SERVE_REPLICA_METHOD_DENYLIST
 from ..constants import RAY_STATUS_FAILED
 from ..constants import RAY_SUBMISSION_ID
 from .utils import ENTRY_POINT_REGEX
@@ -33,6 +33,7 @@ RAY_ACTOR_MODULE_DENYLIST = {
     "ray.experimental",
     "ray.data._internal",
     "ray.serve._private.controller",
+    "ray.serve._private.proxy",
 }
 
 
@@ -217,7 +218,7 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
         return cls
 
     is_job_supervisor = f"{module_name}.{class_name}" == "ray.dashboard.modules.job.job_supervisor.JobSupervisor"
-    is_serve_replica = f"{module_name}.{class_name}".startswith("ray.serve._private.ServeReplica:")
+    is_serve_replica = module_name.startswith("ray.serve._private") and class_name.startswith("ServeReplica:")
 
     # Build set of methods to ignore based on actor type to reduce noise
     methods_to_ignore = set()

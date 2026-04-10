@@ -123,9 +123,9 @@ def cleanup_loaded_modules() -> None:
 
         stale_get_ident = _thread.get_ident
         if stale_reprlib_module is not None:
-            stale_reprlib_module.get_ident = stale_get_ident
+            stale_reprlib_module.get_ident = stale_get_ident  # type: ignore[attr-defined]
         if "reprlib" in sys.modules:
-            sys.modules["reprlib"].get_ident = stale_get_ident
+            sys.modules["reprlib"].get_ident = stale_get_ident  # type: ignore[attr-defined]
 
     # Because we are not unloading it, the logging module requires a reference
     # to the newly imported threading module to allow it to retrieve the correct

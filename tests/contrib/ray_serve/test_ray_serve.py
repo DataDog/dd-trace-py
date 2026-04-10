@@ -13,17 +13,24 @@ import requests
 from starlette.requests import Request
 
 from ddtrace import tracer
+from ddtrace.internal.utils.version import parse_version
 
 
 RAY_SNAPSHOT_IGNORES = [
     "meta.tracestate",
-    "meta.ray.handle_id",
-    "meta.ray.request_id",
-    "meta.ray.replica_id",
-    "meta.ray.deployment_id",
+    "meta.ray.serve.handle_id",
+    "meta.ray.serve.request_id",
+    "meta.ray.serve.replica_id",
+    "meta.ray.serve.deployment_id",
+    "meta.ray.serve.handle_source",
     "meta.error.message",
     "meta.error.stack",
 ]
+
+RAY_SERVE_SNAPSHOT_VARIANTS = {
+    "ray_2_46": parse_version(ray.__version__) < (2, 47),
+    "ray_2_46_plus": parse_version(ray.__version__) >= (2, 47),
+}
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -122,8 +129,12 @@ class TestFastAPIServeApp:
 
         serve.shutdown()
 
-    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES, variants=RAY_SERVE_SNAPSHOT_VARIANTS)
     def test_fastapi_name_path(self, fastapi_serve_app):
+        """This test needs a variant because resource name for proxy_request span
+        is different between ray versions
+        """
+
         resp = requests.get(f"{fastapi_serve_app}/name/foo", timeout=2)
         assert resp.status_code == 200
         assert resp.json() == "Hello foo"

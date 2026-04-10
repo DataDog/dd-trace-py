@@ -15,6 +15,7 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -32,7 +33,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
-from ddtrace.contrib.internal.grpc.constants import GRPC_STATUS_CODE_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -44,7 +44,6 @@ from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
-from ddtrace.contrib.internal.ray.core.utils import set_tag_or_truncate
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -1446,7 +1445,7 @@ def _on_ray_serve_grpc_context_inject(ctx: core.ExecutionContext, grpc_context: 
 
 
 def _on_ray_serve_deployment_resource_set(
-    ctx: core.ExecutionContext, deployment_name: str, endpoint_name: str | None
+    ctx: core.ExecutionContext, deployment_name: str, endpoint_name: Optional[str]
 ) -> None:
     if endpoint_name is None:
         return
@@ -1722,6 +1721,14 @@ def _on_ray_assign_request(ctx: core.ExecutionContext) -> None:
         span._set_attribute("ray.serve.handle_source", handle_source)
 
 
+def _set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
+    """Set tag when within limits, otherwise redact oversized values."""
+    if sys.getsizeof(tag_value) > MAX_SPAN_META_VALUE_LEN:
+        span._set_attribute(tag_name, "<redacted>")
+    else:
+        span._set_attribute(tag_name, tag_value)
+
+
 def _on_ray_deployment_remote(ctx: core.ExecutionContext) -> None:
     deployment_name = ctx.get_item("deployment_name")
     app_name = ctx.get_item("app_name")
@@ -1734,8 +1741,8 @@ def _on_ray_deployment_remote(ctx: core.ExecutionContext) -> None:
         span._set_attribute(RAY_APP_NAME, app_name)
 
     if config.ray.trace_args_kwargs:
-        set_tag_or_truncate(span, RAY_DEPLOYMENT_ARGS, ctx.get_item("deployment_args"))
-        set_tag_or_truncate(span, RAY_DEPLOYMENT_KWARGS, ctx.get_item("deployment_kwargs"))
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_ARGS, ctx.get_item("deployment_args"))
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_KWARGS, ctx.get_item("deployment_kwargs"))
 
 
 def _on_ray_handle_request_with_rejection_start(ctx: core.ExecutionContext) -> None:
@@ -1803,7 +1810,7 @@ def _on_proxy_request_end(
             )
         else:
             grpc_status = str(status_code)
-            span._set_attribute(GRPC_STATUS_CODE_KEY, grpc_status)
+            span._set_attribute("grpc.status.code", grpc_status)
             if getattr(response_status, "is_error", False):
                 span.error = 1
                 span._set_attribute(ERROR_TYPE, grpc_status)

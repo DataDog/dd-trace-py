@@ -8,11 +8,13 @@ from ray.serve._private.common import RequestMetadata
 from ray.serve._private.proxy_request_response import ProxyRequest
 from ray.serve._private.proxy_request_response import ResponseStatus
 from ray.serve._private.proxy_request_response import gRPCProxyRequest
+from wrapt import wrap_function_wrapper as _w
 
-from ddtrace.contrib.internal.ray.serve.utils import _extract_proxy_request_http_context
-from ddtrace.contrib.internal.ray.serve.utils import _get_ingress_endpoint_method_name
-from ddtrace.contrib.internal.ray.serve.utils import _get_proxy_request_route_pattern
-from ddtrace.contrib.internal.ray.serve.utils import extract_grpc_context
+from ddtrace.contrib.internal.ray_serve.utils import _extract_proxy_request_http_context
+from ddtrace.contrib.internal.ray_serve.utils import _get_ingress_endpoint_method_name
+from ddtrace.contrib.internal.ray_serve.utils import _get_proxy_request_route_pattern
+from ddtrace.contrib.internal.ray_serve.utils import extract_grpc_context
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -29,13 +31,6 @@ log = get_logger(__name__)
 
 _DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR = "_dd_trace_context_headers"
 _DD_RAY_SERVE_WRAPPED_ATTR = "__dd_ray_serve_wrapped__"
-
-RAY_SERVE_REPLICA_METHOD_DENYLIST = {
-    "record_routing_stats",
-    "check_health",
-    "is_allocated",
-    "initialize_and_get_metadata",
-}
 
 
 def _get_serve_request_context_tags() -> dict[str, str]:
@@ -170,7 +165,7 @@ async def traced_proxy_request(func, instance, args, kwargs):
         distributed_context = extract_grpc_context(grpc_context)
     else:
         method = proxy_request.method
-        route_path: Optional[str] = None
+        route_path: Optional[str] = proxy_request.route_path
         distributed_context = _extract_proxy_request_http_context(proxy_request)
 
         # Use Ray Serve's matched route pattern (e.g. /model2/{model_name}) when
@@ -212,7 +207,7 @@ def _trace_deployment_method(method, deployment_name, is_ingress_call: bool = Fa
     # When calling Deployment.remote(), by default the function call is __call__
     # We rename it to invoke to make it clearer.
     #
-    # Additionnally, if the deployment is a function, we want to prevent to have
+    # Additionally, if the deployment is a function, we want to prevent to have
     # MyDeployment.MyDeployment as a resource_name
     method_name = method.__name__
     resource_name = "invoke" if method_name in ("__call__", deployment_name) else method_name
@@ -346,3 +341,28 @@ def traced_serve_deployment(func, instance, args, kwargs):
         return decorator(_instrument_serve_deployment(func_or_class, deployment_name))
 
     return _traced_decorator
+
+
+def patch(module) -> None:
+    if getattr(module, "_datadog_patch", False):
+        return
+
+    module._datadog_patch = True
+    _w(module, "deployment", traced_serve_deployment)
+    _w(module.handle.DeploymentHandle, "remote", traced_deployment_handle_remote)
+    _w(module._private.proxy.GenericProxy, "proxy_request", traced_proxy_request)
+    _w(module._private.router.AsyncioRouter, "assign_request", traced_assign_request)
+    _w(module._private.replica.ReplicaBase, "handle_request_with_rejection", traced_handle_request_with_rejection)
+
+
+def unpatch(module) -> None:
+    if not getattr(module, "_datadog_patch", False):
+        return
+
+    _u(module, "deployment")
+    _u(module.handle.DeploymentHandle, "remote")
+    _u(module._private.proxy.GenericProxy, "proxy_request")
+    _u(module._private.router.AsyncioRouter, "assign_request")
+    _u(module._private.replica.ReplicaBase, "handle_request_with_rejection")
+
+    module._datadog_patch = False

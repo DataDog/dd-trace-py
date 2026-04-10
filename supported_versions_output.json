@@ -355,7 +355,7 @@
         "dependency": "google-cloud-pubsub",
         "integration": "google_cloud_pubsub",
         "minimum_tracer_supported": "2.10.0",
-        "max_tracer_supported": "2.36.0",
+        "max_tracer_supported": "2.37.0",
         "auto-instrumented": true
     },
     {
@@ -503,21 +503,21 @@
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
-        "max_tracer_supported": "3.10.1",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.10.1",
-        "max_tracer_supported": "3.10.1",
+        "minimum_tracer_supported": "3.9.0",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.10.1",
-        "max_tracer_supported": "3.10.1",
+        "minimum_tracer_supported": "3.9.0",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {
@@ -653,7 +653,15 @@
         "dependency": "ray",
         "integration": "ray",
         "minimum_tracer_supported": "2.46.0",
-        "max_tracer_supported": "2.49.2",
+        "max_tracer_supported": "2.54.1",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
+        "dependency": "ray",
+        "integration": "ray_serve",
+        "minimum_tracer_supported": "2.46.0",
+        "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
     },

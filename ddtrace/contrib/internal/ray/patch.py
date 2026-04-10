@@ -9,11 +9,6 @@ from ddtrace.contrib.internal.ray.core.api import traced_get
 from ddtrace.contrib.internal.ray.core.api import traced_put
 from ddtrace.contrib.internal.ray.core.api import traced_wait
 from ddtrace.contrib.internal.ray.core.remote_function import traced_submit_task
-from ddtrace.contrib.internal.ray.serve import traced_assign_request
-from ddtrace.contrib.internal.ray.serve import traced_deployment_handle_remote
-from ddtrace.contrib.internal.ray.serve import traced_handle_request_with_rejection
-from ddtrace.contrib.internal.ray.serve import traced_proxy_request
-from ddtrace.contrib.internal.ray.serve import traced_serve_deployment
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -173,11 +168,9 @@ def patch():
 
     @ModuleWatchdog.after_module_imported("ray.serve")
     def _(m):
-        _w(m, "deployment", traced_serve_deployment)
-        _w(m.handle.DeploymentHandle, "remote", traced_deployment_handle_remote)
-        _w(m._private.proxy.GenericProxy, "proxy_request", traced_proxy_request)
-        _w(m._private.router.AsyncioRouter, "assign_request", traced_assign_request)
-        _w(m._private.replica.ReplicaBase, "handle_request_with_rejection", traced_handle_request_with_rejection)
+        from ddtrace.contrib.internal.ray_serve.patch import patch as patch_ray_serve
+
+        patch_ray_serve(m)
 
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
@@ -200,10 +193,9 @@ def unpatch():
     _u(ray, "wait")
     _u(ray, "put")
 
-    _u(ray.serve, "deployment")
-    _u(ray.serve.handle.DeploymentHandle, "remote")
-    _u(ray.serve._private.proxy.GenericProxy, "proxy_request")
-    _u(ray.serve._private.router.AsyncioRouter, "assign_request")
-    _u(ray.serve._private.replica.ReplicaBase, "handle_request_with_rejection")
+    if hasattr(ray, "serve"):
+        from ddtrace.contrib.internal.ray_serve.patch import unpatch as unpatch_ray_serve
+
+        unpatch_ray_serve(ray.serve)
 
     ray._datadog_patch = False
