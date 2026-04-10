@@ -1,0 +1,5 @@
+features:
+  - |
+    profiling: Thread sub-sampling is now supported. This allows to set a maximum number of threads to
+    capture stacks for at each sampling interval. This can be used to reduce the CPU overhead of the
+    Stack Profiler.
