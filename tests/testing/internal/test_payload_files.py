@@ -15,7 +15,7 @@ import ddtrace.testing.internal.writer as writer_module
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
-from ddtrace.testing.internal.writer import _write_payload_file
+from ddtrace.testing.internal.writer import _write_payload_file  # noqa: F401 — tested below
 
 
 @pytest.fixture(autouse=True)
@@ -46,9 +46,9 @@ def make_cov_writer() -> TestCoverageWriter:
 class TestWritePayloadFile:
     def test_creates_json_file(self, tmp_path):
         payload = {"version": 1, "events": [{"type": "test"}]}
-        _write_payload_file(str(tmp_path), payload)
+        _write_payload_file(str(tmp_path), payload, kind="tests")
 
-        files = list(tmp_path.glob("payload_*.json"))
+        files = list(tmp_path.glob("tests-*.json"))
         assert len(files) == 1
         data = json.loads(files[0].read_text())
         assert data == payload
@@ -56,22 +56,34 @@ class TestWritePayloadFile:
     def test_creates_output_dir_if_missing(self, tmp_path):
         nested = tmp_path / "a" / "b" / "c"
         payload = {"x": 1}
-        _write_payload_file(str(nested), payload)
+        _write_payload_file(str(nested), payload, kind="tests")
         assert nested.exists()
         assert len(list(nested.glob("*.json"))) == 1
 
     def test_increments_counter_across_calls(self, tmp_path):
-        _write_payload_file(str(tmp_path), {"n": 0})
-        _write_payload_file(str(tmp_path), {"n": 1})
-        _write_payload_file(str(tmp_path), {"n": 2})
-        files = sorted(tmp_path.glob("payload_*.json"))
+        _write_payload_file(str(tmp_path), {"n": 0}, kind="tests")
+        _write_payload_file(str(tmp_path), {"n": 1}, kind="tests")
+        _write_payload_file(str(tmp_path), {"n": 2}, kind="tests")
+        files = sorted(tmp_path.glob("tests-*.json"))
         assert len(files) == 3
-        assert files[0].name == "payload_0.json"
-        assert files[1].name == "payload_1.json"
-        assert files[2].name == "payload_2.json"
+
+    def test_filename_matches_go_pattern(self, tmp_path):
+        """Filenames follow {kind}-{timestamp_ns}-{pid}-{seq}.json pattern."""
+        _write_payload_file(str(tmp_path), {"n": 0}, kind="tests")
+        files = list(tmp_path.glob("tests-*.json"))
+        assert len(files) == 1
+        # Verify the filename has the expected structure: tests-{ts}-{pid}-{seq}.json
+        parts = files[0].stem.split("-")
+        assert parts[0] == "tests"
+        assert len(parts) == 4  # kind, timestamp, pid, seq
+
+    def test_coverage_kind_uses_coverage_prefix(self, tmp_path):
+        _write_payload_file(str(tmp_path), {"n": 0}, kind="coverage")
+        files = list(tmp_path.glob("coverage-*.json"))
+        assert len(files) == 1
 
     def test_no_tmp_file_left_behind(self, tmp_path):
-        _write_payload_file(str(tmp_path), {"data": "value"})
+        _write_payload_file(str(tmp_path), {"data": "value"}, kind="tests")
         tmp_files = list(tmp_path.glob("*.tmp"))
         assert tmp_files == []
 
@@ -95,7 +107,7 @@ class TestTestOptWriterPayloadFilesMode:
         writer._send_events(events)
 
         tests_dir = output_dir / "payloads" / "tests"
-        files = list(tests_dir.glob("payload_*.json"))
+        files = list(tests_dir.glob("tests-*.json"))
         assert len(files) == 1
 
         data = json.loads(files[0].read_text())
@@ -148,7 +160,7 @@ class TestTestOptWriterPayloadFilesMode:
         writer._send_events([{"type": "test", "n": 2}])
 
         tests_dir = output_dir / "payloads" / "tests"
-        files = sorted(tests_dir.glob("payload_*.json"))
+        files = sorted(tests_dir.glob("tests-*.json"))
         assert len(files) == 2
 
 
@@ -171,7 +183,7 @@ class TestTestCoverageWriterPayloadFilesMode:
         writer._send_events(events)
 
         cov_dir = output_dir / "payloads" / "coverage"
-        files = list(cov_dir.glob("payload_*.json"))
+        files = list(cov_dir.glob("coverage-*.json"))
         assert len(files) == 1
 
         data = json.loads(files[0].read_text())

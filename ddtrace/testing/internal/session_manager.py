@@ -101,6 +101,15 @@ class SessionManager:
             )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
+
+        # Manifest mode disables test skipping: cached skippable decisions should not
+        # be applied in hermetic Bazel runs.  Matches Go's post-read override.
+        if offline.manifest_enabled:
+            if self.settings.skipping_enabled:
+                log.debug("Test skipping disabled in manifest mode")
+            self.settings.skipping_enabled = False
+            self.settings.itr_enabled = False
+
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()

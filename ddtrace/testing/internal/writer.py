@@ -203,6 +203,7 @@ class TestOptWriter(BaseWriter):
                 _write_payload_file(
                     output_dir=output_dir,
                     payload={"version": 1, "metadata": self.metadata, "events": events},
+                    kind="tests",
                 )
             return
 
@@ -268,6 +269,7 @@ class TestCoverageWriter(BaseWriter):
                 _write_payload_file(
                     output_dir=output_dir,
                     payload={"version": 2, "coverages": events},
+                    kind="coverage",
                 )
             return
 
@@ -305,18 +307,22 @@ class TestCoverageWriter(BaseWriter):
             )
 
 
-def _write_payload_file(output_dir: str, payload: t.Any) -> None:
+def _write_payload_file(output_dir: str, payload: t.Any, kind: str) -> None:
     """
     Write a payload dict as a JSON file under ``output_dir``.
 
-    Files are named ``payload_<counter>.json`` with a global counter to keep
-    names unique across multiple flushes. The write is atomic: we write to a
-    temp file and rename, so readers never see a partial file.
+    Files are named ``{kind}-{timestamp_ns}-{pid}-{seq}.json`` to match the Go
+    implementation (DDTestRunner expects this naming pattern).  The write is
+    atomic: we write to a temp file and rename, so readers never see a partial
+    file.
     """
     try:
         os.makedirs(output_dir, exist_ok=True)
-        index = next(_payload_file_counter)
-        dest = os.path.join(output_dir, f"payload_{index}.json")
+        seq = next(_payload_file_counter)
+        import time
+
+        name = f"{kind}-{time.time_ns()}-{os.getpid()}-{seq}.json"
+        dest = os.path.join(output_dir, name)
         tmp = dest + ".tmp"
         with open(tmp, "w") as f:
             json.dump(payload, f)

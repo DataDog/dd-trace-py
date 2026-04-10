@@ -267,51 +267,20 @@ _SKIPPABLE_RESPONSE = {
 
 
 class TestGetSkippableTests:
-    def test_returns_skippable_test_refs(self, tmp_path):
+    """Skippable tests are a hard no-op in manifest mode (matches Go behavior).
+
+    Cached skippable decisions should not be applied in hermetic Bazel runs,
+    regardless of whether a cache file exists.
+    """
+
+    def test_always_returns_empty_even_with_cache_file(self, tmp_path):
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, correlation_id = provider.get_skippable_tests()
-
-        module_ref = ModuleRef("mymodule")
-        suite_ref = SuiteRef(module_ref, "test_suite.py")
-
-        assert TestRef(suite_ref, "test_skip_me") in skippable
-        assert TestRef(suite_ref, "test_also_skip") in skippable
-        # unknown_type items must be ignored
-        assert len(skippable) == 2
-        assert correlation_id == "abc-123"
-
-    def test_suite_level_skipping(self, tmp_path):
-        suite_response = {
-            "data": [
-                {
-                    "type": "suite",
-                    "attributes": {
-                        "suite": "test_suite.py",
-                        "configurations": {"test.bundle": "mymodule"},
-                    },
-                }
-            ],
-            "meta": {"correlation_id": "xyz-456"},
-        }
-        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", suite_response)
-        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.SUITE)
-        skippable, correlation_id = provider.get_skippable_tests()
-
-        module_ref = ModuleRef("mymodule")
-        suite_ref = SuiteRef(module_ref, "test_suite.py")
-
-        assert suite_ref in skippable
-        assert correlation_id == "xyz-456"
-
-    def test_missing_file_returns_empty_set_and_none(self, tmp_path):
-        provider = make_provider(tmp_path)
         skippable, correlation_id = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
 
-    def test_malformed_structure_returns_empty_set_and_none(self, tmp_path):
-        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", {"not_data": []})
+    def test_returns_empty_without_cache_file(self, tmp_path):
         provider = make_provider(tmp_path)
         skippable, correlation_id = provider.get_skippable_tests()
         assert skippable == set()

@@ -14,7 +14,6 @@ import os
 from pathlib import Path
 import typing as t
 
-from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
@@ -155,26 +154,10 @@ class CachedFileDataProvider:
             return {}
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
-        cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
-        if cached is None:
-            return set(), None
-        try:
-            skippable: set[t.Union[SuiteRef, TestRef]] = set()
-            for item in cached["data"]:
-                if item["type"] not in ("test", "suite"):
-                    continue
-                module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
-                suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
-                if item["type"] == "suite" and self._itr_skipping_level == ITRSkippingLevel.SUITE:
-                    skippable.add(suite_ref)
-                elif item["type"] == "test" and self._itr_skipping_level == ITRSkippingLevel.TEST:
-                    skippable.add(TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME)))
-            correlation_id = cached["meta"]["correlation_id"]
-            self._telemetry_api.record_skippable_count(count=len(skippable), level=self._itr_skipping_level)
-            return skippable, correlation_id
-        except Exception as e:
-            log.warning("Error parsing cached skippable tests file: %s", e)
-            return set(), None
+        # Hard no-op in manifest mode: skippable tests are not applied in hermetic
+        # Bazel runs. This matches the Go implementation which returns an empty set
+        # without reading the cache file.
+        return set(), None
 
     # --- no-ops for methods unreachable in manifest mode ---
 

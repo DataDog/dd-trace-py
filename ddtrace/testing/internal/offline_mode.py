@@ -71,6 +71,20 @@ def resolve_rlocation(path: str) -> str:
     return path
 
 
+def _parse_manifest_version(raw_line: str) -> str:
+    """Extract the version value from a raw manifest line.
+
+    Accepts both plain ``"1"`` and assignment syntax ``"version=1"`` /
+    ``"version = 1"``, matching the Go ``parseManifestVersion`` helper.
+    """
+    line = raw_line.strip()
+    if "=" in line:
+        name, _, value = line.partition("=")
+        if name.strip() == "version":
+            return value.strip()
+    return line
+
+
 def _validate_manifest(manifest_path: str) -> bool:
     """
     Read manifest.txt and verify it declares a supported version.
@@ -78,24 +92,41 @@ def _validate_manifest(manifest_path: str) -> bool:
     Returns True if compatible, False otherwise. On incompatible or missing
     manifest, manifest mode is disabled (no HTTP fallback — Bazel hermeticity
     requires a hard failure, not silent degradation).
+
+    The parser skips blank lines and supports both plain version numbers
+    (``"1"``) and assignment syntax (``"version=1"``), matching the Go
+    implementation.
     """
     try:
         with open(manifest_path) as f:
-            version_str = f.read().strip()
-        version = int(version_str)
-    except (OSError, ValueError) as e:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                version_str = _parse_manifest_version(stripped)
+                try:
+                    version = int(version_str)
+                except ValueError:
+                    log.warning(
+                        "Could not parse manifest version %r in %s — disabling manifest mode", stripped, manifest_path
+                    )
+                    return False
+
+                if version != SUPPORTED_MANIFEST_VERSION:
+                    log.warning(
+                        "Unsupported .testoptimization manifest version %d (expected %d) — disabling manifest mode",
+                        version,
+                        SUPPORTED_MANIFEST_VERSION,
+                    )
+                    return False
+                return True
+
+        # File was empty or only blank lines
+        log.warning("Empty manifest file %s — disabling manifest mode", manifest_path)
+        return False
+    except OSError as e:
         log.warning("Could not read manifest file %s: %s — disabling manifest mode", manifest_path, e)
         return False
-
-    if version != SUPPORTED_MANIFEST_VERSION:
-        log.warning(
-            "Unsupported .testoptimization manifest version %d (expected %d) — disabling manifest mode",
-            version,
-            SUPPORTED_MANIFEST_VERSION,
-        )
-        return False
-
-    return True
 
 
 class OfflineMode:

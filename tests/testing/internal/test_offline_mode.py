@@ -6,6 +6,7 @@ import pytest
 
 import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.offline_mode import OfflineMode
+from ddtrace.testing.internal.offline_mode import _parse_manifest_version
 from ddtrace.testing.internal.offline_mode import _validate_manifest
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.offline_mode import resolve_rlocation
@@ -142,6 +143,49 @@ class TestValidateManifest:
         m = tmp_path / "manifest.txt"
         m.write_text("")
         assert _validate_manifest(str(m)) is False
+
+    def test_version_assignment_syntax(self, tmp_path):
+        m = tmp_path / "manifest.txt"
+        m.write_text("version=1\n")
+        assert _validate_manifest(str(m)) is True
+
+    def test_version_assignment_with_spaces(self, tmp_path):
+        m = tmp_path / "manifest.txt"
+        m.write_text("version = 1\n")
+        assert _validate_manifest(str(m)) is True
+
+    def test_leading_blank_lines_skipped(self, tmp_path):
+        m = tmp_path / "manifest.txt"
+        m.write_text("\n  \n1\n2\n")
+        assert _validate_manifest(str(m)) is True
+
+    def test_invalid_assignment_value(self, tmp_path):
+        m = tmp_path / "manifest.txt"
+        m.write_text("version = nope\n")
+        assert _validate_manifest(str(m)) is False
+
+    def test_non_version_assignment_preserved(self, tmp_path):
+        """An assignment where the key is not 'version' should be treated as raw line."""
+        m = tmp_path / "manifest.txt"
+        m.write_text("manifest = 1\n")
+        assert _validate_manifest(str(m)) is False  # "manifest = 1" is not a valid integer
+
+
+class TestParseManifestVersion:
+    def test_plain_number(self):
+        assert _parse_manifest_version("1") == "1"
+
+    def test_version_assignment(self):
+        assert _parse_manifest_version("version=1") == "1"
+
+    def test_version_assignment_with_spaces(self):
+        assert _parse_manifest_version("version = 1") == "1"
+
+    def test_non_version_assignment_preserved(self):
+        assert _parse_manifest_version("manifest = 1") == "manifest = 1"
+
+    def test_empty_string(self):
+        assert _parse_manifest_version("") == ""
 
 
 # ---------------------------------------------------------------------------
