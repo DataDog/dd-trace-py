@@ -17,6 +17,8 @@ import sys
 
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
@@ -37,7 +39,7 @@ def test_nested_imports_mixed_path_reinstrumentation():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 
@@ -97,7 +99,7 @@ def test_nested_imports_interleaved_execution():
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
-    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+    file_level_mode = env.get("_DD_COVERAGE_FILE_LEVEL") == "true"
 
     install(include_paths=[include_path])
 

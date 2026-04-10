@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-import os
 from unittest.mock import Mock
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -538,7 +538,7 @@ class TestRetryHandler:
             ),
             setup_standard_mocks(),
             patch.dict(
-                os.environ,  # Mock environment variables
+                env,  # Mock environment variables
                 {
                     "DD_API_KEY": "test-key",
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
@@ -580,7 +580,7 @@ class TestRetryHandler:
 
         # Create AutoTestRetriesHandler
         with patch.dict(
-            os.environ,
+            env,
             {
                 "DD_API_KEY": "foobar",
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",

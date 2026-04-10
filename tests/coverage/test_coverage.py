@@ -9,6 +9,8 @@ time rather than at code execution time.
 
 import pytest
 
+from ddtrace.internal.settings import env
+
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_import_time_lib():
@@ -52,7 +54,7 @@ def test_coverage_import_time_lib():
         "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
     }
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+    if env.get("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, we only track files, not specific line numbers
         assert executable.keys() == expected_executable.keys(), (
             f"Executable files mismatch: expected={expected_executable.keys()} vs actual={executable.keys()}"
@@ -117,7 +119,7 @@ def test_coverage_import_time_function():
         "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
     }
 
-    if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
+    if env.get("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, we only track files, not specific line numbers
         assert lines.keys() == expected_lines.keys(), (
             f"Executable files mismatch: expected={expected_lines.keys()} vs actual={lines.keys()}"
