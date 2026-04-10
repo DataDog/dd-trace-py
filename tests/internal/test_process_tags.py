@@ -149,19 +149,13 @@ def test_process_tags_error(tracer):
                 with tracer.trace("span"):
                     pass
 
-                assert mock_log.debug.call_count == 2
-                call_args1 = mock_log.debug.call_args_list[0][0]
-                call_args2 = mock_log.debug.call_args_list[1][0]
-
-                assert "failed to get process tag" in call_args1[0], (
-                    f"Expected error message not found. Got: {call_args1[0]}"
-                )
-                assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
-
-                assert "failed to get process tag" in call_args2[0], (
-                    f"Expected error message not found. Got: {call_args2[0]}"
-                )
-                assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
+                # entrypoint.basedir, entrypoint.name, and svc.auto all fail
+                # when sys.argv is empty (IndexError on sys.argv[0])
+                assert mock_log.debug.call_count == 3
+                failed_tags = {args[0][1] for args in mock_log.debug.call_args_list}
+                assert "entrypoint.basedir" in failed_tags
+                assert "entrypoint.name" in failed_tags
+                assert "svc.auto" in failed_tags
 
 
 @pytest.mark.snapshot
