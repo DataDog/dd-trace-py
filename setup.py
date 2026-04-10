@@ -93,6 +93,14 @@ if FAST_BUILD:
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
+# Default CMAKE_BUILD_PARALLEL_LEVEL to the number of CPUs so that cmake
+# builds use all available cores instead of a single thread.
+# process_cpu_count (3.13+) respects cgroup limits in containers;
+# fall back to cpu_count on older Pythons.
+_cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
+if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+    os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(_cpu_count)
+
 # Retry configuration for downloads (handles GitHub API failures like 503, 429)
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
@@ -738,6 +746,24 @@ class CustomBuildExt(build_ext):
         for ext in self.extensions:
             self.build_extension(ext)
 
+    def build_extensions(self):
+        # Enable parallel extension builds by default.  All extensions are
+        # independent at this point (Rust and libdd_wrapper are already built
+        # in run()), so they can safely compile concurrently.  The user can
+        # override via ``--parallel N`` / ``-j N`` on the command line, or
+        # set DD_BUILD_PARALLEL=0 to disable.
+        dd_build_parallel = os.getenv("DD_BUILD_PARALLEL")
+        if dd_build_parallel is not None:
+            try:
+                requested = int(dd_build_parallel)
+            except ValueError:
+                print(f"WARNING: DD_BUILD_PARALLEL={dd_build_parallel!r} is not a valid integer, ignoring")
+                requested = 0
+            self.parallel = requested if requested > 0 else False
+        elif not self.parallel:
+            self.parallel = _cpu_count
+        super().build_extensions()
+
     def build_rust(self):
         """Build the Rust component using CustomBuildRust command."""
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
@@ -937,14 +963,18 @@ class CustomBuildExt(build_ext):
                 f"-DDD_WRAPPER_DIR={self.wrapper_output_dir}",
             ]
 
-        # Point FetchContent downloads at the persistent download cache so CMake
+        # Point FetchContent downloads at a persistent download cache so CMake
         # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
-        # The cache dir is shared with other downloaded build dependencies and is
-        # preserved between CI runs. FETCHCONTENT_BASE_DIR defaults to a path
-        # inside the ephemeral cmake build dir, so without this every build would
-        # re-download from GitHub.
+        # Each extension gets its own subdirectory so parallel cmake builds
+        # don't race on the same FetchContent state files.  Sources are still
+        # cached on disk, so subsequent builds reuse them.
+        # FETCHCONTENT_BASE_DIR defaults to a path inside the ephemeral cmake
+        # build dir, so without this every build would re-download from GitHub.
+        ext_cache_key = Path(
+            extension_name
+        ).stem  # e.g. "_native.cpython-314-darwin.so" -> "_native.cpython-314-darwin"
         cmake_args += [
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps' / ext_cache_key}",
         ]
 
         # Add sccache support if available

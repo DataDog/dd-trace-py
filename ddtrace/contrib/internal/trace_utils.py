@@ -490,27 +490,25 @@ def set_http_meta(
         if referrer_host:
             span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
 
-        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if asm_config._asm_enabled or config._retrieve_client_ip:
-            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.find_item("http.request.remote_ip")
-
-            if not request_ip:
-                # Not calculated: framework does not support IP blocking or testing env
-                request_ip = (
-                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-                )
-
-            if request_ip:
-                span._set_attribute(http.CLIENT_IP, request_ip)
-                span._set_attribute("network.client.ip", request_ip)
-
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
+        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+        request_ip = core.find_item("http.request.remote_ip")
+
+        if not request_ip:
+            # Not calculated: framework does not support IP blocking or testing env
+            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+
+        if request_ip:
+            span._set_attribute(http.CLIENT_IP, request_ip)
+            span._set_attribute("network.client.ip", request_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
