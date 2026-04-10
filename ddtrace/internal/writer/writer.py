@@ -108,7 +108,6 @@ class NoEncodableSpansError(Exception):
 DEFAULT_SMA_WINDOW = 10
 
 
-
 def _human_size(nbytes: float) -> str:
     """Return a human-readable size."""
     i = 0
