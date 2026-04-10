@@ -78,8 +78,8 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if sys.version_info >= (3, 16):
+    raise NotImplementedError("Python >= 3.16 is not supported yet")
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
