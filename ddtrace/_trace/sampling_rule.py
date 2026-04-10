@@ -99,8 +99,8 @@ class SamplingRule(object):
         if not self.tags:
             return True
 
-        meta = span._meta or {}
-        metrics = span._metrics or {}
+        meta = span._get_str_attributes()
+        metrics = span._get_numeric_attributes()
         if not meta and not metrics:
             return False
 

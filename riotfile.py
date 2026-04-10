@@ -210,15 +210,19 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
+                # Prevents .pyc write races when xdist workers run subprocesses that all
+                # import ddtrace from the same editable install simultaneously.
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         ),
         Venv(
@@ -3109,6 +3113,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
@@ -3139,9 +3155,10 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,

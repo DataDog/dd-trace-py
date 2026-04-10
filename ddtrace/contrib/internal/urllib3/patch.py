@@ -7,7 +7,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
@@ -119,19 +119,17 @@ def _wrap_urlopen(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
+    service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(pin, config.urllib3)
+
     with tracer.trace(
         schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        maybe_set_service_source_tag(span, config.urllib3)
+        set_service_and_source(span, service, config.urllib3)
         span._set_attribute(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
-        if config.urllib3.split_by_domain:
-            span.service = hostname
 
         # If distributed tracing is enabled, propagate the tracing headers to downstream services
         if config.urllib3.distributed_tracing:

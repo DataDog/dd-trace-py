@@ -5,6 +5,7 @@ from typing import ClassVar
 from typing import Optional
 
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.settings.integration import IntegrationConfig
 
 
 if TYPE_CHECKING:
@@ -22,8 +23,13 @@ class TracingEvent(Event):
     span_kind: ClassVar[str]
 
     # These attributes are required but can be known only at instance-creation time.
-    span_name: str = field(init=False)
     component: str = field()
+    integration_config: IntegrationConfig = field()
+
+    # operation_name must be provided at __post_init__.
+    # This allows to deal with constant and non constant operation name
+    # while still enforcing the value
+    operation_name: str = field(init=False)
 
     tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.

@@ -99,5 +99,8 @@ class EnvConfig(MutableMapping):
     def __len__(self) -> int:
         return len(os.environ)
 
+    def copy(self) -> dict:
+        return dict(self)
+
 
 dd_environ = EnvConfig()
