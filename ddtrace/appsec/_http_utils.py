@@ -45,15 +45,17 @@ def parse_http_body(
         if not content_type:
             return None
 
-        if content_type in ("application/json", "application/vnd.api+json", "text/json"):
+        media_type = content_type.split(";", 1)[0].strip().lower()
+
+        if media_type in ("application/json", "application/vnd.api+json", "text/json"):
             return json.loads(body)
-        elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+        elif media_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
             return parse_qs(body)
-        elif content_type in ("application/xml", "text/xml"):
+        elif media_type in ("application/xml", "text/xml"):
             return xmltodict.parse(body)
-        elif content_type.startswith("multipart/form-data"):
+        elif media_type == "multipart/form-data":
             return http_utils.parse_form_multipart(body, normalized_headers)
-        elif content_type == "text/plain":
+        elif media_type == "text/plain":
             return None
         else:
             return None
