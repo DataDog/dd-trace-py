@@ -154,7 +154,9 @@ def test_litellm_router_completion(litellm, snapshot_context, request_vcr, route
         "metrics._dd.llmobs.output_tokens",
         "metrics._dd.llmobs.total_tokens",
     ]
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=shadow_ignores):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=shadow_ignores
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
