@@ -11,6 +11,7 @@ import typing as t
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
 
 
@@ -299,6 +300,46 @@ class TelemetryAPI:
     def record_git_pack_data(self, uploaded_files: int, uploaded_bytes: int) -> None:
         self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
+
+
+class PayloadFileTelemetryAPI(TelemetryAPI):
+    """TelemetryAPI variant that writes accumulated metrics to a JSON payload file.
+
+    Used in payload-files mode (Bazel).  Metrics are accumulated during the
+    session and flushed to ``payloads/telemetry/`` on ``finish()``.  The
+    underlying ``telemetry_writer`` is still called so that ddtrace's own
+    telemetry pipeline can attempt delivery (it will silently fail inside the
+    sandbox, which is fine).
+    """
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+        self._accumulated_metrics: list[dict[str, t.Any]] = []
+
+    def finish(self) -> None:
+        if self._accumulated_metrics:
+            write_payload_file(
+                output_dir=self._output_dir,
+                payload={"metrics": self._accumulated_metrics},
+                kind="telemetry",
+            )
+            log.debug("Wrote %d telemetry metrics to payload file", len(self._accumulated_metrics))
+        super().finish()
+
+    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
+        super().add_count_metric(metric_name, value, tags)
+        self._accumulated_metrics.append(
+            {"type": "count", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
+        )
+
+    def add_distribution_metric(
+        self, metric_name: str, value: float, tags: t.Optional[dict[str, t.Any]] = None
+    ) -> None:
+        super().add_distribution_metric(metric_name, value, tags)
+        self._accumulated_metrics.append(
+            {"type": "distribution", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
+        )
 
 
 @dataclasses.dataclass

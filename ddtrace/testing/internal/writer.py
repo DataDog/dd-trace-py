@@ -9,6 +9,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -256,6 +257,28 @@ class TestOptWriter(BaseWriter):
         return True
 
 
+class PayloadFileTestOptWriter(TestOptWriter):
+    """TestOptWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Filenames match Go's DDTestRunner
+    naming pattern.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 1, "metadata": self.metadata, "events": events},
+            kind="tests",
+        )
+        return True
+
+
 class TestCoverageWriter(BaseWriter):
     __test__ = False
 
@@ -318,6 +341,27 @@ class TestCoverageWriter(BaseWriter):
             if result.error_type:
                 return False
 
+        return True
+
+
+class PayloadFileCoverageWriter(TestCoverageWriter):
+    """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel).
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 2, "coverages": events},
+            kind="coverage",
+        )
         return True
 
 
