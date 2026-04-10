@@ -31,8 +31,10 @@
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
   redis:
-    name: registry.ddbuild.io/redis:7.0.7
+    name: registry.ddbuild.io/redis:7.4.6-gbi-jammy
     alias: redis
+    # Disable RDB persistence (no writable volume in CI)
+    command: ["--save", "", "--bind", "0.0.0.0"]
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
     alias: valkey
