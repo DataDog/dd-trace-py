@@ -10,7 +10,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d8495000000000",
+      "_dd.p.tid": "69d9531900000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "error.message": "Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}",
@@ -19,7 +19,7 @@
       "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.provider": "openai",
       "language": "python",
-      "runtime-id": "a5770741e404437f94576d75cbaff261"
+      "runtime-id": "e5aa63794ae34839a8b2d4cc6ce659e6"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -28,6 +28,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 10688250,
-    "start": 1775782224758951593
+    "duration": 7090166,
+    "start": 1775850265223882918
   }]]

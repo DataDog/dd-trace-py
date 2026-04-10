@@ -9,9 +9,11 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "ada",
+      "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d824fd00000000",
+      "_dd.p.tid": "69d94fed00000000",
       "_dd.svc_src": "mysvc",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "openai",
@@ -22,7 +24,7 @@
       "openai.request.model": "ada",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "ada",
-      "runtime-id": "03b43a46326e4b529aef3b28a877841f"
+      "runtime-id": "ce62d4096dba4cf5b9b0dc964b7ab345"
     },
     "metrics": {
       "_dd.llmobs.input_tokens": 2.0,
@@ -36,8 +38,8 @@
       "openai.organization.ratelimit.requests.remaining": 2999.0,
       "openai.organization.ratelimit.tokens.limit": 250000.0,
       "openai.organization.ratelimit.tokens.remaining": 249979.0,
-      "process_id": 1059.0
+      "process_id": 868.0
     },
-    "duration": 4235542,
-    "start": 1775772925674745299
+    "duration": 3478042,
+    "start": 1775849453679876542
   }]]

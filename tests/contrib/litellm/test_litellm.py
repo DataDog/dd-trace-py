@@ -132,6 +132,8 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
         token="tests.contrib.litellm.test_litellm.test_litellm_completion",
         ignores=[
             "meta.litellm.request.model",
+            "meta._dd.llmobs.model_name",
+            "meta._dd.llmobs.model_provider",
             "metrics._dd.llmobs.input_tokens",
             "metrics._dd.llmobs.output_tokens",
             "metrics._dd.llmobs.total_tokens",

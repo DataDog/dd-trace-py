@@ -9,15 +9,17 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-4o-mini",
+      "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d848e000000000",
+      "_dd.p.tid": "69d9528b00000000",
       "_dd.svc_src": "llama_index",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.llama_index",
       "language": "python",
       "llama_index.request.model": "gpt-4o-mini",
       "llama_index.request.provider": "openai",
-      "runtime-id": "d21f502f46e64bbfbc54bb1502f55375"
+      "runtime-id": "a0d80a3be9f04cc9bdb495d08b87757e"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -26,6 +28,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 13495167,
-    "start": 1775782112108617138
+    "duration": 11950208,
+    "start": 1775850123930845589
   }]]

@@ -9,8 +9,10 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "text-embedding-ada-002-v2",
+      "_dd.llmobs.model_provider": "openai",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d8257f00000000",
+      "_dd.p.tid": "69d94ff100000000",
       "_dd.svc_src": "tests.contrib.openai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
@@ -21,7 +23,7 @@
       "openai.request.model": "text-embedding-ada-002",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "text-embedding-ada-002-v2",
-      "runtime-id": "cc9ca7cb855c4f2f8028ef9094eb574a"
+      "runtime-id": "d38a3a75e90540fb97f546e9fe63fedc"
     },
     "metrics": {
       "_dd.llmobs.input_tokens": 9.0,
@@ -37,6 +39,6 @@
       "openai.organization.ratelimit.tokens.remaining": 999990.0,
       "process_id": 488.0
     },
-    "duration": 17121958,
-    "start": 1775773055340892054
+    "duration": 17797375,
+    "start": 1775849457748135461
   }]]

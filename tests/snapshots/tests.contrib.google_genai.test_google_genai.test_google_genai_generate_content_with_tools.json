@@ -9,15 +9,17 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gemini-2.0-flash-001",
+      "_dd.llmobs.model_provider": "google",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d8452400000000",
+      "_dd.p.tid": "69d950dd00000000",
       "_dd.svc_src": "tests.contrib.google_genai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "21ba76601d9a4e14860a7917cccd2927"
+      "runtime-id": "041375a004464c4e8716a934a5e524dc"
     },
     "metrics": {
       "_dd.llmobs.input_tokens": 10.0,
@@ -29,8 +31,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 121333,
-    "start": 1775781156359319546
+    "duration": 127500,
+    "start": 1775849693616407209
   }],
 [
   {
@@ -43,15 +45,17 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gemini-2.0-flash-001",
+      "_dd.llmobs.model_provider": "google",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d8452400000000",
+      "_dd.p.tid": "69d950dd00000000",
       "_dd.svc_src": "tests.contrib.google_genai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "21ba76601d9a4e14860a7917cccd2927"
+      "runtime-id": "041375a004464c4e8716a934a5e524dc"
     },
     "metrics": {
       "_dd.llmobs.input_tokens": 25.0,
@@ -63,6 +67,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 49041,
-    "start": 1775781156359589421
+    "duration": 62750,
+    "start": 1775849693616675125
   }]]
