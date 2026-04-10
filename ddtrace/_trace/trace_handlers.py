@@ -5,6 +5,7 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from urllib import parse
 
 import wrapt
@@ -1483,6 +1484,33 @@ def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_
                 pass
 
 
+class _AzureCosmosConnectionPolicyLike(Protocol):
+    """Subset of azure.cosmos ConnectionPolicy used for span tags"""
+
+    ConnectionMode: int
+
+
+class _AzureCosmosClientConnectionLike(Protocol):
+    """Subset of azure.cosmos CosmosClientConnection used for span tags"""
+
+    url_connection: str
+    _user_agent: str
+    connection_policy: _AzureCosmosConnectionPolicyLike
+
+
+class _AzureCosmosRequestObjectLike(Protocol):
+    """Subset of azure.cosmos RequestObject used for span tags"""
+
+    operation_type: str
+    resource_type: str
+
+
+class _AzureCosmosRequestLike(Protocol):
+    """Subset of azure.cosmos HTTP Request used for span tags"""
+
+    url: str
+
+
 def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
     _start_span(ctx)
 
@@ -1496,11 +1524,11 @@ def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
 
 
 def _set_azure_cosmos_request_tags(
-    span,
-    client,
-    request_params,
-    request,
-    request_data,
+    span: Span,
+    client: _AzureCosmosClientConnectionLike,
+    request_params: _AzureCosmosRequestObjectLike,
+    request: _AzureCosmosRequestLike,
+    request_data: Mapping[str, Any],
 ) -> None:
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     span._set_attribute(db.SYSTEM, "cosmosdb")
