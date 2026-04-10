@@ -409,9 +409,9 @@ debug_system_info() {
     if [[ -d "$vc_tools_dir" ]]; then
       echo "  VC/Tools/MSVC versions: $(ls "$vc_tools_dir" | tr '\n' ' ')"
       local sample_cl
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x64):  ${sample_cl:-NOT FOUND}"
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x86):  ${sample_cl:-NOT FOUND}"
     else
       echo "  VC/Tools/MSVC: NOT FOUND at ${vc_tools_dir}"
