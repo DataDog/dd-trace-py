@@ -24,6 +24,7 @@ def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional
         crashtracker_config.stdout_filename = stdout
         crashtracker_config.stderr_filename = stderr
         crashtracker_config.resolve_frames = "full"
+        crashtracker_config._stacktrace_resolver = "full"
 
         tags.update(
             {

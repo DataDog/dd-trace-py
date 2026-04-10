@@ -58,6 +58,7 @@ def test_crashtracker_config_bytes():
         crashtracker_config.stdout_filename = stdout
         crashtracker_config.stderr_filename = stderr
         crashtracker_config.resolve_frames = "full"
+        crashtracker_config._stacktrace_resolver = "full"
 
         tags = {
             "service": b"my_favorite_service",
@@ -198,6 +199,9 @@ def test_crashtracker_simple_fork():
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
+            import time
+
+            time.sleep(0.1)
             ctypes.string_at(0)
             sys.exit(-1)  # just in case
 
