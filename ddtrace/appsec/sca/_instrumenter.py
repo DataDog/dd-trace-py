@@ -249,16 +249,7 @@ def apply_instrumentation_updates(targets: list[dict]) -> None:
 
 
 def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegistry, targets: list[dict]) -> None:
-    """Process target additions: resolve and instrument immediately if possible.
-
-    AIDEV-NOTE: We only instrument targets whose modules are already imported.
-    Lazy instrumentation via ModuleWatchdog was removed because installing
-    ModuleWatchdog wraps the import system for ALL subsequent module loads,
-    which causes RecursionError in ssl.SSLContext.options during requests/
-    urllib3 import chains.  CVEs for not-yet-imported modules are still
-    registered with reached=[] on telemetry so the backend knows the
-    vulnerability exists; only the runtime reachability hit is deferred.
-    """
+    """Process target additions: resolve and instrument, or defer via ModuleWatchdog."""
     from ddtrace.appsec.sca._resolver import SymbolResolver
 
     for target_info in targets:
@@ -286,14 +277,41 @@ def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegi
                 _, func = result
                 instrumenter.instrument(target_name, func)
             else:
-                log.debug("Module not yet imported, skipping instrumentation: %s", target_name)
+                # Module not yet imported — register a ModuleWatchdog hook
+                module_name, _, _ = target_name.partition(":")
+                if module_name:
+                    _register_lazy_hook(module_name, target_name)
+                    log.debug("Deferred instrumentation via ModuleWatchdog: %s", target_name)
 
         except Exception as e:
             log.debug("Failed to process target %s: %s", target_name, e, exc_info=True)
 
 
-# AIDEV-NOTE: _register_lazy_hook was removed because installing ModuleWatchdog
-# hooks wraps the import system globally, causing RecursionError in
-# ssl.SSLContext.options during requests/urllib3 import chains.
-# A safer lazy instrumentation mechanism (e.g., polling sys.modules on heartbeat)
-# can be added later if needed for modules imported after post_preload().
+def _register_lazy_hook(module_name: str, target_name: str) -> None:
+    """Register a ModuleWatchdog hook to instrument target when module is imported.
+
+    AIDEV-NOTE: Uses get_global_registry() inside the callback (not a closure
+    over the registry object) so that after fork the callback picks up the
+    fresh registry instead of a stale pre-fork reference.
+
+    Safe with gevent because SymbolResolver.resolve() uses sys.modules.get()
+    instead of importlib.import_module(), so it never triggers new imports.
+    """
+    from ddtrace.internal.module import ModuleWatchdog
+
+    def _on_module_import(module: object) -> None:
+        """Called when the target's module is imported."""
+        from ddtrace.appsec.sca._registry import get_global_registry
+        from ddtrace.appsec.sca._resolver import SymbolResolver
+
+        registry = get_global_registry()
+        if registry.is_instrumented(target_name):
+            return
+        result = SymbolResolver.resolve(target_name)
+        if result:
+            _, func = result
+            instrumenter = get_instrumenter(registry)
+            instrumenter.instrument(target_name, func)
+            log.debug("Lazy-instrumented %s after module import", target_name)
+
+    ModuleWatchdog.register_module_hook(module_name, _on_module_import)

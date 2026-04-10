@@ -4,7 +4,7 @@ Provides functionality to resolve qualified names (e.g., "module.path:Class.meth
 to actual Python callables that can be instrumented.
 """
 
-import importlib
+import sys
 from types import FunctionType
 from typing import Optional
 
@@ -27,6 +27,11 @@ class SymbolResolver:
     def resolve(qualified_name: str) -> Optional[tuple[str, FunctionType]]:
         """Resolve a qualified name to a callable.
 
+        AIDEV-NOTE: Uses sys.modules lookup instead of importlib.import_module()
+        to avoid triggering new imports.  Triggering imports at post_preload()
+        time can pull in modules (e.g. urllib3 → ssl) before gevent's
+        monkey.patch_all() runs, causing RecursionError in ssl.SSLContext.
+
         Args:
             qualified_name: Qualified name in format "module.path:symbol" or
                           "module.path:Class.method"
@@ -41,10 +46,9 @@ class SymbolResolver:
 
             module_path, symbol_path = qualified_name.split(":", 1)
 
-            try:
-                module = importlib.import_module(module_path)
-            except ImportError as e:
-                log.debug("Module not yet imported: %s (%s)", module_path, e)
+            module = sys.modules.get(module_path)
+            if module is None:
+                log.debug("Module not yet imported: %s", module_path)
                 return None
 
             # Navigate the attribute path. For the LAST component, use __dict__
