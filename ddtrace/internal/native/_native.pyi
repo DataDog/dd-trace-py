@@ -155,6 +155,32 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+class SharedRuntime:
+    """
+    SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
+    It provides fork-safety hooks to pause and resume the runtime around process forks.
+    """
+
+    def __init__(self) -> None: ...
+    def before_fork(self) -> None:
+        """Prepare the shared runtime for forking. Call this before os.fork()."""
+        ...
+    def after_fork_parent(self) -> None:
+        """Resume the shared runtime in the parent process after forking."""
+        ...
+    def after_fork_child(self) -> None:
+        """Re-initialize the shared runtime in the child process after forking."""
+        ...
+    def shutdown(self) -> None:
+        """Gracefully shut down the shared runtime."""
+        ...
+    def drop(self) -> None:
+        """Drop the shared runtime, releasing resources immediately."""
+        ...
+    def debug(self) -> str:
+        """Returns a string representation of the runtime. Should only be used for debugging."""
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
@@ -181,22 +207,6 @@ class TraceExporter:
     def drop(self) -> None:
         """
         Drop the TraceExporter, releasing any resources without sending pending stats.
-        """
-        ...
-    def run_worker(self) -> None:
-        """
-        Start the rust worker threads.
-        This starts the runtime required to process rust async tasks including stats and telemetry sending.
-        The runtime will also be created when calling `send`,
-        this method can be used to start the runtime before sending any traces.
-        """
-        ...
-    def stop_worker(self) -> None:
-        """
-        Stop the rust worker threads.
-        This stops the async runtime and must be called before forking to avoid deadlocks after forking.
-        This should be called even if `run_worker` hasn't been called as the runtime will be started
-        when calling `send`.
         """
         ...
     def debug(self) -> str:
@@ -369,6 +379,14 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
+    def set_shared_runtime(self, shared_runtime: SharedRuntime) -> TraceExporterBuilder:
+        """
+        Set the shared Tokio runtime for the TraceExporter.
+        When set, the exporter reuses this runtime instead of creating its own,
+        reducing thread and resource overhead across multiple exporters.
+        :param shared_runtime: A SharedRuntime instance to share with this exporter.
+        """
+        ...
     def build(self) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
@@ -394,6 +412,13 @@ class AgentError(Exception):
 class BuilderError(Exception):
     """
     Raised when there is an error in the TraceExporterBuilder configuration.
+    """
+
+    ...
+
+class SharedRuntimeError(Exception):
+    """
+    Raised when there is an error in the SharedRuntime lifecycle (fork hooks, shutdown, etc.).
     """
 
     ...
