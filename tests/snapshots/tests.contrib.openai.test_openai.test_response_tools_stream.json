@@ -9,8 +9,13 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-4.1-2025-04-14",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68757a9b00000000",
+      "_dd.p.tid": "69d94ff400000000",
+      "_dd.svc_src": "tests.contrib.openai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
       "language": "python",
       "openai.organization.name": "datadog-staging",
@@ -19,15 +24,18 @@
       "openai.request.model": "gpt-4.1",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "gpt-4.1-2025-04-14",
-      "runtime-id": "453a86f9c95343e790ed4376c3cac275"
+      "runtime-id": "d38a3a75e90540fb97f546e9fe63fedc"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.llmobs.input_tokens": 303.0,
+      "_dd.llmobs.output_tokens": 13.0,
+      "_dd.llmobs.total_tokens": 316.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 89248
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
     },
-    "duration": 225992000,
-    "start": 1752529563134313000
+    "duration": 5319417,
+    "start": 1775849460181304962
   }]]

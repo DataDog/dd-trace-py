@@ -161,6 +161,20 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata={"tool_id": tool_id},
         )
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        span_kind = (
+            "workflow"
+            if span._get_ctx_item(PROXY_REQUEST)
+            else "llm"
+            if operation in OPENAI_LLM_OPERATIONS
+            else operation
+        )
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        self._apply_shadow_metrics(
+            span, metrics, span_kind, model_name=model_name, model_provider="openai", llmobs_enabled=self.llmobs_enabled
+        )
+
     @staticmethod
     def _extract_llmobs_metrics_tags(
         span: Span, resp: Any, span_kind: str, kwargs: dict[str, Any]

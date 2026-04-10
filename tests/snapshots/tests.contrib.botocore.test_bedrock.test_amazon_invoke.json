@@ -10,19 +10,27 @@
     "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
+      "_dd.llmobs.model_name": "amazon.titan-tg1-large",
+      "_dd.llmobs.model_provider": "amazon_bedrock",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "687f909700000000",
+      "_dd.p.tid": "69d950c400000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "bedrock.request.model": "titan-tg1-large",
       "bedrock.request.model_provider": "amazon",
       "language": "python",
-      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
+      "runtime-id": "3eb494ef19d94047b0c1a33c4390ee44"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.llmobs.input_tokens": 18.0,
+      "_dd.llmobs.output_tokens": 50.0,
+      "_dd.llmobs.total_tokens": 68.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 25551
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
     },
-    "duration": 3073000,
-    "start": 1753190551918378000
+    "duration": 2270292,
+    "start": 1775849668845063461
   }]]
