@@ -2,11 +2,11 @@ import asyncio
 import importlib.metadata
 from importlib.metadata import version
 import json
-import os
 from textwrap import dedent
 
 import mock
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.version import parse_version
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import override_config
@@ -307,13 +307,13 @@ def test_server_initialization_span_created(mcp_setup, test_spans, llmobs_events
 
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
     """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
-    env = os.environ.copy()
-    env["DD_LLMOBS_ML_APP"] = "test-ml-app"
-    env["DD_API_KEY"] = "test-api-key"
-    env["DD_LLMOBS_ENABLED"] = "1"
-    env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
-    env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
-    env["DD_MCP_DISTRIBUTED_TRACING"] = "false"
+    subenv = env.copy()
+    subenv["DD_LLMOBS_ML_APP"] = "test-ml-app"
+    subenv["DD_API_KEY"] = "test-api-key"
+    subenv["DD_LLMOBS_ENABLED"] = "1"
+    subenv["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+    subenv["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+    subenv["DD_MCP_DISTRIBUTED_TRACING"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         dedent(
             """
@@ -343,7 +343,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
         asyncio.run(test())
         """
         ),
-        env=env,
+        env=subenv,
     )
     assert out == b""
     assert status == 0, err
