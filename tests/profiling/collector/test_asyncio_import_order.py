@@ -252,7 +252,6 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
     )
 
 
-@pytest.mark.xfail(reason="No way to get the current loop if it is set but not running.")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_start_profiler_from_process_after_creating_loop",
@@ -378,7 +377,6 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
     )
 
 
-@pytest.mark.xfail(reason="This test fails because there's no way to get the current loop if it's not already running.")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_import_profiler_from_process_after_starting_loop",
