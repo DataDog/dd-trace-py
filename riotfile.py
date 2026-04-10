@@ -2006,7 +2006,7 @@ venv = Venv(
         ),
         Venv(
             name="testing",
-            command="pytest --no-ddtrace --no-cov -n auto {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3489,7 +3489,7 @@ venv = Venv(
         Venv(
             name="ci_visibility",
             command=(
-                "pytest --no-ddtrace -n auto {cmdargs} tests/ci_visibility"
+                "pytest --ddtrace -n auto {cmdargs} tests/ci_visibility"
                 " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
             ),
             pkgs={
