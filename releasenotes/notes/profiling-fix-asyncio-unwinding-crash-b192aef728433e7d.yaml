@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A crash that could happen when profiling asyncio code has been fixed.
