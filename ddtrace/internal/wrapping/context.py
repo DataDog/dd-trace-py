@@ -595,7 +595,23 @@ class _UniversalWrappingContext(BaseWrappingContext):
             if self.is_wrapped(f):
                 raise ValueError("Function already wrapped")
 
-            bc = Bytecode.from_code(code := get_function_code(f))
+            # AIDEV-NOTE: The bytecode library 0.17.0 (max Python 3.14) may fail to
+            # parse Python 3.15 code objects with IndexError before a compatible
+            # release is available upstream. Catch it and skip wrapping rather than
+            # crashing callers (e.g. @lazy in module.py, product plugin loading).
+            try:
+                bc = Bytecode.from_code(code := get_function_code(f))
+            except IndexError:
+                if sys.version_info >= (3, 15):
+                    import logging as _logging
+
+                    _logging.getLogger(__name__).debug(
+                        "context wrapping skipped for %r: bytecode library does not support Python %d.%d yet",
+                        f,
+                        *sys.version_info[:2],
+                    )
+                    return
+                raise
 
             # Prefix every return
             i = 0
