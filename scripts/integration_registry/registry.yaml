@@ -323,7 +323,7 @@ integrations:
   tested_versions_by_dependency:
     dramatiq:
       min: 1.10.0
-      max: 1.17.0
+      max: 2.1.0
 
 - integration_name: elasticsearch
   is_external_package: true
@@ -647,10 +647,10 @@ integrations:
       min: 2.11.4
       max: 3.10.1
     mlflow-skinny:
-      min: 3.9.0
+      min: 3.10.1
       max: 3.10.1
     mlflow-tracing:
-      min: 3.9.0
+      min: 3.10.1
       max: 3.10.1
 
 - integration_name: molten
