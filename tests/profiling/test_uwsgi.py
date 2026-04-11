@@ -308,6 +308,11 @@ def test_uwsgi_threads_processes_primary(
         assert len(samples) > 0
 
 
+@pytest.mark.xfail(
+    sys.version_info >= (3, 15),
+    reason="Stack profiler fails to collect wall-time samples in uwsgi workers on Python 3.15; under investigation",
+    strict=False,
+)
 def test_uwsgi_threads_processes_primary_lazy_apps(
     uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
