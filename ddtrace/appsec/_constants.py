@@ -461,3 +461,9 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"
