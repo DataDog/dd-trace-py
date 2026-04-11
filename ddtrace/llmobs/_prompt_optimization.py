@@ -1008,6 +1008,18 @@ class PromptOptimization:
         config_updates = {"model_name": self._model_name, "prompt": prompt}
         experiment_config = self._config | config_updates
 
+        # Add prompt optimization metadata to experiment config
+        experiment_config["prompt_optimization"] = {
+            "name": self.name,
+            "iteration": iteration,
+            "dataset_name": ds.name,
+            "dataset_split_enabled": self._dataset_split_enabled,
+            "dataset_split_seed": _DATASET_SPLIT_SEED if self._dataset_split_enabled else None,
+            "dataset_split_ratios": list(self._split_ratios) if self._split_ratios else None,
+            "split": suffix.lstrip("_") if suffix else None,
+            "max_iterations": self._max_iterations,
+        }
+
         # Get runs value and ensure it's int or None
         runs_value = self._config.get("runs")
         runs_int: Optional[int] = None
