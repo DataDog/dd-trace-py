@@ -36,7 +36,7 @@ ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+    raise NotImplementedError("This version of CPython is not supported yet: %d.%d" % PY[:2])
 
 elif PY >= (3, 14):
     ASYNC_HEAD_ASSEMBLY = Assembly()
