@@ -15,6 +15,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -96,6 +97,12 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
+    # AIDEV-NOTE: pyo3 0.27.x (max Python 3.14) is used by several transitive deps
+    # (e.g. rpds-py) that ship only as source dists for Python 3.15. This flag tells
+    # pyo3-build-config to proceed using the stable ABI, allowing those packages to
+    # build until they ship pre-built 3.15 wheels or upgrade to pyo3 0.28+.
+    # Harmless on Python 3.9-3.14 (pyo3 natively supports those, so the flag is a no-op).
+    "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -209,7 +216,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            pys=["3.11", "3.12", "3.13", "3.14"],
+            pys=["3.11", "3.12", "3.13", "3.14", "3.15"],
             command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
@@ -2139,7 +2146,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={
                         "grpcio": ">=1.75.0",
                     },
@@ -3707,9 +3714,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                # Python 3.14+ - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
@@ -4292,7 +4299,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
@@ -4327,7 +4334,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
@@ -4351,7 +4358,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.10", "3.14"],
+                    pys=["3.10", "3.14", "3.15"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
