@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds a centralized ``supported-configurations.json`` registry of all supported ``DD_*``
+    and ``OTEL_*`` environment variables, following the same schema used by other Datadog tracing
+    libraries. Accesses to unregistered environment variables now produce a debug log to help
+    identify typos or unsupported configuration options.
