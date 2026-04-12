@@ -272,10 +272,19 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
     if ctx.get_item("inferred_proxy_span"):
         return
 
+    event = getattr(ctx, "event", None)
+
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+    if headers is None and event is not None:
+        # Events-based web framework instrumentation stores request headers on the event.
+        headers = getattr(event, "request_headers", None)
+
     integration_config = ctx.get_item("integration_config")
+    if integration_config is None and event is not None:
+        # Events-based instrumentation stores integration config on the event.
+        integration_config = getattr(event, "integration_config", None)
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
@@ -1685,8 +1694,6 @@ def listen():
 
     for context_name in (
         # web frameworks
-        "aiohttp.request",
-        "bottle.request",
         "cherrypy.request",
         "falcon.request",
         "molten.request",
