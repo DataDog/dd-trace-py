@@ -362,6 +362,18 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        str,
+        "exclude_modules",
+        default=(
+            "confluent_kafka,google.protobuf,attr,decorator,elasticsearch,six,tenacity,"
+            "datadog,ddtrace,grpc,dd.ds,dd.og,dd.watchdog,dd_pb,dd_util,dd_util_context,"
+            "dogweb,dogweb_model,prozess.consumer,prozess.topics"  # codespell:ignore prozess
+        ),
+        help_type="String",
+        help=("Comma-separated list of module prefixes. Locks created from these modules are not profiled."),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
