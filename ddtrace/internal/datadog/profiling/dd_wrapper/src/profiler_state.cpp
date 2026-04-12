@@ -1,5 +1,6 @@
 #include "profiler_state.hpp"
 
+#include "code_object_cache.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>
@@ -73,16 +74,17 @@ ProfilerState::init_interned_strings()
         return false;
     }
 
-    // Intern the empty string, which is used frequently
-    ddog_prof_StringId2 string_id;
+    // Intern the empty string, which is used frequently.
+    // Use a distinct local name to avoid shadowing Datadog::string_id (a type alias from sample.hpp).
+    ddog_prof_StringId2 empty_str_id;
     auto result = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, maybe_dict.value(), to_slice(""), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
+      &empty_str_id, maybe_dict.value(), to_slice(""), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
     if (result.flags) {
         std::cerr << "Error interning empty string: " << result.err << std::endl;
         return false;
     }
-    cached_empty_string_id = string_id;
+    cached_empty_string_id = empty_str_id;
 
     return true;
 }
@@ -180,6 +182,15 @@ ProfilerState::postfork_child()
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
+
+    // Clear the code-object → function_id cache.  The cached function_ids are
+    // pointers into the Profiles Dictionary that is about to be freed below.
+    // Must happen before release_profiles_dictionary() to avoid use-after-free.
+    // We do not call Py_DECREF here (postfork child handler runs while Python's
+    // own fork reinitialisation may still be in progress), so weakrefs are
+    // abandoned.  This is safe: fork children are typically short-lived and the
+    // OS reclaims all memory on exit.
+    CodeObjectFunctionCache::instance().postfork_child();
 
     // Free our copy of the Profiles Dictionary - its String IDs refer to memory
     // that doesn't exist in the child process
