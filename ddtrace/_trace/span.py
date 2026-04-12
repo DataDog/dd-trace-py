@@ -265,8 +265,7 @@ class Span(SpanData):
 
         try:
             self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
-            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
-                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+            self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -289,19 +288,16 @@ class Span(SpanData):
             value = str(value)
         if isinstance(value, str):
             self._meta[key] = value  # ast-grep-ignore: span-meta-access
-            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
-                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+            self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
         elif isinstance(value, (int, float)):
             if math.isnan(value) or math.isinf(value):
                 log.debug("ignoring not real attribute %s:%s", key, value)
                 return
             self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
-            if key in self._meta:  # ast-grep-ignore: span-meta-access
-                del self._meta[key]  # ast-grep-ignore: span-meta-access
+            self._meta.pop(key, None)  # ast-grep-ignore: span-meta-access
         elif isinstance(value, bytes):
             self._meta[key] = value.decode("utf-8", errors="replace")  # ast-grep-ignore: span-meta-access
-            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
-                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+            self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
         else:
             try:
                 self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
@@ -310,8 +306,7 @@ class Span(SpanData):
                     raise
                 log.warning("Failed to convert attribute '%s' to str, ignoring it", key, exc_info=True)
                 return
-            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
-                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+            self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
 
     def _has_attribute(self, key: str) -> bool:
         """Return whether the given attribute exists."""
@@ -393,8 +388,7 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:  # ast-grep-ignore: span-meta-access
-            del self._meta[key]  # ast-grep-ignore: span-meta-access
+        self._meta.pop(key, None)  # ast-grep-ignore: span-meta-access
         self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
