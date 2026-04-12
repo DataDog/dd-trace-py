@@ -193,6 +193,99 @@ def test_patch():
     assert collector._original_lock == threading.Lock
 
 
+def test_lock_patching_survives_module_reimport():
+    """Test that lock patches are re-applied when threading is re-imported.
+
+    This simulates what cleanup_loaded_modules() does when gevent is installed:
+    it removes 'threading' from sys.modules, causing the next import to load a
+    fresh, unpatched module. Without the fix, user code would get native locks.
+    """
+    import importlib
+
+    collector = ThreadingLockCollector()
+    collector.start()
+
+    # Verify patching works on the current module
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    # Simulate cleanup_loaded_modules(): remove threading from sys.modules
+    old_threading = sys.modules.pop("threading")
+    try:
+        # Re-import threading — this is what user code does after cloning
+        new_threading = importlib.import_module("threading")
+        assert new_threading is not old_threading, "Should be a different module object"
+
+        # The fix: patches should have been re-applied to the new module
+        assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
+            "Lock on re-imported threading module should be patched. "
+            "This fails without the ModuleWatchdog re-import hook fix."
+        )
+
+        # User-created locks from the new module should be profiled
+        lock = new_threading.Lock()
+        assert isinstance(lock, _ProfiledLock), "Locks created from re-imported threading should be profiled"
+    finally:
+        # Restore original module to not break other tests
+        sys.modules["threading"] = old_threading
+        collector.stop()
+
+
+def test_lock_unpatch_after_module_reimport():
+    """Test that stop/unpatch works correctly after module has been swapped."""
+    import importlib
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    # Simulate module swap
+    old_threading = sys.modules.pop("threading")
+    try:
+        new_threading = importlib.import_module("threading")
+        assert isinstance(new_threading.Lock, LockAllocatorWrapper)
+
+        # Stop should unpatch the current (new) module
+        collector.stop()
+        assert not isinstance(new_threading.Lock, LockAllocatorWrapper), (
+            "After stop, the new threading module should be unpatched"
+        )
+    finally:
+        sys.modules["threading"] = old_threading
+
+
+@pytest.mark.parametrize(
+    "collector_class,lock_name",
+    [
+        (ThreadingLockCollector, "Lock"),
+        (ThreadingRLockCollector, "RLock"),
+        (ThreadingSemaphoreCollector, "Semaphore"),
+        (ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
+        (ThreadingConditionCollector, "Condition"),
+    ],
+)
+def test_all_threading_collectors_survive_module_reimport(
+    collector_class: CollectorTypeClass,
+    lock_name: str,
+) -> None:
+    """Test that all threading lock collector types re-patch after module re-import."""
+    import importlib
+
+    collector_inst = collector_class()
+    collector_inst.start()
+
+    assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
+
+    old_threading = sys.modules.pop("threading")
+    try:
+        new_threading = importlib.import_module("threading")
+        assert isinstance(getattr(new_threading, lock_name), LockAllocatorWrapper), (
+            f"{collector_class.__name__} should re-patch {lock_name} on the re-imported module"
+        )
+    finally:
+        sys.modules["threading"] = old_threading
+        collector_inst.stop()
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
@@ -408,6 +501,90 @@ def test_rlock_gevent_tasks() -> None:
         t.join()
 
     validate_and_cleanup()
+
+
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="1",
+        DD_PROFILING_LOCK_ENABLED="1",
+        DD_PROFILING_CAPTURE_PCT="100",
+    ),
+    err=None,
+)
+def test_lock_profiler_works_under_ddtrace_run_with_gevent():
+    """End-to-end test: lock profiler must capture events after ddtrace-run + gevent cloning.
+
+    When ddtrace-run bootstraps with gevent installed, cleanup_loaded_modules()
+    removes 'threading' from sys.modules AFTER the lock profiler has patched it.
+    Without the fix, user code gets an unpatched threading module and lock
+    profiling silently produces zero events.
+
+    We do NOT call monkey.patch_all() here. The bug is triggered just by having
+    gevent installed (cleanup_loaded_modules checks for that). Calling
+    monkey.patch_all() would overwrite our lock profiler patches on the new
+    threading module, which is a separate concern.
+    """
+    import glob
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from tests.profiling.collector import pprof_utils
+
+    # After ddtrace-run bootstrap + cleanup_loaded_modules() + user import,
+    # threading.Lock must be patched (the fix re-applies patches on re-import)
+    assert isinstance(threading.Lock, _LockAllocatorWrapper), (
+        f"threading.Lock should be _LockAllocatorWrapper but is {type(threading.Lock).__name__}. "
+        "This means the lock profiler patches were lost after module cloning."
+    )
+
+    lock_instance = threading.Lock()
+    assert isinstance(lock_instance, _ProfiledLock), (
+        f"threading.Lock() should return _ProfiledLock but returned {type(lock_instance).__name__}"
+    )
+
+    # Reconfigure ddup to write to a file so we can verify lock samples
+    test_name = "test_lock_profiler_works_under_ddtrace_run_with_gevent"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+    ddup.upload()  # Flush any samples accumulated during bootstrap
+
+    # Do lock operations that should be captured
+    lock = threading.Lock()
+    for _ in range(10):
+        lock.acquire()
+        time.sleep(0.001)
+        lock.release()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+    assert len(acquire_samples) > 0, (
+        "Expected lock-acquire samples but found none. "
+        "Lock profiling is not capturing events after ddtrace-run + gevent cloning."
+    )
+    assert len(release_samples) > 0, "Expected lock-release samples but found none."
+
+    for f in glob.glob(pprof_prefix + ".*"):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
