@@ -683,7 +683,9 @@ class Span(SpanData):
             return
 
         try:
-            existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)
+            existing_link_idx_with_same_span_id = next(
+                (i for i, existing_link in enumerate(self._links) if existing_link.span_id == link.span_id), -1
+            )
 
             log.debug(
                 "Span %d already linked to span %d. Overwriting existing link: %s",
