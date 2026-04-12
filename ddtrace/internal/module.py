@@ -118,13 +118,13 @@ def origin(module: ModuleType) -> t.Optional[Path]:
         try:
             # DEV: Use object.__getattribute__ to avoid potential side-effects.
             orig = Path(object.__getattribute__(module, "__file__")).resolve()
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, OSError):
             # Module is probably only partially initialised, so we look at its
             # spec instead
             try:
                 # DEV: Use object.__getattribute__ to avoid potential side-effects.
                 orig = Path(object.__getattribute__(module, "__spec__").origin).resolve()
-            except (AttributeError, ValueError, TypeError):
+            except (AttributeError, ValueError, TypeError, OSError):
                 orig = None
 
         if orig is not None and orig.suffix == "pyc":
