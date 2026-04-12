@@ -497,7 +497,7 @@ class Span(SpanData):
         if issubclass(exc_type, SystemExit) and cast(SystemExit, exc_val).code == 0:
             return
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
+        if self._ignored_exceptions and any(issubclass(exc_type, e) for e in self._ignored_exceptions):
             return
 
         self.error = 1
