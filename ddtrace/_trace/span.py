@@ -324,12 +324,11 @@ class Span(SpanData):
 
     def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
         """Return the given attribute or None if it doesn't exist."""
-        if key in self._meta:  # ast-grep-ignore: span-meta-access
-            return self._meta[key]  # ast-grep-ignore: span-meta-access
-        elif key in self._metrics:  # ast-grep-ignore: span-metrics-access
-            return self._metrics[key]  # ast-grep-ignore: span-metrics-access
-        else:
-            return None
+        v = self._meta.get(key)  # ast-grep-ignore: span-meta-access
+        if v is not None:
+            return v
+
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
 
     def _get_str_attribute(self, key: str) -> Optional[str]:
         """Return the string attribute for the given key, or None if it doesn't exist."""
