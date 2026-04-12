@@ -209,7 +209,7 @@ class Span(SpanData):
         self,
         sampling_mechanism: int,
     ) -> Optional[Text]:
-        value = "-%d" % sampling_mechanism
+        value = f"-{sampling_mechanism}"
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
@@ -293,7 +293,7 @@ class Span(SpanData):
             if key in self._metrics:  # ast-grep-ignore: span-metrics-access
                 del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         elif isinstance(value, (int, float)):
-            if math.isnan(value) or math.isinf(value):
+            if not math.isfinite(value):
                 log.debug("ignoring not real attribute %s:%s", key, value)
                 return
             self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
@@ -364,7 +364,7 @@ class Span(SpanData):
         must be strings (or stringable)
         """
         if tags:
-            for k, v in iter(tags.items()):
+            for k, v in tags.items():
                 self.set_tag(k, v)
 
     def set_metric(self, key: str, value: NumericType) -> None:
@@ -389,7 +389,7 @@ class Span(SpanData):
                 return
 
         # don't allow nan or inf
-        if math.isnan(value) or math.isinf(value):
+        if not math.isfinite(value):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
