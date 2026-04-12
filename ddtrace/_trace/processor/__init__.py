@@ -275,10 +275,12 @@ class _Trace:
     def remove_finished(self) -> list[Span]:
         # perf: Avoid Span.finished which is a computed property and has function call overhead
         #       so check Span.duration_ns manually.
-        finished = [s for s in self.spans if s.duration_ns is not None]
-        if finished:
-            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
-            self.num_finished = 0
+        finished: list[Span] = []
+        remaining: list[Span] = []
+        for s in self.spans:
+            (finished if s.duration_ns is not None else remaining).append(s)
+
+        self.spans[:] = remaining
         return finished
 
 
@@ -353,7 +355,8 @@ class SpanAggregator(SpanProcessor):
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
-            self._queue_span_count_metrics("spans_created", "integration_name")
+
+        self._queue_span_count_metrics("spans_created", "integration_name")
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:

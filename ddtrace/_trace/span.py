@@ -149,10 +149,11 @@ class Span(SpanData):
 
     def _update_tags_from_context(self) -> None:
         with self.context:
-            for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])  # ast-grep-ignore: span-meta-access
-            for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])  # ast-grep-ignore: span-metrics-access
+            for tag, value in self.context._meta.items():
+                self._meta.setdefault(tag, value)  # ast-grep-ignore: span-meta-access
+
+            for metric, m_value in self.context._metrics.items():
+                self._metrics.setdefault(metric, m_value)  # ast-grep-ignore: span-metrics-access
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -208,7 +209,7 @@ class Span(SpanData):
         self,
         sampling_mechanism: int,
     ) -> Optional[Text]:
-        value = "-%d" % sampling_mechanism
+        value = f"-{sampling_mechanism}"
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
@@ -292,7 +293,7 @@ class Span(SpanData):
             if key in self._metrics:  # ast-grep-ignore: span-metrics-access
                 del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         elif isinstance(value, (int, float)):
-            if math.isnan(value) or math.isinf(value):
+            if not math.isfinite(value):
                 log.debug("ignoring not real attribute %s:%s", key, value)
                 return
             self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
@@ -324,12 +325,11 @@ class Span(SpanData):
 
     def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
         """Return the given attribute or None if it doesn't exist."""
-        if key in self._meta:  # ast-grep-ignore: span-meta-access
-            return self._meta[key]  # ast-grep-ignore: span-meta-access
-        elif key in self._metrics:  # ast-grep-ignore: span-metrics-access
-            return self._metrics[key]  # ast-grep-ignore: span-metrics-access
-        else:
-            return None
+        v = self._meta.get(key)  # ast-grep-ignore: span-meta-access
+        if v is not None:
+            return v
+
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
 
     def _get_str_attribute(self, key: str) -> Optional[str]:
         """Return the string attribute for the given key, or None if it doesn't exist."""
@@ -364,7 +364,7 @@ class Span(SpanData):
         must be strings (or stringable)
         """
         if tags:
-            for k, v in iter(tags.items()):
+            for k, v in tags.items():
                 self.set_tag(k, v)
 
     def set_metric(self, key: str, value: NumericType) -> None:
@@ -389,7 +389,7 @@ class Span(SpanData):
                 return
 
         # don't allow nan or inf
-        if math.isnan(value) or math.isinf(value):
+        if not math.isfinite(value):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
@@ -497,7 +497,7 @@ class Span(SpanData):
         if issubclass(exc_type, SystemExit) and cast(SystemExit, exc_val).code == 0:
             return
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
+        if self._ignored_exceptions and any(issubclass(exc_type, e) for e in self._ignored_exceptions):
             return
 
         self.error = 1
@@ -683,7 +683,9 @@ class Span(SpanData):
             return
 
         try:
-            existing_link_idx_with_same_span_id = [link.span_id for link in self._links].index(link.span_id)
+            existing_link_idx_with_same_span_id = next(
+                (i for i, existing_link in enumerate(self._links) if existing_link.span_id == link.span_id), -1
+            )
 
             log.debug(
                 "Span %d already linked to span %d. Overwriting existing link: %s",

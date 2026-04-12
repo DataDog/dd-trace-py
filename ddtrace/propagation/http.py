@@ -138,8 +138,8 @@ def _dd_id_to_b3_id(dd_id: int) -> str:
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
         # https://github.com/openzipkin/b3-propagation#traceid
-        return "{:032x}".format(dd_id)
-    return "{:016x}".format(dd_id)
+        return f"{dd_id:032x}"
+    return f"{dd_id:016x}"
 
 
 def _record_http_telemetry(metric_name: str, header_style: str) -> None:
