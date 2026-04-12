@@ -209,6 +209,27 @@ unsafe fn advance_frame(frame: *mut pyo3_ffi::PyFrameObject) -> *mut pyo3_ffi::P
     if frame.is_null() {
         return ptr::null_mut();
     }
+    // AIDEV-NOTE: PyFrame_GetBack is not exposed by pyo3-ffi when building with
+    // Py_LIMITED_API (stable ABI mode, used when PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1).
+    // Use attribute access as a portable limited-API fallback — both paths return a new
+    // reference with the same ownership semantics.  PyObject_GetAttrString is already
+    // used in get_code_attr_utf8_view() in this same signal-handler context.
+    #[cfg(Py_LIMITED_API)]
+    let back: *mut pyo3_ffi::PyFrameObject = {
+        let obj = pyo3_ffi::PyObject_GetAttrString(
+            frame as *mut pyo3_ffi::PyObject,
+            b"f_back\0".as_ptr() as *const c_char,
+        );
+        if obj.is_null() || obj == pyo3_ffi::Py_None() {
+            if !obj.is_null() {
+                pyo3_ffi::Py_DecRef(obj);
+            }
+            ptr::null_mut()
+        } else {
+            obj as *mut pyo3_ffi::PyFrameObject
+        }
+    };
+    #[cfg(not(Py_LIMITED_API))]
     let back = pyo3_ffi::PyFrame_GetBack(frame);
     pyo3_ffi::Py_DecRef(frame as *mut pyo3_ffi::PyObject);
     back
@@ -229,7 +250,7 @@ unsafe fn emit_python_frame(
     #[cfg(not(Py_3_11))]
     let function_view = get_code_attr_utf8_view(frame, b"co_name\0");
 
-    // For verions 3.11+, we should use qualified name
+    // For versions 3.11+, we should use qualified name
     #[cfg(Py_3_11)]
     let function_view = get_code_attr_utf8_view(frame, b"co_qualname\0");
 
