@@ -149,10 +149,11 @@ class Span(SpanData):
 
     def _update_tags_from_context(self) -> None:
         with self.context:
-            for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])  # ast-grep-ignore: span-meta-access
-            for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])  # ast-grep-ignore: span-metrics-access
+            for tag, value in self.context._meta.items():
+                self._meta.setdefault(tag, value)  # ast-grep-ignore: span-meta-access
+
+            for metric, m_value in self.context._metrics.items():
+                self._metrics.setdefault(metric, m_value)  # ast-grep-ignore: span-metrics-access
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
