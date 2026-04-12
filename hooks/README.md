@@ -212,7 +212,8 @@ hooks/
 ├── autohook.sh              # Autohook manager script
 ├── README.md                # This file
 ├── pre-commit/              # Pre-commit hooks
-│   └── ...
+│   ├── ...
+│   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
