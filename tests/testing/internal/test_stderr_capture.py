@@ -6,6 +6,7 @@ import os
 import threading
 import time
 
+from ddtrace.testing.internal.logs import MAX_MESSAGE_BYTES
 from ddtrace.testing.internal.logs import StderrCapture
 from ddtrace.testing.internal.writer import Event
 
@@ -133,7 +134,7 @@ class TestStderrCaptureRedirect:
         capture.start()
         try:
             # Write a single line larger than _MAX_MESSAGE_BYTES (1 MB).
-            big_line = b"X" * (1024 * 1024 + 100) + b"\n"
+            big_line = b"X" * (MAX_MESSAGE_BYTES + 100) + b"\n"
             os.write(2, big_line)
             time.sleep(0.5)
         finally:
@@ -141,7 +142,7 @@ class TestStderrCaptureRedirect:
 
         assert len(writer.events) >= 1
         assert writer.events[0]["message"].endswith("... [truncated]")
-        assert len(writer.events[0]["message"]) == 1024 * 1024
+        assert len(writer.events[0]["message"]) == MAX_MESSAGE_BYTES
 
     def test_trace_context_updates_between_lines(self) -> None:
         """Each line should pick up the current trace context at the time it is read."""

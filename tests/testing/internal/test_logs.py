@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 
+from ddtrace.testing.internal.logs import MAX_MESSAGE_BYTES
 from ddtrace.testing.internal.logs import LogsHandler
 from ddtrace.testing.internal.writer import Event
 
@@ -24,7 +25,7 @@ class _FakeLogsWriter:
 
 
 class TestLogsHandlerTruncation:
-    """Tests for LogsHandler._MAX_MESSAGE_BYTES truncation and timestamp."""
+    """Tests for MAX_MESSAGE_BYTES truncation and timestamp."""
 
     def _make_handler(self) -> tuple[LogsHandler, _FakeLogsWriter]:
         writer = _FakeLogsWriter()
@@ -47,18 +48,18 @@ class TestLogsHandlerTruncation:
 
     def test_long_message_truncated(self) -> None:
         handler, writer = self._make_handler()
-        long_msg = "A" * (LogsHandler._MAX_MESSAGE_BYTES + 100)
+        long_msg = "A" * (MAX_MESSAGE_BYTES + 100)
         record = logging.LogRecord("test", logging.WARNING, "", 0, long_msg, (), None)
         handler.emit(record)
 
         assert len(writer.events) == 1
         msg = writer.events[0]["message"]
         assert msg.endswith("... [truncated]")
-        assert len(msg) == LogsHandler._MAX_MESSAGE_BYTES
+        assert len(msg) == MAX_MESSAGE_BYTES
 
     def test_exact_limit_not_truncated(self) -> None:
         handler, writer = self._make_handler()
-        exact_msg = "B" * LogsHandler._MAX_MESSAGE_BYTES
+        exact_msg = "B" * MAX_MESSAGE_BYTES
         record = logging.LogRecord("test", logging.WARNING, "", 0, exact_msg, (), None)
         handler.emit(record)
 
