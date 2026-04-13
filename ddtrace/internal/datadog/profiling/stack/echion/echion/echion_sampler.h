@@ -42,7 +42,7 @@ class EchionSampler
     std::unordered_set<PyObject*> previous_task_objects_;
 
     // Accumulated asyncio task count across all threads in the current sampling cycle.
-    // Only accessed from the sampling thread, so no lock is needed.
+    // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
 
     // Caches
