@@ -23,7 +23,6 @@ from ddtrace.ext import http
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
-from tests.utils import override_global_config
 
 
 # ---------------------------------------------------------------------------

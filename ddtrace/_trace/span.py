@@ -5,7 +5,6 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Text
 from typing import Union

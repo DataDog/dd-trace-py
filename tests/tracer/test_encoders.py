@@ -4,7 +4,6 @@ import json
 import random
 import string
 import threading
-from typing import Any
 from unittest import TestCase
 
 from hypothesis import given
@@ -1030,7 +1029,6 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
     assert encoded_traces is not None
     # Verify the span field was converted to the expected value
     assert getattr(span, field) == expected_value
-
 
 
 @allencodings
