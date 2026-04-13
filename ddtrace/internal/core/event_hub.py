@@ -87,6 +87,8 @@ def dispatch_event(event) -> None:
     for local_hook in _listeners[event_id].values():
         try:
             local_hook(event)
+        except RecursionError:
+            raise
         except Exception:
             if config._raise:
                 raise
@@ -102,6 +104,8 @@ def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
     for local_hook in _listeners[event_id].values():
         try:
             local_hook(*args)
+        except RecursionError:
+            raise
         except Exception:
             if config._raise:
                 raise

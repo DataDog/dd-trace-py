@@ -400,6 +400,8 @@ class SpanAggregator(SpanProcessor):
                 spans = tp.process_trace(spans) or []
                 if not spans:
                     return
+            except RecursionError:
+                raise
             except Exception:
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 

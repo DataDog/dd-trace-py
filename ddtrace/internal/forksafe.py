@@ -59,6 +59,8 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
     for hook in list(registry):
         try:
             hook()
+        except RecursionError:
+            raise
         except Exception:
             # Mimic the behaviour of Python's fork hooks.
             log.exception("Exception ignored in forksafe hook %r", hook)
