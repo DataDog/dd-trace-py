@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "ConverseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.llmobs.model_name": "anthropic.claude-3-sonnet-20240229-v1:0",
+      "_dd.llmobs.model_provider": "amazon_bedrock",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd392800000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
+      "bedrock.request.model_provider": "anthropic",
+      "language": "python",
+      "runtime-id": "6080f86d7cf342fab497e940777f2add"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 573.0
+    },
+    "duration": 5313500,
+    "start": 1776105768039490670
+  }]]
