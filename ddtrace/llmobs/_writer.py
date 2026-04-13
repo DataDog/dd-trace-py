@@ -800,7 +800,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         project = self.project_get_by_id(project_id)
         dataset = self.dataset_get_by_id(project_id, dataset_id)
-        dataset["version"] = experiment["dataset_version"]
+        dataset._version = experiment["dataset_version"]
 
         experiment_obj = Experiment(
             name=experiment["experiment"],
