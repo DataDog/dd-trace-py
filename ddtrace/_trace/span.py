@@ -270,8 +270,8 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    get_tag = SpanData._get_str_attribute  # type: ignore[assignment]
-    get_tags = SpanData._get_str_attributes  # type: ignore[assignment]
+    get_tag = SpanData._get_str_attribute
+    get_tags = SpanData._get_str_attributes
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -317,8 +317,8 @@ class Span(SpanData):
             for k, v in metrics.items():
                 self.set_metric(k, v)  # ast-grep-ignore: span-set-metric
 
-    get_metric = SpanData._get_numeric_attribute  # type: ignore[assignment]
-    get_metrics = SpanData._get_numeric_attributes  # type: ignore[assignment]
+    get_metric = SpanData._get_numeric_attribute
+    get_metrics = SpanData._get_numeric_attributes
 
     def _add_event(
         self, name: str, attributes: Optional[dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
