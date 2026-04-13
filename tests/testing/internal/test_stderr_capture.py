@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import threading
 import time
 
+from ddtrace.testing.internal.stderr_capture import FileCapture
 from ddtrace.testing.internal.stderr_capture import StderrCapture
+from ddtrace.testing.internal.stderr_capture import StdoutCapture
 from ddtrace.testing.internal.writer import Event
 
 
@@ -168,3 +171,143 @@ class TestStderrCaptureRedirect:
         second = next(e for e in writer.events if e["message"] == "during test 2")
         assert first["dd.trace_id"] == "trace_1"
         assert second["dd.trace_id"] == "trace_2"
+
+
+# ---------------------------------------------------------------------------
+# StdoutCapture tests
+# ---------------------------------------------------------------------------
+
+
+class TestStdoutCaptureBasic:
+    """Basic smoke tests for StdoutCapture — mirrors the StderrCapture tests."""
+
+    def test_captures_c_level_stdout(self) -> None:
+        writer = _FakeLogsWriter()
+        capture = StdoutCapture(writer, get_trace_context=lambda: ("333", "444"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            os.write(1, b"STDOUT LINE\n")
+            time.sleep(0.2)
+        finally:
+            capture.stop()
+
+        assert len(writer.events) >= 1
+        event = writer.events[0]
+        assert event["message"] == "STDOUT LINE"
+        assert event["ddsource"] == "stdout"
+        assert event["dd.trace_id"] == "333"
+
+    def test_start_and_stop(self) -> None:
+        writer = _FakeLogsWriter()
+        capture = StdoutCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        assert capture._started
+        capture.stop()
+        assert not capture._started
+
+    def test_stop_without_start_is_safe(self) -> None:
+        writer = _FakeLogsWriter()
+        capture = StdoutCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.stop()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# FileCapture tests
+# ---------------------------------------------------------------------------
+
+
+class TestFileCapture:
+    """Tests for FileCapture (tail-style file reading)."""
+
+    def test_captures_lines_written_after_start(self) -> None:
+        writer = _FakeLogsWriter()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log") as f:
+            path = f.name
+            # Pre-existing content should NOT be replayed.
+            f.write(b"old line\n")
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("555", "666"))  # type: ignore[arg-type]
+            capture.start()
+            try:
+                with open(path, "ab") as f:
+                    f.write(b"new line\n")
+                    f.flush()
+                time.sleep(0.3)
+            finally:
+                capture.stop()
+        finally:
+            os.unlink(path)
+
+        messages = [e["message"] for e in writer.events]
+        assert "new line" in messages
+        assert "old line" not in messages
+
+    def test_ddsource_is_filename(self) -> None:
+        writer = _FakeLogsWriter()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log", prefix="nccl_") as f:
+            path = f.name
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.start()
+            try:
+                with open(path, "ab") as f:
+                    f.write(b"hello\n")
+                    f.flush()
+                time.sleep(0.3)
+            finally:
+                capture.stop()
+        finally:
+            os.unlink(path)
+
+        assert len(writer.events) >= 1
+        assert writer.events[0]["ddsource"] == os.path.basename(path)
+
+    def test_multiline_file_output(self) -> None:
+        writer = _FakeLogsWriter()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log") as f:
+            path = f.name
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.start()
+            try:
+                with open(path, "ab") as f:
+                    f.write(b"alpha\nbeta\ngamma\n")
+                    f.flush()
+                time.sleep(0.3)
+            finally:
+                capture.stop()
+        finally:
+            os.unlink(path)
+
+        messages = [e["message"] for e in writer.events]
+        assert "alpha" in messages
+        assert "beta" in messages
+        assert "gamma" in messages
+
+    def test_start_and_stop(self) -> None:
+        writer = _FakeLogsWriter()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log") as f:
+            path = f.name
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.start()
+            assert capture._started
+            capture.stop()
+            assert not capture._started
+        finally:
+            os.unlink(path)
+
+    def test_stop_without_start_is_safe(self) -> None:
+        writer = _FakeLogsWriter()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log") as f:
+            path = f.name
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.stop()  # should not raise
+        finally:
+            os.unlink(path)

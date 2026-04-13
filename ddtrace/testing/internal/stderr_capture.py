@@ -1,14 +1,23 @@
-"""Capture C-level stderr output and forward it to the logs intake.
+"""Capture output from fd-level streams or log files and forward to the logs intake.
 
-Some processes write directly to file descriptor 2, bypassing Python's ``sys.stderr``
-(e.g. native libraries, subprocesses).  This module redirects fd 2 through an
-``os.pipe``, reads the output in a background thread, and forwards it to a
-:class:`~ddtrace.testing.internal.logs.LogsWriter` while also teeing it back to the
-original stderr so that the user's terminal output is preserved.
+Some native libraries write directly to file descriptor 2 (stderr) or a dedicated
+log file, bypassing Python's ``sys.stderr``.  This module provides three capture
+implementations that all forward captured lines to a
+:class:`~ddtrace.testing.internal.logs.LogsWriter`:
+
+- :class:`StderrCapture` — redirects fd 2 through an ``os.pipe``, tees back to the
+  real stderr.
+- :class:`StdoutCapture` — same mechanism for fd 1.
+- :class:`FileCapture` — tails an existing file (polls for new lines after seeking
+  to EOF at start).
+
+All three share line-decoding, truncation, and event-building logic via the
+:class:`_BaseCapture` mixin.
 """
 
 from __future__ import annotations
 
+import abc
 import logging
 import os
 import threading
@@ -24,13 +33,16 @@ if t.TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-# Read up to 64 KB at a time from the redirected stderr pipe.
+# Read up to 64 KB at a time from pipes / files.
 _READ_CHUNK_SIZE = 64 * 1024
 
 # Individual messages forwarded to the intake are capped at the Datadog logs intake per-entry limit.
 _MAX_MESSAGE_BYTES = 1 * 1024 * 1024  # 1 MB
 
 _TRUNCATION_SUFFIX = "... [truncated]"
+
+# How long FileCapture sleeps between polls when the file has no new data.
+_FILE_POLL_INTERVAL = 0.05
 
 
 TraceContextProvider = t.Callable[[], tuple[str, str]]
@@ -48,19 +60,16 @@ def _default_trace_context() -> tuple[str, str]:
         return LOG_ATTR_VALUE_ZERO, LOG_ATTR_VALUE_ZERO
 
 
-class StderrCapture:
-    """Captures C-level stderr (fd 2) and forwards it to the Datadog logs intake.
+# ---------------------------------------------------------------------------
+# Shared base
+# ---------------------------------------------------------------------------
 
-    Any process or library that writes directly to file descriptor 2 — rather than
-    going through Python's ``sys.stderr`` — is captured automatically.
 
-    Usage::
+class _BaseCapture(abc.ABC):
+    """Shared interface, line-decoding, truncation, and event-building logic."""
 
-        capture = StderrCapture(logs_writer)
-        capture.start()   # redirect fd 2 → pipe, start reader thread
-        ...               # all fd-2 output is captured
-        capture.stop()    # restore fd 2, drain pipe, stop reader thread
-    """
+    # Subclasses set these to appropriate values.
+    _ddsource: str = "unknown"
 
     def __init__(
         self,
@@ -69,97 +78,15 @@ class StderrCapture:
     ) -> None:
         self._writer = writer
         self._get_trace_context = get_trace_context or _default_trace_context
-        self._original_stderr_fd: t.Optional[int] = None
-        self._read_fd: t.Optional[int] = None
-        self._reader_thread: t.Optional[threading.Thread] = None
         self._started = False
 
-    # -- lifecycle ------------------------------------------------------------
-
+    @abc.abstractmethod
     def start(self) -> None:
-        if self._started:
-            return
+        """Begin capturing output."""
 
-        # Back up the real stderr fd so we can tee output and restore later.
-        self._original_stderr_fd = os.dup(2)
-
-        # Create a pipe: writes to fd 2 will arrive on _read_fd.
-        self._read_fd, write_fd = os.pipe()
-        try:
-            os.dup2(write_fd, 2)
-        finally:
-            # The write end is now duplicated onto fd 2; close the original.
-            os.close(write_fd)
-
-        self._started = True
-        self._reader_thread = threading.Thread(target=self._read_loop, name="stderr-capture-reader", daemon=True)
-        self._reader_thread.start()
-        _log.debug("StderrCapture: stderr (fd 2) redirected through pipe")
-
+    @abc.abstractmethod
     def stop(self, timeout: float = 5.0) -> None:
-        if not self._started:
-            return
-
-        # Restore the original stderr fd.  This closes the pipe's write end
-        # (fd 2 is overwritten), which causes the reader thread to see EOF.
-        if self._original_stderr_fd is not None:
-            os.dup2(self._original_stderr_fd, 2)
-            os.close(self._original_stderr_fd)
-            self._original_stderr_fd = None
-
-        if self._reader_thread is not None:
-            self._reader_thread.join(timeout=timeout)
-            if self._reader_thread.is_alive():
-                _log.warning("StderrCapture: reader thread did not finish within %.1fs", timeout)
-            self._reader_thread = None
-
-        self._started = False
-        _log.debug("StderrCapture: stopped, stderr restored")
-
-    # -- background reader ----------------------------------------------------
-
-    def _read_loop(self) -> None:
-        """Continuously read from the pipe, tee to original stderr, forward to LogsWriter."""
-        if self._read_fd is None or self._original_stderr_fd is None:
-            _log.error("StderrCapture: _read_loop called in invalid state")
-            return
-
-        # Capture fds as locals so that stop() nulling the instance attributes
-        # cannot race with our reads/writes inside this thread.
-        read_fd = self._read_fd
-        original_stderr_fd = self._original_stderr_fd
-
-        buf = b""
-        try:
-            while True:
-                chunk = os.read(read_fd, _READ_CHUNK_SIZE)
-                if not chunk:
-                    # EOF — the write end of the pipe has been closed (stop() was called).
-                    break
-
-                # Tee to the original stderr so the user still sees output.
-                # This may raise EBADF if stop() already closed the original fd;
-                # swallow it so we still process the buffered data.
-                try:
-                    os.write(original_stderr_fd, chunk)
-                except OSError:
-                    pass
-
-                # Accumulate and split on newlines so each event is a complete line.
-                buf += chunk
-                while b"\n" in buf:
-                    line, buf = buf.split(b"\n", 1)
-                    self._forward_line(line)
-
-            # Flush any remaining partial line.
-            if buf:
-                self._forward_line(buf)
-        except OSError:
-            # The pipe was closed unexpectedly (e.g. process teardown).
-            _log.debug("StderrCapture: pipe read error during teardown", exc_info=True)
-        finally:
-            os.close(read_fd)
-            self._read_fd = None
+        """Stop capturing and drain any buffered output."""
 
     def _forward_line(self, raw_line: bytes) -> None:
         try:
@@ -181,7 +108,7 @@ class StderrCapture:
 
         event: Event = {
             "date": timestamp_ms,
-            "ddsource": "stderr",
+            "ddsource": self._ddsource,
             "ddtags": "datadog.product:citest",
             "hostname": self._writer.hostname,
             "message": message,
@@ -191,3 +118,253 @@ class StderrCapture:
             "dd.span_id": span_id,
         }
         self._writer.put_event(event)
+
+
+# ---------------------------------------------------------------------------
+# Fd-level capture (stderr / stdout)
+# ---------------------------------------------------------------------------
+
+
+class _BaseFdCapture(_BaseCapture):
+    r"""Redirects a file descriptor through an ``os.pipe``, capturing all writes.
+
+    The captured output is teed back to the original fd so the user's terminal
+    output is preserved.  Each complete line (``\n``-delimited) is forwarded as
+    a separate log event.
+    """
+
+    # Subclasses must set this to the fd number they capture (1 or 2).
+    _fd: int
+
+    def __init__(
+        self,
+        writer: LogsWriter,
+        get_trace_context: t.Optional[TraceContextProvider] = None,
+    ) -> None:
+        super().__init__(writer, get_trace_context)
+        self._original_fd: t.Optional[int] = None
+        self._read_fd: t.Optional[int] = None
+        self._reader_thread: t.Optional[threading.Thread] = None
+
+    # -- lifecycle ------------------------------------------------------------
+
+    def start(self) -> None:
+        if self._started:
+            return
+
+        # Back up the real fd so we can tee output and restore later.
+        self._original_fd = os.dup(self._fd)
+
+        # Create a pipe: writes to the fd will arrive on _read_fd.
+        self._read_fd, write_fd = os.pipe()
+        try:
+            os.dup2(write_fd, self._fd)
+        finally:
+            # The write end is now duplicated onto the target fd; close the original.
+            os.close(write_fd)
+
+        self._started = True
+        self._reader_thread = threading.Thread(
+            target=self._read_loop,
+            name=f"fd{self._fd}-capture-reader",
+            daemon=True,
+        )
+        self._reader_thread.start()
+        _log.debug("%s: fd %d redirected through pipe", type(self).__name__, self._fd)
+
+    def stop(self, timeout: float = 5.0) -> None:
+        if not self._started:
+            return
+
+        # Restore the original fd.  This closes the pipe's write end (fd is overwritten),
+        # which causes the reader thread to see EOF.
+        if self._original_fd is not None:
+            os.dup2(self._original_fd, self._fd)
+            os.close(self._original_fd)
+            self._original_fd = None
+
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=timeout)
+            if self._reader_thread.is_alive():
+                _log.warning("%s: reader thread did not finish within %.1fs", type(self).__name__, timeout)
+            self._reader_thread = None
+
+        self._started = False
+        _log.debug("%s: stopped, fd %d restored", type(self).__name__, self._fd)
+
+    # -- background reader ----------------------------------------------------
+
+    def _read_loop(self) -> None:
+        """Continuously read from the pipe, tee to original fd, forward to LogsWriter."""
+        if self._read_fd is None or self._original_fd is None:
+            _log.error("%s: _read_loop called in invalid state", type(self).__name__)
+            return
+
+        # Capture fds as locals so that stop() nulling the instance attributes
+        # cannot race with our reads/writes inside this thread.
+        read_fd = self._read_fd
+        original_fd = self._original_fd
+
+        buf = b""
+        try:
+            while True:
+                chunk = os.read(read_fd, _READ_CHUNK_SIZE)
+                if not chunk:
+                    # EOF — the write end of the pipe has been closed (stop() was called).
+                    break
+
+                # Tee to the original fd so the user still sees output.
+                # This may raise EBADF if stop() already closed the original fd;
+                # swallow it so we still process the buffered data.
+                try:
+                    os.write(original_fd, chunk)
+                except OSError:
+                    pass
+
+                # Accumulate and split on newlines so each event is a complete line.
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    self._forward_line(line)
+
+            # Flush any remaining partial line.
+            if buf:
+                self._forward_line(buf)
+        except OSError:
+            # The pipe was closed unexpectedly (e.g. process teardown).
+            _log.debug("%s: pipe read error during teardown", type(self).__name__, exc_info=True)
+        finally:
+            os.close(read_fd)
+            self._read_fd = None
+
+
+class StderrCapture(_BaseFdCapture):
+    """Captures C-level stderr (fd 2) and forwards it to the Datadog logs intake.
+
+    Any process or library that writes directly to file descriptor 2 — rather than
+    going through Python's ``sys.stderr`` — is captured automatically.
+
+    Usage::
+
+        capture = StderrCapture(logs_writer)
+        capture.start()   # redirect fd 2 → pipe, start reader thread
+        ...               # all fd-2 output is captured
+        capture.stop()    # restore fd 2, drain pipe, stop reader thread
+    """
+
+    _fd = 2
+    _ddsource = "stderr"
+
+
+class StdoutCapture(_BaseFdCapture):
+    """Captures C-level stdout (fd 1) and forwards it to the Datadog logs intake.
+
+    Same pipe-based mechanism as :class:`StderrCapture` but for fd 1.
+
+    .. warning::
+        pytest and many test frameworks capture fd 1 themselves.  Enable this
+        only when your native code bypasses Python and writes directly to fd 1.
+    """
+
+    _fd = 1
+    _ddsource = "stdout"
+
+
+# ---------------------------------------------------------------------------
+# File-based capture (tail -f style)
+# ---------------------------------------------------------------------------
+
+
+class FileCapture(_BaseCapture):
+    """Tails a file and forwards new lines to the Datadog logs intake.
+
+    Opens the file at :meth:`start`, seeks to EOF so existing content is not
+    replayed, then polls for new data in a background thread.  No fd redirection
+    is performed — the original file continues to receive writes normally.
+
+    Usage::
+
+        capture = FileCapture("/tmp/nccl.log", logs_writer)
+        capture.start()   # open file, seek to end, start reader thread
+        ...
+        capture.stop()    # signal reader thread, drain remaining lines
+    """
+
+    def __init__(
+        self,
+        path: str,
+        writer: LogsWriter,
+        get_trace_context: t.Optional[TraceContextProvider] = None,
+    ) -> None:
+        super().__init__(writer, get_trace_context)
+        self._path = path
+        self._ddsource = os.path.basename(path)
+        self._stop_event = threading.Event()
+        self._ready_event = threading.Event()
+        self._reader_thread: t.Optional[threading.Thread] = None
+
+    # -- lifecycle ------------------------------------------------------------
+
+    def start(self) -> None:
+        if self._started:
+            return
+
+        self._stop_event.clear()
+        self._ready_event.clear()
+        self._started = True
+        self._reader_thread = threading.Thread(
+            target=self._read_loop,
+            name=f"file-capture-reader:{self._path}",
+            daemon=True,
+        )
+        self._reader_thread.start()
+        # Wait until the thread has opened the file and seeked to EOF so that
+        # any writes on the calling thread after start() returns are not missed.
+        self._ready_event.wait(timeout=2.0)
+        _log.debug("FileCapture: tailing %s", self._path)
+
+    def stop(self, timeout: float = 5.0) -> None:
+        if not self._started:
+            return
+
+        self._stop_event.set()
+
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=timeout)
+            if self._reader_thread.is_alive():
+                _log.warning("FileCapture: reader thread did not finish within %.1fs", timeout)
+            self._reader_thread = None
+
+        self._started = False
+        _log.debug("FileCapture: stopped tailing %s", self._path)
+
+    # -- background reader ----------------------------------------------------
+
+    def _read_loop(self) -> None:
+        """Poll the file for new lines and forward each one to LogsWriter."""
+        try:
+            with open(self._path, "rb") as f:
+                f.seek(0, 2)  # start at EOF — do not replay existing content
+                self._ready_event.set()  # unblock start() on the calling thread
+                buf = b""
+                while not self._stop_event.is_set():
+                    chunk = f.read(_READ_CHUNK_SIZE)
+                    if chunk:
+                        buf += chunk
+                        while b"\n" in buf:
+                            line, buf = buf.split(b"\n", 1)
+                            self._forward_line(line)
+                    else:
+                        time.sleep(_FILE_POLL_INTERVAL)
+
+                # Drain any data written between the last poll and stop().
+                chunk = f.read()
+                if chunk:
+                    buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    self._forward_line(line)
+                if buf:
+                    self._forward_line(buf)
+        except OSError:
+            _log.debug("FileCapture: error reading %s", self._path, exc_info=True)
