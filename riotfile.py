@@ -1961,7 +1961,7 @@ venv = Venv(
             # test_pytest_snapshot.py is permanently skipped (_USE_PLUGIN_V2=True hardcoded);
             # test_pytest_snapshot_v2.py and test_pytest_xdist_snapshot.py always run.
             name="pytest:snapshot",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/snapshot/",
+            command="pytest {cmdargs} --no-ddtrace tests/contrib/pytest/snapshot/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
