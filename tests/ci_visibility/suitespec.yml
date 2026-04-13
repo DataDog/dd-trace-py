@@ -55,6 +55,7 @@ suites:
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/internal/coverage/*
+    snapshot: true
     pattern: 'pytest$'
   pytest:snapshot:
     venvs_per_job: 1
