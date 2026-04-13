@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 
 import ddtrace.appsec.sca._instrumenter as _instrumenter_mod
-import ddtrace.appsec.sca._registry as _registry_mod
 from ddtrace.appsec.sca._instrumenter import Instrumenter
 from ddtrace.appsec.sca._instrumenter import _first_instr_line
+import ddtrace.appsec.sca._registry as _registry_mod
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry

@@ -121,9 +121,7 @@ class DependencyTracker:
             except PackageNotFoundError:
                 log.debug("Package %r not found in installed metadata", package_name)
                 version = ""
-            self._imported_dependencies[package_name] = DependencyEntry(
-                name=package_name, version=version, metadata=[]
-            )
+            self._imported_dependencies[package_name] = DependencyEntry(name=package_name, version=version, metadata=[])
 
     def attach_metadata(
         self,
