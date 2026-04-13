@@ -60,7 +60,7 @@ def import_modules():
     if module_name:
         __import__(module_name)
 
-    from ddtrace.internal.telemetry.data import update_imported_dependencies  # noqa: E402
+    from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies  # noqa: E402
 
     newly_loaded = list(sys.modules.keys())
     res = update_imported_dependencies(loaded, newly_loaded)
