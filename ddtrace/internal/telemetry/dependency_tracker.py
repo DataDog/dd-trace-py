@@ -174,7 +174,7 @@ class DependencyTracker:
                 if entry.metadata is None:
                     entry.metadata = []
 
-    def get_all_dependencies(self) -> Generator[DependencyEntry]:
+    def get_all_dependencies(self) -> Generator[DependencyEntry, None, None]:
         """Return a snapshot of all dependency entries, safe for unsynchronized iteration."""
         with self._lock:
             for dep in self._imported_dependencies.values():
