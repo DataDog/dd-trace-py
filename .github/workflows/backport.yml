@@ -100,10 +100,13 @@ jobs:
           git branch -D ${BACKPORT_BRANCH} || true
           git switch --create ${BACKPORT_BRANCH}
 
+          echo "Cherrypicking"
           set +e
           CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1)
           CHERRYPICK_STATUS=$?
           set -e
+          echo "Cherrypicking complete"
+          echo "${CHERRYPICK_STATUS}"
           if [ "${CHERRYPICK_STATUS}" -ne 0 ]; then
             echo "Cherry-pick failed for ${TARGET_BRANCH}:"
             echo "${CHERRYPICK_OUT}"

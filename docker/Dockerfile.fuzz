@@ -4,23 +4,20 @@
 # already contains the C++ toolchain, Rust, fuzzydog, and all Python versions
 # (via pyenv).  This stage only adds source code and runs the actual build.
 #
-# Build:
+# Build the compiled base (all fuzz targets):
 #   $ docker build -f docker/Dockerfile.fuzz \
 #       --build-arg FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base \
 #       --build-arg PYTHON_VERSION=3.10 \
 #       -t ddtrace-py-stackv2-fuzz .
 #
-# Run with fuzzydog (requires FUZZYDOG_AUTH_TOKEN):
-#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
+# Run locally (defaults to fuzz_echion_remote_read):
+#   $ docker run --rm -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
 #
-# Run a specific target via fuzzydog:
-#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz \
-#       fuzzydog fuzzer run dd-trace-py-local fuzz_echion_strings \
-#       --type libfuzzer --team profiling-python \
-#       --build-path /fuzzer/builds/ \
-#       --skip-dl-build --skip-dl-inputs \
-#       --slack-channel fuzzing-ops \
-#       --repository-url https://github.com/DataDog/dd-trace-py
+# Run a specific target locally:
+#   $ docker run --rm -e FUZZYDOG_AUTH_TOKEN -e FUZZ_TARGET=fuzz_echion_strings ddtrace-py-stackv2-fuzz
+#
+# In CI, fuzz_infra.py builds per-binary images on top of this compiled base
+# (one thin layer each with the correct FUZZ_APP, FUZZ_BUILD_ID, and symlink).
 
 # ── Build stage ───────────────────────────────────────────────────────────────
 ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py/fuzz_base:latest
@@ -46,16 +43,43 @@ RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /fuzz_binaries.
   && cp /tmp/fuzz/build/fuzz/lsan.supp /fuzzer/builds/lsan.supp \
   && ls -la /fuzzer/builds/
 
-ENV LSAN_OPTIONS="suppressions=/fuzzer/builds/lsan.supp"
+# Copy shared libraries (libpython, libdd_wrapper) next to the fuzz binaries so they
+# are always resolvable via $ORIGIN rpath or LD_LIBRARY_PATH, even if fuzzydog runs
+# the binary in an environment where the original pyenv/build paths are unavailable.
+RUN PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")" \
+  && echo "PYTHON_LIBDIR=${PYTHON_LIBDIR}" \
+  && cp -v "${PYTHON_LIBDIR}"/libpython*.so* /fuzzer/builds/ 2>/dev/null || true
+RUN cp -v /tmp/fuzz/build/lib/*.so* /fuzzer/builds/ 2>/dev/null || true
+RUN ls -la /fuzzer/builds/
 
-CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
-     "--type", "libfuzzer", \
-     "--team", "profiling-python", \
-     "--build-path", "/fuzzer/builds/", \
-     "--skip-dl-build", \
-     "--skip-dl-inputs", \
-     "--slack-channel", "fuzzing-ops", \
-     "--repository-url", "https://github.com/DataDog/dd-trace-py"]
+ENV LSAN_OPTIONS="suppressions=/fuzzer/builds/lsan.supp"
+ENV LD_LIBRARY_PATH="/fuzzer/builds/"
+
+# FUZZ_TARGET selects which binary to run (for local testing).
+# FUZZ_APP and FUZZ_BUILD_ID are derived from it automatically.
+# In CI, fuzz_infra.py builds per-binary images that override all three via ENV.
+ENV FUZZ_TARGET=fuzz_echion_remote_read
+ENV PYTHON_VERSION_COMPACT=${PYTHON_VERSION}
+RUN echo "$(git -C /src rev-parse --short HEAD 2>/dev/null || echo unknown)" > /fuzzer/.git_sha
+
+# Empty so CI per-binary images can override with real values.
+ENV FUZZ_APP=""
+ENV FUZZ_BUILD_ID=""
+
+CMD PY_SHORT=$(echo "${PYTHON_VERSION_COMPACT}" | tr -d '.') \
+    && GIT_SHA=$(cat /fuzzer/.git_sha) \
+    && SAFE_TARGET=$(echo "${FUZZ_TARGET}" | tr '_' '-') \
+    && FUZZ_APP="${FUZZ_APP:-dd-trace-py-py${PY_SHORT}-${SAFE_TARGET}}" \
+    && FUZZ_BUILD_ID="${FUZZ_BUILD_ID:-${GIT_SHA}-dirty}" \
+    && ln -sf "/fuzzer/builds/${FUZZ_TARGET}" "/fuzzer/builds/${FUZZ_BUILD_ID}" \
+    && exec fuzzydog fuzzer run "${FUZZ_APP}" "${FUZZ_BUILD_ID}" \
+         --type libfuzzer \
+         --team profiling-python \
+         --build-path /fuzzer/builds/ \
+         --skip-dl-build \
+         --skip-dl-inputs \
+         --slack-channel fuzzing-ops \
+         --repository-url https://github.com/DataDog/dd-trace-py
 
 # ── Manifest stage (lightweight, used by CI to extract the binary list) ──
 FROM scratch AS manifest

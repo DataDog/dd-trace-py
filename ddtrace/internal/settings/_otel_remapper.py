@@ -1,14 +1,13 @@
-import os
 from typing import Callable
 from typing import Optional
 
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
-
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
     "deployment.environment": ENV_KEY,
@@ -52,7 +51,7 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
     elif otel_value == "parentbased_always_off":
         rate = "0.0"
     elif otel_value == "parentbased_traceidratio":
-        rate = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+        rate = env.get("OTEL_TRACES_SAMPLER_ARG", "1")
 
     if rate is not None:
         return f'[{{"sample_rate":{rate}}}]'
@@ -63,6 +62,9 @@ def _remap_traces_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
     if otel_value == "none":
         return "False"
+    if otel_value == "otlp":
+        # OTLP export is handled natively by ddtrace; tracing remains enabled.
+        return "True"
     return None
 
 
@@ -128,7 +130,6 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }
 
-
 # https://github.com/open-telemetry/opentelemetry-python/blob/v1.34.1/opentelemetry-sdk/src/opentelemetry/sdk/environment_variables/__init__.py
 SUPPORTED_OTEL_ENV_VARS = {
     "OTEL_PYTHON_CONTEXT",
@@ -157,12 +158,21 @@ SUPPORTED_OTEL_ENV_VARS = {
     "OTEL_EXPORTER_OTLP_METRICS_INSECURE",
     "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION",
     "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
+    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY",
+    "OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE",
+    "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE",
+    "OTEL_EXPORTER_OTLP_TRACES_COMPRESSION",
+    "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
 }
 
 
 def parse_otel_env(otel_env: str) -> tuple[str, Optional[str]]:
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
-    raw_value = os.environ.get(otel_env, "")
+    raw_value = env.get(otel_env, "")
     if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
         # Resource attributes and service name are case-insensitive
         raw_value = raw_value.lower()

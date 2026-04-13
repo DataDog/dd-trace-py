@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.7.0rc3"
+version = "4.8.0rc3"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -66,6 +66,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
+"llmobs" = "ddtrace.llmobs._product"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
@@ -127,6 +128,8 @@ exclude_dirs = [
   "ddtrace/internal/rate_limiter.py",
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
+  "scripts/ext_cache.py",
+  "setup.py",
 ]
 
 [tool.ruff]

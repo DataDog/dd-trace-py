@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where a ``ModuleNotFoundError`` could be raised at startup in Python environments without the ``_ctypes`` extension module.

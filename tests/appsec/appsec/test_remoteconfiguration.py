@@ -47,7 +47,7 @@ def _set_and_get_appsec_tags(tracer, check_client_id=False):
             request_cookies={"cookie1": "im the cookie1"},
         )
     if check_client_id:
-        assert span._local_root._meta.get(APPSEC.RC_CLIENT_ID)
+        assert span._local_root._get_str_attribute(APPSEC.RC_CLIENT_ID)
     return get_triggers(span)
 
 
