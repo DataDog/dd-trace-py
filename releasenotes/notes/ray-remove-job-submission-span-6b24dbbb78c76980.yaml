@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ray: ``ray.job.submit`` spans are removed. Ray job submission outcome is now reported on the existing ``ray.job`` span through ``ray.job.submit_status``.
