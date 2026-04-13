@@ -49,7 +49,10 @@ def mock_sys_platform(new_value):
 @contextlib.contextmanager
 def managed_writer(writer_class, writer_url, **writer_kwargs):
     """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
-    writer = writer_class(writer_url, **writer_kwargs)
+    if writer_class is NativeWriter:
+        writer = writer_class(writer_url, NativeRuntime(), **writer_kwargs)
+    else:
+        writer = writer_class(writer_url, **writer_kwargs)
     writer.start()
     try:
         yield writer
