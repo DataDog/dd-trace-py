@@ -14,10 +14,11 @@
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
-      "_dd.p.tid": "69a5f8a600000000",
+      "_dd.p.tid": "69dd2baa00000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
       "_dd.svc_src": "flask",
+      "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
       "actor.ip": "8.8.4.4",
       "appsec.blocked": "true",
       "appsec.event": "true",
@@ -34,20 +35,20 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.32.5",
       "language": "python",
-      "runtime-id": "d05808853d8047bf9eca49da84fb1c45"
+      "runtime-id": "553a56a9d9c143c8ba6f9d7e20614b29"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
       "_dd.appsec.event_rules.loaded": 8.0,
-      "_dd.appsec.waf.duration": 9723.125,
-      "_dd.appsec.waf.duration_ext": 10611.042000164161,
+      "_dd.appsec.waf.duration": 31.958,
+      "_dd.appsec.waf.duration_ext": 104.8330000230635,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 70926.0
+      "process_id": 46502.0
     },
-    "duration": 14099834,
+    "duration": 1075708,
     "meta_struct": {
       "appsec": {
         "triggers": [
@@ -79,13 +80,13 @@
                 ]
               }
             ],
-            "security_response_id": "bfac9899-9f05-4f45-1b85-a4fe8ae381cf",
-            "span_id": 4972282641448028976
+            "security_response_id": "e553d5ee-e38c-43cf-1b70-876cf42e9981",
+            "span_id": 10405521169124595113
           }
         ]
       }
     },
-    "start": 1772484774840522586
+    "start": 1776102314122929381
   },
      {
        "name": "flask.response",
@@ -96,8 +97,9 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.svc_src": "flask",
          "component": "flask"
        },
-       "duration": 630208,
-       "start": 1772484774853965795
+       "duration": 300209,
+       "start": 1776102314123679964
      }]]
