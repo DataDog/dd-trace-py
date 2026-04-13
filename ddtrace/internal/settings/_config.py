@@ -690,16 +690,7 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        if "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" in env:
-            deprecate(
-                "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED is deprecated",
-                message="Please use DD_TRACE_INFERRED_SPANS_ENABLED instead.",
-                removal_version="5.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-        self._inferred_proxy_services_enabled = _get_config(
-            ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
-        )
+        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # Resource renaming

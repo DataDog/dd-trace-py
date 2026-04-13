@@ -3314,6 +3314,7 @@ venv = Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             pkgs={
+                "falcon": latest,
                 # pkg_resources was removed in v82.0.0
                 "setuptools": "<82",
             },
@@ -3322,21 +3323,18 @@ venv = Venv(
                     pys=select_pys(max_version="3.11"),
                     pkgs={
                         "google-cloud-pubsub": ["==2.10.0", latest],
-                        "falcon": [latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.12"),
                     pkgs={
                         "google-cloud-pubsub": ["==2.14.0", latest],
-                        "falcon": [latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
                     pkgs={
                         "google-cloud-pubsub": [latest],
-                        "falcon": [latest],
                     },
                 ),
             ],

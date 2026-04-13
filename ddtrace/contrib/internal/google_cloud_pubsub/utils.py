@@ -5,7 +5,7 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.formats import asbool
 
 
-def ensure_config_registered():
+def ensure_config_registered() -> None:
     """Register the google_cloud_pubsub integration config if not already present.
 
     Called from both patch.py (pull subscriptions) and trace_handlers.py (push subscriptions)
@@ -24,7 +24,7 @@ def ensure_config_registered():
     )
 
 
-def parse_resource_path(path):
+def parse_resource_path(path: object) -> tuple[str, str]:
     """Parse a GCP resource path into (project_id, resource_id)."""
     if not isinstance(path, str):
         return "", ""

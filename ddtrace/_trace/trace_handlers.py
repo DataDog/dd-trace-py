@@ -273,7 +273,9 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id=None):
+def _set_pubsub_receive_attributes(
+    span: Span, project_id: str, subscription_id: str, message_id: Optional[str] = None
+) -> None:
     """Set common span attributes for Pub/Sub receive operations (pull and push)."""
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
@@ -286,7 +288,7 @@ def _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id
         span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
 
 
-def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
+def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
     """Create an inferred parent span for GCP Pub/Sub push subscriptions.
 
     Push subscriptions deliver messages via HTTP POST with metadata in headers.
@@ -322,7 +324,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers):
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
         span.link_span(propagated_context)
 
-    def finish_callback(_):
+    def finish_callback(_: object) -> None:
         span.finish()
 
     ctx.set_item("inferred_proxy_span", span)
