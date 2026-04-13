@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# One-button profiling test runner for Python 3.15 (and any future version).
+#
+# Runs all profiling test suites on the target Python version:
+#   - verify_profiler_compatibility.py (async guards + real profiler samples)
+#   - profile      (main profiling suite: asyncio, stack, threading, lock, etc.)
+#   - profile-memalloc  (memory allocator variants: malloc, pymalloc, debug)
+#   - profile-uwsgi is SKIPPED — capped at Python 3.13 (uwsgi not yet 3.15-compatible)
+#
+# Usage:
+#   scripts/run-profiling-tests                  # default: 3.15.0a7
+#   scripts/run-profiling-tests --python 3.14    # another Python version
+#   scripts/run-profiling-tests --quick          # skip rebuild check + full riot suites;
+#                                                # only run compatibility script
+#   scripts/run-profiling-tests --check-only     # run compatibility script only, no riot
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPTS_DIR="$REPO_ROOT/scripts"
+
+# ---------------------------------------------------------------------------
+# Parse arguments
+# ---------------------------------------------------------------------------
+PYTHON_VERSION="3.15"
+QUICK=false
+CHECK_ONLY=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --python)
+            PYTHON_VERSION="$2"
+            shift 2
+            ;;
+        --quick)
+            QUICK=true
+            shift
+            ;;
+        --check-only)
+            CHECK_ONLY=true
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            echo "Usage: $0 [--python VERSION] [--quick] [--check-only]" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
+# Locate the Python interpreter
+# ---------------------------------------------------------------------------
+find_python() {
+    local version="$1"
+
+    # Try pyenv first (resolves 3.15 → 3.15.0a7 etc.)
+    if command -v pyenv &>/dev/null; then
+        local pyenv_version
+        pyenv_version=$(pyenv versions --bare 2>/dev/null | grep "^${version}" | sort -V | tail -1)
+        if [[ -n "$pyenv_version" ]]; then
+            echo "$HOME/.pyenv/versions/$pyenv_version/bin/python"
+            return
+        fi
+    fi
+
+    # Try direct binary names
+    for candidate in "python${version}" "python3"; do
+        if command -v "$candidate" &>/dev/null; then
+            local ver
+            ver=$("$candidate" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+            if [[ "$ver" == "$version"* ]]; then
+                echo "$(command -v "$candidate")"
+                return
+            fi
+        fi
+    done
+
+    echo ""
+}
+
+PYTHON=$(find_python "$PYTHON_VERSION")
+if [[ -z "$PYTHON" ]]; then
+    echo "ERROR: Python $PYTHON_VERSION not found." >&2
+    echo "Install it with: pyenv install $PYTHON_VERSION" >&2
+    exit 1
+fi
+
+ACTUAL_VER=$("$PYTHON" -c "import sys; print(sys.version)")
+echo "=== Using Python: $ACTUAL_VER ==="
+echo "=== Binary: $PYTHON ==="
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 1: Ensure the stack C extension is up-to-date
+# ---------------------------------------------------------------------------
+# The incremental build system skips rebuilding existing .so files.  If you
+# pull new commits that change stack.cpp (e.g. adding set_max_threads), the
+# old .so stays in place and the stack collector silently fails at runtime —
+# profiler.py catches the AttributeError and disables the collector without
+# surfacing it as a test failure.  Always verify and rebuild if stale.
+
+if [[ "$QUICK" == false && "$CHECK_ONLY" == false ]]; then
+    echo "--- Checking stack extension freshness ---"
+
+    EXT_SUFFIX=$("$PYTHON" -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+    STACK_SO="$REPO_ROOT/ddtrace/internal/datadog/profiling/stack/_stack${EXT_SUFFIX}"
+
+    NEEDS_REBUILD=false
+
+    if [[ ! -f "$STACK_SO" ]]; then
+        echo "  Stack extension not found — will build."
+        NEEDS_REBUILD=true
+    else
+        # Check for known required symbols by importing
+        if ! "$PYTHON" -c "
+from ddtrace.internal.datadog.profiling.stack import _stack as s
+missing = [fn for fn in ('set_max_threads', 'set_adaptive_sampling', 'set_target_overhead', 'set_max_sampling_period') if not hasattr(s, fn)]
+if missing:
+    raise AttributeError('Missing: ' + ', '.join(missing))
+" 2>/dev/null; then
+            echo "  Stack extension is stale (missing required symbols) — rebuilding."
+            NEEDS_REBUILD=true
+        else
+            echo "  Stack extension is up-to-date. ✓"
+        fi
+    fi
+
+    if [[ "$NEEDS_REBUILD" == true ]]; then
+        # Remove the stale .so so the incremental build detects it as missing
+        # and rebuilds only this extension (not Rust or other C extensions).
+        rm -f "$STACK_SO"
+
+        echo "  Rebuilding stack extension..."
+        cd "$REPO_ROOT"
+        "$PYTHON" -m pip install -e . --no-build-isolation -q 2>&1 | grep -E "Building|CMake|error|warning|_stack" | head -30 || true
+
+        if [[ ! -f "$STACK_SO" ]]; then
+            echo "ERROR: Rebuild failed — $STACK_SO not found after pip install." >&2
+            exit 1
+        fi
+        echo "  Rebuild complete. ✓"
+        echo ""
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Step 2: Compatibility script (async guards + real profiler samples)
+# ---------------------------------------------------------------------------
+echo "--- Running verify_profiler_compatibility.py ---"
+cd "$REPO_ROOT"
+
+if [[ "$QUICK" == true ]]; then
+    "$PYTHON" "$SCRIPTS_DIR/verify_profiler_compatibility.py" --quick
+else
+    "$PYTHON" "$SCRIPTS_DIR/verify_profiler_compatibility.py" --compare
+fi
+
+echo ""
+
+if [[ "$CHECK_ONLY" == true ]]; then
+    echo "=== --check-only: skipping riot suites ==="
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Step 3: Discover riot venv hashes dynamically for the target Python version
+# ---------------------------------------------------------------------------
+# Riot hashes change when riotfile.py changes, so discover them at runtime.
+RIOT_PYTHON="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile\$" 2>/dev/null | tr '\n' ' ')"
+RIOT_MEMALLOC="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile-memalloc\$" 2>/dev/null | tr '\n' ' ')"
+
+if [[ -z "$RIOT_PYTHON" ]]; then
+    echo "WARNING: No 'profile' riot venvs found for Python $PYTHON_VERSION. Skipping." >&2
+else
+    echo "--- Running profile suites: $RIOT_PYTHON---"
+    # shellcheck disable=SC2086
+    VENV_ARGS=""
+    for hash in $RIOT_PYTHON; do
+        VENV_ARGS="$VENV_ARGS --venv $hash"
+    done
+    # shellcheck disable=SC2086
+    "$SCRIPTS_DIR/run-tests" $VENV_ARGS
+    echo ""
+fi
+
+if [[ -z "$RIOT_MEMALLOC" ]]; then
+    echo "WARNING: No 'profile-memalloc' riot venvs found for Python $PYTHON_VERSION. Skipping." >&2
+else
+    echo "--- Running profile-memalloc suites: $RIOT_MEMALLOC---"
+    VENV_ARGS=""
+    for hash in $RIOT_MEMALLOC; do
+        VENV_ARGS="$VENV_ARGS --venv $hash"
+    done
+    # shellcheck disable=SC2086
+    "$SCRIPTS_DIR/run-tests" $VENV_ARGS
+    echo ""
+fi
+
+echo "profile-uwsgi: SKIPPED (capped at Python 3.13 — uwsgi not yet 3.15-compatible)"
+echo ""
+echo "=== All profiling tests completed! ==="
