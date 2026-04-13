@@ -1201,8 +1201,14 @@ class ExperimentRun:
                 flat[("input", "")] = input_data
                 column_tuples.add(("input", ""))
 
-            flat[("output", "")] = row.get("output")
-            column_tuples.add(("output", ""))
+            output_data = row.get("output")
+            if isinstance(output_data, dict):
+                for k, v in output_data.items():
+                    flat[("output", k)] = v
+                    column_tuples.add(("output", k))
+            else:
+                flat[("output", "")] = output_data
+                column_tuples.add(("output", ""))
 
             expected = row.get("expected_output", {})
             if isinstance(expected, dict):

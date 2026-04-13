@@ -4596,6 +4596,34 @@ def test_experiment_run_as_dataframe_scalar_expected_output():
     assert df[("expected_output", "")].iloc[0] == "world"
 
 
+def test_experiment_run_as_dataframe_dict_output():
+    """output dict is flattened into sub-columns just like input/expected_output."""
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "s",
+            "trace_id": "t",
+            "timestamp": 0,
+            "input": {"question": "What is 2+2?"},
+            "output": {"answer": "4", "confidence": 0.99},
+            "expected_output": {"answer": "4"},
+            "evaluations": {},
+            "metadata": {},
+            "error": None,
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("output", "answer") in df.columns
+    assert ("output", "confidence") in df.columns
+    assert ("output", "") not in df.columns
+    assert df[("output", "answer")].iloc[0] == "4"
+    assert df[("output", "confidence")].iloc[0] == 0.99
+
+
 def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
     import sys
 
