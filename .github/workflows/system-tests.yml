@@ -480,10 +480,10 @@ jobs:
       push_to_test_optimization: true
 
   tracer-release:
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     permissions:
       id-token: write
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
-    secrets: inherit
     with:
       library: python
       ref: main
