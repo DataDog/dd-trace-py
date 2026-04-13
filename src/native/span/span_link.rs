@@ -100,7 +100,7 @@ impl SpanLink {
         }
         if let Some(ref ts) = self.tracestate {
             if !ts.is_empty() {
-                d.set_item("tracestate", &ts.as_py(py))?;
+                d.set_item("tracestate", ts.as_py(py))?;
             }
         }
         if let Some(f) = self.flags {

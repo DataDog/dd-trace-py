@@ -431,7 +431,7 @@ impl SpanData {
             Some(obj) if obj.is_none() => Default::default(),
             Some(obj) => {
                 if let Ok(dict) = obj.cast_exact::<PyDict>() {
-                    py_dict_to_link_attrs(py, &dict)?
+                    py_dict_to_link_attrs(py, dict)?
                 } else {
                     // Accept any mapping (e.g. OTel BoundedAttributes)
                     let dict = PyDict::new(py);
@@ -487,7 +487,7 @@ impl SpanData {
             Some(obj) if obj.is_none() => Default::default(),
             Some(obj) => {
                 if let Ok(dict) = obj.cast_exact::<PyDict>() {
-                    py_dict_to_event_attrs(py, &dict)?
+                    py_dict_to_event_attrs(py, dict)?
                 } else {
                     // Accept any mapping
                     let dict = PyDict::new(py);
