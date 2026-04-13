@@ -366,9 +366,7 @@ set_greenlet_offsets(PyObject* Py_UNUSED(m), PyObject* args)
         return NULL;
 
     Sampler::get().set_greenlet_offsets(
-        static_cast<size_t>(pimpl_offset),
-        static_cast<size_t>(frame_offset),
-        static_cast<size_t>(stack_stop_offset));
+      static_cast<size_t>(pimpl_offset), static_cast<size_t>(frame_offset), static_cast<size_t>(stack_stop_offset));
 
     Py_RETURN_NONE;
 }
