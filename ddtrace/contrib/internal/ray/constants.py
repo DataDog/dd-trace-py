@@ -17,9 +17,6 @@ RAY_ENTRYPOINT = "ray.entrypoint"
 # Default job name if not set by the user
 DEFAULT_JOB_NAME = "unnamed.ray.job"
 
-# Component tag
-RAY_COMPONENT = "ray"
-
 # Task and job status values
 RAY_STATUS_SUCCESS = "success"
 RAY_STATUS_ERROR = "error"

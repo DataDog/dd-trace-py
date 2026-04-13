@@ -1,5 +1,3 @@
-from concurrent import futures
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
@@ -26,7 +24,9 @@ class EvaluatorRunner(PeriodicService):
         self._buffer_limit = 1000
 
         self.llmobs_service = llmobs_service
-        self.executor = futures.ThreadPoolExecutor()
+        # Lazy executor: importing concurrent.futures at import time loads concurrent.futures.thread
+        # and fails scripts/global-lock-detection.py (CI detect_global_locks).
+        self._executor = None
         self.sampler = EvaluatorRunnerSampler()
         self.evaluators = [] if evaluators is None else evaluators
 
@@ -46,7 +46,8 @@ class EvaluatorRunner(PeriodicService):
         is stopped by the LLM Obs instance
         """
         self.periodic(_wait_sync=True)
-        self.executor.shutdown(wait=True)
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
 
     def recreate(self) -> "EvaluatorRunner":
         return self.__class__(
@@ -83,7 +84,11 @@ class EvaluatorRunner(PeriodicService):
                 for span_event, span in span_events_and_spans:
                     if self.sampler.sample(evaluator.LABEL, span):
                         if not _wait_sync:
-                            self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
+                            if self._executor is None:
+                                from concurrent.futures import ThreadPoolExecutor
+
+                                self._executor = ThreadPoolExecutor()  # type: ignore[assignment]
+                            self._executor.submit(evaluator.run_and_submit_evaluation, span_event)  # type: ignore[attr-defined]
                         else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:

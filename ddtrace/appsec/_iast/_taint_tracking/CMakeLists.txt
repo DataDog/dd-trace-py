@@ -1,6 +1,4 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
-
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
 if(DEFINED ENV{CIBUILDWHEEL} OR DEFINED ENV{CIBW_BUILD})
@@ -35,34 +33,8 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
-    message("==============================================================")
-    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("=====================================")
-    message("WARNING: Debug mode: not using abseil")
-    message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
-    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
-    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
-    set(FETCHCONTENT_UPDATES_DISCONNECTED
-        ON
-        CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        absl
-        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-        GIT_TAG 20250127.1
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE)
-    FetchContent_MakeAvailable(absl)
-endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../cmake")
+include(AbseilDep)
 
 include_directories(".")
 
