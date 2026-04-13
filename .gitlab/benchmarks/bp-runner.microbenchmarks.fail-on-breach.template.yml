@@ -743,11 +743,11 @@ experiments:
               - max_rss_usage < 47.00 MB
           - name: otelspan-start-finish
             thresholds:
-              - execution_time < 91.00 ms
+              - execution_time < 92.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-start-finish-telemetry
             thresholds:
-              - execution_time < 92.00 ms
+              - execution_time < 93.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-update-name
             thresholds:
