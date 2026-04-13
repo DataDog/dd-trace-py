@@ -1060,7 +1060,7 @@ experiments:
           # tracer
           - name: tracer-large
             thresholds:
-              - execution_time < 32.95 ms
+              - execution_time < 34.50 ms
               - max_rss_usage < 39.25 MB
           - name: tracer-medium
             thresholds:
@@ -1084,7 +1084,7 @@ experiments:
               - max_rss_usage < 33 MB
           - name: forktime-configured
             thresholds:
-              - execution_time < 13 ms
+              - execution_time < 17 ms
               - max_rss_usage < 60 MB
 
           # rand

@@ -25,7 +25,7 @@ class TargetInfo(NamedTuple):
     """
 
     package_name: str
-    cve_ids: tuple
+    cve_ids: tuple[str, ...]
     line: int
 
 
@@ -43,7 +43,7 @@ class InstrumentationState:
     hit_count: int = 0
     # AIDEV-NOTE: Cached snapshot built at registration time.  Avoids
     # dict allocation + list copy on every hook invocation (hot path).
-    _cached_info: Optional[TargetInfo] = field(default=None, repr=False, compare=False)
+    cached_info: Optional[TargetInfo] = field(default=None, repr=False, compare=False)
 
 
 class InstrumentationRegistry:
@@ -55,7 +55,7 @@ class InstrumentationRegistry:
     AIDEV-NOTE: record_hit and get_target_info are lock-free because they
     run on the hot path (every instrumented function call).  dict.get is
     GIL-safe for reference reads, hit_count is diagnostic-only (a rare
-    lost increment is acceptable), and _cached_info is immutable after
+    lost increment is acceptable), and cached_info is immutable after
     registration.
     """
 
@@ -80,7 +80,7 @@ class InstrumentationRegistry:
                     cve_ids=ids,
                     line=line,
                     is_pending=pending,
-                    _cached_info=TargetInfo(
+                    cached_info=TargetInfo(
                         package_name=package_name,
                         cve_ids=tuple(ids),
                         line=line,
@@ -125,11 +125,11 @@ class InstrumentationRegistry:
 
         Returns the cached TargetInfo snapshot without locking or allocation.
         """
-        # No lock: _cached_info is immutable after registration and
+        # No lock: cached_info is immutable after registration and
         # dict.get is GIL-safe for reference reads.
         state = self._targets.get(qualified_name)
         if state:
-            return state._cached_info
+            return state.cached_info
         return None
 
     def clear(self) -> None:

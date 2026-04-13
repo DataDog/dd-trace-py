@@ -8,12 +8,28 @@ a vulnerable function through ddtrace's wrapt-patched wrappers.
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pytest
+
+import ddtrace.appsec.sca._instrumenter as _instrumenter_mod
+import ddtrace.appsec.sca._registry as _registry_mod
 from ddtrace.appsec.sca._instrumenter import Instrumenter
 from ddtrace.appsec.sca._instrumenter import _first_instr_line
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+
+@pytest.fixture(autouse=True)
+def _restore_instrumenter_globals():
+    """Save and restore module-level singletons to prevent cross-test contamination."""
+    saved_registry = _instrumenter_mod._registry
+    saved_instance = _instrumenter_mod._instrumenter_instance
+    saved_global_registry = _registry_mod._global_registry
+    yield
+    _instrumenter_mod._registry = saved_registry
+    _instrumenter_mod._instrumenter_instance = saved_instance
+    _registry_mod._global_registry = saved_global_registry
 
 
 # ---------------------------------------------------------------------------
@@ -262,60 +278,12 @@ class TestCallerInfoToReachedArray:
         assert reached[0]["symbol"] == "MyView.handle"
         assert reached[0]["line"] == 42
 
-    def test_reached_not_empty_when_caller_info_empty_after_fix(self):
-        """Regression test: when _get_caller_info returns empty path,
-        the hook falls back to the target's qualified name.
+    def test_hook_uses_fallback_when_caller_info_unavailable(self):
+        """Regression: when _get_caller_info returns empty path, the hook falls
+        back to the target's qualified name so reached is never left empty.
 
         Before the fix, add_metadata's `if path` guard silently dropped
         the finding and reached stayed [].
-        """
-        registry = InstrumentationRegistry()
-        instrumenter = Instrumenter(registry)
-
-        tracker = DependencyTracker()
-        tracker._sca_metadata_enabled = True
-
-        entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
-        entry.mark_initial_sent()
-        tracker._imported_dependencies["fakepkg"] = entry
-        entry.add_metadata("CVE-2024-TEST")  # Register CVE with reached=[]
-        entry.mark_all_metadata_sent()
-
-        def target_func(x):
-            return x * 2
-
-        registry.add_target(
-            "test_module:target_func",
-            package_name="fakepkg",
-            cve_ids=["CVE-2024-TEST"],
-        )
-        instrumenter.instrument("test_module:target_func", target_func)
-
-        # Mock _get_caller_info to return EMPTY values (simulates native frame walker failure)
-        mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda package_name, cve_id, path, symbol, line: (
-            tracker.attach_metadata(package_name, cve_id, path, symbol, line)
-        )
-
-        with (
-            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
-            patch(
-                "ddtrace.appsec.sca._instrumenter._get_caller_info",
-                return_value=("", 0, ""),
-            ),
-        ):
-            target_func(10)
-
-        # After fix: reached has a fallback entry with the target's qualified name
-        meta = entry.metadata[0]
-        reached = meta.value["reached"]
-        assert len(reached) == 1, f"Reached should have fallback entry, got {len(reached)}"
-        assert reached[0]["path"] == "test_module"
-        assert reached[0]["symbol"] == "target_func"
-
-    def test_hook_uses_fallback_when_caller_info_unavailable(self):
-        """After fix: when _get_caller_info returns empty, the hook falls back
-        to the target's own qualified name so reached is never left empty.
         """
         registry = InstrumentationRegistry()
         instrumenter = Instrumenter(registry)
@@ -435,11 +403,6 @@ class TestForkCallbackOrdering:
         with (
             patch("ddtrace.internal.sca.product.tracer_config") as mock_config,
             patch(
-                "ddtrace.internal.sca.product.reset_instrumenter",
-                side_effect=track_reset,
-                create=True,
-            ),
-            patch(
                 "ddtrace.appsec.sca._instrumenter._reset_after_fork",
                 side_effect=track_reset,
             ),
@@ -447,8 +410,11 @@ class TestForkCallbackOrdering:
                 "ddtrace.appsec.sca._registry._reset_global_registry_after_fork",
                 side_effect=track_registry_reset,
             ),
+            patch("ddtrace.internal.sca.product.start"),
+            patch("ddtrace.internal.sca.product._load_and_instrument"),
+            patch("ddtrace.internal.sca.product.stop"),
         ):
-            mock_config._sca_enabled = False  # Skip _load_and_instrument
+            mock_config._sca_enabled = True  # Must be True or restart() returns early
             restart()
 
         # Both resets should have been called

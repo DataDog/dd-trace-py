@@ -4,12 +4,12 @@ Owns the set of imported dependencies, SCA metadata flag, and all logic
 for discovering new dependencies, attaching reachability metadata, and
 producing the ``app-dependencies-loaded`` telemetry payload.
 
-AIDEV-NOTE: Extracted from TelemetryWriter to separate dependency-tracking
+Extracted from TelemetryWriter to separate dependency-tracking
 concerns from the transport/batching layer.  The writer delegates to a
 single DependencyTracker instance.
 """
 
-from importlib.metadata import version as importlib_metadata_version
+from importlib.metadata import PackageNotFoundError
 from threading import Lock
 from typing import Any
 from typing import Iterable
@@ -33,7 +33,7 @@ class DependencyTracker:
 
     All mutable access is protected by an internal lock.
 
-    AIDEV-NOTE: The tracker does not check any SCA config flag.  It relies
+    The tracker does not check any SCA config flag.  It relies
     on the DependencyEntry.metadata field state:
     - metadata is None  -> entry serialized without "metadata" key
     - metadata is not None -> entry serialized with "metadata" key
@@ -47,15 +47,11 @@ class DependencyTracker:
         self._modules_already_imported: set[str] = set()
         self._lock = Lock()
 
-    def update_imported(self, new_modules: Iterable[str]) -> list[dict]:
+    def _update_imported(self, new_modules: Iterable[str]) -> list[dict]:
         """Discover new dependencies from recently imported modules.
 
         Adds a DependencyEntry for each newly discovered package.
         Returns serialized dependency dicts ready for the telemetry payload.
-
-        AIDEV-NOTE: Delegates to the module-level update_imported_dependencies
-        function so that monkey-patching it (e.g. in tests/appsec/architectures/mini.py)
-        intercepts the production telemetry path.
 
         Caller must hold self._lock (called internally from collect_report).
         """
@@ -72,7 +68,7 @@ class DependencyTracker:
 
         with self._lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            new_deps = self.update_imported(newly_imported_deps)
+            new_deps = self._update_imported(newly_imported_deps)
 
             # Mark new deps as initially sent
             for dep_dict in new_deps:
@@ -114,11 +110,15 @@ class DependencyTracker:
         """
         if package_name not in self._imported_dependencies and self._sca_metadata_enabled:
             try:
-                ver = importlib_metadata_version(package_name)
-            except Exception:
-                log.debug("Failed to resolve version for package %r", package_name, exc_info=True)
-                ver = ""
-            self._imported_dependencies[package_name] = DependencyEntry(name=package_name, version=ver, metadata=[])
+                from importlib.metadata import version as importlib_metadata_version
+
+                version = importlib_metadata_version(package_name)
+            except PackageNotFoundError:
+                log.debug("Package %r not found in installed metadata", package_name)
+                version = ""
+            self._imported_dependencies[package_name] = DependencyEntry(
+                name=package_name, version=version, metadata=[]
+            )
 
     def attach_metadata(
         self,
@@ -171,12 +171,10 @@ class DependencyTracker:
                 if entry.metadata is None:
                     entry.metadata = []
 
-    def get_all_dependencies(self) -> dict[str, DependencyEntry]:
-        """Return the dependency dict (for extended heartbeat serialization).
-
-        The caller should hold the writer's service_lock when iterating.
-        """
-        return self._imported_dependencies
+    def get_all_dependencies(self) -> list[DependencyEntry]:
+        """Return a snapshot of all dependency entries, safe for unsynchronized iteration."""
+        with self._lock:
+            return list(self._imported_dependencies.values())
 
     def reset(self) -> None:
         """Reset all state (used on fork / queue reset)."""

@@ -14,8 +14,10 @@ from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec.sca._registry import get_global_registry
+from ddtrace.appsec.sca._resolver import SymbolResolver
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 
 
@@ -130,7 +132,7 @@ def sca_detection_hook(qualified_name: str) -> None:
 
         caller_path, caller_line, caller_symbol = _get_caller_info()
 
-        # AIDEV-NOTE: If the native frame walker can't find user code (e.g.,
+        # If the native frame walker can't find user code (e.g.,
         # deep wrapt/gevent stack), fall back to the target's own qualified
         # name so the backend knows the function was reached.  Without this,
         # add_metadata's `if path` guard silently drops the finding and
@@ -186,7 +188,7 @@ class Instrumenter:
                     self.registry.add_target(qualified_name, pending=False)
 
                 original_code = func.__code__
-                # AIDEV-NOTE: co_firstlineno is the `def` line, but on
+                # co_firstlineno is the `def` line, but on
                 # Python <3.11 the bytecode instructions start on the first
                 # body line (the line after `def`).  Use the first real
                 # instruction line so inject_hook can find a matching line.
@@ -260,35 +262,40 @@ def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegi
                     _register_lazy_hook(module_name, target_name)
                     log.debug("Deferred instrumentation via ModuleWatchdog: %s", target_name)
 
-        except Exception as e:
-            log.debug("Failed to process target %s: %s", target_name, e, exc_info=True)
+        except Exception:
+            log.debug("Failed to process target %s", target_name, exc_info=True)
 
 
 def _register_lazy_hook(module_name: str, target_name: str) -> None:
     """Register a ModuleWatchdog hook to instrument target when module is imported.
 
-    AIDEV-NOTE: Uses get_global_registry() inside the callback (not a closure
+    Uses get_global_registry() inside the callback (not a closure
     over the registry object) so that after fork the callback picks up the
     fresh registry instead of a stale pre-fork reference.
 
     Safe with gevent because SymbolResolver.resolve() uses sys.modules.get()
     instead of importlib.import_module(), so it never triggers new imports.
     """
-    from ddtrace.internal.module import ModuleWatchdog
 
     def _on_module_import(module: object) -> None:
-        """Called when the target's module is imported."""
-        from ddtrace.appsec.sca._registry import get_global_registry
-        from ddtrace.appsec.sca._resolver import SymbolResolver
+        """Called when the target's module is imported.
 
-        registry = get_global_registry()
-        if registry.is_instrumented(target_name):
-            return
-        result = SymbolResolver.resolve(target_name)
-        if result:
-            _, func = result
-            instrumenter = get_instrumenter(registry)
-            instrumenter.instrument(target_name, func)
-            log.debug("Lazy-instrumented %s after module import", target_name)
+        CRITICAL: Must not throw — runs inside Python's import machinery.
+        An unhandled exception here would crash the customer's import statement.
+        """
+        try:
+            from ddtrace.appsec.sca._registry import get_global_registry
+
+            registry = get_global_registry()
+            if registry is None or registry.is_instrumented(target_name):
+                return
+            result = SymbolResolver.resolve(target_name)
+            if result:
+                _, func = result
+                instrumenter = get_instrumenter(registry)
+                instrumenter.instrument(target_name, func)
+                log.debug("Lazy-instrumented %s after module import", target_name)
+        except Exception:
+            log.debug("Failed lazy instrumentation for %s", target_name, exc_info=True)
 
     ModuleWatchdog.register_module_hook(module_name, _on_module_import)

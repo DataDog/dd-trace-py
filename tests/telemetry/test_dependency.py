@@ -321,7 +321,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version", return_value="2.28.0"):
+        with patch("importlib.metadata.version", return_value="2.28.0"):
             result = writer.attach_dependency_metadata("requests", "CVE-1", "mod", "func", 1)
 
         assert result is True
@@ -526,7 +526,7 @@ class TestWriterRegisterCveMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version", return_value="1.0"):
+        with patch("importlib.metadata.version", return_value="1.0"):
             result = writer.register_cve_metadata("flask", "CVE-NEW")
 
         assert result is True
@@ -544,14 +544,15 @@ class TestWriterRegisterCveMetadata:
         assert "flask" not in tracker._imported_dependencies
 
     def test_auto_create_with_version_lookup_failure(self):
-        """When importlib_metadata_version raises, entry is created with version=""."""
+        """When importlib.metadata.version raises PackageNotFoundError, entry is created with version=""."""
+        from importlib.metadata import PackageNotFoundError
         from unittest.mock import patch
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
         with patch(
-            "ddtrace.internal.telemetry.dependency_tracker.importlib_metadata_version",
-            side_effect=Exception("not found"),
+            "importlib.metadata.version",
+            side_effect=PackageNotFoundError("unknown-pkg"),
         ):
             result = writer.register_cve_metadata("unknown-pkg", "CVE-1")
 

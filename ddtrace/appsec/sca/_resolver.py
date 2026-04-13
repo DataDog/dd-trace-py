@@ -27,7 +27,7 @@ class SymbolResolver:
     def resolve(qualified_name: str) -> Optional[tuple[str, FunctionType]]:
         """Resolve a qualified name to a callable.
 
-        AIDEV-NOTE: Uses sys.modules lookup instead of importlib.import_module()
+        Uses sys.modules lookup instead of importlib.import_module()
         to avoid triggering new imports.  Triggering imports at post_preload()
         time can pull in modules (e.g. urllib3 → ssl) before gevent's
         monkey.patch_all() runs, causing RecursionError in ssl.SSLContext.

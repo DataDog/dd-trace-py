@@ -88,7 +88,7 @@ def _load_and_instrument():
         sum(len(t["cve_ids"]) for t in targets),
     )
 
-    # AIDEV-NOTE: RFC v3 — register all CVEs immediately so they appear
+    # Register all CVEs immediately so they appear
     # with reached:[] on the next heartbeat, before any symbol is executed.
     # Deduplication is handled by DependencyEntry.add_metadata (idempotent).
     from ddtrace.internal.telemetry import telemetry_writer
@@ -116,7 +116,7 @@ def post_preload():
     try:
         _load_and_instrument()
     except Exception:
-        log.error("Failed SCA post_preload instrumentation", exc_info=True)
+        log.debug("Failed SCA post_preload instrumentation", exc_info=True)
 
 
 def start():
@@ -133,9 +133,9 @@ def start():
         from ddtrace.internal.telemetry import telemetry_writer
 
         telemetry_writer.enable_sca_metadata()
-        log.info("SCA detection started")
+        log.debug("SCA detection started")
     except Exception as e:
-        log.error("Failed to start SCA detection: %s", e, exc_info=True)
+        log.debug("Failed to start SCA detection: %s", e, exc_info=True)
 
 
 def stop(join: bool = False) -> None:
@@ -146,13 +146,16 @@ def stop(join: bool = False) -> None:
 def restart(join: bool = False) -> None:
     """Handle fork scenarios by restarting SCA detection in child process.
 
-    AIDEV-NOTE: We explicitly reset the instrumenter and registry state here
+    We explicitly reset the instrumenter and registry state here
     instead of relying on os.register_at_fork(after_in_child=...).  The
     CPython fork callbacks run AFTER ddtrace's forksafe mechanism calls
     restart(), so if we relied on register_at_fork, the cleanup would wipe
     the state we just set up.  See system_tests_error.md for the full
     debugging trace.
     """
+    if not tracer_config._sca_enabled:
+        return
+
     stop(join=join)
 
     # Reset instrumenter and registry state BEFORE re-initializing.
@@ -163,10 +166,13 @@ def restart(join: bool = False) -> None:
     reset_instrumenter()
     reset_registry()
 
-    start()
-    # Re-instrument after restart (no need to wait for post_preload)
-    if tracer_config._sca_enabled:
-        try:
-            _load_and_instrument()
-        except Exception:
-            log.error("Failed SCA instrumentation after restart", exc_info=True)
+    try:
+        start()
+    except Exception:
+        log.debug("Failed SCA start after restart", exc_info=True)
+        return
+
+    try:
+        _load_and_instrument()
+    except Exception:
+        log.debug("Failed SCA instrumentation after restart", exc_info=True)

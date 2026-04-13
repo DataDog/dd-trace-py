@@ -10,7 +10,7 @@ from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 from ..logger import get_logger
-from .dependency_tracker import update_imported_dependencies  # noqa: F401,E402
+from .dependency_tracker import update_imported_dependencies  # noqa: F401
 
 
 log = get_logger(__name__)
