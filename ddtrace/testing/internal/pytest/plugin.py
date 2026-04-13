@@ -257,6 +257,13 @@ class TestOptPlugin:
 
         self._logs_writer: t.Optional[t.Any] = None
         self._logs_handler: t.Optional[t.Any] = None
+        self._stderr_capture: t.Optional[t.Any] = None
+
+        # C-level stderr capture: opt-in via _DD_CIVISIBILITY_STDERR_CAPTURE_ENABLED.
+        # Requires log submission to be enabled so there is a LogsWriter to forward to.
+        self.enable_stderr_capture = (
+            asbool(env.get("_DD_CIVISIBILITY_STDERR_CAPTURE_ENABLED")) and self.enable_log_submission
+        )
 
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
@@ -317,6 +324,12 @@ class TestOptPlugin:
             self._logs_handler = LogsHandler(self._logs_writer)
             logging.getLogger().addHandler(self._logs_handler)
 
+        if self.enable_stderr_capture and self._logs_writer is not None:
+            from ddtrace.testing.internal.stderr_capture import StderrCapture
+
+            self._stderr_capture = StderrCapture(self._logs_writer)
+            self._stderr_capture.start()
+
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
 
@@ -367,6 +380,11 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+
+        # Stop stderr capture first so its reader thread drains before we tear down the writer.
+        if self._stderr_capture is not None:
+            self._stderr_capture.stop()
+            self._stderr_capture = None
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
