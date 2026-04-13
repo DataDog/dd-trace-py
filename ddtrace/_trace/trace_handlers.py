@@ -5,6 +5,7 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from urllib import parse
 
 import wrapt
@@ -18,6 +19,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -27,9 +29,15 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_PARENT_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -58,6 +66,7 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -167,7 +176,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if ctx.get_item("measured"):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -190,7 +199,7 @@ def _finish_span(
         return
 
     integration_config = ctx.get_item("integration_config")
-    maybe_set_service_source_tag(span, integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -230,7 +239,7 @@ def _on_web_framework_finish_request(
         status_code=status_code,
         query=query,
         request_headers=req_headers,
-        response_headers=res_headers,
+        response_headers=dict(res_headers) if res_headers is not None else None,
         route=route,
         **kwargs,
     )
@@ -247,14 +256,14 @@ def _set_inferred_proxy_tags(span, status_code):
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
-            inferred_span.set_tag("http.status_code", status_code)
+            inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if ERROR_MSG in span._meta.keys():
+            if span._has_attribute(ERROR_MSG):
                 inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if ERROR_TYPE in span._meta.keys():
+            if span._has_attribute(ERROR_TYPE):
                 inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if ERROR_STACK in span._meta.keys():
+            if span._has_attribute(ERROR_STACK):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
@@ -537,7 +546,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -825,12 +834,12 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
-        span._metrics[redisx.ARGS_LEN] = len(args)
+        span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
                 # PERF: avoid extra overhead from checks in Span.set_metric
-                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
@@ -1361,6 +1370,225 @@ def _on_pubsub_send_complete(
     _finish_span(ctx, exc_info)
 
 
+def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+    message = ctx.get_item("message")
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("subscription_id"))
+    span._set_attribute(MESSAGING_OPERATION, "receive")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+    if message.message_id:
+        span._set_attribute(MESSAGING_MESSAGE_ID, message.message_id)
+
+    propagated_context = ctx.get_item("propagated_context")
+    if propagated_context:
+        span.link_span(propagated_context)
+
+
+def _on_mlflow_new_run(
+    ctx: core.ExecutionContext,
+    run_id: str,
+    experiment_id: str,
+    run_name: str,
+    run_tags: dict[str, Any],
+    parent_run_id: str,
+    active_run_spans,
+):
+    span = ctx.span
+
+    span._set_attribute(_HOSTNAME_KEY, get_hostname())
+    span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
+    if experiment_id:
+        span._set_attribute(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
+    if run_name:
+        span._set_attribute(MLFLOW_RUN_NAME_TAG, run_name)
+    if parent_run_id:
+        span._set_attribute(MLFLOW_PARENT_RUN_ID_TAG, parent_run_id)
+
+    if run_tags and config.mlflow.trace_run_tags:
+        for key, value in run_tags.items():
+            span._set_attribute(key, value)
+
+    span._set_attribute(MLFLOW_RUN_ID_TAG, run_id)
+    active_run_spans[run_id] = span
+
+
+def _on_mlflow_end_run(
+    run_id: str,
+    step_id: int,
+    active_run_spans,
+    active_step_spans,
+    run_exc_info: Optional[Any] = None,
+    end_run_exc_info: Optional[Any] = None,
+):
+    # The user did not provide a step, we end the one we created artificially
+    if step_id == 0:
+        _on_mlflow_end_step(run_id, step_id, active_step_spans, run_exc_info=run_exc_info)
+    else:
+        step_span: Span = active_step_spans.pop(run_id, None)
+        if step_span:
+            step_span.resource = "tail"
+            step_span.finish()
+
+    span = active_run_spans.pop(run_id, None)
+    if span:
+        # we prioritize error happening during the run instead of when trying
+        # to end the job
+        if run_exc_info is not None and run_exc_info[0] is not None:
+            span.set_exc_info(*run_exc_info)
+        elif end_run_exc_info is not None and end_run_exc_info[0] is not None:
+            span.set_exc_info(*end_run_exc_info)
+        span.finish()
+
+
+def _on_mlflow_new_step(run_id: str, active_run_spans, active_step_spans):
+    run_span: Optional[Span] = active_run_spans.get(run_id, None)
+    new_step_span = tracer.start_span(
+        "run.step",
+        child_of=run_span,
+        service=config.mlflow.get("service"),
+        span_type=SpanTypes.WORKER,
+        activate=True,
+    )
+    new_step_span._set_attribute(COMPONENT, config.mlflow.integration_name)
+    new_step_span._set_attribute(SPAN_KIND, SpanKind.INTERNAL)
+    active_step_spans[run_id] = new_step_span
+
+
+def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_info: Optional[Any] = None):
+    step_span: Span = active_step_spans.pop(run_id, None)
+    if step_span:
+        step_span._set_attribute(MLFLOW_STEP_TAG, str(step_id))
+        if run_exc_info is not None:
+            step_span.set_exc_info(*run_exc_info)
+        step_span.finish()
+
+
+def _on_mlflow_log(run_id: str, log_type: MLflowLogType, active_step_spans, key_value: tuple[str, Any]):
+    step_span: Optional[Span] = active_step_spans.get(run_id, None)
+    if step_span:
+        if log_type == MLflowLogType.METRICS:
+            step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", key_value[1])
+        else:
+            try:
+                step_span._set_attribute(f"mlflow.{log_type.value}.{key_value[0]}", str(key_value[1]))
+            except Exception:  # nosec B110
+                # If the value cannot be stringified, skip setting the tag
+                pass
+
+
+class _AzureCosmosConnectionPolicyLike(Protocol):
+    """Subset of azure.cosmos ConnectionPolicy used for span tags"""
+
+    ConnectionMode: int
+
+
+class _AzureCosmosClientConnectionLike(Protocol):
+    """Subset of azure.cosmos CosmosClientConnection used for span tags"""
+
+    url_connection: str
+    _user_agent: str
+    connection_policy: _AzureCosmosConnectionPolicyLike
+
+
+class _AzureCosmosRequestObjectLike(Protocol):
+    """Subset of azure.cosmos RequestObject used for span tags"""
+
+    operation_type: str
+    resource_type: str
+
+
+class _AzureCosmosRequestLike(Protocol):
+    """Subset of azure.cosmos HTTP Request used for span tags"""
+
+    url: str
+
+
+def _on_azure_cosmos_request_start(ctx: core.ExecutionContext):
+    _start_span(ctx)
+
+    span = ctx.span
+    client = ctx.get_item("client")
+    request_params = ctx.get_item("request_params")
+    request = ctx.get_item("request")
+    request_data = ctx.get_item("request_data")
+
+    _set_azure_cosmos_request_tags(span, client, request_params, request, request_data)
+
+
+def _set_azure_cosmos_request_tags(
+    span: Span,
+    client: _AzureCosmosClientConnectionLike,
+    request_params: _AzureCosmosRequestObjectLike,
+    request: _AzureCosmosRequestLike,
+    request_data: Mapping[str, Any],
+) -> None:
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(db.SYSTEM, "cosmosdb")
+    span._set_attribute(COMPONENT, config.azure_cosmos.integration_name)
+    span._set_attribute(net.TARGET_HOST, client.url_connection)
+    span._set_attribute(http.USER_AGENT, client._user_agent)
+    connection_mode = client.connection_policy.ConnectionMode
+    if connection_mode == 0:
+        span._set_attribute("cosmosdb.connection.mode", "gateway")
+    elif connection_mode == 1:
+        span._set_attribute("cosmosdb.connection.mode", "direct")
+    else:
+        span._set_attribute("cosmosdb.connection.mode", "other")
+
+    resource_link = request.url
+    parsed = parse.urlsplit(resource_link)
+    if parsed.path:
+        resource_link = parsed.path
+
+    span.resource = request_params.operation_type + " " + resource_link
+    if (
+        request_params.operation_type == "Create"
+        and request_params.resource_type == "dbs"
+        and (request_data.get("id") is not None)
+    ):
+        span._set_attribute(db.NAME, request_data["id"])
+
+    if resource_link:
+        if resource_link.startswith("/") and len(resource_link) > 1:
+            resource_link = resource_link[1:]
+
+        parts = resource_link.split("/")
+
+        if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
+            span._set_attribute(db.NAME, parts[1])
+            if len(parts) >= 4:
+                if parts[2].lower() == "colls" and parts[3].lower() != "":
+                    span._set_attribute("cosmosdb.container", parts[3])
+
+
+def _on_azure_cosmos_request_finish(
+    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
+):
+    span = ctx.span
+    sub_status = ctx.get_item("sub_status_code")
+    _, exception, _ = exc_info
+
+    if sub_status:
+        span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+    if exception:
+        sub_status = getattr(exception, "sub_status", None)
+        if sub_status:
+            span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
+        status_code = getattr(exception, "status_code", None)
+        if status_code:
+            span._set_attribute(http.STATUS_CODE, status_code)
+
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1410,6 +1638,7 @@ def listen():
     core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("context.started.azure_cosmos.request", _on_azure_cosmos_request_start)
     core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
     core.on("azure.durable_functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
@@ -1429,6 +1658,7 @@ def listen():
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
+    core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1446,6 +1676,12 @@ def listen():
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
+
+    core.on("mlflow.new.run", _on_mlflow_new_run)
+    core.on("mlflow.end.run", _on_mlflow_end_run)
+    core.on("mlflow.new.step", _on_mlflow_new_step)
+    core.on("mlflow.end.step", _on_mlflow_end_step)
+    core.on("mlflow.log", _on_mlflow_log)
 
     for context_name in (
         # web frameworks
@@ -1498,6 +1734,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1509,6 +1746,7 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "mlflow.run",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1532,6 +1770,7 @@ def listen():
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1545,11 +1784,13 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "google_cloud_pubsub.receive",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.azure_cosmos.request", _on_azure_cosmos_request_finish)
 
 
 listen()

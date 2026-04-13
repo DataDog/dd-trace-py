@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '00 04 * * 2-6'
 
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
 jobs:
   should-run:
     runs-on: ubuntu-latest
@@ -55,7 +60,7 @@ jobs:
             manylinux2014_x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-manylinux_x86_64
           path: ./wheels/*.whl
@@ -90,10 +95,10 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
+          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: wheels-*
           path: binaries/
@@ -107,7 +112,7 @@ jobs:
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: |
@@ -143,12 +148,12 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
+          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
@@ -322,11 +327,17 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_SYMDB
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
         with:
-          datadog_api_key: ${{ secrets.DD_API_KEY }}
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -335,7 +346,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always() && steps.docker_load.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
@@ -358,9 +369,10 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '291f351d6c9689403b7551c16a019c904a506c6c'
+          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
+
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: wheels-*
           path: binaries/
@@ -374,18 +386,24 @@ jobs:
         if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
       - name: Upload test results to Test Optimization
         if: always() && steps.build_runner.outcome == 'success'
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
         with:
-          datadog_api_key: ${{ secrets.DD_API_KEY }}
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always() && steps.build_runner.outcome == 'success'
         with:
           name: logs_parametric
@@ -402,7 +420,7 @@ jobs:
           repository: "DataDog/datadog-lambda-python"
 
       - name: Download wheel to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: wheels-manylinux_x86_64
           path: artifacts/
@@ -413,7 +431,7 @@ jobs:
           ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: .layers/datadog_lambda_py-amd64-3.13.zip
           name: serverless_system_tests_binaries
@@ -421,11 +439,8 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python_lambda
       binaries_artifact: serverless_system_tests_binaries
@@ -437,14 +452,14 @@ jobs:
     needs: [download-s3-wheels]
     steps:
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: wheels-*
           path: binaries/
           merge-multiple: true
 
       - name: Upload combined wheels
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: integration-frameworks-wheels
           path: binaries/
@@ -453,25 +468,20 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
 
   tracer-release:
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # TODO: re-enable once DataDog/system-tests reusable workflow supports dd-sts
+    if: false
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     secrets:
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
       TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python
       ref: main
@@ -501,7 +511,7 @@ jobs:
           needs.serverless-system-tests.result == 'failure' ||
           needs.serverless-system-tests.result == 'cancelled' ||
           needs.integration-frameworks-system-tests.result == 'failure' ||
-          needs.integration-frameworks-system-tests.result == 'cancelled'|| 
+          needs.integration-frameworks-system-tests.result == 'cancelled'||
           needs.tracer-release.result == 'failure' ||
           needs.tracer-release.result == 'cancelled'
         run: exit 1

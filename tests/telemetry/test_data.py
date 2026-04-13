@@ -199,7 +199,7 @@ def test_update_imported_dependencies():
     assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
     assert "xmltodict" in already_imported
-    assert already_imported["xmltodict"] == res[0]["version"]
+    assert already_imported["xmltodict"].version == res[0]["version"]
 
     import typing
 
@@ -211,4 +211,4 @@ def test_update_imported_dependencies():
     assert res[0]["version"]
     assert len(already_imported) == 2
     assert "pytest" in already_imported
-    assert already_imported["pytest"] == res[0]["version"]
+    assert already_imported["pytest"].version == res[0]["version"]

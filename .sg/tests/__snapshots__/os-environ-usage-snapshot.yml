@@ -1,0 +1,38 @@
+id: os-environ-usage
+snapshots:
+  from os import environ as env:
+    labels:
+    - source: from os import environ as env
+      style: primary
+      start: 0
+      end: 29
+  from os import environ, path:
+    labels:
+    - source: from os import environ, path
+      style: primary
+      start: 0
+      end: 28
+  from os import getenv as genv:
+    labels:
+    - source: from os import getenv as genv
+      style: primary
+      start: 0
+      end: 29
+  from os import getenv, path:
+    labels:
+    - source: from os import getenv, path
+      style: primary
+      start: 0
+      end: 27
+  from os import path, environ:
+    labels:
+    - source: from os import path, environ
+      style: primary
+      start: 0
+      end: 28
+  from os import path, getenv:
+    labels:
+    - source: from os import path, getenv
+      style: primary
+      start: 0
+      end: 27

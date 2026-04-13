@@ -12,12 +12,14 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -64,7 +66,7 @@ from .utils import set_tag_or_truncate
 
 log = get_logger(__name__)
 
-RAY_SERVICE_NAME = os.environ.get(RAY_JOB_NAME)
+RAY_SERVICE_NAME = env.get(RAY_JOB_NAME)
 
 # Ray modules that should be excluded from tracing
 RAY_COMMON_MODULE_DENYLIST = {
@@ -84,8 +86,8 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        use_entrypoint_as_service_name=asbool(os.getenv("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
-        redact_entrypoint_paths=asbool(os.getenv("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
+        use_entrypoint_as_service_name=asbool(env.get("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
+        redact_entrypoint_paths=asbool(env.get("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
     ),
@@ -171,9 +173,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     with tracer.trace(
         "task.submit",
         resource=f"{instance._function_name}.remote",
-        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
     ) as span:
+        set_service_and_source(span, RAY_SERVICE_NAME, config.ray)
         span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags_and_metrics(span)
 
@@ -226,7 +228,8 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         metadata_job_name = metadata.get("job_name", None)
         job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
-    job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
+    job_span = tracer.start_span("ray.job", span_type=SpanTypes.RAY)
+    set_service_and_source(job_span, job_name or DEFAULT_JOB_NAME, config.ray)
     try:
         # Root span creation
         _inject_ray_span_tags_and_metrics(job_span)
@@ -241,9 +244,8 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(job_span)
         start_long_running_job(job_span)
 
-        with tracer.trace(
-            "ray.job.submit", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY
-        ) as submit_span:
+        with tracer.trace("ray.job.submit", span_type=SpanTypes.RAY) as submit_span:
+            set_service_and_source(submit_span, job_name or DEFAULT_JOB_NAME, config.ray)
             _inject_ray_span_tags_and_metrics(submit_span)
             submit_span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
             submit_span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
@@ -295,10 +297,10 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
     with tracer.trace(
         "actor_method.submit",
-        service=RAY_SERVICE_NAME,
         span_type=SpanTypes.RAY,
         resource=f"{actor_name}.{method_name}.remote",
     ) as span:
+        set_service_and_source(span, RAY_SERVICE_NAME, config.ray)
         span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         if config.ray.trace_args_kwargs:
             set_tag_or_truncate(span, RAY_ACTOR_METHOD_ARGS, get_argument_value(args, kwargs, 0, "args"))
@@ -346,7 +348,8 @@ def traced_put(wrapped, instance, args, kwargs):
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
-    with tracer.trace("ray.put", service=RAY_SERVICE_NAME or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY) as span:
+    with tracer.trace("ray.put", span_type=SpanTypes.RAY) as span:
+        set_service_and_source(span, RAY_SERVICE_NAME or DEFAULT_JOB_NAME, config.ray)
         span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags_and_metrics(span)
 
@@ -397,12 +400,12 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         from ddtrace.ext import SpanTypes
 
         context = _TraceContext._extract(_dd_ray_trace_ctx) if _dd_ray_trace_ctx else None
-        submission_id = os.environ.get(RAY_SUBMISSION_ID)
+        submission_id = env.get(RAY_SUBMISSION_ID)
 
         with long_running_ray_span(
             "actor_method.execute",
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
+            service=env.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -440,7 +443,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
-            service=os.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
+            service=env.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
             span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
