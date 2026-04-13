@@ -217,12 +217,25 @@ class PyRef
     {
         Py_INCREF(_obj);
     }
+    // Move transfers ownership: the source is disarmed (its _obj is set to
+    // nullptr) so only the new instance calls Py_DECREF on destruction.
+    inline PyRef(PyRef&& other) noexcept
+      : _obj(other._obj)
+      , _mstate(other._mstate)
+    {
+        other._obj = nullptr;
+    }
+    // Copying is deleted: a shallow copy would produce two PyRef instances
+    // sharing the same _obj pointer, both of which would call Py_DECREF on
+    // destruction, resulting in a double-decrement (use-after-free).
+    PyRef(const PyRef&) = delete;
+    PyRef& operator=(const PyRef&) = delete;
     inline ~PyRef()
     {
         // Avoid calling Py_DECREF during finalization as the thread state
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately.
-        if (!_mstate->is_finalizing())
+        if (_obj != nullptr && !_mstate->is_finalizing())
             Py_DECREF(_obj);
     }
 
@@ -475,21 +488,37 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
     // alive until stopped_event->set() completes.
     std::shared_ptr<Event> stopped_event = self->_stopped;
 
+    // AIDEV-NOTE: PyRef is constructed here (GIL held) and moved into the
+    // lambda capture.  This keeps self alive across the entire window between
+    // std::thread creation and the moment the lambda acquires the GIL — during
+    // which the OS thread holds only a raw C pointer.  Without this, another
+    // Python thread could drop the last external reference in that window,
+    // causing PeriodicThread_dealloc to fire, set self->_started = nullptr,
+    // and crash the new thread at _started->set().
+    //
+    // Moving into the capture also handles the std::thread construction failure
+    // case for free: if the constructor throws, the lambda is never created,
+    // the local PyRef destructs on this thread (GIL held), and the refcount is
+    // correctly restored.
+    PyRef _self_ref((PyObject*)self, self->_state);
+
     // Start the thread
-    self->_thread = std::make_unique<std::thread>([self, stopped_event]() {
+    self->_thread = std::make_unique<std::thread>([self, stopped_event, ref = std::move(_self_ref)]() mutable {
         module_state* state = self->_state;
 
         // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
         // stopped_event->set(). This ensures that all Python VM interactions
         // (Py_DECREF, PyGILState_Release) complete before the join() caller is
-        // unblocked. The inner scope also means PyRef::~PyRef may trigger
+        // unblocked. The inner scope also means ~PyRef may trigger
         // PeriodicThread_dealloc (if this thread held the last reference),
         // which is safe because stopped_event is a captured shared_ptr
         // independent of self's lifetime.
         {
             GILGuard _gil(state);
 
-            PyRef _ref((PyObject*)self, state);
+            // Move ref into this scope so ~PyRef (and thus Py_DECREF) fires
+            // while the GIL is still held, before stopped_event->set().
+            PyRef _ref = std::move(ref);
 
             // Retrieve the thread ID
             {
