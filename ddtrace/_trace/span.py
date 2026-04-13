@@ -143,8 +143,9 @@ class Span(SpanData):
         self._store: Optional[dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
-        self._set_default_attributes(self.context._meta)
-        self._set_default_attributes(self.context._metrics)
+        with self.context:
+            self._set_default_attributes(self.context._meta)
+            self._set_default_attributes(self.context._metrics)
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
