@@ -423,9 +423,7 @@ jobs:
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
     secrets: inherit
     permissions:
-      contents: read
       id-token: write
-      packages: write
     with:
       library: python_lambda
       binaries_artifact: serverless_system_tests_binaries
@@ -457,9 +455,7 @@ jobs:
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
     secrets: inherit
     permissions:
-      contents: read
       id-token: write
-      packages: write
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
@@ -468,9 +464,7 @@ jobs:
 
   tracer-release:
     permissions:
-      contents: read
       id-token: write
-      packages: write
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     secrets: inherit
     with:
