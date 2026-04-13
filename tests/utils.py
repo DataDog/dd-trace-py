@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
@@ -609,7 +610,9 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
         kwargs["stats_opt_out"] = asm_config._apm_opt_out
-        self._inner_writer = NativeWriter(*args, **kwargs)
+        self._native_runtime = NativeRuntime()
+        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=self._native_runtime)
+
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
@@ -623,22 +626,13 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
                 self._inner_writer.write(spans)
 
     def pop(self):
-        spans = DummyWriterMixin.pop(self)
-        # Stop the writer threads in case the writer is no longer used.
-        # Otherwise we risk accumulating threads and file descriptors causing crashes
-        # In case the writer is used again it will be restarted by native side.
-        if isinstance(self._inner_writer, NativeWriter):
-            self._inner_writer._exporter.stop_worker()
-        return spans
+        return DummyWriterMixin.pop(self)
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         return self._inner_writer.flush_queue(raise_exc)
-
-    def before_fork(self) -> None:
-        return self._inner_writer.before_fork()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         return self._inner_writer.set_test_session_token(token)

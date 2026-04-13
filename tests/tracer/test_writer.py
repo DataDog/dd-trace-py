@@ -20,6 +20,7 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
+from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
@@ -403,7 +404,7 @@ class NativeWriterTests(BaseTestCase):
 
     def test_on_shutdown_idempotent(self):
         """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
-        writer = NativeWriter("http://dne:1234")
+        writer = NativeWriter("http://dne:1234", NativeRuntime())
         writer.start()
         # First call should succeed
         writer.on_shutdown()
@@ -412,7 +413,7 @@ class NativeWriterTests(BaseTestCase):
 
     def test_on_shutdown_before_start(self):
         """Test that NativeWriter.on_shutdown() can be called before start() without raising ValueError."""
-        writer = NativeWriter("http://dne:1234")
+        writer = NativeWriter("http://dne:1234", NativeRuntime())
         # Call shutdown without ever calling start()
         writer.on_shutdown()
 
@@ -925,7 +926,7 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
 
 
 def test_native_writer_recreate_keeps_stats_opt_out():
-    writer = NativeWriter("http://dne:1234", stats_opt_out=True)
+    writer = NativeWriter("http://dne:1234", NativeRuntime(), stats_opt_out=True)
     assert writer._stats_opt_out
 
     writer = writer.recreate()
@@ -1112,7 +1113,7 @@ def test_writer_telemetry_enabled_on_linux(
 
     with mock_sys_platform(platform):
         with override_global_config(dict(_telemetry_enabled=config_value)):
-            _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+            _writer = NativeWriter("http://localhost:8126/v0.5/traces", NativeRuntime(), sync_mode=True)
 
             if expected_enabled:
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
@@ -1398,5 +1399,5 @@ def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_se
 
 def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
-    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    writer = NativeWriter("http://localhost:8126", NativeRuntime(), otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
