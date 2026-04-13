@@ -55,9 +55,25 @@ suites:
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/internal/coverage/*
+    pattern: 'pytest$'
+  pytest:snapshot:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/test_pytest_snapshot.py
+      - tests/contrib/pytest/test_pytest_snapshot_v2.py
+      - tests/contrib/pytest/test_pytest_xdist_snapshot.py
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
-    pattern: 'pytest$'
+    pattern: 'pytest:snapshot'
   pytest_benchmark:
     venvs_per_job: 3
     paths:
