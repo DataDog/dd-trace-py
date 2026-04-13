@@ -293,9 +293,8 @@ async def _maybe_preparse_async_response(resp, err):
                 return await parsed
             # Sync parse() — return the parsed value directly.
             return parsed
-        except Exception:  # nosec B110
-            # Never let a tracing-internal parse failure propagate;
-            # fall through to return the original response unchanged.
+        # CancelledError is a BaseException in Python 3.9+
+        except (Exception, asyncio.CancelledError):  # nosec B110
             pass
     return resp
 
