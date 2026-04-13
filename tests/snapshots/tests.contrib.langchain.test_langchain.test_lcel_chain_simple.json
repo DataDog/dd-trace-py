@@ -10,11 +10,11 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d9531700000000",
+      "_dd.p.tid": "69dd244b00000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "language": "python",
-      "runtime-id": "e5aa63794ae34839a8b2d4cc6ce659e6"
+      "runtime-id": "9f89ab446bde4d25839bf1a87afb45f0"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -23,8 +23,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 6698208,
-    "start": 1775850263240513167
+    "duration": 11428500,
+    "start": 1776100427082076381
   },
      {
        "name": "langchain.request",
@@ -44,11 +44,12 @@
          "langchain.request.provider": "openai"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
          "_dd.llmobs.input_tokens": 20.0,
          "_dd.llmobs.output_tokens": 79.0,
          "_dd.llmobs.total_tokens": 99.0,
          "_dd.measured": 1.0
        },
-       "duration": 4683292,
-       "start": 1775850263242491292
+       "duration": 8113750,
+       "start": 1776100427085349339
      }]]

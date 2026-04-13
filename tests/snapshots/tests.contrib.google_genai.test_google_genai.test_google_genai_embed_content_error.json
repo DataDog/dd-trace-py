@@ -11,8 +11,9 @@
     "meta": {
       "_dd.llmobs.model_name": "text-embedding-004",
       "_dd.llmobs.model_provider": "google",
+      "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d950dd00000000",
+      "_dd.p.tid": "69dd235300000000",
       "_dd.svc_src": "tests.contrib.google_genai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "error.message": "Models.embed_content() got an unexpected keyword argument 'not_an_argument'",
@@ -21,7 +22,7 @@
       "google_genai.request.model": "text-embedding-004",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "041375a004464c4e8716a934a5e524dc"
+      "runtime-id": "2dd35f0aeaf94f86bbd66c7b3a33102f"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -30,6 +31,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 198166,
-    "start": 1775849693662153334
+    "duration": 212000,
+    "start": 1776100179761314669
   }]]

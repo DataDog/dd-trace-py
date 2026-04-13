@@ -13,7 +13,7 @@
       "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d94fe900000000",
+      "_dd.p.tid": "69dd1fc900000000",
       "_dd.svc_src": "tests.contrib.openai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
@@ -24,9 +24,10 @@
       "openai.request.model": "gpt-4-vision-preview",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "gpt-4-1106-vision-preview",
-      "runtime-id": "d38a3a75e90540fb97f546e9fe63fedc"
+      "runtime-id": "5275fb69072e4452a60dd76a84c8f7ab"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.llmobs.input_tokens": 1118.0,
       "_dd.llmobs.output_tokens": 16.0,
       "_dd.llmobs.total_tokens": 1134.0,
@@ -40,6 +41,6 @@
       "openai.organization.ratelimit.tokens.remaining": 149977.0,
       "process_id": 488.0
     },
-    "duration": 2713917,
-    "start": 1775849449998451138
+    "duration": 2667250,
+    "start": 1776099273961138839
   }]]

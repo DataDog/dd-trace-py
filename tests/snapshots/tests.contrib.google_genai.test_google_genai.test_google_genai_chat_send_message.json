@@ -13,15 +13,16 @@
       "_dd.llmobs.model_provider": "google",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d950dd00000000",
+      "_dd.p.tid": "69dd235300000000",
       "_dd.svc_src": "tests.contrib.google_genai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "041375a004464c4e8716a934a5e524dc"
+      "runtime-id": "2dd35f0aeaf94f86bbd66c7b3a33102f"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.llmobs.input_tokens": 8.0,
       "_dd.llmobs.output_tokens": 9.0,
       "_dd.llmobs.total_tokens": 17.0,
@@ -31,6 +32,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 172083,
-    "start": 1775849693738332709
+    "duration": 138625,
+    "start": 1776100179833169669
   }]]

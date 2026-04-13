@@ -9,8 +9,6 @@
     "type": "llm",
     "error": 0,
     "meta": {
-      "_dd.llmobs.model_name": "vllm-model",
-      "_dd.llmobs.model_provider": "vllm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6936a28c00000000",
       "language": "python",

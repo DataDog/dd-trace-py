@@ -11,13 +11,13 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d950c200000000",
+      "_dd.p.tid": "69dd233900000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "bedrock.request.model": "titan-embed-text-v1",
       "bedrock.request.model_provider": "amazon",
       "language": "python",
-      "runtime-id": "3eb494ef19d94047b0c1a33c4390ee44"
+      "runtime-id": "901d81891fa34e238b1c8697c7bc9c3d"
     },
     "metrics": {
       "_dd.top_level": 1.0,
@@ -25,6 +25,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 2297375,
-    "start": 1775849666534766335
+    "duration": 2122625,
+    "start": 1776100153021575087
   }]]

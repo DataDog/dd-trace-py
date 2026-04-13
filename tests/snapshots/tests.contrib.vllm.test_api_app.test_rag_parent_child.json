@@ -36,8 +36,6 @@
        "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.llmobs.model_name": "vllm-model",
-         "_dd.llmobs.model_provider": "vllm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622014638841213851944042997448706",
@@ -68,8 +66,6 @@
        "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.llmobs.model_name": "vllm-model",
-         "_dd.llmobs.model_provider": "vllm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622093867003732216588897463149330",
@@ -100,8 +96,6 @@
        "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.llmobs.model_name": "vllm-model",
-         "_dd.llmobs.model_provider": "vllm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622093867003721424398273548191883",
@@ -132,8 +126,6 @@
        "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.llmobs.model_name": "vllm-model",
-         "_dd.llmobs.model_provider": "vllm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622569235978801466275868881827569",

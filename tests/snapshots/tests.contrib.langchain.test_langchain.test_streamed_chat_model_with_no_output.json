@@ -10,7 +10,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d9531700000000",
+      "_dd.p.tid": "69dd244b00000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "error.message": "Request timed out.",
@@ -20,7 +20,7 @@
       "langchain.request.provider": "openai-chat",
       "langchain.request.stream": "True",
       "language": "python",
-      "runtime-id": "e5aa63794ae34839a8b2d4cc6ce659e6"
+      "runtime-id": "9f89ab446bde4d25839bf1a87afb45f0"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -29,6 +29,181 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 1360231417,
-    "start": 1775850263359068542
-  }]]
+    "duration": 1248870126,
+    "start": 1776100427376388506
+  }],
+[
+  {
+    "name": "urllib3.request",
+    "service": "urllib3",
+    "resource": "urllib3.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd244b00000000",
+      "_dd.svc_src": "urllib3",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "component": "urllib3",
+      "http.method": "POST",
+      "http.retries_remain": "False",
+      "http.status_code": "200",
+      "http.url": "http://localhost:4566/",
+      "http.useragent": "Botocore/1.34.49 ua/2.0 os/linux#6.12.67-linuxkit md/arch#aarch64 lang/python#3.12.12 md/pyimpl#CPython cfg/retry-mode#legacy",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "137317e78736409db8bbd872d9344d5b",
+      "server.address": "localhost",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
+    },
+    "duration": 2676125,
+    "start": 1776100427369026381
+  }],
+[
+  {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.listqueues",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd244b00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "aws.agent": "botocore",
+      "aws.operation": "ListQueues",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "Z6K37TFCD5O9XT2UPB2ZFQZ47KP5OYIY2C4V4VJEDS9OQYDSGYP4",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "region": "us-east-1",
+      "runtime-id": "137317e78736409db8bbd872d9344d5b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0,
+      "retry_attempts": 0.0
+    },
+    "duration": 4760791,
+    "start": 1776100427308020548
+  },
+     {
+       "name": "urllib3.request",
+       "service": "urllib3",
+       "resource": "urllib3.request",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.svc_src": "urllib3",
+         "component": "urllib3",
+         "http.method": "POST",
+         "http.retries_remain": "False",
+         "http.status_code": "200",
+         "http.url": "http://localhost:4566/",
+         "http.useragent": "Botocore/1.34.49 ua/2.0 os/linux#6.12.67-linuxkit md/arch#aarch64 lang/python#3.12.12 md/pyimpl#CPython cfg/retry-mode#legacy",
+         "out.host": "localhost",
+         "server.address": "localhost",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 3253917,
+       "start": 1776100427309099589
+     }],
+[
+  {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.createqueue",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd244b00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "aws.agent": "botocore",
+      "aws.operation": "CreateQueue",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "23LJON3PDOUM3TXJ4QBRJ0BKNU931PQMQK012EKL7MSMIC4DDJ6Z",
+      "aws.sqs.queue_name": "Test",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "queuename": "Test",
+      "region": "us-east-1",
+      "runtime-id": "137317e78736409db8bbd872d9344d5b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0,
+      "retry_attempts": 0.0
+    },
+    "duration": 3816291,
+    "start": 1776100427312950298
+  },
+     {
+       "name": "urllib3.request",
+       "service": "urllib3",
+       "resource": "urllib3.request",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.svc_src": "urllib3",
+         "component": "urllib3",
+         "http.method": "POST",
+         "http.retries_remain": "False",
+         "http.status_code": "200",
+         "http.url": "http://localhost:4566/",
+         "http.useragent": "Botocore/1.34.49 ua/2.0 os/linux#6.12.67-linuxkit md/arch#aarch64 lang/python#3.12.12 md/pyimpl#CPython cfg/retry-mode#legacy",
+         "out.host": "localhost",
+         "server.address": "localhost",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 2490459,
+       "start": 1776100427313919214
+     }]]

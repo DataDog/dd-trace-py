@@ -14,15 +14,16 @@
       "_dd.llmobs.model_provider": "amazon_bedrock",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d950c400000000",
+      "_dd.p.tid": "69dd233600000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "bedrock.request.model": "llama2-13b-chat-v1",
       "bedrock.request.model_provider": "meta",
       "language": "python",
-      "runtime-id": "3eb494ef19d94047b0c1a33c4390ee44"
+      "runtime-id": "901d81891fa34e238b1c8697c7bc9c3d"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.llmobs.input_tokens": 10.0,
       "_dd.llmobs.output_tokens": 60.0,
       "_dd.llmobs.total_tokens": 70.0,
@@ -31,6 +32,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 2269417,
-    "start": 1775849668318493836
+    "duration": 2084500,
+    "start": 1776100150756872795
   }]]

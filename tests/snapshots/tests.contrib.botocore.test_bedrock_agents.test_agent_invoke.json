@@ -11,11 +11,11 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d9504500000000",
+      "_dd.p.tid": "69dd202d00000000",
       "_dd.svc_src": "botocore",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "language": "python",
-      "runtime-id": "3eb494ef19d94047b0c1a33c4390ee44"
+      "runtime-id": "901d81891fa34e238b1c8697c7bc9c3d"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -24,6 +24,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 3728333,
-    "start": 1775849541330974389
+    "duration": 6310084,
+    "start": 1776099373844670718
   }]]
