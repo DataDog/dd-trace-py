@@ -101,7 +101,7 @@ class SymbolResolver:
         by unwrapping via __wrapped__ to get the original function that
         the wrapper delegates to.
         """
-        # AIDEV-NOTE: ddtrace monkey-patches libraries with wrapt wrappers.
+        # ddtrace monkey-patches libraries with wrapt wrappers.
         # We inject the hook into __wrapped__ so it fires when the wrapper
         # calls the original function.
         if hasattr(target, "__wrapped__"):

@@ -41,7 +41,7 @@ class InstrumentationState:
     is_pending: bool = False
     original_code: Optional[CodeType] = None
     hit_count: int = 0
-    # AIDEV-NOTE: Cached snapshot built at registration time.  Avoids
+    # Cached snapshot built at registration time.  Avoids
     # dict allocation + list copy on every hook invocation (hot path).
     cached_info: Optional[TargetInfo] = field(default=None, repr=False, compare=False)
 
@@ -52,7 +52,7 @@ class InstrumentationRegistry:
     All mutable access is protected by a single lock to avoid
     the complexity and overhead of per-entry locks.
 
-    AIDEV-NOTE: record_hit and get_target_info are lock-free because they
+    record_hit and get_target_info are lock-free because they
     run on the hot path (every instrumented function call).  dict.get is
     GIL-safe for reference reads, hit_count is diagnostic-only (a rare
     lost increment is acceptable), and cached_info is immutable after
@@ -148,14 +148,6 @@ def _reset_global_registry_after_fork() -> None:
     global _global_registry, _registry_lock
     _global_registry = None
     _registry_lock = Lock()
-
-
-# AIDEV-NOTE: Do NOT use os.register_at_fork here.  ddtrace's forksafe
-# mechanism calls product.restart() which explicitly calls
-# _reset_global_registry_after_fork() before re-initializing.  If we also
-# register with os.register_at_fork, the CPython callback fires AFTER
-# restart() has already set up the new state, wiping _global_registry=None
-# permanently.  See system_tests_error.md for details.
 
 
 def get_global_registry() -> InstrumentationRegistry:

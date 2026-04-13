@@ -103,7 +103,7 @@ def _load_and_instrument():
 def post_preload():
     """Load CVE data and instrument targets after ddtrace integrations finish patching.
 
-    AIDEV-NOTE: This runs after patch_all() completes (called from
+    This runs after patch_all() completes (called from
     sitecustomize.py post_preload callbacks).  At this point, ddtrace's
     monkey-patching (wrapt FunctionWrapper) is in place, so the resolver
     correctly unwraps __wrapped__ to get the original function for

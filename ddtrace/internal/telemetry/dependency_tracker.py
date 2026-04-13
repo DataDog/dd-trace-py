@@ -12,6 +12,7 @@ single DependencyTracker instance.
 from importlib.metadata import PackageNotFoundError
 from threading import Lock
 from typing import Any
+from typing import Generator
 from typing import Iterable
 from typing import Optional
 
@@ -173,10 +174,11 @@ class DependencyTracker:
                 if entry.metadata is None:
                     entry.metadata = []
 
-    def get_all_dependencies(self) -> list[DependencyEntry]:
+    def get_all_dependencies(self) -> Generator[DependencyEntry]:
         """Return a snapshot of all dependency entries, safe for unsynchronized iteration."""
         with self._lock:
-            return list(self._imported_dependencies.values())
+            for dep in self._imported_dependencies.values():
+                yield dep
 
     def reset(self) -> None:
         """Reset all state (used on fork / queue reset)."""
@@ -198,7 +200,7 @@ def update_imported_dependencies(
     SCA-enabled state is read from ``tracer_config._sca_enabled`` so it
     reacts dynamically to Remote Configuration changes.
 
-    AIDEV-NOTE: This free function is kept for backward compatibility with
+    NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
     DependencyTracker instead.
     """

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: _registry is read on every hook invocation (hot path).
+# _registry is read on every hook invocation (hot path).
 # We do NOT acquire a lock for reads — Python's GIL makes reference reads
 # safe, and the reference is only set once at startup via set_registry().
 _registry: Optional[InstrumentationRegistry] = None
@@ -86,13 +86,6 @@ def _reset_after_fork() -> None:
     _instrumenter_lock = Lock()
 
 
-# AIDEV-NOTE: Do NOT use os.register_at_fork here.  ddtrace's forksafe
-# mechanism calls product.restart() which explicitly calls _reset_after_fork()
-# before re-initializing.  If we also register with os.register_at_fork, the
-# CPython callback fires AFTER restart() has already set up the new state,
-# wiping _registry=None permanently.  See system_tests_error.md for details.
-
-
 def set_registry(registry: InstrumentationRegistry) -> None:
     """Set global registry reference. Called once at startup."""
     global _registry
@@ -118,7 +111,7 @@ def sca_detection_hook(qualified_name: str) -> None:
     CRITICAL: MUST NOT throw exceptions — runs in customer code.
     """
     try:
-        # AIDEV-NOTE: no lock needed — _registry is a simple reference read
+        # No lock needed — _registry is a simple reference read
         # protected by the GIL, and only set once at startup.
         registry_ref = _registry
         if not registry_ref:
