@@ -24,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 from .constants import DEFAULT_JOB_NAME
-from .constants import RAY_JOB_NAME
 from .constants import RAY_JOB_SUBMIT_STATUS
 from .constants import RAY_STATUS_ERROR
 from .constants import RAY_STATUS_SUCCESS
@@ -36,8 +35,6 @@ from .core.utils import redact_paths
 
 
 log = get_logger(__name__)
-
-RAY_SERVICE_NAME = env.get(RAY_JOB_NAME)
 
 _job_context_lock = Lock()
 _job_contexts = {}
@@ -97,6 +94,11 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     kwargs["runtime_env"] = runtime_env
     env_vars = runtime_env.get("env_vars") or {}
     runtime_env["env_vars"] = env_vars
+
+    # Align ddtrace global service in Ray runtime processes with Ray job spans.
+    # This prevents inferred services (for example "ray.dashboard") from being
+    # attached as _dd.base_service on worker spans.
+    env_vars.setdefault("DD_SERVICE", job_name)
 
     with core.context_with_event(
         RayJobEvent(
