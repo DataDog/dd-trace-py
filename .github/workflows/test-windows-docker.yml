@@ -6,8 +6,8 @@ on:
     paths:
       - docker/Dockerfile.windows
       - .github/workflows/test-windows-docker.yml
-      - .github/scripts/windows-docker-build.bat
-      - .github/scripts/windows-docker-test.bat
+      - .github/scripts/windows-docker-build.ps1
+      - .github/scripts/windows-docker-test.ps1
 
 jobs:
   test-wheel-build:
@@ -83,7 +83,7 @@ jobs:
             -e "UV_PYTHON_INSTALL_DIR=C:\tools\uv-python" `
             -w C:\workspace `
             ${{ env.IMAGE }} `
-            cmd /C "C:\workspace\.github\scripts\windows-docker-build.bat $vcArch"
+            powershell -NoProfile -NonInteractive -File C:\workspace\.github\scripts\windows-docker-build.ps1 -VcArch $vcArch
 
       - name: Test wheel
         shell: powershell
@@ -96,7 +96,7 @@ jobs:
             -e "UV_PYTHON_INSTALL_DIR=C:\tools\uv-python" `
             -w C:\workspace `
             ${{ env.IMAGE }} `
-            cmd /C "C:\workspace\.github\scripts\windows-docker-test.bat $uvPython"
+            powershell -NoProfile -NonInteractive -File C:\workspace\.github\scripts\windows-docker-test.ps1 -UvPython $uvPython
 
       - name: Upload wheel
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
