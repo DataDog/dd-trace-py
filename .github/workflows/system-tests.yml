@@ -325,9 +325,17 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_SYMDB
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -376,9 +384,17 @@ jobs:
         if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
 
+      - name: Get Datadog credentials
+        id: dd-sts
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
+        with:
+          policy: dd-trace-py-github
+
       - name: Upload test results to Test Optimization
         if: always() && steps.build_runner.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
@@ -421,7 +437,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     secrets: inherit
     permissions:
       id-token: write
@@ -453,7 +469,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     secrets: inherit
     permissions:
       id-token: write
