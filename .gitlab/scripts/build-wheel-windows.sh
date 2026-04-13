@@ -23,10 +23,10 @@ export UV_PYTHON="cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
 
 IMAGE="${WINDOWS_BUILD_IMAGE:?WINDOWS_BUILD_IMAGE is required}"
 
+setup_env
+
 # Git Bash path → Windows path (required for docker -v flag on Windows)
 PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}")
-
-setup_env
 
 section_start "docker_pull" "Pulling Windows build image"
 docker pull "${IMAGE}"
