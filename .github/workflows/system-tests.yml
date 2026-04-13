@@ -327,7 +327,7 @@ jobs:
 
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -377,7 +377,7 @@ jobs:
 
       - name: Upload test results to Test Optimization
         if: always() && steps.build_runner.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
@@ -465,7 +465,7 @@ jobs:
   tracer-release:
     permissions:
       id-token: write
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     secrets: inherit
     with:
       library: python
