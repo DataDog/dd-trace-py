@@ -40,7 +40,7 @@ class ProfilerStats
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
 
-    // Number of asyncio tasks seen across all threads in the last sampling cycle
+    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
     std::optional<size_t> asyncio_task_count;
 
   public:

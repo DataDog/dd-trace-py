@@ -41,7 +41,9 @@ class EchionSampler
     std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
-    // Accumulated asyncio task count across all threads in the current sampling cycle.
+    // Accumulated asyncio task count across sampled threads in the current sampling cycle.
+    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
+    // reflects tasks from the sampled subset, not all threads in the process.
     // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
 
