@@ -357,96 +357,140 @@ class TestFileCapture:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not hasattr(os, "fork"), reason="fork not available on this platform")
-class TestForkSafety:
-    """Verify that forking while a capture is active does not break the child."""
+@pytest.mark.subprocess()
+def test_fork_restores_stderr_in_child():
+    """After fork, the child's fd 2 should be the original stderr, not the pipe."""
+    import os
+    import threading
 
-    def test_fork_restores_stderr_in_child(self) -> None:
-        """After fork, the child's fd 2 should be the original stderr, not the pipe."""
-        writer = _FakeLogsWriter()
-        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+    from ddtrace.testing.internal.stderr_capture import StderrCapture
 
-        # Record the identity of fd 2 before capture redirects it.
-        original_stat = os.fstat(2)
+    class _FakeWriter:
+        def __init__(self):
+            self.events = []
+            self.hostname = "h"
+            self.service = "s"
+            self.lock = threading.Lock()
 
-        capture.start()
-        try:
-            # Use a pipe so the child can report back.
-            comm_read, comm_write = os.pipe()
-            pid = os.fork()
-            if pid == 0:
-                # Child process — at_fork handler should have restored fd 2.
-                os.close(comm_read)
-                try:
-                    child_stat = os.fstat(2)
-                    restored = child_stat.st_dev == original_stat.st_dev and child_stat.st_ino == original_stat.st_ino
-                    os.write(comm_write, b"1" if restored else b"0")
-                except Exception:
-                    os.write(comm_write, b"E")
-                finally:
-                    os.close(comm_write)
-                    os._exit(0)
-            else:
+        def put_event(self, event):
+            with self.lock:
+                self.events.append(event)
+
+    writer = _FakeWriter()
+    capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))
+
+    original_stat = os.fstat(2)
+    capture.start()
+    try:
+        comm_read, comm_write = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            os.close(comm_read)
+            try:
+                child_stat = os.fstat(2)
+                restored = child_stat.st_dev == original_stat.st_dev and child_stat.st_ino == original_stat.st_ino
+                os.write(comm_write, b"1" if restored else b"0")
+            except Exception:
+                os.write(comm_write, b"E")
+            finally:
                 os.close(comm_write)
-                result = os.read(comm_read, 1)
-                os.close(comm_read)
-                os.waitpid(pid, 0)
-                assert result == b"1", "fd 2 was not restored in forked child"
-        finally:
-            capture.stop()
-
-    def test_fork_child_can_write_to_stderr(self) -> None:
-        """The child should be able to write to fd 2 without blocking."""
-        writer = _FakeLogsWriter()
-        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
-        capture.start()
-        try:
-            comm_read, comm_write = os.pipe()
-            pid = os.fork()
-            if pid == 0:
-                os.close(comm_read)
-                try:
-                    # This would block if fd 2 still pointed to the pipe
-                    # with no reader thread (pipe buffer is ~64 KB).
-                    os.write(2, b"child stderr write\n")
-                    os.write(comm_write, b"1")
-                except Exception:
-                    os.write(comm_write, b"0")
-                finally:
-                    os.close(comm_write)
-                    os._exit(0)
-            else:
-                os.close(comm_write)
-                result = os.read(comm_read, 1)
-                os.close(comm_read)
-                os.waitpid(pid, 0)
-                assert result == b"1", "child could not write to stderr"
-        finally:
-            capture.stop()
-
-    def test_parent_capture_continues_after_fork(self) -> None:
-        """Fork should not disrupt the parent's capture."""
-        writer = _FakeLogsWriter()
-        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
-        capture.start()
-        try:
-            os.write(2, b"before fork\n")
-            time.sleep(0.1)
-
-            pid = os.fork()
-            if pid == 0:
                 os._exit(0)
-            else:
-                os.waitpid(pid, 0)
+        else:
+            os.close(comm_write)
+            result = os.read(comm_read, 1)
+            os.close(comm_read)
+            os.waitpid(pid, 0)
+            assert result == b"1", "fd 2 was not restored in forked child"
+    finally:
+        capture.stop()
 
-            os.write(2, b"after fork\n")
-            time.sleep(0.1)
-        finally:
-            capture.stop()
 
-        messages = [e["message"] for e in writer.events]
-        assert "before fork" in messages
-        assert "after fork" in messages
+@pytest.mark.subprocess()
+def test_fork_child_can_write_to_stderr():
+    """The child should be able to write to fd 2 without blocking."""
+    import os
+    import threading
+
+    from ddtrace.testing.internal.stderr_capture import StderrCapture
+
+    class _FakeWriter:
+        def __init__(self):
+            self.events = []
+            self.hostname = "h"
+            self.service = "s"
+            self.lock = threading.Lock()
+
+        def put_event(self, event):
+            with self.lock:
+                self.events.append(event)
+
+    writer = _FakeWriter()
+    capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))
+    capture.start()
+    try:
+        comm_read, comm_write = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            os.close(comm_read)
+            try:
+                os.write(2, b"child stderr write\n")
+                os.write(comm_write, b"1")
+            except Exception:
+                os.write(comm_write, b"0")
+            finally:
+                os.close(comm_write)
+                os._exit(0)
+        else:
+            os.close(comm_write)
+            result = os.read(comm_read, 1)
+            os.close(comm_read)
+            os.waitpid(pid, 0)
+            assert result == b"1", "child could not write to stderr"
+    finally:
+        capture.stop()
+
+
+@pytest.mark.subprocess()
+def test_parent_capture_continues_after_fork():
+    """Fork should not disrupt the parent's capture."""
+    import os
+    import threading
+    import time
+
+    from ddtrace.testing.internal.stderr_capture import StderrCapture
+
+    class _FakeWriter:
+        def __init__(self):
+            self.events = []
+            self.hostname = "h"
+            self.service = "s"
+            self.lock = threading.Lock()
+
+        def put_event(self, event):
+            with self.lock:
+                self.events.append(event)
+
+    writer = _FakeWriter()
+    capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))
+    capture.start()
+    try:
+        os.write(2, b"before fork\n")
+        time.sleep(0.1)
+
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        else:
+            os.waitpid(pid, 0)
+
+        os.write(2, b"after fork\n")
+        time.sleep(0.1)
+    finally:
+        capture.stop()
+
+    messages = [e["message"] for e in writer.events]
+    assert "before fork" in messages
+    assert "after fork" in messages
 
 
 # ---------------------------------------------------------------------------
