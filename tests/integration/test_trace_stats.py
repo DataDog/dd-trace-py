@@ -13,11 +13,11 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer(tracer):
-    # _recreate() checks config._trace_compute_stats
-    # to decide whether the native writer will compute stats or not
+    # Recreate tracer with stats enabled
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer._recreate()
         yield tracer
+        tracer.shutdown()
 
 
 class consistent_end_trace(object):

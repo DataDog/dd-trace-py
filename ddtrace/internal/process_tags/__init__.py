@@ -91,6 +91,7 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
         return None, None
 
     from ddtrace import config as ddtrace_config
+    from ddtrace.internal.settings._inferred_base_service import detect_service
 
     tag_definitions = [
         (ENTRYPOINT_WORKDIR_TAG, lambda: os.path.basename(os.getcwd())),
@@ -98,7 +99,12 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
         (ENTRYPOINT_NAME_TAG, _get_entrypoint_name),
         (ENTRYPOINT_TYPE_TAG, _get_entrypoint_type),
         (SVC_USER_TAG, lambda: "true" if ddtrace_config._is_user_provided_service else None),
-        (SVC_AUTO_TAG, lambda: ddtrace_config.service if not ddtrace_config._is_user_provided_service else None),
+        (
+            SVC_AUTO_TAG,
+            lambda: (detect_service(sys.argv) or _get_entrypoint_name())
+            if not ddtrace_config._is_user_provided_service
+            else None,
+        ),
     ]
 
     process_tags_list = sorted(
