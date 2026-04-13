@@ -27,6 +27,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Start Windows container daemon
+        shell: powershell
+        run: |
+          Start-Service docker
+          $timeout = 30
+          while (-not (docker info 2>$null)) {
+            Start-Sleep -Seconds 1
+            $timeout--
+            if ($timeout -le 0) { throw "Docker daemon did not start in time" }
+          }
+
       - name: Pull Windows build image
         shell: powershell
         run: docker pull ${{ env.IMAGE }}
