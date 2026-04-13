@@ -2862,7 +2862,7 @@ class SyncExperiment:
         return result
 
     def as_dataframe(self) -> "pd.DataFrame":
-        """Return all runs stacked into a single MultiIndex DataFrame.
+        r"""Return all runs stacked into a single MultiIndex DataFrame.
 
         Rows from every run in ``self.result["runs"]`` are concatenated in
         run-iteration order. Two extra top-level column groups are prepended:
