@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '00 04 * * 2-6'
 
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
 jobs:
   should-run:
     runs-on: ubuntu-latest
@@ -322,6 +327,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_SYMDB
 
+      - name: Upload test results to Test Optimization
+        if: always() && steps.docker_load.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: always() && steps.docker_load.outcome == 'success'
@@ -367,6 +376,10 @@ jobs:
       - name: Run
         if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
+
+      - name: Upload test results to Test Optimization
+        if: always() && steps.build_runner.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
