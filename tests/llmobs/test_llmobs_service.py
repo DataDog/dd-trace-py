@@ -17,7 +17,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
-from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -36,7 +36,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
-from ddtrace.llmobs._utils import mark_as_evaluation_span
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -1250,45 +1249,6 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
-def test_llmobs_fork_recreates_and_restarts_evaluator_runner():
-    """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
-    import os
-    import sys
-
-    import mock
-
-    import ddtrace
-    from ddtrace.internal.service import ServiceStatus
-    from ddtrace.llmobs import LLMObs as llmobs_service
-
-    try:
-        import ragas  # noqa
-    except ImportError:
-        sys.exit(0)
-
-    os.environ["DD_LLMOBS_EVALUATORS"] = "ragas_faithfulness"
-    os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
-    with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-        with mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate"):
-            llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app")
-            original_evaluator_runner = llmobs_service._instance._evaluator_runner
-            pid = os.fork()
-            if pid:  # parent
-                assert llmobs_service._instance._evaluator_runner == original_evaluator_runner
-                assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
-            else:  # child
-                assert llmobs_service._instance._evaluator_runner != original_evaluator_runner
-                assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
-                llmobs_service.disable()
-                os._exit(12)
-
-            _, status = os.waitpid(pid, 0)
-            exit_code = os.WEXITSTATUS(status)
-            assert exit_code == 12
-            llmobs_service.disable()
-
-
 @pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
@@ -1418,15 +1378,6 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
         pass
     time.sleep(0.1)
     assert llmobs._instance._evaluator_runner.enqueue.call_count == 1
-
-
-def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, llmobs):
-    with llmobs.agent(name="test") as agent:
-        mark_as_evaluation_span(agent)
-        with llmobs.llm(model_name="test_model"):
-            pass
-    time.sleep(0.1)
-    assert llmobs._instance._evaluator_runner.enqueue.call_count == 0
 
 
 def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, llmobs):

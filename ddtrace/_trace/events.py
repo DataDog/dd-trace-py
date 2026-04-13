@@ -32,11 +32,12 @@ class TracingEvent(Event):
 
     # These attributes are required but can be known only at instance-creation time.
     component: str = field()
-    integration_config: "IntegrationConfig" = field()
-    # operation_name can be either provided:
-    # - At event instantiation if constant
-    # - At post init if depending on some runtime values
-    operation_name: str = field(default="")
+    integration_config: IntegrationConfig = field()
+
+    # operation_name must be provided at __post_init__.
+    # This allows to deal with constant and non constant operation name
+    # while still enforcing the value
+    operation_name: str = field(init=False)
 
     tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
@@ -68,11 +69,16 @@ class TracingEvent(Event):
         measured: bool = True,
         activate_distributed_headers: bool = False,
     ) -> "TracingEvent":
-        """Create a TracingEvent instance without defining a subclass."""
+        """This methods allow to dispatch a TracingEvent to create/finish a span
+        without having to define a subclass when the span has no additional properties.
+
+        This should be used as a replacement to the for context_name in (): _start_span/_finish_span
+        in trace_handlers.py
+        """
+
         event = cls(
             component=component,
             integration_config=integration_config,
-            operation_name=operation_name,
             tags=dict(tags or {}),
             activate=activate,
             use_active_context=use_active_context,
@@ -82,6 +88,7 @@ class TracingEvent(Event):
             measured=measured,
             activate_distributed_headers=activate_distributed_headers,
         )
+        event.operation_name = operation_name
         setattr(event, "span_type", span_type)
         setattr(event, "span_kind", span_kind)
         return event

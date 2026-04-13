@@ -15,10 +15,10 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "baa899e768859fce1be7e98cc2518d810745d65a"
+  SYSTEM_TESTS_REF: "c56273abb92d4e9557453e904bf5819ab7f0e52a"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
@@ -127,7 +127,7 @@ serverless lambda tests:
     strategy: depend
     branch: main
   needs:
-    - job: "upload manylinux2014"
+    - job: "upload serverless"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -602,3 +602,18 @@ profiling_native:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         MEMCPY_MODE: ["fast"]
         SANITIZER: ["safety", "thread"]
+
+test-dd-sts:
+  stage: tests
+  needs: []
+  tags: ["arch:amd64"]
+  when: manual
+  allow_failure: true
+  image: registry.ddbuild.io/images/mirror/ubuntu:24.04
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: rapid-seceng-sit
+  script:
+    - apt-get update && apt-get install -y curl
+    - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
+    - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'

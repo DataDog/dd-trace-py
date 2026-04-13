@@ -210,15 +210,19 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
+                # Prevents .pyc write races when xdist workers run subprocesses that all
+                # import ddtrace from the same editable install simultaneously.
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         ),
         Venv(
@@ -352,7 +356,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -361,6 +365,7 @@ venv = Venv(
                 "grpcio": latest,
                 "pytest-asyncio": latest,
                 "protobuf": latest,
+                "pytest-xdist": latest,
                 # pip 25+ changed dist-info registration, causing pip to not appear in
                 # packages_distributions(), which breaks IAST first-party detection tests.
                 # TODO: fix the first-party detection logic in iastpatch.c
@@ -590,6 +595,14 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    env={
+                        # Python 3.12+ emits a DeprecationWarning when os.fork() is called
+                        # from a multi-threaded process. The forksafe tests intentionally
+                        # fork from a multi-threaded subprocess (ddtrace starts background
+                        # threads on import), so suppress the warning to avoid spurious
+                        # stderr output that causes @pytest.mark.subprocess() to fail.
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         # pkg_resources was removed in v82.0.0
@@ -3100,6 +3113,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
@@ -3130,9 +3155,10 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
@@ -3191,16 +3217,6 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
-            },
-        ),
-        Venv(
-            name="mlflow",
-            command="pytest {cmdargs} tests/contrib/mlflow",
-            pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "mlflow[default]": ["~=3.9.0", latest],
-                # pkg_resources was removed in v82.0.0
-                "setuptools": "<82",
             },
         ),
         Venv(
@@ -4427,6 +4443,27 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.10"),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_litellm_guardrail",
+            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.78.5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
+                    },
                 ),
             ],
         ),

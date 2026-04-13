@@ -67,11 +67,11 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
     span = test_spans.spans[0]
     assert span.name == "name"
     assert span.span_type == "custom"
-    assert span._meta[COMPONENT] == "comp"
+    assert span._get_str_attribute(COMPONENT) == "comp"
     assert span.resource == "test.resource"
     assert span.service == "svc"
 
-    def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
+def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
         event = TracingEvent.create(
             component="comp",
             integration_config={},

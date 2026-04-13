@@ -1,11 +1,9 @@
-import asyncio
 import csv
 from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
 import math
-import os
 import sys
 import time
 from typing import Any
@@ -38,6 +36,7 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings import env as _env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -45,7 +44,6 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -67,6 +65,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -75,6 +74,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -123,10 +123,10 @@ from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -159,22 +159,8 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {
-    "anthropic": "anthropic",
-    "bedrock": "botocore",
-    "openai": "openai",
-    "langchain": "langchain",
-    "google_adk": "google_adk",
-    "google_genai": "google_genai",
-    "vertexai": "vertexai",
-    "langgraph": "langgraph",
-    "litellm": "litellm",
-    "crewai": "crewai",
-    "openai_agents": "openai_agents",
-    "mcp": "mcp",
-    "pydantic_ai": "pydantic_ai",
-    "claude_agent_sdk": "claude_agent_sdk",
-    # requests/concurrent frameworks for distributed injection/extraction
+# requests/concurrent frameworks for distributed injection/extraction
+_INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -201,7 +187,7 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not asyncio.iscoroutinefunction(task):
+    if is_async and not get_asyncio().iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters
@@ -441,8 +427,8 @@ def _build_span_meta(
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _app_key: str = _env.get("DD_APP_KEY", "")
+    _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -453,25 +439,25 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        self._export_llmobs = os.getenv("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
-            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
         self._dne_client = LLMObsExperimentsClient(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
@@ -503,6 +489,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -512,7 +499,7 @@ class LLMObs(Service):
             )
         finally:
             span_kind = get_llmobs_span_kind(span)
-            if span_event and span_kind == "llm" and not _is_evaluation_span(span) and self._evaluator_runner:
+            if span_event and span_kind == "llm" and self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -629,8 +616,6 @@ class LLMObs(Service):
 
         existing_tags = get_llmobs_tags(span)
 
-        if _is_evaluation_span(span):
-            tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         if existing_tags is not None:
             tags.update(existing_tags)
 
@@ -782,7 +767,7 @@ class LLMObs(Service):
 
         cls._warn_if_litellm_was_imported()
 
-        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+        if _env.get("DD_LLMOBS_ENABLED") and not asbool(_env.get("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
         # grab required values for LLMObs
@@ -818,7 +803,7 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not os.getenv("DD_REMOTE_CONFIGURATION_ENABLED"):
+                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
                     config._remote_config_enabled = False
                     log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()
@@ -1514,6 +1499,7 @@ class LLMObs(Service):
         experiment._evaluators = evaluators
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        asyncio = get_asyncio()
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -1541,9 +1527,12 @@ class LLMObs(Service):
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
-        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+        module_name = SUPPORTED_LLMOBS_INTEGRATIONS.get(
+            integration, _INTEGRATIONS_W_PROPAGATION_SUPPORT.get(integration)
+        )
+        if module_name is None:
             return False
-        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+        return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -1799,18 +1788,21 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
+        llm_integrations: list[str] = list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(
+            _INTEGRATIONS_W_PROPAGATION_SUPPORT.values()
+        )
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
             integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
-            for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
+            for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-            if env_var in os.environ:
-                integrations_to_patch[module] = asbool(os.environ[env_var])
-        dd_patch_modules = os.getenv("DD_PATCH_MODULES")
+            if env_var in _env:
+                integrations_to_patch[module] = asbool(_env[env_var])
+        dd_patch_modules = _env.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
-            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in llm_integrations}
         )
         patch(raise_errors=True, **integrations_to_patch)
         llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
@@ -1878,6 +1870,7 @@ class LLMObs(Service):
             parent_llmobs_trace_id = (
                 get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
+                # ast-grep-ignore: span-meta-access
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
@@ -1887,7 +1880,7 @@ class LLMObs(Service):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
                 session_id = None
         else:
             llmobs_trace_id = generate_128bit_trace_id()
