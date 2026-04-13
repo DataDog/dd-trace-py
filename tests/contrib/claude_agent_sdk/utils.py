@@ -236,9 +236,9 @@ MOCK_MULTI_TURN_RESULT_MESSAGE = create_mock_result_message(result=MOCK_FINAL_AS
 
 MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
-    MOCK_TOOL_USE_ASSISTANT,        # AssistantMessage with ToolUseBlock → LLM span #1 + tool span
-    MOCK_TOOL_RESULT_USER_READ,     # UserMessage with ToolResultBlock → finishes tool span
-    MOCK_FINAL_ASSISTANT,           # AssistantMessage with text → LLM span #2
+    MOCK_TOOL_USE_ASSISTANT,  # AssistantMessage with ToolUseBlock → LLM span #1 + tool span
+    MOCK_TOOL_RESULT_USER_READ,  # UserMessage with ToolResultBlock → finishes tool span
+    MOCK_FINAL_ASSISTANT,  # AssistantMessage with text → LLM span #2
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
 

@@ -113,9 +113,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if chunk is not None:
             content = getattr(chunk, "content", []) or []
             if isinstance(content, list):
-                self._accumulated_input_messages.extend(
-                    self.integration.parse_content_blocks("assistant", content)
-                )
+                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("assistant", content))
 
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
@@ -168,9 +166,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 )
             user_content = getattr(chunk, "content", []) or []
             if isinstance(user_content, list):
-                self._accumulated_input_messages.extend(
-                    self.integration.parse_content_blocks("user", user_content)
-                )
+                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
             self._create_llm_span()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:

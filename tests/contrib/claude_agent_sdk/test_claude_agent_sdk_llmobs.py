@@ -725,9 +725,7 @@ class TestLLMObsClaudeAgentSdk:
                 {
                     "content": "",
                     "role": "user",
-                    "tool_results": [
-                        {"result": "myhost.local", "tool_id": MOCK_READ_TOOL_ID, "type": "tool_result"}
-                    ],
+                    "tool_results": [{"result": "myhost.local", "tool_id": MOCK_READ_TOOL_ID, "type": "tool_result"}],
                 },
             ],
             output_messages=[{"content": MOCK_FINAL_ASSISTANT_TEXT, "role": "assistant"}],

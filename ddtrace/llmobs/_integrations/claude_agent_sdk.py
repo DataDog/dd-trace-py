@@ -46,9 +46,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
     def extract_llm_input_messages(self, args: list, kwargs: dict, span: Span) -> list[Message]:
         """Return the user prompt as input messages for the first LLM span."""
-        return self._extract_input_messages(
-            get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span
-        )
+        return self._extract_input_messages(get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span)
 
     def _llmobs_set_llm_tags(self, span: Span, response: Optional[Any], kwargs: dict[str, Any] = None) -> None:
         model = (_get_attr(response, "model", "") or "") if response is not None else ""
@@ -210,9 +208,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(
-        self, response: Any
-    ) -> tuple[list[Message], dict[str, int], dict[str, Any], str, str]:
+    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str, str]:
         """Extract output data from response, including output messages, usage metrics, init system message,
         stop reason, and assistant error.
         """
