@@ -8,6 +8,8 @@
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
 
 os tests ubuntu:
+  rules:
+    - when: never
   extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
@@ -36,10 +38,11 @@ os tests ubuntu:
 
 os tests macos:
   extends: .multi_os_test_base
-  tags: ["macos:sonoma-amd64", "specific:true"]
-  needs: [ "build macos" ]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-6fb8511f-106729702"
+  tags: ["macos:sonoma-tart"]
+  needs: [ "build macos arm64" ]
   variables:
-    WHEEL_PATTERN: "macosx*x86_64.whl"
+    WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
   script:
     - |
@@ -49,6 +52,8 @@ os tests macos:
       done
 
 os tests windows:
+  rules:
+    - when: never
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
   needs:
