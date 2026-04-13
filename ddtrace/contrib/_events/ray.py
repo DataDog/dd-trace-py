@@ -15,7 +15,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
-from ddtrace.internal.settings.integration import IntegrationConfig
 
 
 class RayEvents(Enum):
@@ -46,7 +45,7 @@ class RayJobEvent(TracingEvent):
     _end_span: bool = False
 
     def __post_init__(self) -> None:
-        self.span_name = self.event_name
+        self.operation_name = self.event_name
 
 
 @dataclass
@@ -63,7 +62,6 @@ class RayExecutionEvent(TracingEvent):
     is_actor_method: bool = event_field(default=False)
     is_remote_task: bool = event_field(default=False)
 
-    config: IntegrationConfig = event_field()
     method_args: tuple[Any] = event_field()
     method_kwargs: dict[str, Any] = event_field()
 
@@ -71,11 +69,11 @@ class RayExecutionEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         if self.is_actor_method:
-            self.span_name = "actor_method.execute"
+            self.operation_name = "actor_method.execute"
         elif self.is_remote_task:
-            self.span_name = "task.execute"
+            self.operation_name = "task.execute"
         else:
-            self.span_name = self.event_name
+            self.operation_name = self.event_name
 
 
 @dataclass
@@ -98,7 +96,7 @@ class RayCoreAPIEvent(TracingEvent):
     _end_span: bool = False
 
     def __post_init__(self) -> None:
-        self.span_name = self.api_name
+        self.operation_name = self.api_name
 
         if self.timeout_s is not None:
             self.tags[RAY_WAIT_TIMEOUT] = str(self.timeout_s)
@@ -121,14 +119,13 @@ class RaySubmissionEvent(TracingEvent):
     span_kind = SpanKind.PRODUCER
     span_type = SpanTypes.RAY
 
-    config: IntegrationConfig = event_field()
     method_args: object = event_field(default=None)
     method_kwargs: object = event_field(default=None)
     is_actor_method: bool = event_field(default=False)
     is_task_submission: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
-        self.span_name = "task.submit" if self.is_task_submission else "actor_method.submit"
+        self.operation_name = "task.submit" if self.is_task_submission else "actor_method.submit"
 
 
 @dataclass

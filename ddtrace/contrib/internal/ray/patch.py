@@ -102,6 +102,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         RayJobEvent(
             service=job_name or DEFAULT_JOB_NAME,
             component=config.ray.integration_name,
+            integration_config=config.ray,
             submission_id=submission_id,
             job_name=job_name,
             entrypoint=entrypoint,

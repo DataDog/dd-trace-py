@@ -95,7 +95,7 @@ class RayExecutionSubscriber(TracingSubscriber):
         _set_runtime_context_attributes(span)
 
         event: RayExecutionEvent = ctx.event
-        if event.config.trace_args_kwargs:
+        if event.integration_config.trace_args_kwargs:
             args_tag = RAY_ACTOR_METHOD_ARGS if event.is_actor_method else RAY_TASK_ARGS
             kwargs_tag = RAY_ACTOR_METHOD_KWARGS if event.is_actor_method else RAY_TASK_KWARGS
 
@@ -177,7 +177,7 @@ class RaySubmissionSubscriber(TracingSubscriber):
         _set_dist_ai_metrics(span)
         _set_runtime_context_attributes(span)
 
-        if event.config.trace_args_kwargs:
+        if event.integration_config.trace_args_kwargs:
             args_tag = RAY_TASK_ARGS if event.is_task_submission else RAY_ACTOR_METHOD_ARGS
             kwargs_tag = RAY_TASK_KWARGS if event.is_task_submission else RAY_ACTOR_METHOD_KWARGS
             set_tag_or_truncate(span, args_tag, event.method_args)

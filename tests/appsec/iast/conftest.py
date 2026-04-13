@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
@@ -86,6 +87,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _end_iast_context_and_oce(span)
             reset_taint_range_limit_cache()
             reset_source_truncation_cache()
+            clear_all_request_context_slots()
 
 
 @pytest.fixture

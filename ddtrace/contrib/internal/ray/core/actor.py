@@ -68,9 +68,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RaySubmissionEvent(
             component=ray_config.integration_name,
+            integration_config=ray_config,
             service=RAY_SERVICE_NAME,
             resource=f"{actor_name}.{method_name}.remote",
-            config=ray_config,
             method_args=get_argument_value(args, kwargs, 1, "args"),
             method_kwargs=get_argument_value(args, kwargs, 2, "kwargs"),
             is_actor_method=True,
@@ -103,7 +103,7 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
             component=ray_config.integration_name,
             distributed_context=context,
             use_active_context=active_context is not None,
-            config=ray_config,
+            integration_config=ray_config,
             activate=True,
             method_args=args,
             method_kwargs=kwargs,
@@ -157,7 +157,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
                 component=ray_config.integration_name,
                 distributed_context=context,
                 use_active_context=active_context is not None,
-                config=ray_config,
+                integration_config=ray_config,
                 activate=True,
                 method_args=args,
                 method_kwargs=kwargs,

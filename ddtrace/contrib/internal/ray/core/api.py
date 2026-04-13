@@ -26,6 +26,7 @@ def traced_get(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
+            integration_config=config.ray,
             service=RAY_SERVICE_NAME,
             api_name="ray.get",
             is_long_running=True,
@@ -51,6 +52,7 @@ def traced_put(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
+            integration_config=config.ray,
             service=RAY_SERVICE_NAME,
             api_name="ray.put",
             is_long_running=False,
@@ -78,6 +80,7 @@ def traced_wait(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RayCoreAPIEvent(
             component=config.ray.integration_name,
+            integration_config=config.ray,
             service=RAY_SERVICE_NAME,
             api_name="ray.wait",
             is_long_running=True,
