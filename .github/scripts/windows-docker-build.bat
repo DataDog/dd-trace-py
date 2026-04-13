@@ -14,7 +14,7 @@ if "%VC_ARCH%"=="" (
 )
 
 REM Find vcvarsall.bat via vswhere
-for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -property installationPath -latest`) do set VS_PATH=%%i
+for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -all -products * -property installationPath -latest`) do set VS_PATH=%%i
 set VCVARSALL=%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat
 
 if not exist "%VCVARSALL%" (
