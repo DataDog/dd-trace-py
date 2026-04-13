@@ -9,6 +9,7 @@ from ddtrace import config as dd_config
 from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
@@ -502,6 +503,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
+    # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
+    reset_coverage_state()
+
     if not is_test_visibility_enabled():
         return
 
