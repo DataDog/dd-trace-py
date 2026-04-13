@@ -783,7 +783,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
-        self._exporter.stop_worker()
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
@@ -1008,13 +1007,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        try:
-            # FIXME: don't join() on stop(), let the caller handle this
-            super(NativeWriter, self)._stop_service()
-            self.join(timeout=timeout)
-        # Native threads should be stopped even if the writer is not running
-        finally:
-            self._exporter.stop_worker()
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(NativeWriter, self)._stop_service()
+        self.join(timeout=timeout)
 
     def on_shutdown(self):
         try:
