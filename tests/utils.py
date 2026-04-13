@@ -54,6 +54,20 @@ from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
 
+# Shared NativeRuntime for all DummyWriter instances in tests.
+# A single Tokio async runtime is reused across all writers to avoid
+# spawning many runtimes that are never shut down, which causes deadlocks
+# in test suites that create many DummyWriters.
+_shared_test_native_runtime: NativeRuntime = None  # type: ignore[assignment]
+
+
+def _get_shared_test_native_runtime() -> NativeRuntime:
+    global _shared_test_native_runtime
+    if _shared_test_native_runtime is None:
+        _shared_test_native_runtime = NativeRuntime()
+    return _shared_test_native_runtime
+
+
 NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[1]
 FILE_PATH = Path(__file__).resolve().parent
@@ -610,8 +624,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
         kwargs["stats_opt_out"] = asm_config._apm_opt_out
-        self._native_runtime = NativeRuntime()
-        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=self._native_runtime)
+        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=_get_shared_test_native_runtime())
 
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
