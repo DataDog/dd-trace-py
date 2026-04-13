@@ -131,8 +131,18 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 return func(*args, **kwargs)
             finally:
                 # call _after_perform_job handler for job status and origin
-                span_tags = {"job.status": job.get_status() or "None", "job.origin": job.origin}
-                job_failed = job.is_failed
+                # In RQ 2.x, get_status() raises InvalidJobOperation when the
+                # job key no longer exists in Redis (e.g. result_ttl=0).
+                # is_failed calls get_status() internally, so it can raise too.
+                try:
+                    status = job.get_status()
+                except Exception:
+                    status = None
+                try:
+                    job_failed = job.is_failed
+                except Exception:
+                    job_failed = False
+                span_tags = {"job.status": status or "None", "job.origin": job.origin}
                 core.dispatch("rq.worker.perform_job", [ctx, job_failed, span_tags])
 
     finally:
