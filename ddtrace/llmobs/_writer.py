@@ -752,9 +752,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json()
         items = response_data.get("data", [])
         if not items:
-            raise ValueError(
-                f"Failed to get dataset with ID {dataset_id} in project {project_id}: dataset not found"
-            )
+            raise ValueError(f"Failed to get dataset with ID {dataset_id} in project {project_id}: dataset not found")
         if len(items) > 1:
             raise ValueError(
                 f"Failed to get dataset with ID {dataset_id} in project {project_id}: "
