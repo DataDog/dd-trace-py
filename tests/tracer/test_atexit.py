@@ -39,7 +39,7 @@ def test_prog_unregister():
 def test_tracer_atexit_hooks_not_registered_when_disabled():
     from ddtrace._trace.tracer import Tracer
 
-    with mock.patch.object(config, "_tracer_atexit_hooks_enabled", False):
+    with mock.patch.object(config, "_trace_atexit_hooks_enabled", False):
         with mock.patch.object(atexit, "register") as mock_register:
             with mock.patch.object(atexit, "register_on_exit_signal") as mock_signal:
                 t = Tracer()

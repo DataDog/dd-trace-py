@@ -441,7 +441,7 @@ class Config(object):
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
-        self._tracer_atexit_hooks_enabled = _get_config("DD_TRACER_ATEXIT_HOOKS", True, asbool)
+        self._trace_atexit_hooks_enabled = _get_config("DD_TRACE_ATEXIT_HOOKS", True, asbool)
 
         self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
@@ -664,6 +664,7 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
+        self._llmobs_atexit_hooks_enabled = _get_config("DD_LLMOBS_ATEXIT_HOOKS", True, asbool)
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")

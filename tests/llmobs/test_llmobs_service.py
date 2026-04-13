@@ -148,7 +148,7 @@ def test_llmobs_atexit_hook_not_registered_when_disabled(tracer):
     from ddtrace.internal.settings._config import config
 
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        with mock.patch.object(config, "_tracer_atexit_hooks_enabled", False):
+        with mock.patch.object(config, "_llmobs_atexit_hooks_enabled", False):
             with mock.patch.object(atexit, "register") as mock_register:
                 llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
                 registered = [c.args[0] for c in mock_register.call_args_list]

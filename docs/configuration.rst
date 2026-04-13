@@ -392,6 +392,18 @@ Traces
          enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
          the EVP proxy max payload size configured in the Datadog Agent.
 
+   DD_LLMOBS_ATEXIT_HOOKS:
+     type: Boolean
+     default: True
+
+     description: |
+         Controls whether ddtrace registers its LLMObs shutdown hooks (atexit and SIGTERM/SIGINT
+         signal handlers). Set to ``False`` if your application manages its own LLMObs shutdown
+         sequence. When disabled, call ``LLMObs.flush`` and ``LLMObs.disable`` manually.
+
+     version_added:
+       v4.7.0:
+
    DD_LLMOBS_EVENT_SIZE_BYTES:
      type: Int
      default: 5000000
@@ -1085,18 +1097,14 @@ Other
       version_added:
          v1.15.0:
 
-   DD_TRACER_ATEXIT_HOOKS:
+   DD_TRACE_ATEXIT_HOOKS:
      type: Boolean
      default: True
 
      description: |
-         Controls whether ddtrace registers its shutdown hooks (atexit and SIGTERM/SIGINT
-         signal handlers) for the tracer and LLMObs.
-
-         Set to ``False`` if your application manages its own shutdown sequence (for example,
-         waiting for in-flight LLM sessions to complete before tearing down). When disabled,
-         you are responsible for calling ``LLMObs.flush``, ``LLMObs.disable``, and
-         ``tracer.shutdown`` at the appropriate time.
+         Controls whether ddtrace registers its tracer shutdown hooks (atexit and SIGTERM/SIGINT
+         signal handlers). Set to ``False`` if your application manages its own tracer shutdown
+         sequence. When disabled, call ``tracer.shutdown`` manually.
 
      version_added:
        v4.7.0:

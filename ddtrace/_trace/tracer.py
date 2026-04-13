@@ -151,7 +151,7 @@ class Tracer(object):
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
-        if config._tracer_atexit_hooks_enabled:
+        if config._trace_atexit_hooks_enabled:
             atexit.register(self._atexit)
             atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
