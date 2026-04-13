@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.testing.internal.logs._constants import MAX_MESSAGE_BYTES
+from ddtrace.testing.internal.logs._constants import TRUNCATION_SUFFIX
 from ddtrace.testing.internal.logs._writer import LogsWriter
 from ddtrace.testing.internal.writer import Event
 
@@ -25,9 +27,6 @@ class LogsHandler(logging.Handler):
         self._writer = writer
 
     def emit(self, record: logging.LogRecord) -> None:
-        from ddtrace.testing.internal.logs import MAX_MESSAGE_BYTES
-        from ddtrace.testing.internal.logs import TRUNCATION_SUFFIX
-
         # Respect the root logger's current level so that records from child loggers with a lower explicit
         # level don't bypass the level the user has configured globally.  Python's propagation skips the
         # parent logger's level check, so we have to enforce it here ourselves.

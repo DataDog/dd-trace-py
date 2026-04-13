@@ -16,6 +16,8 @@ import time
 import typing as t
 
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.testing.internal.logs._constants import MAX_MESSAGE_BYTES
+from ddtrace.testing.internal.logs._constants import TRUNCATION_SUFFIX
 from ddtrace.testing.internal.writer import Event
 
 
@@ -157,9 +159,6 @@ class StderrCapture:
             self._read_fd = None
 
     def _forward_line(self, raw_line: bytes) -> None:
-        from ddtrace.testing.internal.logs import MAX_MESSAGE_BYTES
-        from ddtrace.testing.internal.logs import TRUNCATION_SUFFIX
-
         try:
             message = raw_line.decode("utf-8", errors="replace")
         except Exception:

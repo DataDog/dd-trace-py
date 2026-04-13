@@ -10,15 +10,11 @@ Shared intake constraints (per-entry size limit, truncation) are defined here
 so that both LogsHandler and StderrCapture enforce them consistently.
 """
 
+from ddtrace.testing.internal.logs._constants import MAX_MESSAGE_BYTES
+from ddtrace.testing.internal.logs._constants import TRUNCATION_SUFFIX
 from ddtrace.testing.internal.logs._handler import LogsHandler
 from ddtrace.testing.internal.logs._stderr import StderrCapture
 from ddtrace.testing.internal.logs._writer import LogsWriter
-
-
-# Datadog logs intake per-entry limit.
-MAX_MESSAGE_BYTES = 1 * 1024 * 1024  # 1 MB
-
-TRUNCATION_SUFFIX = "... [truncated]"
 
 
 __all__ = [
