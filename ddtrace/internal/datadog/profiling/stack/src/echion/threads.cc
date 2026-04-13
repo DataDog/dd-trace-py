@@ -47,8 +47,12 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i].get();
-            const auto& frame_name = echion.string_table().lookup(frame.name)->get();
+            const auto& frame = python_stack[i];
+            auto maybe_frame_name = echion.string_table().lookup(frame.name);
+            if (!maybe_frame_name) {
+                continue;
+            }
+            const auto& frame_name = maybe_frame_name->get();
 
             bool is_boundary_frame = false;
 
@@ -96,7 +100,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     } else {
         for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i].get();
+            const auto& frame = python_stack[i];
             if (frame.cache_key == *frame_cache_key) {
                 upper_python_stack_size = python_stack.size() - i;
                 break;
@@ -234,11 +238,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             size_t task_stack_size = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 task_stack_size = it->second.size();
-                for (const auto& frame_ref : it->second) {
+                for (const Frame& coro_frame : it->second) {
                     if (stack.size() >= max_frames) {
                         break;
                     }
-                    stack.push_back(frame_ref);
+                    stack.push_back(coro_frame);
                 }
             }
             if (task.is_on_cpu) {
@@ -259,7 +263,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
-                    if (using_uvloop && is_uvloop_wrapper_frame(echion, using_uvloop, python_frame.get())) {
+                    if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
                     }
                     stack.push_front(python_frame);

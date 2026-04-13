@@ -11,11 +11,11 @@ FrameStack::render(EchionSampler& echion)
     auto& renderer = echion.renderer();
     for (auto it = this->begin(); it != this->end(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000
-        if ((*it).get().is_entry)
+        if ((*it).is_entry)
             // This is a shim frame so we skip it.
             continue;
 #endif
-        renderer.render_frame((*it).get());
+        renderer.render_frame(*it);
     }
 }
 
@@ -50,7 +50,7 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
             continue;
         }
 
-        stack.push_back(*maybe_frame);
+        stack.push_back(maybe_frame->get());
         count++;
 
         if (count >= max_depth) {
