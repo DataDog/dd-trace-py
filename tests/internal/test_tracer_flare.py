@@ -836,13 +836,10 @@ def test_native_logs(tmp_path):
     """
     import os
 
-    from ddtrace import config
     from ddtrace.internal.native._native import logger as native_logger
 
-    original_trace_writer_native = config._trace_writer_native
     flare = None
     try:
-        config._trace_writer_native = True
         flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
             flare_dir=tmp_path,
@@ -865,7 +862,6 @@ def test_native_logs(tmp_path):
         send_request = setup_task_request(flare, *FLARE_REQUEST_DATA)
         flare.send(send_request)
     finally:
-        config._trace_writer_native = original_trace_writer_native
         if flare is not None:
             flare.revert_configs()
             flare.clean_up_files()
