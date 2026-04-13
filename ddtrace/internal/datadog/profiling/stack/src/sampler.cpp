@@ -637,6 +637,12 @@ Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
 }
 
 void
+Sampler::set_greenlet_offsets(size_t pimpl_offset, size_t frame_offset, size_t stack_stop_offset)
+{
+    echion->set_greenlet_offsets(pimpl_offset, frame_offset, stack_stop_offset);
+}
+
+void
 Sampler::set_uvloop_mode(uintptr_t thread_id, bool value)
 {
     std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());

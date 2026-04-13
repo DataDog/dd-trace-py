@@ -586,11 +586,13 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID> parent_map_copy;
 
     // Phase 1: O(N) flat copy under the lock.
-    // We only copy {id, name, frame} for every greenlet and duplicate the
+    // We copy {id, name, frame} for every greenlet and duplicate the
     // parent-ID map.  No chain traversal, no per-leaf heap allocations.
-    // This keeps the critical section as short as possible so that
-    // update_greenlet_frame() — called on every greenlet switch — is never
-    // blocked for more than a few microseconds.
+    //
+    // When greenlet frame offsets are available, we read gr_frame directly
+    // from greenlet object memory using copy_generic (two pointer hops via
+    // the pimpl indirection).  This eliminates the need for per-switch
+    // update_greenlet_frame() calls entirely.
     {
         const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
 
@@ -602,8 +604,50 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
             return;
 
         greenlet_copies.reserve(greenlet_info_map.size());
-        for (auto& [gid, gl] : greenlet_info_map)
-            greenlet_copies.push_back({ gid, gl->name, gl->frame });
+
+        if (echion.greenlet_offsets_valid()) {
+            // AIDEV-NOTE: Sample-time frame reading via discovered offsets.
+            // Instead of relying on per-switch update_greenlet_frame() to cache
+            // the frame pointer, we read it directly from the greenlet's memory:
+            //   1. Read pimpl pointer:  *(PyGreenlet* + pimpl_offset) -> Greenlet*
+            //   2. Read frame pointer:  *(Greenlet* + frame_offset)   -> struct _frame*
+            //   3. Read stack_stop:     *(Greenlet* + ss_offset)      -> char*
+            // stack_stop != NULL means the greenlet has been started.
+            // A started greenlet with NULL frame is on-CPU.
+            // This eliminates ALL per-switch C calls from the greenlet tracer.
+            auto pimpl_offset = echion.greenlet_pimpl_offset();
+            auto frame_offset = echion.greenlet_frame_offset();
+            auto ss_offset = echion.greenlet_stack_stop_offset();
+
+            for (auto& [gid, gl] : greenlet_info_map) {
+                PyObject* frame = FRAME_NOT_SET;
+
+                void* pimpl_ptr = nullptr;
+                if (copy_generic(gid + pimpl_offset, &pimpl_ptr, sizeof(void*)) == 0 && pimpl_ptr != nullptr) {
+                    auto pimpl_addr = reinterpret_cast<uintptr_t>(pimpl_ptr);
+                    void* frame_ptr = nullptr;
+                    void* stack_stop = nullptr;
+
+                    bool frame_ok = copy_generic(pimpl_addr + frame_offset, &frame_ptr, sizeof(void*)) == 0;
+                    bool ss_ok = copy_generic(pimpl_addr + ss_offset, &stack_stop, sizeof(void*)) == 0;
+
+                    if (frame_ok && frame_ptr != nullptr) {
+                        // Paused greenlet with a saved frame
+                        frame = reinterpret_cast<PyObject*>(frame_ptr);
+                    } else if (ss_ok && stack_stop != nullptr) {
+                        // Started greenlet with NULL frame = on-CPU
+                        frame = Py_None;
+                    }
+                    // else: NULL frame + NULL stack_stop = not started or dead -> skip
+                }
+
+                greenlet_copies.push_back({ gid, gl->name, frame });
+            }
+        } else {
+            // Fallback: use cached frames from per-switch update_greenlet_frame()
+            for (auto& [gid, gl] : greenlet_info_map)
+                greenlet_copies.push_back({ gid, gl->name, gl->frame });
+        }
 
         parent_map_copy = greenlet_parent_map;
     } // Lock released here
