@@ -43,6 +43,9 @@ class ProfilerStats
     // Number of asyncio tasks seen across sampled threads in the last sampling cycle
     std::optional<size_t> asyncio_task_count;
 
+    // Number of greenlets currently tracked by the stack profiler
+    std::optional<size_t> greenlet_count;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -73,6 +76,9 @@ class ProfilerStats
 
     void set_asyncio_task_count(size_t count);
     std::optional<size_t> get_asyncio_task_count() const;
+
+    void set_greenlet_count(size_t count);
+    std::optional<size_t> get_greenlet_count() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

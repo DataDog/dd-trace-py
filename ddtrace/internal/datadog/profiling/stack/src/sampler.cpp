@@ -295,6 +295,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
         Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
         Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
         Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
+        {
+            const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+            Sample::profile_borrow().stats().set_greenlet_count(echion->greenlet_info_map().size());
+        }
 
         // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
         auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);

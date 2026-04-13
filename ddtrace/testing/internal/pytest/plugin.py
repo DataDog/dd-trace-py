@@ -374,7 +374,7 @@ class TestOptPlugin:
 
         if self._logs_writer is not None:
             self._logs_writer.signal_finish()
-            self._logs_writer.wait_finish()
+            self._logs_writer.wait_finish(timeout=30.0)
             self._logs_writer = None
 
         self.manager.finish()
