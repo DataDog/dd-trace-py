@@ -2,6 +2,12 @@ name: Test Windows Docker Build Image
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - docker/Dockerfile.windows
+      - .github/workflows/test-windows-docker.yml
+      - .github/scripts/windows-docker-build.bat
+      - .github/scripts/windows-docker-test.bat
 
 jobs:
   test-wheel-build:
