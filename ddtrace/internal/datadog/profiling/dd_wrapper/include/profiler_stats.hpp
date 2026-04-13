@@ -40,6 +40,9 @@ class ProfilerStats
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
 
+    // Number of greenlets currently tracked by the stack profiler
+    std::optional<size_t> greenlet_count;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -67,6 +70,9 @@ class ProfilerStats
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;
+
+    void set_greenlet_count(size_t count);
+    std::optional<size_t> get_greenlet_count() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
