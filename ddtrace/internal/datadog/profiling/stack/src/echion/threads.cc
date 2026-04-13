@@ -129,6 +129,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
+    echion.add_asyncio_task_count(all_tasks.size());
     {
         auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
