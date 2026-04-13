@@ -53,7 +53,10 @@ RUN Invoke-WebRequest `
     Remove-Item C:\vc_redist.x86.exe -Force
 
 # Install uv
+# UV_LINK_MODE=copy is required when uv operates on volume-mounted paths (e.g. C:\workspace)
+# because Windows containers do not support hardlinks across mount boundaries.
 ENV UV_INSTALL_DIR="C:\tools\uv"
+ENV UV_LINK_MODE="copy"
 RUN New-Item -ItemType Directory -Force -Path C:\tools\uv | Out-Null; `
     $env:INSTALLER_NO_MODIFY_PATH = '1'; `
     Invoke-Expression (Invoke-RestMethod -Uri 'https://astral.sh/uv/install.ps1'); `

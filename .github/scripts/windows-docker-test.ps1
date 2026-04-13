@@ -6,7 +6,6 @@ param(
     [string]$UvPython
 )
 $ErrorActionPreference = 'Stop'
-$env:UV_LINK_MODE = 'copy'
 
 Write-Host "=== Finding Python: $UvPython ==="
 $pythonExe = & uv python find $UvPython
