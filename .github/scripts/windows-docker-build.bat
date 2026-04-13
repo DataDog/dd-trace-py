@@ -13,12 +13,8 @@ if "%VC_ARCH%"=="" (
     exit /b 1
 )
 
-REM Find vcvarsall.bat via vswhere.
-REM Redirect output to a temp file to avoid (x86) parentheses breaking for/f backtick parsing.
-"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -all -products * -property installationPath -latest > "%TEMP%\vs_path.txt"
-set /p VS_PATH=<"%TEMP%\vs_path.txt"
-del "%TEMP%\vs_path.txt" 2>nul
-set VCVARSALL=%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat
+REM vcvarsall.bat is at a known fixed location — VS Build Tools 2022 is pre-installed in the image.
+set "VCVARSALL=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
 
 if not exist "%VCVARSALL%" (
     echo ERROR: vcvarsall.bat not found at %VCVARSALL%

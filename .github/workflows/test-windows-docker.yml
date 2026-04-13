@@ -64,8 +64,7 @@ jobs:
               if (-not `$pyExe) { throw 'Python not found' }
               & `$pyExe --version
 
-              `$vswhere = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -all -products '*' -property installationPath -latest
-              `$vcvarsall = Join-Path `$vswhere 'VC\Auxiliary\Build\vcvarsall.bat'
+              `$vcvarsall = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat'
               if (-not (Test-Path `$vcvarsall)) { throw `"vcvarsall.bat not found at `$vcvarsall`" }
               Write-Host `"vcvarsall.bat: `$vcvarsall`"
               Write-Host '=== All tools validated ==='
