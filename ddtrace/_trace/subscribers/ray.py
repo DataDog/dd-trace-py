@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_KWARGS
 from ddtrace.contrib.internal.ray.constants import RAY_ENTRYPOINT
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_STATUS
+from ddtrace.contrib.internal.ray.constants import RAY_JOB_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_ERROR
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_SUCCESS
 from ddtrace.contrib.internal.ray.constants import RAY_SUBMISSION_ID
@@ -66,6 +67,8 @@ class RayJobStartSubscriber(TracingSubscriber):
         if event.job_name:
             env[RAY_JOB_NAME] = event.job_name
 
+        job_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
+
     @classmethod
     def on_ended(
         cls,
@@ -74,6 +77,10 @@ class RayJobStartSubscriber(TracingSubscriber):
     ) -> None:
         event: RayJobEvent = ctx.event
         job_span = ctx.span
+
+        # a simple if event.submit_failed does not work on event_field
+        if event.submit_failed is True:
+            job_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_ERROR)
 
         exc_type, exc_val, exc_tb = exc_info
         if exc_type is not None and exc_val is not None:
