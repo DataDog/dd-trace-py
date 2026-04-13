@@ -156,13 +156,6 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #endif // PY_VERSION_HEX >= 0x030d0000
-    if (&frame != &INVALID_FRAME) {
-#if PY_VERSION_HEX >= 0x030c0000
-        frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
-#else                                                                  // PY_VERSION_HEX < 0x030c0000
-        frame.is_entry = frame_addr->is_entry;
-#endif                                                                 // PY_VERSION_HEX >= 0x030c0000
-    }
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
 #else  // PY_VERSION_HEX < 0x030b0000
