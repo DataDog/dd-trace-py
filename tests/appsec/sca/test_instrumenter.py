@@ -22,14 +22,18 @@ from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
 @pytest.fixture(autouse=True)
 def _restore_instrumenter_globals():
-    """Save and restore module-level singletons to prevent cross-test contamination."""
+    """Save and restore module-level singletons and config to prevent cross-test contamination."""
+    from ddtrace.internal.settings._config import config as tracer_config
+
     saved_registry = _instrumenter_mod._registry
     saved_instance = _instrumenter_mod._instrumenter_instance
     saved_global_registry = _registry_mod._global_registry
+    saved_sca_enabled = tracer_config._sca_enabled
     yield
     _instrumenter_mod._registry = saved_registry
     _instrumenter_mod._instrumenter_instance = saved_instance
     _registry_mod._global_registry = saved_global_registry
+    tracer_config._sca_enabled = saved_sca_enabled
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +128,9 @@ class TestSCADetectionHookIntegration:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        tracker._sca_metadata_enabled = True
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        tracer_config._sca_enabled = True
 
         # Pre-populate a dependency with registered CVE
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
@@ -237,7 +243,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        tracker._sca_metadata_enabled = True
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        tracer_config._sca_enabled = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()
@@ -289,7 +297,9 @@ class TestCallerInfoToReachedArray:
         instrumenter = Instrumenter(registry)
 
         tracker = DependencyTracker()
-        tracker._sca_metadata_enabled = True
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        tracer_config._sca_enabled = True
 
         entry = DependencyEntry(name="fakepkg", version="1.0.0", metadata=[])
         entry.mark_initial_sent()

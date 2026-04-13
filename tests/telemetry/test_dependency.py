@@ -2,10 +2,22 @@
 
 import json
 
+import pytest
+
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency import ReachabilityMetadata
 from ddtrace.internal.telemetry.dependency import attach_reachability_metadata
 from ddtrace.internal.telemetry.dependency import register_cve_metadata
+
+
+@pytest.fixture(autouse=True)
+def _restore_sca_config():
+    """Save and restore tracer_config._sca_enabled to prevent cross-test contamination."""
+    from ddtrace.internal.settings._config import config as tracer_config
+
+    saved = tracer_config._sca_enabled
+    yield
+    tracer_config._sca_enabled = saved
 
 
 class TestReachabilityMetadata:
@@ -272,17 +284,23 @@ class TestRegisterCveMetadata:
 
 
 def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
-    """Shared factory for writer-level tests."""
+    """Shared factory for writer-level tests.
+
+    Sets tracer_config._sca_enabled so DependencyTracker reads the live
+    config flag.  Callers should use the _restore_sca_config fixture
+    (autouse in this module) to ensure cleanup.
+    """
     from unittest.mock import MagicMock
 
+    from ddtrace.internal.settings._config import config as tracer_config
     from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
     from ddtrace.internal.telemetry.writer import TelemetryWriter
 
+    tracer_config._sca_enabled = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
     writer._service_lock = MagicMock()
     writer._enabled = enabled
     tracker = DependencyTracker()
-    tracker._sca_metadata_enabled = sca_enabled
     if deps:
         tracker._imported_dependencies = deps
     writer._dependency_tracker = tracker

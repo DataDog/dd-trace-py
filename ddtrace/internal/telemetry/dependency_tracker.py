@@ -17,6 +17,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
+from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._telemetry import config
 
 from . import modules
@@ -33,17 +34,18 @@ class DependencyTracker:
 
     All mutable access is protected by an internal lock.
 
-    The tracker does not check any SCA config flag.  It relies
-    on the DependencyEntry.metadata field state:
+    SCA-enabled state is read from ``tracer_config._sca_enabled`` so
+    it reacts dynamically to Remote Configuration changes instead of
+    relying on a one-time snapshot.  The DependencyEntry.metadata field
+    state drives the wire format:
     - metadata is None  -> entry serialized without "metadata" key
     - metadata is not None -> entry serialized with "metadata" key
-    SCA product is responsible for setting metadata to [] on entries
-    when it starts (via enable_sca_metadata).
+    SCA product is responsible for setting metadata to [] on existing
+    entries when it starts (via enable_sca_metadata).
     """
 
     def __init__(self) -> None:
         self._imported_dependencies: dict[str, DependencyEntry] = {}
-        self._sca_metadata_enabled: bool = False
         self._modules_already_imported: set[str] = set()
         self._lock = Lock()
 
@@ -55,7 +57,7 @@ class DependencyTracker:
 
         Caller must hold self._lock (called internally from collect_report).
         """
-        return update_imported_dependencies(self._imported_dependencies, new_modules, self._sca_metadata_enabled)
+        return update_imported_dependencies(self._imported_dependencies, new_modules)
 
     def collect_report(self) -> Optional[list[dict[str, Any]]]:
         """Discover new modules, collect re-reports, mark sent. Return payload or None.
@@ -77,12 +79,12 @@ class DependencyTracker:
                     entry.mark_initial_sent()
                     entry.mark_all_metadata_sent()
 
-            # AIDEV-NOTE: Skip the re-report scan when SCA is disabled.
+            # Skip the re-report scan when SCA is disabled.
             # Without SCA, no entry will ever have unsent metadata, so the
             # scan over all _imported_dependencies is pure overhead (~887us
             # at 10K deps).  Only entries created by the SCA hook or with
             # metadata attached can trigger needs_report() after initial send.
-            if not self._sca_metadata_enabled:
+            if not tracer_config._sca_enabled:
                 return new_deps if new_deps else None
 
             # Collect names of deps just reported above to avoid double-reporting.
@@ -108,7 +110,7 @@ class DependencyTracker:
 
         Caller must hold self._lock.
         """
-        if package_name not in self._imported_dependencies and self._sca_metadata_enabled:
+        if package_name not in self._imported_dependencies and tracer_config._sca_enabled:
             try:
                 from importlib.metadata import version as importlib_metadata_version
 
@@ -159,14 +161,13 @@ class DependencyTracker:
             return register_cve_metadata(self._imported_dependencies, package_name, cve_id)
 
     def enable_sca_metadata(self) -> None:
-        """Activate SCA metadata on all tracked and future dependencies.
+        """Activate SCA metadata on all currently tracked dependencies.
 
         Called by the SCA product on start.  Sets metadata from None to []
-        on all existing entries and sets a flag so new entries created by
-        update_imported also get metadata=[].
+        on all existing entries so the wire format includes the "metadata"
+        key.  Future entries pick up the flag from tracer_config._sca_enabled.
         """
         with self._lock:
-            self._sca_metadata_enabled = True
             for entry in self._imported_dependencies.values():
                 if entry.metadata is None:
                     entry.metadata = []
@@ -180,20 +181,21 @@ class DependencyTracker:
         """Reset all state (used on fork / queue reset)."""
         with self._lock:
             self._imported_dependencies = {}
-            self._sca_metadata_enabled = False
             self._modules_already_imported = set()
 
 
 def update_imported_dependencies(
     already_imported: dict[str, DependencyEntry],
     new_modules: Iterable[str],
-    sca_metadata_enabled: bool = False,
 ) -> list[dict]:
     """Standalone version of dependency discovery for backward compatibility.
 
     Mutates *already_imported* in place, adding a DependencyEntry for each
     newly discovered package.  Returns the list of serialized dependency
     dicts ready for the ``app-dependencies-loaded`` telemetry payload.
+
+    SCA-enabled state is read from ``tracer_config._sca_enabled`` so it
+    reacts dynamically to Remote Configuration changes.
 
     AIDEV-NOTE: This free function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
@@ -211,7 +213,7 @@ def update_imported_dependencies(
         if name in already_imported:
             continue
 
-        metadata: Optional[list] = [] if sca_metadata_enabled else None
+        metadata: Optional[list] = [] if tracer_config._sca_enabled else None
         entry = DependencyEntry(name=name, version=version, metadata=metadata)
         already_imported[name] = entry
         deps.append(entry.to_telemetry_dict())

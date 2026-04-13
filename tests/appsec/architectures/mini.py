@@ -21,10 +21,10 @@ _TELEMETRY_DEPENDENCIES = []
 _original_update_imported_dependencies = dep_tracker.update_imported_dependencies
 
 
-def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps, sca_metadata_enabled=False):
+def wrap_update_imported_dependencies(imported_dependencies, newly_imported_deps):
     global _TELEMETRY_DEPENDENCIES
     dependencies = _original_update_imported_dependencies(
-        imported_dependencies, newly_imported_deps, sca_metadata_enabled
+        imported_dependencies, newly_imported_deps
     )
     _TELEMETRY_DEPENDENCIES.extend(dependencies)
     return dependencies

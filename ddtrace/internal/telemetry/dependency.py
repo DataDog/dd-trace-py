@@ -26,10 +26,6 @@ class ReachabilityMetadata:
         value: Dict with keys: id, reached (list of hit objects).
     """
 
-    # AIDEV-NOTE: RFC v3 changed `reached` from bool to an array of
-    # {path, method, line} objects.  Each metadata entry represents one CVE;
-    # call-site hits accumulate inside the `reached` list (max 1 per RFC).
-
     type: str
     value: dict
     _sent: bool = field(default=False, repr=False, compare=False)
@@ -137,8 +133,6 @@ class DependencyEntry:
     def add_metadata(self, cve_id: str, path: str = "", symbol: str = "", line: int = 0) -> bool:
         """Add or update reachability metadata for a CVE.
 
-        AIDEV-NOTE: RFC v3 — one metadata entry per CVE.  If the CVE already
-        exists and has a non-empty reached list, skip (first hit wins, max=1).
         If the CVE exists with reached=[], add the call-site entry.
         If the CVE doesn't exist, create a new metadata entry.
 

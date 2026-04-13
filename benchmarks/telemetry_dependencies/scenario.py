@@ -46,7 +46,9 @@ if not HAS_OLD_API:
 def _populate_tracker(tracker, n, sca_enabled):
     """Pre-populate a DependencyTracker with n dependencies as already-reported."""
     if sca_enabled:
-        tracker._sca_metadata_enabled = True
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        tracer_config._sca_enabled = True
     for i in range(n):
         name = "package-%d" % i
         meta = [] if sca_enabled else None
@@ -154,7 +156,9 @@ class TelemetryDependencies(Scenario):
         for _ in range(loops):
             tracker = DependencyTracker()
             if sca:
-                tracker._sca_metadata_enabled = True
+                from ddtrace.internal.settings._config import config as tracer_config
+
+                tracer_config._sca_enabled = True
             t0 = time.perf_counter()
             _collect_report_new_modules(tracker, module_names, dists)
             total += time.perf_counter() - t0
