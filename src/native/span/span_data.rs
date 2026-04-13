@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyTuple},
+    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyTuple},
     Bound, IntoPyObject as _, Py, PyAny, Python,
 };
 
@@ -20,6 +20,9 @@ pub struct SpanData {
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
     pub _trace_id_py: Option<Py<PyAny>>,
+    /// Storage for meta_struct values: dict[str, Any].
+    /// None until first use; initialized to an empty dict in __new__.
+    pub meta_struct: Option<Py<PyDict>>,
 }
 
 impl SpanData {
@@ -398,5 +401,63 @@ impl SpanData {
     #[inline(always)]
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
+    }
+
+    // meta_struct methods
+
+    fn _set_struct_tag(
+        &mut self,
+        py: Python<'_>,
+        key: &str,
+        value: &Bound<'_, PyDict>,
+    ) -> pyo3::PyResult<()> {
+        let dict = self
+            .meta_struct
+            .get_or_insert_with(|| PyDict::new(py).unbind())
+            .bind(py);
+        dict.set_item(key, value)
+    }
+
+    fn _get_struct_tag<'py>(
+        &self,
+        py: Python<'py>,
+        key: &str,
+    ) -> pyo3::PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.meta_struct {
+            None => Ok(None),
+            Some(dict) => dict.bind(py).get_item(key),
+        }
+    }
+
+    fn _remove_struct_tag<'py>(
+        &mut self,
+        py: Python<'py>,
+        key: &str,
+    ) -> pyo3::PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.meta_struct {
+            None => Ok(None),
+            Some(dict) => {
+                let dict = dict.bind(py);
+                let value = dict.get_item(key)?;
+                if value.is_some() {
+                    dict.del_item(key)?;
+                }
+                Ok(value)
+            }
+        }
+    }
+
+    fn _has_meta_structs(&self, py: Python<'_>) -> bool {
+        self.meta_struct
+            .as_ref()
+            .map(|d| !d.bind(py).is_empty())
+            .unwrap_or(false)
+    }
+
+    fn _get_meta_structs<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        match &self.meta_struct {
+            None => PyDict::new(py),
+            Some(dict) => dict.bind(py).clone(),
+        }
     }
 }

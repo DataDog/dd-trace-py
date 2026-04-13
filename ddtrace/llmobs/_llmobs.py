@@ -480,7 +480,7 @@ class LLMObs(Service):
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
             if self._export_llmobs:
-                span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""

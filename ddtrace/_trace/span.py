@@ -66,7 +66,6 @@ class Span(SpanData):
     __slots__ = [
         # Public span attributes
         "_meta",
-        "_meta_struct",
         "context",
         "_metrics",
         "_store",
@@ -120,8 +119,6 @@ class Span(SpanData):
         """
         self._meta: dict[str, str] = {}  # ast-grep-ignore: span-meta-access
         self._metrics: dict[str, NumericType] = {}  # ast-grep-ignore: span-metrics-access
-
-        self._meta_struct: dict[str, dict[str, Any]] = {}
 
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
@@ -269,17 +266,6 @@ class Span(SpanData):
                 del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
-
-    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None:
-        """
-        Set a tag key/value pair on the span meta_struct
-        Currently it will only be exported with V4 encoding
-        """
-        self._meta_struct[key] = value
-
-    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]:
-        """Return the given struct or None if it doesn't exist."""
-        return self._meta_struct.get(key, None)
 
     def _set_attribute(self, key: str, value: Union[str, int, float]) -> None:
         """Set a tag key/value pair on the span. Values must be either strings or numbers."""
@@ -728,7 +714,7 @@ class Span(SpanData):
         """Return a detailed string representation of a span."""
         meta = {
             k: v.keys() if isinstance(v, dict) else f"wrong type [{type(v).__name__}]"
-            for k, v in self._meta_struct.items()
+            for k, v in self._get_meta_structs().items()
         }
         return (
             f"Span(name='{self.name}', "
