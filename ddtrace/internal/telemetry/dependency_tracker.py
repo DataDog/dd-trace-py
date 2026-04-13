@@ -17,7 +17,6 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
-from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._telemetry import config
 
 from . import modules
@@ -84,6 +83,8 @@ class DependencyTracker:
             # scan over all _imported_dependencies is pure overhead (~887us
             # at 10K deps).  Only entries created by the SCA hook or with
             # metadata attached can trigger needs_report() after initial send.
+            from ddtrace.internal.settings._config import config as tracer_config
+
             if not tracer_config._sca_enabled:
                 return new_deps if new_deps else None
 
@@ -110,6 +111,8 @@ class DependencyTracker:
 
         Caller must hold self._lock.
         """
+        from ddtrace.internal.settings._config import config as tracer_config
+
         if package_name not in self._imported_dependencies and tracer_config._sca_enabled:
             try:
                 from importlib.metadata import version as importlib_metadata_version
@@ -201,6 +204,8 @@ def update_imported_dependencies(
     tests and benchmarks that call it directly.  Production code should use
     DependencyTracker instead.
     """
+    from ddtrace.internal.settings._config import config as tracer_config
+
     deps: list[dict] = []
     for module_name in new_modules:
         dists = get_module_distribution_versions(module_name)
