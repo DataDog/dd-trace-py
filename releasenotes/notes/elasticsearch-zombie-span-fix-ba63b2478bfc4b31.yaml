@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    elasticsearch: Fixes zombie spans when `TransportError` is raised during `perform_request`.
+    Previously, the generator coroutine was abandoned without closing, causing the tracing span's
+    context manager to remain open until Python garbage collection. This resulted in spans reporting
+    inflated durations (minutes instead of milliseconds). The generator is now properly closed on
+    exception, ensuring immediate span finalization.
