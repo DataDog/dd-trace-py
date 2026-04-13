@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    serverless: AWS Lambda functions now appear under their function name as the service
+    when ``DD_SERVICE`` is not explicitly configured. Service remapping rules configured
+    in Datadog will now apply correctly to Lambda spans.
