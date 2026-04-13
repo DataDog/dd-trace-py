@@ -145,12 +145,12 @@ class TestSCADetectionHookIntegration:
         mock_writer = MagicMock()
         attach_calls = []
 
-        def capture_attach(pkg, cve, path, symbol, line):
-            attach_calls.append({"pkg": pkg, "cve": cve, "path": path, "symbol": symbol, "line": line})
+        def capture_attach(package_name, cve_id, path, symbol, line):
+            attach_calls.append({"pkg": package_name, "cve": cve_id, "path": path, "symbol": symbol, "line": line})
 
         mock_writer.attach_dependency_metadata = capture_attach
 
-        with patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer):
+        with patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer):
             # Call the function — the hook should fire
             result = target_func(42)
 
@@ -186,11 +186,11 @@ class TestSCADetectionHookIntegration:
         # Track calls
         attach_calls = []
         mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, symbol, line: attach_calls.append(
-            {"pkg": pkg, "cve": cve, "path": path, "symbol": symbol, "line": line}
+        mock_writer.attach_dependency_metadata = lambda package_name, cve_id, path, symbol, line: attach_calls.append(
+            {"pkg": package_name, "cve": cve_id, "path": path, "symbol": symbol, "line": line}
         )
 
-        with patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer):
+        with patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer):
             # Call through the WRAPPER — hook should still fire
             result = wrapt_wrapper(42)
 
@@ -241,12 +241,12 @@ class TestCallerInfoToReachedArray:
 
         # Mock _get_caller_info to return known values
         mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, method, line: (
-            tracker.attach_metadata(pkg, cve, path, method, line)
+        mock_writer.attach_dependency_metadata = lambda package_name, cve_id, path, symbol, line: (
+            tracker.attach_metadata(package_name, cve_id, path, symbol, line)
         )
 
         with (
-            patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer),
+            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
             patch(
                 "ddtrace.appsec.sca._instrumenter._get_caller_info",
                 return_value=("app/views.py", 42, "MyView.handle"),
@@ -293,12 +293,12 @@ class TestCallerInfoToReachedArray:
 
         # Mock _get_caller_info to return EMPTY values (simulates native frame walker failure)
         mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, method, line: (
-            tracker.attach_metadata(pkg, cve, path, method, line)
+        mock_writer.attach_dependency_metadata = lambda package_name, cve_id, path, symbol, line: (
+            tracker.attach_metadata(package_name, cve_id, path, symbol, line)
         )
 
         with (
-            patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer),
+            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
             patch(
                 "ddtrace.appsec.sca._instrumenter._get_caller_info",
                 return_value=("", 0, ""),
@@ -340,13 +340,13 @@ class TestCallerInfoToReachedArray:
         instrumenter.instrument("test_module:target_func", target_func)
 
         mock_writer = MagicMock()
-        mock_writer.attach_dependency_metadata = lambda pkg, cve, path, method, line: (
-            tracker.attach_metadata(pkg, cve, path, method, line)
+        mock_writer.attach_dependency_metadata = lambda package_name, cve_id, path, symbol, line: (
+            tracker.attach_metadata(package_name, cve_id, path, symbol, line)
         )
 
         # Simulate _get_caller_info returning empty (native frame walker failure)
         with (
-            patch("ddtrace.appsec.sca._instrumenter._telemetry_writer", mock_writer),
+            patch("ddtrace.appsec.sca._instrumenter.telemetry_writer", mock_writer),
             patch(
                 "ddtrace.appsec.sca._instrumenter._get_caller_info",
                 return_value=("", 0, ""),
