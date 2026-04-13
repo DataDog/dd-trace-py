@@ -1,4 +1,4 @@
-"""Tests for ddtrace.testing.internal.stderr_capture module."""
+"""Tests for ddtrace.testing.internal.logs.StderrCapture."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import os
 import threading
 import time
 
-from ddtrace.testing.internal.stderr_capture import StderrCapture
+from ddtrace.testing.internal.logs import StderrCapture
 from ddtrace.testing.internal.writer import Event
 
 

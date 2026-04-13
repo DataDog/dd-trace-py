@@ -28,6 +28,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.logs import LogsHandler
 from ddtrace.testing.internal.logs import LogsWriter
+from ddtrace.testing.internal.logs import StderrCapture
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -36,7 +37,6 @@ from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.stderr_capture import StderrCapture
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule

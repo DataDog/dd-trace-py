@@ -1,4 +1,4 @@
-"""Capture C-level stderr output and forward it to the logs intake.
+"""StderrCapture — captures C-level stderr (fd 2) and forwards to the logs intake.
 
 Some processes write directly to file descriptor 2, bypassing Python's ``sys.stderr``
 (e.g. native libraries, subprocesses).  This module redirects fd 2 through an
@@ -20,17 +20,12 @@ from ddtrace.testing.internal.writer import Event
 
 
 if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.logs import LogsWriter
+    from ddtrace.testing.internal.logs._writer import LogsWriter
 
 _log = logging.getLogger(__name__)
 
 # Read up to 64 KB at a time from the redirected stderr pipe.
 _READ_CHUNK_SIZE = 64 * 1024
-
-# Individual messages forwarded to the intake are capped at the Datadog logs intake per-entry limit.
-_MAX_MESSAGE_BYTES = 1 * 1024 * 1024  # 1 MB
-
-_TRUNCATION_SUFFIX = "... [truncated]"
 
 
 TraceContextProvider = t.Callable[[], tuple[str, str]]
@@ -162,6 +157,9 @@ class StderrCapture:
             self._read_fd = None
 
     def _forward_line(self, raw_line: bytes) -> None:
+        from ddtrace.testing.internal.logs import MAX_MESSAGE_BYTES
+        from ddtrace.testing.internal.logs import TRUNCATION_SUFFIX
+
         try:
             message = raw_line.decode("utf-8", errors="replace")
         except Exception:
@@ -170,8 +168,8 @@ class StderrCapture:
         if not message:
             return
 
-        if len(message) > _MAX_MESSAGE_BYTES:
-            message = message[: _MAX_MESSAGE_BYTES - len(_TRUNCATION_SUFFIX)] + _TRUNCATION_SUFFIX
+        if len(message) > MAX_MESSAGE_BYTES:
+            message = message[: MAX_MESSAGE_BYTES - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
 
         trace_id, span_id = self._get_trace_context()
 
