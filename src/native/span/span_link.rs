@@ -89,7 +89,8 @@ impl SpanLink {
                         let b: bool = fv.extract()?;
                         attrs_out.set_item(&fk, if b { "true" } else { "false" })?;
                     } else {
-                        let s: PyBackedString = fv.extract::<PyBackedString>()
+                        let s: PyBackedString = fv
+                            .extract::<PyBackedString>()
                             .or_else(|_| fv.str()?.extract::<PyBackedString>())?;
                         attrs_out.set_item(&fk, &s)?;
                     }
@@ -128,7 +129,10 @@ impl SpanLink {
             self.trace_id,
             self.span_id,
             attrs.repr()?.to_str()?,
-            self.tracestate.as_ref().map(|s| s.as_ref() as &str).unwrap_or("None"),
+            self.tracestate
+                .as_ref()
+                .map(|s| s.as_ref() as &str)
+                .unwrap_or("None"),
             self.flags.map_or("None".to_string(), |f| f.to_string()),
         ))
     }
@@ -151,5 +155,4 @@ impl SpanLink {
         )?;
         Ok(PyTuple::new(py, &[cls.into_any().unbind(), args.into_any().unbind()])?.unbind())
     }
-
 }

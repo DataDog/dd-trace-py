@@ -1,5 +1,8 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyFrozenSet, PyList, PySet, PyString, PyStringMethods as _, PyTuple},
+    types::{
+        PyAnyMethods as _, PyDict, PyDictMethods as _, PyFrozenSet, PyList, PySet, PyString,
+        PyStringMethods as _, PyTuple,
+    },
     Bound, PyAny, PyResult, Python,
 };
 

@@ -1,12 +1,18 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyList, PyListMethods as _, PyMapping, PyTuple},
+    types::{
+        PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyList, PyListMethods as _,
+        PyMapping, PyTuple,
+    },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
-    v04::{AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent, SpanLink as NativeSpanLink},
+    v04::{
+        AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
+        SpanLink as NativeSpanLink,
+    },
     SpanText as _,
 };
 
@@ -452,7 +458,12 @@ impl SpanData {
         if is_span_pointer {
             self.data.span_links.push(native_link);
         } else {
-            match self.data.span_links.iter().position(|l| l.span_id == span_id) {
+            match self
+                .data
+                .span_links
+                .iter()
+                .position(|l| l.span_id == span_id)
+            {
                 Some(idx) => self.data.span_links[idx] = native_link,
                 None => self.data.span_links.push(native_link),
             }
@@ -563,7 +574,9 @@ fn py_dict_to_link_attrs(
             // Stringify value: bools as lowercase, others via Python str().
             let py_val_str = if fv.is_instance_of::<PyBool>() {
                 let b: bool = fv.extract()?;
-                if b { "true" } else { "false" }.into_pyobject(py)?.into_any()
+                if b { "true" } else { "false" }
+                    .into_pyobject(py)?
+                    .into_any()
             } else {
                 fv.str()?.into_any()
             };
@@ -596,13 +609,19 @@ fn py_value_to_attribute_any_value(
     // Must check bool before int (bool is a subclass of int in Python)
     if obj.is_instance_of::<PyBool>() {
         let b: bool = obj.extract()?;
-        return Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::Boolean(b)));
+        return Ok(AttributeAnyValue::SingleValue(
+            AttributeArrayValue::Boolean(b),
+        ));
     }
     if let Ok(i) = obj.extract::<i64>() {
-        return Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::Integer(i)));
+        return Ok(AttributeAnyValue::SingleValue(
+            AttributeArrayValue::Integer(i),
+        ));
     }
     if let Ok(f) = obj.extract::<f64>() {
-        return Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::Double(f)));
+        return Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::Double(
+            f,
+        )));
     }
     if obj.is_instance_of::<PyList>() {
         let list = obj.cast::<PyList>()?;
@@ -613,9 +632,12 @@ fn py_value_to_attribute_any_value(
         return Ok(AttributeAnyValue::Array(items));
     }
     // Default: stringify as string
-    let s: PyBackedString = obj.extract::<PyBackedString>()
+    let s: PyBackedString = obj
+        .extract::<PyBackedString>()
         .or_else(|_| obj.str()?.extract::<PyBackedString>())?;
-    Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::String(s)))
+    Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::String(
+        s,
+    )))
 }
 
 /// Convert a Python value to AttributeArrayValue<PyTraceData> (for array elements).
@@ -633,14 +655,17 @@ fn py_value_to_array_value(
     if let Ok(f) = obj.extract::<f64>() {
         return Ok(AttributeArrayValue::Double(f));
     }
-    let s: PyBackedString = obj.extract().or_else(|_| {
-        obj.str()?.extract::<PyBackedString>()
-    })?;
+    let s: PyBackedString = obj
+        .extract()
+        .or_else(|_| obj.str()?.extract::<PyBackedString>())?;
     Ok(AttributeArrayValue::String(s))
 }
 
 /// Materialize a native SpanLink<PyTraceData> back to a PyO3 SpanLink.
-fn native_span_link_to_py(py: Python<'_>, link: &NativeSpanLink<PyTraceData>) -> PyResult<Py<SpanLink>> {
+fn native_span_link_to_py(
+    py: Python<'_>,
+    link: &NativeSpanLink<PyTraceData>,
+) -> PyResult<Py<SpanLink>> {
     let trace_id = (link.trace_id as u128) | ((link.trace_id_high as u128) << 64);
     let tracestate = if link.tracestate.is_empty() {
         None
@@ -673,7 +698,10 @@ fn native_span_link_to_py(py: Python<'_>, link: &NativeSpanLink<PyTraceData>) ->
 }
 
 /// Materialize a native SpanEvent<PyTraceData> back to a PyO3 SpanEvent.
-fn native_span_event_to_py(py: Python<'_>, event: &NativeSpanEvent<PyTraceData>) -> PyResult<Py<SpanEvent>> {
+fn native_span_event_to_py(
+    py: Python<'_>,
+    event: &NativeSpanEvent<PyTraceData>,
+) -> PyResult<Py<SpanEvent>> {
     let attrs = PyDict::new(py);
     for (k, v) in &event.attributes {
         let py_val = attribute_any_value_to_py(py, v)?;
@@ -690,7 +718,10 @@ fn native_span_event_to_py(py: Python<'_>, event: &NativeSpanEvent<PyTraceData>)
 }
 
 /// Convert an AttributeAnyValue<PyTraceData> back to a Python object.
-fn attribute_any_value_to_py(py: Python<'_>, val: &AttributeAnyValue<PyTraceData>) -> PyResult<Py<PyAny>> {
+fn attribute_any_value_to_py(
+    py: Python<'_>,
+    val: &AttributeAnyValue<PyTraceData>,
+) -> PyResult<Py<PyAny>> {
     match val {
         AttributeAnyValue::SingleValue(v) => array_value_to_py(py, v),
         AttributeAnyValue::Array(items) => {
@@ -704,7 +735,10 @@ fn attribute_any_value_to_py(py: Python<'_>, val: &AttributeAnyValue<PyTraceData
 }
 
 /// Convert an AttributeArrayValue<PyTraceData> back to a Python object.
-fn array_value_to_py(py: Python<'_>, val: &AttributeArrayValue<PyTraceData>) -> PyResult<Py<PyAny>> {
+fn array_value_to_py(
+    py: Python<'_>,
+    val: &AttributeArrayValue<PyTraceData>,
+) -> PyResult<Py<PyAny>> {
     match val {
         AttributeArrayValue::String(s) => Ok(s.as_py(py).unbind()),
         AttributeArrayValue::Boolean(b) => Ok(PyBool::new(py, *b).to_owned().into_any().unbind()),

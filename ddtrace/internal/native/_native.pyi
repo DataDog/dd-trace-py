@@ -623,7 +623,10 @@ class SpanEvent:
     time_unix_nano: int  # u64 in Rust; always non-negative
     attributes: dict[str, Any]
     def __init__(
-        self, name: str, attributes: Optional[Mapping[str, _AttributeValueType]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ): ...
     def __repr__(self) -> str: ...
     def __iter__(self) -> Iterator[tuple[str, Any]]: ...
