@@ -317,7 +317,8 @@ class TestFileCapture:
     def test_waits_for_file_to_appear(self) -> None:
         """If the file doesn't exist at start(), capture waits and picks it up once created."""
         writer = _FakeLogsWriter()
-        path = tempfile.mktemp(suffix=".log")  # noqa: S306 — does not create the file
+        tmp_dir = tempfile.mkdtemp()
+        path = os.path.join(tmp_dir, "lazy.log")
 
         try:
             capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
@@ -337,6 +338,7 @@ class TestFileCapture:
         finally:
             if os.path.exists(path):
                 os.unlink(path)
+            os.rmdir(tmp_dir)
 
         messages = [e["message"] for e in writer.events]
         assert "late arrival" in messages
@@ -344,12 +346,16 @@ class TestFileCapture:
     def test_stop_before_file_appears(self) -> None:
         """stop() should not hang if the file never appears."""
         writer = _FakeLogsWriter()
-        path = tempfile.mktemp(suffix=".log")  # noqa: S306
+        tmp_dir = tempfile.mkdtemp()
+        path = os.path.join(tmp_dir, "never_created.log")
 
-        capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
-        capture.start()
-        capture.stop()  # should return promptly
-        assert not capture._started
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.start()
+            capture.stop()  # should return promptly
+            assert not capture._started
+        finally:
+            os.rmdir(tmp_dir)
 
 
 # ---------------------------------------------------------------------------
