@@ -1971,33 +1971,22 @@ venv = Venv(
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
+                # pytest~=6.0 is excluded: anyio (via httpx) registers a pytest plugin that
+                # imports _pytest.scope, which only exists in pytest>=7.2. Version compatibility
+                # with older pytest is covered by the main pytest venv.
                 Venv(
                     pys="3.9",
                     pkgs={
+                        "pytest": ["~=7.2", "~=8.0"],
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
-                        "pytest-mock": "==2.0.0",
                         "httpx": "<0.28.0",
                     },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "pytest": ["~=6.0"],
-                                "pytest-cov": "==2.9.0",
-                            },
-                        ),
-                        Venv(
-                            pkgs={
-                                "pytest": ["~=7.0", latest],
-                                "pytest-cov": "==2.12.0",
-                            },
-                        ),
-                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={
-                        "pytest": ["~=6.0", "~=7.0", latest],
+                        "pytest": ["~=7.2", "~=8.0", latest],
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
