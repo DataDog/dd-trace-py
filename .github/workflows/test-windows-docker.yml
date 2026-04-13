@@ -14,7 +14,6 @@ jobs:
     runs-on: windows-2022
     permissions:
       contents: read
-      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -27,10 +26,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-
-      - name: Log in to GHCR
-        shell: powershell
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Pull Windows build image
         shell: powershell
@@ -94,7 +89,7 @@ jobs:
             cmd /C "C:\workspace\.github\scripts\windows-docker-test.bat $uvPython"
 
       - name: Upload wheel
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: wheel-${{ matrix.python-version }}-${{ matrix.arch }}
