@@ -645,7 +645,8 @@ class TestLLMObsClaudeAgentSdk:
         self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_use_with_followup, test_spans
     ):
         """Multi-turn: AssistantMessage(tool) → UserMessage(result) → AssistantMessage(text)
-        should produce two LLM spans + one tool span + one agent span."""
+        should produce two LLM spans + one tool span + one agent span.
+        """
         prompt = "Read /etc/hostname and tell me the hostname."
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
