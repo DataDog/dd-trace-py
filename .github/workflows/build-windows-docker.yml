@@ -36,7 +36,7 @@ jobs:
         shell: powershell
 
       - name: Push Windows Docker image
-        if: github.event_name != 'pull_request'
+        # if: github.event_name != 'pull_request'
         run: |
           docker push ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }}
           docker push ghcr.io/datadog/dd-trace-py/windows-build:latest
