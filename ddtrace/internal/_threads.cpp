@@ -476,6 +476,19 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
     // alive until stopped_event->set() completes.
     std::shared_ptr<Event> stopped_event = self->_stopped;
 
+    // DEV: Pre-increment self's Python refcount before creating the
+    // thread. There is a window between std::thread creation and when the
+    // lambda acquires the GIL and constructs PyRef during which the lambda
+    // holds only a raw C pointer — no Python reference. If any Python thread
+    // running in that window drives self's refcount to zero (e.g. by removing
+    // the service's _worker reference), PeriodicThread_dealloc fires, sets
+    // self->_started = nullptr, and the thread crashes at _started->set().
+    //
+    // The pre-increment keeps the object alive across that gap.  The lambda
+    // calls Py_DECREF (the "hand-off") only AFTER PyRef has taken its own
+    // reference, so the refcount never transiently hits zero.
+    Py_INCREF((PyObject*)self);
+
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self, stopped_event]() {
         module_state* state = self->_state;
@@ -490,7 +503,12 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
         {
             GILGuard _gil(state);
 
+            // PyRef increments the refcount first; only then do we release the
+            // pre-acquired reference.  This order guarantees the refcount never
+            // hits zero between the two operations.
             PyRef _ref((PyObject*)self, state);
+            if (!state->is_finalizing())
+                Py_DECREF((PyObject*)self); // hand-off: balances the Py_INCREF above
 
             // Retrieve the thread ID
             {
