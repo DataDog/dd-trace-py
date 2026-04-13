@@ -1,8 +1,7 @@
 use pyo3::{
     types::{
         PyAnyMethods as _, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
-        PyInt, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString,
-        PyTuple,
+        PyInt, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, Python,
 };
@@ -500,9 +499,15 @@ impl SpanData {
         } else if let Ok(m) = attrs.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
                 for item in items.iter() {
-                    let Ok(pair) = item.cast::<PyTuple>() else { continue; };
-                    let Ok(k) = pair.get_item(0) else { continue; };
-                    let Ok(v) = pair.get_item(1) else { continue; };
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
                     let _ = self.set_attribute(&k, &v);
                 }
             }
@@ -514,14 +519,18 @@ impl SpanData {
     /// Return True if the span has an attribute (string or numeric) with the given key.
     #[pyo3(name = "_has_attribute")]
     fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
-        let Some(k) = try_extract_backed_string(key) else { return false; };
+        let Some(k) = try_extract_backed_string(key) else {
+            return false;
+        };
         self.data.meta.contains_key(&*k) || self.data.metrics.contains_key(&*k)
     }
 
     /// Remove an attribute (from both meta and metrics) by key.
     #[pyo3(name = "_remove_attribute")]
     fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
-        let Some(k) = try_extract_backed_string(key) else { return; };
+        let Some(k) = try_extract_backed_string(key) else {
+            return;
+        };
         self.data.meta.remove(&*k);
         self.data.metrics.remove(&*k);
     }
@@ -529,7 +538,11 @@ impl SpanData {
     /// Return the attribute value for the given key, or None if not found.
     /// Meta (string) attributes take priority over metrics with the same key.
     #[pyo3(name = "_get_attribute")]
-    fn get_attribute<'py>(&self, py: Python<'py>, key: &Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+    fn get_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
         if let Some(v) = self.data.meta.get(&*k) {
             Some(v.as_py(py))
@@ -542,7 +555,11 @@ impl SpanData {
 
     /// Return the string attribute for the given key, or None if not found.
     #[pyo3(name = "_get_str_attribute")]
-    fn get_str_attribute<'py>(&self, py: Python<'py>, key: &Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+    fn get_str_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
         self.data.meta.get(&*k).map(|v| v.as_py(py))
     }
@@ -605,9 +622,15 @@ impl SpanData {
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
                 for item in items.iter() {
-                    let Ok(pair) = item.cast::<PyTuple>() else { continue; };
-                    let Ok(k) = pair.get_item(0) else { continue; };
-                    let Ok(v) = pair.get_item(1) else { continue; };
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
                     self.set_default_attribute_entry(&k, &v);
                 }
             }
@@ -621,7 +644,9 @@ impl SpanData {
     /// Inner logic for `_set_default_attributes`: insert one key/value pair with setdefault
     /// semantics. Bails silently on bad key type, bad value type, or duplicate key.
     fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
-        let Some(key_pbs) = try_extract_backed_string(k) else { return; };
+        let Some(key_pbs) = try_extract_backed_string(k) else {
+            return;
+        };
 
         // Setdefault: skip keys already present in either map
         if self.data.meta.contains_key(&*key_pbs) || self.data.metrics.contains_key(&*key_pbs) {
@@ -629,10 +654,14 @@ impl SpanData {
         }
 
         if let Ok(s) = v.cast::<PyString>() {
-            let Some(val) = PyBackedString::try_from(s.clone()).ok() else { return; };
+            let Some(val) = PyBackedString::try_from(s.clone()).ok() else {
+                return;
+            };
             self.data.meta.insert(key_pbs, val);
         } else if v.cast::<PyFloat>().is_ok() || v.cast::<PyInt>().is_ok() {
-            let Ok(n) = v.extract::<f64>() else { return; };
+            let Ok(n) = v.extract::<f64>() else {
+                return;
+            };
             if n.is_nan() || n.is_infinite() {
                 return;
             }
