@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    ray: Adds ``DD_TRACE_RAY_SUBMISSION_SPANS`` (default: ``False``) configuration to control Ray submission tracing.
+    Set ``DD_TRACE_RAY_SUBMISSION_SPANS=true`` to trace ``task.submit`` and ``actor_method.submit`` spans. Leave it unset to trace only execution spans.
