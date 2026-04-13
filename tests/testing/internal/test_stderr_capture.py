@@ -7,6 +7,8 @@ import tempfile
 import threading
 import time
 
+import pytest
+
 from ddtrace.testing.internal.stderr_capture import FileCapture
 from ddtrace.testing.internal.stderr_capture import StderrCapture
 from ddtrace.testing.internal.stderr_capture import StdoutCapture
@@ -311,3 +313,201 @@ class TestFileCapture:
             capture.stop()  # should not raise
         finally:
             os.unlink(path)
+
+    def test_waits_for_file_to_appear(self) -> None:
+        """If the file doesn't exist at start(), capture waits and picks it up once created."""
+        writer = _FakeLogsWriter()
+        path = tempfile.mktemp(suffix=".log")  # noqa: S306 — does not create the file
+
+        try:
+            capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+            capture.start()
+
+            # File doesn't exist yet — give the poll loop a few cycles.
+            time.sleep(0.2)
+            assert len(writer.events) == 0
+
+            # Now create the file and write a line.
+            with open(path, "wb") as f:
+                f.write(b"late arrival\n")
+                f.flush()
+            time.sleep(0.3)
+
+            capture.stop()
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+        messages = [e["message"] for e in writer.events]
+        assert "late arrival" in messages
+
+    def test_stop_before_file_appears(self) -> None:
+        """stop() should not hang if the file never appears."""
+        writer = _FakeLogsWriter()
+        path = tempfile.mktemp(suffix=".log")  # noqa: S306
+
+        capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        capture.stop()  # should return promptly
+        assert not capture._started
+
+
+# ---------------------------------------------------------------------------
+# Fork safety tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="fork not available on this platform")
+class TestForkSafety:
+    """Verify that forking while a capture is active does not break the child."""
+
+    def test_fork_restores_stderr_in_child(self) -> None:
+        """After fork, the child's fd 2 should be the original stderr, not the pipe."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+
+        # Record the identity of fd 2 before capture redirects it.
+        original_stat = os.fstat(2)
+
+        capture.start()
+        try:
+            # Use a pipe so the child can report back.
+            comm_read, comm_write = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                # Child process — at_fork handler should have restored fd 2.
+                os.close(comm_read)
+                try:
+                    child_stat = os.fstat(2)
+                    restored = child_stat.st_dev == original_stat.st_dev and child_stat.st_ino == original_stat.st_ino
+                    os.write(comm_write, b"1" if restored else b"0")
+                except Exception:
+                    os.write(comm_write, b"E")
+                finally:
+                    os.close(comm_write)
+                    os._exit(0)
+            else:
+                os.close(comm_write)
+                result = os.read(comm_read, 1)
+                os.close(comm_read)
+                os.waitpid(pid, 0)
+                assert result == b"1", "fd 2 was not restored in forked child"
+        finally:
+            capture.stop()
+
+    def test_fork_child_can_write_to_stderr(self) -> None:
+        """The child should be able to write to fd 2 without blocking."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            comm_read, comm_write = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                os.close(comm_read)
+                try:
+                    # This would block if fd 2 still pointed to the pipe
+                    # with no reader thread (pipe buffer is ~64 KB).
+                    os.write(2, b"child stderr write\n")
+                    os.write(comm_write, b"1")
+                except Exception:
+                    os.write(comm_write, b"0")
+                finally:
+                    os.close(comm_write)
+                    os._exit(0)
+            else:
+                os.close(comm_write)
+                result = os.read(comm_read, 1)
+                os.close(comm_read)
+                os.waitpid(pid, 0)
+                assert result == b"1", "child could not write to stderr"
+        finally:
+            capture.stop()
+
+    def test_parent_capture_continues_after_fork(self) -> None:
+        """Fork should not disrupt the parent's capture."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            os.write(2, b"before fork\n")
+            time.sleep(0.1)
+
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0)
+            else:
+                os.waitpid(pid, 0)
+
+            os.write(2, b"after fork\n")
+            time.sleep(0.1)
+        finally:
+            capture.stop()
+
+        messages = [e["message"] for e in writer.events]
+        assert "before fork" in messages
+        assert "after fork" in messages
+
+
+# ---------------------------------------------------------------------------
+# Nested fd capture (pytest capfd compatibility)
+# ---------------------------------------------------------------------------
+
+
+class TestNestedFdCapture:
+    """Verify that our capture cooperates with other fd-level redirectors (e.g. capfd)."""
+
+    def test_nested_redirect_does_not_lose_output(self) -> None:
+        """Simulates pytest's capfd: another component saves / redirects / restores fd 2.
+
+        Timeline:
+        1. Our capture redirects fd 2 → our pipe
+        2. "capfd" saves our pipe, redirects fd 2 → capfd pipe
+        3. Writes during capfd go to capfd (our capture sees nothing — expected)
+        4. "capfd" restores fd 2 → our pipe
+        5. Writes after capfd go to our capture again
+        """
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            # Phase 1: write before "capfd" — goes to our capture.
+            os.write(2, b"before capfd\n")
+            time.sleep(0.1)
+
+            # Phase 2: simulate capfd setup — save fd 2, redirect to a new pipe.
+            capfd_read, capfd_write = os.pipe()
+            saved_fd = os.dup(2)
+            os.dup2(capfd_write, 2)
+            os.close(capfd_write)
+
+            # Write during "capfd" — goes to capfd's pipe, not ours.
+            os.write(2, b"during capfd\n")
+
+            # Read what capfd captured.
+            capfd_output = b""
+            while True:
+                # Non-blocking: capfd_read has data, read until we've got the line.
+                chunk = os.read(capfd_read, 4096)
+                capfd_output += chunk
+                if b"\n" in capfd_output:
+                    break
+
+            # Phase 3: simulate capfd teardown — restore fd 2 to our pipe.
+            os.dup2(saved_fd, 2)
+            os.close(saved_fd)
+            os.close(capfd_read)
+
+            # Phase 4: write after "capfd" — goes to our capture again.
+            os.write(2, b"after capfd\n")
+            time.sleep(0.1)
+        finally:
+            capture.stop()
+
+        our_messages = [e["message"] for e in writer.events]
+        assert "before capfd" in our_messages
+        assert "after capfd" in our_messages
+        # "during capfd" should NOT appear in our capture — capfd intercepted it.
+        assert "during capfd" not in our_messages
+        # capfd should have captured "during capfd".
+        assert b"during capfd" in capfd_output

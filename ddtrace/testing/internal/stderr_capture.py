@@ -121,6 +121,27 @@ class _BaseCapture(abc.ABC):
 
 
 # ---------------------------------------------------------------------------
+# Fork safety for fd-level captures
+# ---------------------------------------------------------------------------
+
+# Module-level set of active fd captures.  After fork the child inherits
+# redirected fds but *not* the reader threads, so writes to the fd would
+# fill the pipe buffer and block.  The at-fork handler restores the fds.
+_active_fd_captures: set[t.Any] = set()
+
+
+def _after_fork_in_child() -> None:
+    """Restore original fds in the child process after fork."""
+    for capture in list(_active_fd_captures):
+        capture._restore_in_forked_child()
+    _active_fd_captures.clear()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_after_fork_in_child)
+
+
+# ---------------------------------------------------------------------------
 # Fd-level capture (stderr / stdout)
 # ---------------------------------------------------------------------------
 
@@ -164,6 +185,7 @@ class _BaseFdCapture(_BaseCapture):
             os.close(write_fd)
 
         self._started = True
+        _active_fd_captures.add(self)
         self._reader_thread = threading.Thread(
             target=self._read_loop,
             name=f"fd{self._fd}-capture-reader",
@@ -175,6 +197,8 @@ class _BaseFdCapture(_BaseCapture):
     def stop(self, timeout: float = 5.0) -> None:
         if not self._started:
             return
+
+        _active_fd_captures.discard(self)
 
         # Restore the original fd.  This closes the pipe's write end (fd is overwritten),
         # which causes the reader thread to see EOF.
@@ -191,6 +215,29 @@ class _BaseFdCapture(_BaseCapture):
 
         self._started = False
         _log.debug("%s: stopped, fd %d restored", type(self).__name__, self._fd)
+
+    def _restore_in_forked_child(self) -> None:
+        """Restore the original fd in a forked child process.
+
+        After ``os.fork()`` the child inherits the redirected fd but not the
+        reader thread.  Without restoration, writes to the fd fill the pipe
+        buffer (nobody is reading) and eventually block the child.
+        """
+        if self._original_fd is not None:
+            try:
+                os.dup2(self._original_fd, self._fd)
+                os.close(self._original_fd)
+            except OSError:
+                pass
+            self._original_fd = None
+        if self._read_fd is not None:
+            try:
+                os.close(self._read_fd)
+            except OSError:
+                pass
+            self._read_fd = None
+        self._started = False
+        self._reader_thread = None
 
     # -- background reader ----------------------------------------------------
 
@@ -343,9 +390,10 @@ class FileCapture(_BaseCapture):
     def _read_loop(self) -> None:
         """Poll the file for new lines and forward each one to LogsWriter."""
         try:
-            with open(self._path, "rb") as f:
-                f.seek(0, 2)  # start at EOF — do not replay existing content
-                self._ready_event.set()  # unblock start() on the calling thread
+            f = self._open_or_wait()
+            if f is None:
+                return  # stop() was called before the file appeared
+            with f:
                 buf = b""
                 while not self._stop_event.is_set():
                     chunk = f.read(_READ_CHUNK_SIZE)
@@ -368,3 +416,31 @@ class FileCapture(_BaseCapture):
                     self._forward_line(buf)
         except OSError:
             _log.debug("FileCapture: error reading %s", self._path, exc_info=True)
+
+    def _open_or_wait(self) -> t.Optional[t.IO[bytes]]:
+        """Open the file, waiting for it to appear if it doesn't exist yet.
+
+        If the file already exists, it is seeked to EOF so pre-existing content
+        is not replayed.  If the file had to be waited for, it is read from the
+        beginning — all content in a newly-created file is considered "new".
+
+        Returns the opened file or ``None`` if ``stop()`` is called before the
+        file appears.
+        """
+        waited = False
+        while not self._stop_event.is_set():
+            try:
+                f = open(self._path, "rb")  # noqa: SIM115
+            except FileNotFoundError:
+                if not waited:
+                    _log.debug("FileCapture: %s not found yet, waiting…", self._path)
+                    self._ready_event.set()  # unblock start() so caller is not stuck
+                waited = True
+                time.sleep(_FILE_POLL_INTERVAL)
+                continue
+            if not waited:
+                f.seek(0, 2)  # existing file — skip old content
+            self._ready_event.set()
+            return f
+        self._ready_event.set()
+        return None
