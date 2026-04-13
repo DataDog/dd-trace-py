@@ -26,6 +26,8 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace.testing.internal.logs import LogsWriter
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -34,6 +36,7 @@ from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.stderr_capture import StderrCapture
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -313,9 +316,6 @@ class TestOptPlugin:
                         )
 
         if self.enable_log_submission:
-            from ddtrace.testing.internal.logs import LogsHandler
-            from ddtrace.testing.internal.logs import LogsWriter
-
             self._logs_writer = LogsWriter(
                 connector_setup=self.manager.connector_setup,
                 service=self.manager.session.service,
@@ -325,8 +325,6 @@ class TestOptPlugin:
             logging.getLogger().addHandler(self._logs_handler)
 
         if self.enable_stderr_capture and self._logs_writer is not None:
-            from ddtrace.testing.internal.stderr_capture import StderrCapture
-
             self._stderr_capture = StderrCapture(self._logs_writer)
             self._stderr_capture.start()
 
