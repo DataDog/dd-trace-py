@@ -7,8 +7,8 @@ from yarl import URL
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanKind
@@ -84,18 +84,15 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
     url: URL = base_url.join(raw_url) if base_url is not None else raw_url
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
+    service: str = url.host if config.aiohttp_client.split_by_domain else ext_service(None, config.aiohttp_client)
 
     with tracer.trace(
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
-        service=ext_service(None, config.aiohttp_client),
     ) as span:
-        if config.aiohttp_client.split_by_domain:
-            span.service = url.host
+        set_service_and_source(span, service, config.aiohttp_client)
 
-        maybe_set_service_source_tag(span, config.aiohttp)
-
-        if config.aiohttp.distributed_tracing:
+        if config.aiohttp_client.distributed_tracing:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 

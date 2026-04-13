@@ -24,7 +24,7 @@ class TestTracingEvent(TracingEvent):
     my_span_name: InitVar[str] = event_field()
 
     def __post_init__(self, my_span_name):
-        self.span_name = my_span_name
+        self.operation_name = my_span_name
 
 
 def test_tracing_event_can_create_and_finish_span(test_spans):
@@ -36,7 +36,7 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
         event: TracingEvent = ctx.event
         event.tags[COMPONENT] = event.component
 
-        ctx.set_item("span_name", event.span_name)
+        ctx.set_item("span_name", event.operation_name)
         ctx.set_item("span_type", event.span_type)
         ctx.set_item("resource", event.resource)
         ctx.set_item("service", event.service)
@@ -54,7 +54,9 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
 
     try:
         with core.context_with_event(
-            TestTracingEvent(resource="test.resource", service="svc", component="comp", my_span_name="name")
+            TestTracingEvent(
+                resource="test.resource", service="svc", component="comp", my_span_name="name", integration_config={}
+            )
         ):
             pass
     finally:
@@ -68,3 +70,29 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
     assert span._get_str_attribute(COMPONENT) == "comp"
     assert span.resource == "test.resource"
     assert span.service == "svc"
+
+
+def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
+    event = TracingEvent.create(
+        component="comp",
+        integration_config={},
+        operation_name="test.create.event",
+        span_type="custom",
+        span_kind="client",
+        service="svc",
+        resource="test.resource",
+        tags={"my-tag": "my-value"},
+    )
+
+    with core.context_with_event(event):
+        pass
+
+    test_spans.assert_span_count(1)
+    span = test_spans.spans[0]
+    assert span.name == "test.create.event"
+    assert span.span_type == "custom"
+    assert span.resource == "test.resource"
+    assert span.service == "svc"
+    assert span._get_str_attribute(COMPONENT) == "comp"
+    assert span._get_str_attribute("span.kind") == "client"
+    assert span._get_str_attribute("my-tag") == "my-value"

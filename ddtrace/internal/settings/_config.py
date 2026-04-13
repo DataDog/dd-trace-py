@@ -390,6 +390,16 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_APPSEC_SCA_ENABLED"],
             modifier=asbool,
         ),
+        "_llmobs_enabled": _ConfigItem(
+            default=False,
+            envs=["DD_LLMOBS_ENABLED"],
+            modifier=asbool,
+        ),
+        "_llmobs_ml_app": _ConfigItem(
+            default=None,
+            envs=["DD_LLMOBS_ML_APP"],
+            modifier=lambda x: x,
+        ),
     }
 
 
@@ -500,6 +510,8 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        if self.service is None and in_aws_lambda():
+            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
@@ -662,9 +674,7 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
-        self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))

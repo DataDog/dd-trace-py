@@ -348,7 +348,7 @@
         "dependency": "google-adk",
         "integration": "google_adk",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.15.1",
+        "max_tracer_supported": "1.28.1",
         "auto-instrumented": true
     },
     {

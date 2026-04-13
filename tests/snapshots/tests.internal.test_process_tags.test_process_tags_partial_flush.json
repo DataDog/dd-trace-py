@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69ce908c00000000",
-      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:test_script",
       "language": "python",
       "runtime-id": "e31f05f8aa6e4061be6ae8c53af19683"
     },
@@ -36,7 +36,7 @@
        "meta": {
          "_dd.p.dm": "-0",
          "_dd.p.tid": "69ce908c00000000",
-         "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:ddtrace_subprocess_dir",
+         "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:test_script",
          "language": "python"
        },
        "metrics": {

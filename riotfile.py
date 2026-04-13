@@ -3155,9 +3155,10 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
