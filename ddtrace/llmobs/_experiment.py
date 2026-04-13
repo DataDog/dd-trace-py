@@ -2891,9 +2891,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError(
-                "No result found. Call run() before as_dataframe()."
-            )
+            raise ValueError("No result found. Call run() before as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):

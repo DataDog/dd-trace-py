@@ -4449,9 +4449,9 @@ def test_experiment_as_dataframe_multi_run():
     assert len(df) == 6
     assert list(df[("run_iteration", "")]) == [1, 1, 2, 2, 3, 3]
     run_ids = df[("run_id", "")].tolist()
-    assert run_ids[0] == run_ids[1]   # same run
-    assert run_ids[2] == run_ids[3]   # same run
-    assert run_ids[0] != run_ids[2]   # different runs
+    assert run_ids[0] == run_ids[1]  # same run
+    assert run_ids[2] == run_ids[3]  # same run
+    assert run_ids[0] != run_ids[2]  # different runs
 
 
 def test_experiment_as_dataframe_raises_without_result():
@@ -4648,6 +4648,8 @@ def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
     monkeypatch.setitem(sys.modules, "pandas", None)
     with pytest.raises(ImportError, match="pandas is required"):
         run.as_dataframe()
+
+
 # --- User-defined record ID unit tests ---
 
 
