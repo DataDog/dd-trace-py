@@ -6,6 +6,7 @@ from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
@@ -196,6 +197,50 @@ class TestLLMObsClaudeAgentSdk:
             error="builtins.ValueError",
             error_message="Connection failed",
             error_stack=ANY,
+        )
+        assert llmobs_events[1] == expected_agent_event
+
+    async def test_llmobs_assistant_message_error_marks_llm_span_as_error(
+        self, claude_agent_sdk, llmobs_events, mock_internal_client_assistant_message_error, test_spans
+    ):
+        prompt = "Hello"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = test_spans.pop_traces()[0]
+        agent_span = spans[0]
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+
+        assert len(llmobs_events) == 2
+
+        expected_llm_event = _expected_llmobs_llm_span_event(
+            llm_span,
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=[{"content": prompt, "role": "user"}],
+            output_messages=[{"content": "", "role": ""}],
+            error=MOCK_ASSISTANT_MESSAGE_ERROR,
+            error_message=MOCK_ASSISTANT_MESSAGE_ERROR,
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
+        )
+        assert llmobs_events[0] == expected_llm_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
+            span_kind="agent",
+            input_value=safe_json([{"content": prompt, "role": "user"}]),
+            output_value=safe_json(
+                [
+                    {"content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA), "role": "system"},
+                    {"content": "4", "role": "assistant"},
+                ]
+            ),
+            metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
+            token_metrics=EXPECTED_QUERY_USAGE,
+            error=MOCK_ASSISTANT_MESSAGE_ERROR,
+            error_message=MOCK_ASSISTANT_MESSAGE_ERROR,
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[1] == expected_agent_event
 

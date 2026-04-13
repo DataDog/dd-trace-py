@@ -110,7 +110,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if assistant_error:
                 span.error = 1
                 span.set_tag(ERROR_TYPE, assistant_error)
-                span.set_tag(ERROR_MSG, f"AssistantMessage error: {assistant_error}")
+                span.set_tag(ERROR_MSG, assistant_error)
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
