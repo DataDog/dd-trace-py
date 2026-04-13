@@ -8,19 +8,16 @@ from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
-from ..constants import RAY_JOB_NAME
 from .utils import _extract_tracing_context_from_env
+from .utils import _get_ray_service_name
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import extract_signature
 
 
 log = get_logger(__name__)
-
-RAY_SERVICE_NAME = env.get(RAY_JOB_NAME)
 
 RAY_TASK_MODULE_DENYLIST = {"ray.data._internal"}
 
@@ -45,7 +42,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     with core.context_with_event(
         RayExecutionEvent(
             resource=f"{wrapped.__module__}.{wrapped.__qualname__}",
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             component=config.ray.integration_name,
             distributed_context=_TraceContext._extract(kwargs[DD_RAY_TRACE_CTX]),
             use_active_context=tracer.context_provider.active() is not None,
@@ -87,7 +84,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     with core.context_with_event(
         RaySubmissionEvent(
             component=config.ray.integration_name,
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             resource=f"{instance._function_name}.remote",
             integration_config=config.ray,
             method_args=kwargs.get("args"),
