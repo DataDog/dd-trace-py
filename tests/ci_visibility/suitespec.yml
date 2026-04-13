@@ -68,9 +68,7 @@ suites:
       - '@coverage'
       - '@codeowners'
       - '@testing'
-      - tests/contrib/pytest/test_pytest_snapshot.py
-      - tests/contrib/pytest/test_pytest_snapshot_v2.py
-      - tests/contrib/pytest/test_pytest_xdist_snapshot.py
+      - tests/contrib/pytest/snapshot/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     pattern: 'pytest:snapshot'

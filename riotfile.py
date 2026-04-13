@@ -1904,9 +1904,7 @@ venv = Venv(
             name="pytest",
             command=(
                 "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
-                " --ignore=tests/contrib/pytest/test_pytest_snapshot.py"
-                " --ignore=tests/contrib/pytest/test_pytest_snapshot_v2.py"
-                " --ignore=tests/contrib/pytest/test_pytest_xdist_snapshot.py"
+                " --ignore=tests/contrib/pytest/snapshot/"
             ),
             pkgs={
                 "pytest-randomly": latest,
@@ -1963,12 +1961,7 @@ venv = Venv(
             # test_pytest_snapshot.py is permanently skipped (_USE_PLUGIN_V2=True hardcoded);
             # test_pytest_snapshot_v2.py and test_pytest_xdist_snapshot.py always run.
             name="pytest:snapshot",
-            command=(
-                "pytest --no-ddtrace {cmdargs}"
-                " tests/contrib/pytest/test_pytest_snapshot.py"
-                " tests/contrib/pytest/test_pytest_snapshot_v2.py"
-                " tests/contrib/pytest/test_pytest_xdist_snapshot.py"
-            ),
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/snapshot/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
