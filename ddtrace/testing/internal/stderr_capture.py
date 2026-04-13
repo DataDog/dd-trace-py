@@ -124,16 +124,26 @@ class StderrCapture:
             _log.error("StderrCapture: _read_loop called in invalid state")
             return
 
+        # Capture fds as locals so that stop() nulling the instance attributes
+        # cannot race with our reads/writes inside this thread.
+        read_fd = self._read_fd
+        original_stderr_fd = self._original_stderr_fd
+
         buf = b""
         try:
             while True:
-                chunk = os.read(self._read_fd, _READ_CHUNK_SIZE)
+                chunk = os.read(read_fd, _READ_CHUNK_SIZE)
                 if not chunk:
                     # EOF — the write end of the pipe has been closed (stop() was called).
                     break
 
                 # Tee to the original stderr so the user still sees output.
-                os.write(self._original_stderr_fd, chunk)
+                # This may raise EBADF if stop() already closed the original fd;
+                # swallow it so we still process the buffered data.
+                try:
+                    os.write(original_stderr_fd, chunk)
+                except OSError:
+                    pass
 
                 # Accumulate and split on newlines so each event is a complete line.
                 buf += chunk
@@ -148,7 +158,7 @@ class StderrCapture:
             # The pipe was closed unexpectedly (e.g. process teardown).
             _log.debug("StderrCapture: pipe read error during teardown", exc_info=True)
         finally:
-            os.close(self._read_fd)
+            os.close(read_fd)
             self._read_fd = None
 
     def _forward_line(self, raw_line: bytes) -> None:
