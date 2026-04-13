@@ -13,16 +13,27 @@ from typing import TYPE_CHECKING
 from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
+from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 if TYPE_CHECKING:
     from ddtrace.appsec.sca._registry import InstrumentationRegistry
-    from ddtrace.internal.telemetry.writer import TelemetryWriter
 
 
 log = get_logger(__name__)
+
+# AIDEV-NOTE: _registry is read on every hook invocation (hot path).
+# We do NOT acquire a lock for reads — Python's GIL makes reference reads
+# safe, and the reference is only set once at startup via set_registry().
+_registry: Optional[InstrumentationRegistry] = None
+
+# Singleton Instrumenter instance, shared across all instrumentation
+# operations so per-target locks are preserved.
+_instrumenter_instance: Optional[Instrumenter] = None
+_instrumenter_lock = Lock()
 
 
 def _first_instr_line(code: types.CodeType) -> int:
@@ -51,15 +62,7 @@ def _first_instr_line(code: types.CodeType) -> int:
 
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
-
-    Returns (path, line, symbol) where:
-    - path: relative file path of the caller
-    - line: line number in the caller
-    - symbol: function (or Class.method) name of the caller
-
-    AIDEV-NOTE: Delegates to the shared get_caller_frame_info() which uses
-    IAST's native C get_info_frame() + rel_path().  SCA just reshapes the
-    4-tuple into a 3-tuple by combining class_name and function_name.
+    A symbol is the function or Class.method name of the caller
     """
     try:
         file_name, line_number, function_name, class_name = get_caller_frame_info()
@@ -73,25 +76,10 @@ def _get_caller_info() -> tuple[str, int, str]:
         return "", 0, ""
 
 
-# AIDEV-NOTE: _registry is read on every hook invocation (hot path).
-# We do NOT acquire a lock for reads — Python's GIL makes reference reads
-# safe, and the reference is only set once at startup via set_registry().
-_registry: Optional[InstrumentationRegistry] = None
-# _telemetry_writer is lazily cached on first hook invocation to avoid
-# the overhead of import-lock acquisition on every call.
-_telemetry_writer = None
-
-# Singleton Instrumenter instance, shared across all instrumentation
-# operations so per-target locks are preserved.
-_instrumenter_instance: Optional[Instrumenter] = None
-_instrumenter_lock = Lock()
-
-
 def _reset_after_fork() -> None:
     """Reset module-level references after fork."""
-    global _registry, _telemetry_writer, _instrumenter_instance, _instrumenter_lock
+    global _registry, _instrumenter_instance, _instrumenter_lock
     _registry = None
-    _telemetry_writer = None
     _instrumenter_instance = None
     _instrumenter_lock = Lock()
 
@@ -107,16 +95,6 @@ def set_registry(registry: InstrumentationRegistry) -> None:
     """Set global registry reference. Called once at startup."""
     global _registry
     _registry = registry
-
-
-def _get_telemetry_writer() -> TelemetryWriter:
-    """Lazily cache and return the telemetry writer singleton."""
-    global _telemetry_writer
-    if _telemetry_writer is None:
-        from ddtrace.internal.telemetry import telemetry_writer
-
-        _telemetry_writer = telemetry_writer
-    return _telemetry_writer
 
 
 def get_instrumenter(registry: InstrumentationRegistry) -> Instrumenter:
@@ -150,10 +128,6 @@ def sca_detection_hook(qualified_name: str) -> None:
         if not target_info or not target_info.cve_ids or not target_info.package_name:
             return
 
-        writer = _get_telemetry_writer()
-        # AIDEV-NOTE: Walk the stack to find the user-code frame that called
-        # the vulnerable function, similar to IAST's _compute_file_line.
-        # Reports the caller's path/line/symbol, not the target function's.
         caller_path, caller_line, caller_symbol = _get_caller_info()
 
         # AIDEV-NOTE: If the native frame walker can't find user code (e.g.,
@@ -169,7 +143,13 @@ def sca_detection_hook(qualified_name: str) -> None:
             caller_line = 0
 
         for cve_id in target_info.cve_ids:
-            writer.attach_dependency_metadata(target_info.package_name, cve_id, caller_path, caller_symbol, caller_line)
+            telemetry_writer.attach_dependency_metadata(
+                package_name=target_info.package_name,
+                cve_id=cve_id,
+                path=caller_path,
+                symbol=caller_symbol,
+                line=caller_line,
+            )
 
     except Exception:
         log.debug("SCA detection hook error for %s", qualified_name, exc_info=True)
@@ -237,13 +217,10 @@ def apply_instrumentation_updates(targets: list[dict]) -> None:
         targets: List of dicts with keys: target, dependency_name, cve_ids.
     """
     try:
-        from ddtrace.appsec.sca._registry import get_global_registry
-
         registry = get_global_registry()
         instrumenter = get_instrumenter(registry)
 
         _process_additions(instrumenter, registry, targets)
-
     except Exception:
         log.debug("Fatal error in apply_instrumentation_updates", exc_info=True)
 
