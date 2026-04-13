@@ -13,8 +13,11 @@ if "%VC_ARCH%"=="" (
     exit /b 1
 )
 
-REM Find vcvarsall.bat via vswhere
-for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -all -products * -property installationPath -latest`) do set VS_PATH=%%i
+REM Find vcvarsall.bat via vswhere.
+REM Redirect output to a temp file to avoid (x86) parentheses breaking for/f backtick parsing.
+"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -all -products * -property installationPath -latest > "%TEMP%\vs_path.txt"
+set /p VS_PATH=<"%TEMP%\vs_path.txt"
+del "%TEMP%\vs_path.txt" 2>nul
 set VCVARSALL=%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat
 
 if not exist "%VCVARSALL%" (
