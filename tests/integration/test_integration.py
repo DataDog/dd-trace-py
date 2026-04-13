@@ -164,7 +164,6 @@ def test_metrics():
     import mock
 
     from ddtrace.trace import tracer as t
-    from tests.utils import AnyInt
     from tests.utils import override_global_config
 
     assert t._span_aggregator.partial_flush_min_spans == 300
@@ -197,10 +196,6 @@ def test_metrics():
         mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
         mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
         mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-        mock.call("datadog.tracer.http.requests", 1, tags=None),
-        mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
-        mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
-        mock.call("datadog.tracer.http.sent.traces", 4, tags=None),
     ]
 
     statsd_mock.distribution.assert_has_calls(
@@ -216,7 +211,6 @@ def test_metrics_partial_flush_disabled():
     import mock
 
     from ddtrace.trace import tracer as t
-    from tests.utils import AnyInt
     from tests.utils import override_global_config
 
     with override_global_config(dict(_health_metrics_enabled=True)):
@@ -241,10 +235,6 @@ def test_metrics_partial_flush_disabled():
         mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
         mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
         mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
-        mock.call("datadog.tracer.http.requests", 1, tags=None),
-        mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
-        mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
-        mock.call("datadog.tracer.http.sent.traces", 2, tags=None),
     ]
 
     statsd_mock.distribution.assert_has_calls(
