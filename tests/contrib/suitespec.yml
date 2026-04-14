@@ -1108,8 +1108,8 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
-      - tests/contrib/ray/serve/test_ray_serve.py
-      - tests/snapshots/tests.contrib.ray.*
+      - tests/contrib/ray_serve/*
+      - tests/snapshots/tests.contrib.ray_serve.*
     pattern: ^ray_serve$
     snapshot: true
   redis:
