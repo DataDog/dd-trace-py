@@ -11,11 +11,17 @@ pydantic_evals = pytest.importorskip("pydantic_evals")
 
 from pydantic_evals.evaluators import Evaluator  # noqa: E402
 from pydantic_evals.evaluators import EvaluatorContext  # noqa: E402
+from pydantic_evals.evaluators import ReportEvaluator  # noqa: E402
+from pydantic_evals.evaluators import ReportEvaluatorContext  # noqa: E402
 from pydantic_evals.evaluators.evaluator import EvaluationReason  # noqa: E402
+from pydantic_evals.reporting import ReportAnalysis  # noqa: E402
+from pydantic_evals.reporting import ScalarResult  # noqa: E402
+from pydantic_evals.reporting import TableResult  # noqa: E402
 
 from ddtrace.llmobs._experiment import Dataset  # noqa: E402
 from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator  # noqa: E402
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator  # noqa: E402
 
 
 def _make_simple_pydantic_evaluator():
@@ -28,6 +34,11 @@ def _make_simple_pydantic_evaluator():
         evaluation_name: str = "simple_pydantic_eval"
 
         def evaluate(self, ctx: EvaluatorContext) -> bool:
+            if ctx.expected_output is None:
+                return False
+            return ctx.output == ctx.expected_output
+
+        async def evaluate_async(self, ctx: EvaluatorContext) -> bool:
             if ctx.expected_output is None:
                 return False
             return ctx.output == ctx.expected_output
@@ -473,7 +484,7 @@ class TestPydanticLLMJudge:
             rubric="The response must correctly state the capital of France.",
             model="openai:gpt-4o-mini",
             assertion=False,
-            score=True,
+            score={},
         )
         exp = llmobs.async_experiment(
             "test_llm_judge_openai",
@@ -491,3 +502,241 @@ class TestPydanticLLMJudge:
         assert len(evaluations) >= 1
         for result in evaluations.values():
             assert result.get("error") is None
+
+
+def _dataset_for_report_summary_tests():
+    return Dataset(
+        name="test_dataset",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_123",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"value": "test"},
+                "expected_output": "test",
+                "metadata": {},
+            }
+        ],
+        description="Test dataset",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+
+
+def _make_scalar_report_evaluator(return_value=2.71):
+    """ReportEvaluator whose return annotation is exactly ScalarResult."""
+
+    @dataclass
+    class ScalarReportEvaluator(ReportEvaluator):
+        def evaluate(self, ctx: ReportEvaluatorContext) -> ScalarResult:
+            return ScalarResult(title="summary_metric", value=return_value)
+
+        async def evaluate_async(self, ctx: ReportEvaluatorContext) -> ScalarResult:
+            return ScalarResult(title="summary_metric", value=return_value)
+
+    return ScalarReportEvaluator()
+
+
+def _make_table_report_evaluator():
+    """ReportEvaluator whose return annotation is TableResult (does not successfully run as a summary evaluator)."""
+
+    @dataclass
+    class TableReportEvaluator(ReportEvaluator):
+        def evaluate(self, ctx: ReportEvaluatorContext) -> TableResult:
+            return TableResult(title="tbl", columns=["c"], rows=[[1]])
+
+    return TableReportEvaluator()
+
+
+def _make_report_evaluator_with_analysis_union_annotation():
+    """ReportEvaluator annotated with full ReportAnalysis union."""
+
+    @dataclass
+    class WideAnnotationReportEvaluator(ReportEvaluator):
+        def evaluate(self, ctx: ReportEvaluatorContext) -> ReportAnalysis:
+            return ScalarResult(title="t", value=1.0)
+
+    return WideAnnotationReportEvaluator()
+
+
+class TestPydanticReportSummaryEvaluatorDetection:
+    """Tests for accepting only pydantic ReportEvaluators that return ScalarResult."""
+
+    def test_scalar_return_annotation_is_accepted(self):
+        ev = _make_scalar_report_evaluator()
+        assert _is_pydantic_report_evaluator(ev) is True
+
+    def test_pydantic_evaluator_not_pydantic_report_evaluator_is_rejected(self):
+        ev = _make_simple_pydantic_evaluator()
+        assert _is_pydantic_report_evaluator(ev) is False
+
+
+class TestPydanticReportSummaryEvaluatorInExperiment:
+    """Sync/async experiments: scalar ReportEvaluator summary works; other report types are rejected."""
+
+    def test_sync_experiment_scalar_report_summary_runs(self, llmobs):
+        def task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_scalar_report_evaluator(return_value=0.99)
+        summary_name = summary_eval.get_serialization_name()
+
+        exp = llmobs.experiment(
+            "test_exp_scalar_report_summary",
+            task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        summary_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
+
+        assert len(summary_results) == 1
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is None
+        assert summary_entry["value"] == 0.99
+
+    def test_sync_experiment_rejects_table_report_summary(self, llmobs):
+        def task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_table_report_evaluator()
+        summary_name = summary_eval.get_serialization_name()
+
+        exp = llmobs.experiment(
+            "test_exp_table_report_summary",
+            task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        summary_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
+        summary_name = summary_eval.get_serialization_name()
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is not None
+        assert (
+            summary_entry["error"]["message"]
+            == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+        )
+
+    def test_sync_experiment_rejects_report_analysis_union_annotation(self, llmobs):
+        def task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_report_evaluator_with_analysis_union_annotation()
+        summary_name = summary_eval.get_serialization_name()
+        exp = llmobs.experiment(
+            "test_exp_wide_report_summary",
+            task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+        run_info = _ExperimentRunInfo(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        summary_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
+        assert len(summary_results) == 1
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is None
+        assert summary_entry["value"] == 1.0
+
+    @pytest.mark.asyncio
+    async def test_async_experiment_scalar_report_summary_runs(self, llmobs):
+        async def async_task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_scalar_report_evaluator(return_value=0.42)
+        summary_name = summary_eval.get_serialization_name()
+
+        exp = llmobs.async_experiment(
+            "test_async_exp_scalar_report_summary",
+            async_task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        summary_results = await exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+
+        assert len(summary_results) == 1
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is None
+        assert summary_entry["value"] == 0.42
+
+    async def test_async_experiment_rejects_table_report_summary(self, llmobs):
+        async def async_task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_table_report_evaluator()
+        summary_name = summary_eval.get_serialization_name()
+        exp = llmobs.async_experiment(
+            "test_async_exp_table_report_summary",
+            async_task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        summary_results = await exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        summary_name = summary_eval.get_serialization_name()
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is not None
+        assert (
+            summary_entry["error"]["message"]
+            == "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+        )
+
+    async def test_async_experiment_rejects_report_analysis_union_annotation(self, llmobs):
+        async def async_task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = _dataset_for_report_summary_tests()
+        row_eval = _make_simple_pydantic_evaluator()
+        summary_eval = _make_report_evaluator_with_analysis_union_annotation()
+        summary_name = summary_eval.get_serialization_name()
+        exp = llmobs.async_experiment(
+            "test_async_exp_wide_report_summary",
+            async_task,
+            dataset,
+            [row_eval],
+            summary_evaluators=[summary_eval],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        summary_results = await exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        summary_entry = summary_results[0]["evaluations"][summary_name]
+        assert summary_entry["error"] is None
+        assert summary_entry["value"] == 1.0

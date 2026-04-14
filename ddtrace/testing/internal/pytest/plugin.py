@@ -4,7 +4,6 @@ from collections import defaultdict
 from io import StringIO
 import json
 import logging
-import os
 from pathlib import Path
 import re
 import traceback
@@ -20,6 +19,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
@@ -226,8 +226,37 @@ class TestOptPlugin:
 
         # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
         # and want ddtrace spans to be entirely independent from the test spans.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+        if asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = False
+
+        # Log correlation: if DD_LOGS_INJECTION is enabled, a real ddtrace span must be active during tests so that
+        # the logging patch can read the test's trace_id/span_id. Re-enable the trace filter unless it was explicitly
+        # disabled via _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER.
+        if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            self.enable_ddtrace_trace_filter = True
+
+        # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
+        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
+        if self.enable_agentless_log_submission:
+            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+                log.warning(
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
+                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                )
+                self.enable_agentless_log_submission = False
+            elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+                # Agentless log submission needs a real ddtrace span to carry trace/span IDs.
+                self.enable_ddtrace_trace_filter = True
+
+        # Log submission via connector: active when DD_LOGS_INJECTION is set (works with both EVP proxy and agentless
+        # connectors), or when explicit agentless log submission is enabled.
+        self.enable_log_submission = self.enable_agentless_log_submission or (
+            asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER"))
+        )
+
+        self._logs_writer: t.Optional[t.Any] = None
+        self._logs_handler: t.Optional[t.Any] = None
 
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
@@ -261,6 +290,32 @@ class TestOptPlugin:
 
         if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
+            try:
+                import ddtrace
+            except ImportError:
+                log.debug("ddtrace is not available, skipping logging patch")
+            else:
+                if ddtrace.config._logs_injection or self.enable_log_submission:
+                    try:
+                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
+
+                        _patch_logging()
+                    except ImportError:
+                        log.warning(
+                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
+                        )
+
+        if self.enable_log_submission:
+            from ddtrace.testing.internal.logs import LogsHandler
+            from ddtrace.testing.internal.logs import LogsWriter
+
+            self._logs_writer = LogsWriter(
+                connector_setup=self.manager.connector_setup,
+                service=self.manager.session.service,
+            )
+            self._logs_writer.start()
+            self._logs_handler = LogsHandler(self._logs_writer)
+            logging.getLogger().addHandler(self._logs_handler)
 
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
@@ -312,6 +367,15 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+
+        if self._logs_handler is not None:
+            logging.getLogger().removeHandler(self._logs_handler)
+            self._logs_handler = None
+
+        if self._logs_writer is not None:
+            self._logs_writer.signal_finish()
+            self._logs_writer.wait_finish(timeout=30.0)
+            self._logs_writer = None
 
         self.manager.finish()
 
@@ -982,7 +1046,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
-    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+    return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
 def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
@@ -1127,7 +1191,7 @@ def _get_test_command(config: pytest.Config) -> str:
     command = "pytest"
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
-    if addopts := os.environ.get("PYTEST_ADDOPTS"):
+    if addopts := env.get("PYTEST_ADDOPTS"):
         command += " {}".format(addopts)
     return command
 

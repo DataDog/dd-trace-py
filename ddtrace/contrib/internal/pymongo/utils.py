@@ -3,6 +3,7 @@ import json
 from typing import Iterable
 
 # 3p
+from bson import json_util
 import pymongo
 from pymongo.message import _GetMore
 from pymongo.message import _Query
@@ -12,6 +13,7 @@ from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -46,9 +48,9 @@ def create_checkout_span():
     """Create a span for socket checkout. Shared between sync and async."""
     span = tracer.trace(
         f"pymongo.{_CHECKOUT_FN_NAME}",
-        service=trace_utils.ext_service(None, config.pymongo),
         span_type=SpanTypes.MONGODB,
     )
+    set_service_and_source(span, trace_utils.ext_service(None, config.pymongo), config.pymongo)
     span._set_attribute(COMPONENT, config.pymongo.integration_name)
     span._set_attribute(db.SYSTEM, mongox.SERVICE)
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
@@ -123,10 +125,13 @@ def set_address_tags(span, address):
 def set_query_metadata(span, cmd):
     """Set span `mongodb.query` tag and resource given command query. Shared between sync and async."""
     if cmd.query:
-        nq = normalize_filter(cmd.query)
-        q = json.dumps(nq)
-        span.set_tag("mongodb.query", q)
-        span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
+        resource_str = json.dumps(normalize_filter(cmd.query))
+        if config.pymongo._mongodb_obfuscation:
+            tag_query = resource_str
+        else:
+            tag_query = json_util.dumps(cmd.query)
+        span.set_tag("mongodb.query", tag_query)
+        span.resource = "{} {} {}".format(cmd.name, cmd.coll, resource_str)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
 

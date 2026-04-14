@@ -19,13 +19,27 @@ Runs before each commit. A non-zero exit code **aborts the commit**. Contains:
 - Code formatting and linting checks
 - Other pre-commit validations
 
+Individual pre-commit hooks (run in numeric order):
+
+| Hook | Description |
+|------|-------------|
+| `01-format-and-lint` | Formats and lints staged Python files |
+| `02-run-mypy` | Type-checks staged Python files |
+| `03-run-codespell` | Spell-checks staged files |
+| `04-run-clang-format` | Formats staged C/C++ files with clang-format |
+| `05-run-bandit` | Security-scans staged production Python files |
+| `06-check-cython-stubs` | Validates Cython stub files |
+| `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
+| `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
+| `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
+
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
-- **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and alerts you to rebuild
+- **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and Python dependency files, and alerts you to rebuild or reinstall
 
 ### post-checkout (non-blocking)
 Runs after `git checkout` or `git switch`. Non-zero exit codes are logged but **do not block** the operation. Contains:
-- **check-native-changes**: Detects changes to native code files and alerts you to rebuild
+- **check-native-changes**: Detects changes to native code files and Python dependency files, and alerts you to rebuild or reinstall
 
 ## Native Code Change Detection
 
@@ -45,6 +59,7 @@ The `check-native-changes` hook automatically detects when native code files hav
 - `*.pyx`, `*.pxd` - Cython files
 - `Cargo.toml`, `Cargo.lock` - Rust dependencies
 - `setup.py`, `pyproject.toml` - Build configuration
+- `requirements*.txt` - Python dependency files
 
 ### Example Output
 ```
@@ -197,13 +212,14 @@ hooks/
 ├── autohook.sh              # Autohook manager script
 ├── README.md                # This file
 ├── pre-commit/              # Pre-commit hooks
-│   └── ...
+│   ├── ...
+│   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
-│   └── check-native-changes # Detects native code changes
+│   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
-│   └── check-native-changes # Detects native code changes
+│   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
-    └── check-native-changes # Native change detection logic
+    └── check-native-changes # Native change and dependency detection logic
 ```
 
 ## For Contributors

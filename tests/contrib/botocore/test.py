@@ -21,7 +21,7 @@ from moto import mock_sqs
 from moto import mock_stepfunctions
 import pytest
 
-from ddtrace._trace._span_pointer import _SpanPointer
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.utils_botocore import span_tags
 from tests.utils import get_128_bit_trace_id_from_headers
@@ -327,7 +327,7 @@ class BotocoreTest(TracerTestCase):
         # dynamodb_primary_key_names_for_tables is properly configured with the
         # table and its primary key field names.
         assert span._links == [
-            _SpanPointer(
+            SpanLink._SpanPointer(
                 pointer_kind="aws.dynamodb.item",
                 pointer_direction=_SpanPointerDirection.DOWNSTREAM,
                 # We have more detailed tests for the hashing behavior
@@ -512,7 +512,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("bucketname") == "mybucket"
 
         assert span._links == [
-            _SpanPointer(
+            SpanLink._SpanPointer(
                 pointer_kind="aws.s3.object",
                 pointer_direction=_SpanPointerDirection.DOWNSTREAM,
                 # We have more detailed tests for the hashing behavior
@@ -544,7 +544,7 @@ class BotocoreTest(TracerTestCase):
 
             # We still create the link since we're hashing the parameter data.
             assert span._links == [
-                _SpanPointer(
+                SpanLink._SpanPointer(
                     pointer_kind="aws.s3.object",
                     pointer_direction=_SpanPointerDirection.DOWNSTREAM,
                     # We have more detailed tests for the hashing behavior

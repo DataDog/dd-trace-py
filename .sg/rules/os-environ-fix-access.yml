@@ -1,0 +1,19 @@
+id: os-environ-fix-access
+message: Use ddtrace.internal.settings.env instead of os.environ
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/internal/settings/env.py"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/vendor/**"
+  - "ddtrace/testing/**"
+rule:
+  pattern: os.environ
+fix: env
+note: |
+  Replace `os.environ` with `env` from `ddtrace.internal.settings.env`.
+  `env` is a MutableMapping drop-in for os.environ (supports reads, writes, deletes).
+  After applying fix, add the import manually:
+    from ddtrace.internal.settings import env

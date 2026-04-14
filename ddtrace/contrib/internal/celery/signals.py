@@ -17,6 +17,7 @@ from ddtrace.contrib.internal.celery.utils import retrieve_span
 from ddtrace.contrib.internal.celery.utils import retrieve_span_context
 from ddtrace.contrib.internal.celery.utils import retrieve_task_id
 from ddtrace.contrib.internal.celery.utils import set_tags_from_context
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
@@ -53,10 +54,8 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
-    span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
-    # Use inline check for worker default service
-    if span.service == config.celery["_default_service_worker"]:
-        span.set_tag("_dd.svc_src", "celery")
+    span = tracer.trace(c.WORKER_ROOT_SPAN, resource=task.name, span_type=SpanTypes.WORKER)
+    set_service_and_source(span, service, config.celery, default_service_key="_default_service_worker")
 
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
@@ -83,7 +82,10 @@ def trace_postrun(*args, **kwargs):
     # retrieve and finish the Span
     span = retrieve_span(task, task_id)
     if span is None:
-        log.warning("no existing span found for task_id=%s", task_id)
+        # This can happen when Task.replace() is used — the original task's
+        # postrun signal fires but the span has already been detached because
+        # the task was replaced mid-execution. This is expected, not an error.
+        log.debug("no existing span found for task_id=%s", task_id)
         return
     else:
         # request context tags
@@ -128,10 +130,8 @@ def trace_before_publish(*args, **kwargs):
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
-    span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
-    # Use inline check for producer default service
-    if span.service == config.celery["_default_service_producer"]:
-        span.set_tag("_dd.svc_src", "celery")
+    span = tracer.trace(c.PRODUCER_ROOT_SPAN, resource=task_name)
+    set_service_and_source(span, service, config.celery, default_service_key="_default_service_producer")
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)

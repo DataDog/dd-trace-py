@@ -455,8 +455,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 MYSQL_CONFIG["port"],
             )
             self.conn.ping()
-
-            return self.conn, self.tracer
+        return self.conn
 
     def test_patch_unpatch(self):
         unpatch()
@@ -630,7 +629,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
+            DD_MYSQLDB_SERVICE="service-name-override",
         )
     )
     def test_mysql_dbm_propagation_comment_integration_service_name_override(self):

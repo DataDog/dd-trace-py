@@ -1,0 +1,4 @@
+fixes:
+  - |
+    internal: A bug preventing certain periodic threads of ``ddtrace`` (like the profile uploader) from
+    triggering in fork-heavy applications has been fixed.

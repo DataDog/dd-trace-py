@@ -380,6 +380,30 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_LLMOBS_PAYLOAD_SIZE_BYTES:
+     type: Int
+     default: 5242880
+
+     description: |
+         The max size in bytes of an LLMObs payload submitted to Datadog. When the buffer reaches this
+         limit it is flushed immediately before the next event is enqueued. Defaults to 5 MiB.
+
+         This controls the size of LLMObs payloads sent directly to Datadog when agentless mode is
+         enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
+         the EVP proxy max payload size configured in the Datadog Agent.
+
+   DD_LLMOBS_EVENT_SIZE_BYTES:
+     type: Int
+     default: 5000000
+
+     description: |
+         The max size in bytes of a single LLMObs event submitted to Datadog. Events that exceed this
+         limit have their input/output fields truncated before submission. Defaults to 5 MB.
+
+         This controls the size of individual LLMObs events sent directly to Datadog when agentless
+         mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
+         exceed the EVP proxy max event size configured in the Datadog Agent.
+
 Trace Context propagation
 -------------------------
 
@@ -765,6 +789,20 @@ Test Visibility
 
      version_added:
         v3.15.0:
+
+   DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        When used with ``DD_CIVISIBILITY_AGENTLESS_ENABLED=true``, enables log submission from the
+        ``ddtrace.testing`` pytest plugin directly to the Datadog logs intake. Log records emitted
+        during tests are enriched with the active test span's ``dd.trace_id`` and ``dd.span_id``
+        and forwarded as structured JSON. When using the Datadog Agent instead of agentless mode,
+        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's intake.
+
+     version_added:
+        v4.8.0:
 
 Agent
 -----

@@ -96,7 +96,7 @@ ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
-    sh -s -- --default-toolchain stable -y
+    sh -s -- --profile minimal --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/

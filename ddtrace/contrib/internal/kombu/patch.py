@@ -1,5 +1,3 @@
-import os
-
 # 3p
 import kombu
 import wrapt
@@ -11,6 +9,7 @@ from ddtrace.constants import SPAN_KIND
 
 # project
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kombu as kombux
@@ -19,6 +18,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
@@ -42,8 +42,8 @@ def get_version() -> str:
 config._add(
     "kombu",
     {
-        "distributed_tracing_enabled": asbool(os.getenv("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
-        "service_name": config.service or os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
+        "distributed_tracing_enabled": asbool(env.get("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
+        "service_name": config.service or env.get("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
     },
 )
 
@@ -79,7 +79,7 @@ def patch():
         prod_service = None
     # DEV: backwards-compatibility for users who set a kombu service
     else:
-        prod_service = os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
+        prod_service = env.get("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
 
     Pin(
         service=schematize_service_name(prod_service),
@@ -112,9 +112,9 @@ def traced_receive(func, instance, args, kwargs):
 
     with tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
-        service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
+        set_service_and_source(s, pin.service, config.kombu)
         s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -140,9 +140,9 @@ def traced_publish(func, instance, args, kwargs):
 
     with tracer.trace(
         schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
-        service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
+        set_service_and_source(s, pin.service, config.kombu)
         s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed

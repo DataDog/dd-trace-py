@@ -3,10 +3,8 @@ from hashlib import sha256
 import random
 from typing import Any
 from typing import NamedTuple
-from typing import Optional
 
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_link import SpanLinkKind
+from ddtrace._trace._span_link import SpanLinkKind  # noqa: F401 - kept for backward compat
 from ddtrace._trace.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
@@ -38,39 +36,6 @@ class _SpanPointerDescription(NamedTuple):
     pointer_direction: _SpanPointerDirection
     pointer_hash: str
     extra_attributes: dict[str, Any]
-
-
-class _SpanPointer(SpanLink):
-    def __init__(
-        self,
-        pointer_kind: str,
-        pointer_direction: _SpanPointerDirection,
-        pointer_hash: str,
-        extra_attributes: Optional[dict[str, Any]] = None,
-    ):
-        super().__init__(
-            trace_id=_SPAN_POINTER_SPAN_LINK_TRACE_ID,
-            span_id=_SPAN_POINTER_SPAN_LINK_SPAN_ID,
-            attributes={
-                "ptr.kind": pointer_kind,
-                "ptr.dir": pointer_direction.value,
-                "ptr.hash": pointer_hash,
-                **(extra_attributes or {}),
-            },
-        )
-
-        self.kind = SpanLinkKind.SPAN_POINTER.value
-
-    def __post_init__(self):
-        # Do not want to do the trace_id and span_id checks that SpanLink does.
-        pass
-
-    def __repr__(self):
-        return (
-            f"SpanPointer(trace_id={self.trace_id}, span_id={self.span_id}, kind={self.kind}, "
-            f"direction={self.attributes.get('ptr.dir')}, hash={self.attributes.get('ptr.hash')}, "
-            f"attributes={self.attributes})"
-        )
 
 
 _STANDARD_HASHING_FUNCTION_FAILURE_PREFIX = "HashingFailure"

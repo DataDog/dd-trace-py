@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.internal.unittest.constants import FRAMEWORK
 from ddtrace.contrib.internal.unittest.constants import KIND
@@ -49,6 +50,7 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -61,8 +63,8 @@ config._add(
     "unittest",
     dict(
         _default_service="unittest",
-        operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
+        operation_name=env.get("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
+        strict_naming=asbool(env.get("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
     ),
 )
 
@@ -148,7 +150,9 @@ def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.trace.Span, 
     global _global_skipped_elements
     _global_skipped_elements += 1
 
-    test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+    test_module_span._set_attribute(
+        test.ITR_TEST_SKIPPING_COUNT, (test_module_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0) + 1
+    )
     test_module_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
     test_module_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
@@ -649,10 +653,10 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
     resource_name = _generate_session_resource(test_command)
     test_session_span = tracer.trace(
         SESSION_OPERATION_NAME,
-        service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         resource=resource_name,
     )
+    set_service_and_source(test_session_span, _CIVisibility._instance._service, config.unittest)
     test_session_span._set_attribute(_EVENT_TYPE, _SESSION_TYPE)
     test_session_span._set_attribute(_SESSION_ID, str(test_session_span.span_id))
 
@@ -691,12 +695,12 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
     resource_name = _generate_module_resource(test_module_name)
     test_module_span = tracer._start_span(
         MODULE_OPERATION_NAME,
-        service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         activate=True,
         child_of=test_session_span,
         resource=resource_name,
     )
+    set_service_and_source(test_module_span, _CIVisibility._instance._service, config.unittest)
     test_module_span._set_attribute(_EVENT_TYPE, _MODULE_TYPE)
     test_module_span._set_attribute(_SESSION_ID, str(test_session_span.span_id))
     test_module_span._set_attribute(_MODULE_ID, str(test_module_span.span_id))
@@ -735,12 +739,12 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
     resource_name = _generate_suite_resource(test_suite_name)
     test_suite_span = tracer._start_span(
         SUITE_OPERATION_NAME,
-        service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
         child_of=test_module_span,
         activate=True,
         resource=resource_name,
     )
+    set_service_and_source(test_suite_span, _CIVisibility._instance._service, config.unittest)
     test_suite_span._set_attribute(_EVENT_TYPE, _SUITE_TYPE)
     test_suite_span._set_attribute(_SESSION_ID, test_module_span.get_tag(_SESSION_ID))
     test_suite_span._set_attribute(_SUITE_ID, str(test_suite_span.span_id))
@@ -771,12 +775,12 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
         ddtrace.config.unittest.operation_name,
-        service=_CIVisibility._instance._service,
         resource=resource_name,
         span_type=SpanTypes.TEST,
         child_of=test_suite_span,
         activate=True,
     )
+    set_service_and_source(span, _CIVisibility._instance._service, config.unittest)
     span._set_attribute(_EVENT_TYPE, SpanTypes.TEST)
     span._set_attribute(_SESSION_ID, test_suite_span.get_tag(_SESSION_ID))
     span._set_attribute(_MODULE_ID, test_suite_span.get_tag(_MODULE_ID))
