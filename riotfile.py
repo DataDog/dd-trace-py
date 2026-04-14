@@ -491,15 +491,6 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
-                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
-                # and NativeWriter.
-                Venv(
-                    name="integration-snapshot-native-writer",
-                    env={
-                        "AGENT_VERSION": "testagent",
-                        "_DD_TRACE_WRITER_NATIVE": "1",
-                    },
-                ),
             ],
         ),
         Venv(
