@@ -25,7 +25,6 @@ components:
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
     - ddtrace/internal/processor/__init__.py
-    - ddtrace/internal/processor/stats.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
