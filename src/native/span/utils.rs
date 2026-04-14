@@ -60,3 +60,21 @@ pub fn wall_clock_ns() -> i64 {
         .map(|d| d.as_nanos() as i64)
         .unwrap_or(0)
 }
+
+/// Extract a `time_unix_nano` value from an optional Python object.
+///
+/// - `None` (omitted) → current wall clock time
+/// - Non-negative int → use as-is
+/// - Negative int → 0 (graceful fallback; avoids TypeError from bad propagation headers)
+/// - Invalid type → 0
+#[inline(always)]
+pub fn extract_time_unix_nano(obj: Option<&Bound<'_, PyAny>>) -> u64 {
+    match obj {
+        None => wall_clock_ns() as u64,
+        Some(o) if o.is_none() => wall_clock_ns() as u64,
+        Some(o) => o
+            .extract::<u64>()
+            .or_else(|_| o.extract::<i64>().map(|v| if v < 0 { 0 } else { v as u64 }))
+            .unwrap_or(0),
+    }
+}
