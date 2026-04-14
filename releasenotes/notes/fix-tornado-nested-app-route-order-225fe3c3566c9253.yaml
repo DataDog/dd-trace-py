@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tornado: Fixes an issue where routes inside a nested Tornado application were matched
+    in reverse declaration order, causing a catch-all pattern to win over a more-specific
+    route defined before it. This resulted in incorrect ``http.route`` tags on spans.
