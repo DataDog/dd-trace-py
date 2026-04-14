@@ -56,6 +56,7 @@ class ProfilingConfigException(DDConfig):
     collect_message: bool
 
 config: ProfilingConfig
+profiling_enabled_at_startup: bool
 ddup_failure_msg: Optional[str]
 ddup_is_available: bool
 stack_v2_failure_msg: Optional[str]
