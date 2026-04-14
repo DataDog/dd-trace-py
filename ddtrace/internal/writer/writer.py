@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -54,7 +55,6 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.native_runtime import NativeRuntime
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -611,7 +611,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def __init__(
         self,
         intake_url: str,
-        native_runtime: "NativeRuntime",
+        # AIDEV-NOTE: Callers should provide a NativeRuntime instance that is shared
+        # across all writers (e.g. the one owned by the Tracer). When omitted a new
+        # NativeRuntime — and therefore a new Tokio async runtime — is created for this
+        # writer alone, which wastes system resources. The None default exists only to
+        # make direct instantiation in tests convenient.
+        native_runtime: Optional[NativeRuntime] = None,
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
         # Match the payload size since there is no functionality
@@ -699,7 +704,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-        self._native_runtime = native_runtime
+        self._native_runtime = native_runtime if native_runtime is not None else NativeRuntime()
 
         self._exporter = self._create_exporter()
 
