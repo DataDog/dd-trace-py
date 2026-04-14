@@ -6,10 +6,15 @@ from __future__ import annotations
 import dataclasses
 from enum import Enum
 import logging
+import time
 import typing as t
 
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
@@ -309,9 +314,27 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
 
     def finish(self) -> None:
         if self._accumulated_metrics:
+            from ddtrace import config
+
+            generate_metrics_event = {
+                "request_type": TELEMETRY_EVENT_TYPE.METRICS.value,
+                "payload": {
+                    "namespace": TELEMETRY_NAMESPACE.CIVISIBILITY.value,
+                    "series": self._accumulated_metrics,
+                },
+            }
+            batch_payload = {
+                "api_version": "v2",
+                "tracer_time": int(time.time()),
+                "runtime_id": get_runtime_id(),
+                "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
+                "application": get_application(config.SERVICE, config.VERSION, config.ENV),
+                "host": get_host_info(),
+                "payload": [generate_metrics_event],
+            }
             write_payload_file(
                 output_dir=self._output_dir,
-                payload={"metrics": self._accumulated_metrics},
+                payload=batch_payload,
                 kind="telemetry",
             )
             log.debug("Wrote %d telemetry metrics to payload file", len(self._accumulated_metrics))

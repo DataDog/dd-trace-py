@@ -213,14 +213,22 @@ class TestPayloadFileTelemetryAPI:
         assert len(files) == 1
 
         data = json.loads(files[0].read_text())
-        assert "metrics" in data
-        assert len(data["metrics"]) == 2
-        assert data["metrics"][0]["type"] == "count"
-        assert data["metrics"][0]["metric"] == "test_metric"
-        assert data["metrics"][0]["value"] == 1
-        assert data["metrics"][1]["type"] == "distribution"
-        assert data["metrics"][1]["metric"] == "test_dist"
-        assert data["metrics"][1]["value"] == 42.5
+        assert data["api_version"] == "v2"
+        assert data["request_type"] == "message-batch"
+        assert "application" in data
+        assert "host" in data
+        assert len(data["payload"]) == 1
+        event = data["payload"][0]
+        assert event["request_type"] == "generate-metrics"
+        assert event["payload"]["namespace"] == "civisibility"
+        series = event["payload"]["series"]
+        assert len(series) == 2
+        assert series[0]["type"] == "count"
+        assert series[0]["metric"] == "test_metric"
+        assert series[0]["value"] == 1
+        assert series[1]["type"] == "distribution"
+        assert series[1]["metric"] == "test_dist"
+        assert series[1]["value"] == 42.5
 
     def test_no_telemetry_file_when_no_metrics(self, tmp_path):
         telemetry_dir = tmp_path / "telemetry"
