@@ -363,7 +363,7 @@ class TestFileCapture:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_fork_restores_stderr_in_child():
     """After fork, the child's fd 2 should be the original stderr, not the pipe."""
     import os
@@ -411,7 +411,7 @@ def test_fork_restores_stderr_in_child():
         capture.stop()
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_fork_child_can_write_to_stderr():
     """The child should be able to write to fd 2 without blocking."""
     import os
@@ -456,7 +456,7 @@ def test_fork_child_can_write_to_stderr():
         capture.stop()
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_parent_capture_continues_after_fork():
     """Fork should not disrupt the parent's capture."""
     import os
