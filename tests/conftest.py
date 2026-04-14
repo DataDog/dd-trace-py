@@ -417,6 +417,14 @@ def run_function_from_file(item, params=None):
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
 
+    # Strip OTEL_* vars inherited from the outer environment.  Subprocess
+    # tests that need specific OTEL config set them explicitly via the
+    # marker's env= kwarg, so inheriting outer-env OTEL vars (e.g. from
+    # IDE telemetry or CI tooling) only causes spurious ddtrace warnings
+    # on stderr that break strict stderr-comparison checks.
+    for key in [k for k in list(env) if k.startswith("OTEL_")]:
+        del env[key]
+
     for key, value in marker.kwargs.get("env", {}).items():
         if value is None:  # None means remove the variable
             env.pop(key, None)
