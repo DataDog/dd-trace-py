@@ -10,9 +10,9 @@ single DependencyTracker instance.
 """
 
 from importlib.metadata import PackageNotFoundError
+import re
 from threading import Lock
 from typing import Any
-from typing import Generator
 from typing import Iterable
 from typing import Optional
 
@@ -27,6 +27,18 @@ from .dependency import register_cve_metadata
 
 
 log = get_logger(__name__)
+
+_NORMALIZE_RE = re.compile(r"[-_.]+")
+
+
+def _normalize_dep_name(name: str) -> str:
+    """PEP 503 package name canonicalization for consistent dict lookups.
+
+    Distribution metadata may use original casing (e.g. "PyYAML") while
+    SCA CVE data uses lowercased names (e.g. "pyyaml").  Normalizing keys
+    prevents duplicate entries and lookup misses.
+    """
+    return _NORMALIZE_RE.sub("-", name).lower()
 
 
 class DependencyTracker:
@@ -74,7 +86,7 @@ class DependencyTracker:
 
             # Mark new deps as initially sent
             for dep_dict in new_deps:
-                entry = self._imported_dependencies.get(dep_dict["name"])
+                entry = self._imported_dependencies.get(_normalize_dep_name(dep_dict["name"]))
                 if entry:
                     entry.mark_initial_sent()
                     entry.mark_all_metadata_sent()
@@ -89,15 +101,15 @@ class DependencyTracker:
             if not tracer_config._sca_enabled:
                 return new_deps if new_deps else None
 
-            # Collect names of deps just reported above to avoid double-reporting.
-            just_reported = {d["name"] for d in new_deps}
+            # Collect normalized names of deps just reported above to avoid double-reporting.
+            just_reported = {_normalize_dep_name(d["name"]) for d in new_deps}
 
             # Re-report deps that need it: auto-created by SCA hook (never
             # reported yet) or already reported but with new unsent metadata.
             # Include ALL metadata (sent + unsent) per RFC.
             re_report_deps: list[dict] = []
             for entry in self._imported_dependencies.values():
-                if entry.name in just_reported:
+                if _normalize_dep_name(entry.name) in just_reported:
                     continue
                 if entry.needs_report():
                     re_report_deps.append(entry.to_telemetry_dict(include_all_metadata=True))
@@ -114,7 +126,8 @@ class DependencyTracker:
         """
         from ddtrace.internal.settings._config import config as tracer_config
 
-        if package_name not in self._imported_dependencies and tracer_config._sca_enabled:
+        key = _normalize_dep_name(package_name)
+        if key not in self._imported_dependencies and tracer_config._sca_enabled:
             try:
                 from importlib.metadata import version as importlib_metadata_version
 
@@ -122,7 +135,7 @@ class DependencyTracker:
             except PackageNotFoundError:
                 log.debug("Package %r not found in installed metadata", package_name)
                 version = ""
-            self._imported_dependencies[package_name] = DependencyEntry(name=package_name, version=version, metadata=[])
+            self._imported_dependencies[key] = DependencyEntry(name=package_name, version=version, metadata=[])
 
     def attach_metadata(
         self,
@@ -143,9 +156,10 @@ class DependencyTracker:
         Returns:
             True if metadata was attached, False otherwise.
         """
+        key = _normalize_dep_name(package_name)
         with self._lock:
             self._ensure_entry(package_name)
-            return attach_reachability_metadata(self._imported_dependencies, package_name, cve_id, path, symbol, line)
+            return attach_reachability_metadata(self._imported_dependencies, key, cve_id, path, symbol, line)
 
     def register_cve(self, package_name: str, cve_id: str) -> bool:
         """Register a CVE on a dependency with reached=[].
@@ -158,9 +172,10 @@ class DependencyTracker:
         Returns:
             True if the CVE was registered, False otherwise.
         """
+        key = _normalize_dep_name(package_name)
         with self._lock:
             self._ensure_entry(package_name)
-            return register_cve_metadata(self._imported_dependencies, package_name, cve_id)
+            return register_cve_metadata(self._imported_dependencies, key, cve_id)
 
     def enable_sca_metadata(self) -> None:
         """Activate SCA metadata on all currently tracked dependencies.
@@ -174,11 +189,10 @@ class DependencyTracker:
                 if entry.metadata is None:
                     entry.metadata = []
 
-    def get_all_dependencies(self) -> Generator[DependencyEntry, None, None]:
+    def get_all_dependencies(self) -> list[DependencyEntry]:
         """Return a snapshot of all dependency entries, safe for unsynchronized iteration."""
         with self._lock:
-            for dep in self._imported_dependencies.values():
-                yield dep
+            return list(self._imported_dependencies.values())
 
     def reset(self) -> None:
         """Reset all state (used on fork / queue reset)."""
@@ -213,13 +227,14 @@ def update_imported_dependencies(
             continue
 
         name, version = dists
-        if name == "ddtrace":
+        key = _normalize_dep_name(name)
+        if key == "ddtrace":
             continue
-        if name in already_imported:
+        if key in already_imported:
             continue
 
         metadata: Optional[list] = [] if tracer_config._sca_enabled else None
         entry = DependencyEntry(name=name, version=version, metadata=metadata)
-        already_imported[name] = entry
+        already_imported[key] = entry
         deps.append(entry.to_telemetry_dict())
     return deps

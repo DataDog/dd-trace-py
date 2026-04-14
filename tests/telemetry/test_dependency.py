@@ -576,3 +576,170 @@ class TestWriterRegisterCveMetadata:
 
         assert result is True
         assert tracker._imported_dependencies["unknown-pkg"].version == ""
+
+
+class TestNormalizeDepName:
+    """Tests for PEP 503 package name canonicalization."""
+
+    def test_lowercase(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("PyYAML") == "pyyaml"
+
+    def test_hyphen_passthrough(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("my-package") == "my-package"
+
+    def test_underscore_to_hyphen(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("my_package") == "my-package"
+
+    def test_dot_to_hyphen(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("my.package") == "my-package"
+
+    def test_mixed_separators_collapsed(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("my_.package") == "my-package"
+
+    def test_already_canonical(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("requests") == "requests"
+
+    def test_complex_name(self):
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        assert _normalize_dep_name("Jinja2") == "jinja2"
+
+
+class TestTrackerNameNormalization:
+    """Tests that DependencyTracker normalizes package names to avoid duplicates and lookup misses."""
+
+    def test_ensure_entry_no_duplicate_with_different_casing(self):
+        """_ensure_entry should not create a duplicate when the same package has different casing."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        tracer_config._sca_enabled = True
+        tracker = DependencyTracker()
+
+        with patch("importlib.metadata.version", return_value="6.0"):
+            # Telemetry discovers "PyYAML" first
+            tracker._imported_dependencies["pyyaml"] = DependencyEntry(name="PyYAML", version="6.0", metadata=[])
+            # SCA tries to ensure "pyyaml" — should find the existing entry
+            with tracker._lock:
+                tracker._ensure_entry("pyyaml")
+
+        assert len(tracker._imported_dependencies) == 1
+
+    def test_attach_metadata_matches_differently_cased_key(self):
+        """attach_metadata with lowercase name should find an entry stored via telemetry discovery."""
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        tracker = DependencyTracker()
+        # Simulate telemetry discovering "PyYAML" (stored under normalized key)
+        key = _normalize_dep_name("PyYAML")
+        tracker._imported_dependencies[key] = DependencyEntry(name="PyYAML", version="6.0", metadata=[])
+
+        # SCA attaches metadata using lowercase name from CVE data
+        result = tracker.attach_metadata("pyyaml", "CVE-2024-1234", "yaml.loader", "load", 10)
+
+        assert result is True
+        entry = tracker._imported_dependencies[key]
+        assert len(entry.metadata) == 1
+        assert entry.metadata[0].value["id"] == "CVE-2024-1234"
+
+    def test_register_cve_matches_differently_cased_key(self):
+        """register_cve with lowercase name should find an entry stored via telemetry discovery."""
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        tracker = DependencyTracker()
+        key = _normalize_dep_name("PyYAML")
+        tracker._imported_dependencies[key] = DependencyEntry(name="PyYAML", version="6.0", metadata=[])
+
+        result = tracker.register_cve("pyyaml", "CVE-2024-5678")
+
+        assert result is True
+        entry = tracker._imported_dependencies[key]
+        assert len(entry.metadata) == 1
+        assert entry.metadata[0].value == {"id": "CVE-2024-5678", "reached": []}
+
+    def test_update_imported_dependencies_normalizes_keys(self):
+        """update_imported_dependencies should store entries under normalized keys."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
+
+        already_imported = {}
+        with patch(
+            "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
+            return_value=("PyYAML", "6.0"),
+        ):
+            result = update_imported_dependencies(already_imported, ["yaml"])
+
+        assert len(result) == 1
+        assert result[0]["name"] == "PyYAML"  # wire format preserves original name
+        normalized = _normalize_dep_name("PyYAML")
+        assert normalized in already_imported
+        assert already_imported[normalized].name == "PyYAML"
+
+    def test_update_imported_dependencies_deduplicates_with_normalized_keys(self):
+        """A second module mapping to the same dist (different casing) should not create a duplicate."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
+
+        already_imported = {}
+        key = _normalize_dep_name("PyYAML")
+        already_imported[key] = DependencyEntry(name="PyYAML", version="6.0")
+
+        with patch(
+            "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
+            return_value=("pyyaml", "6.0"),
+        ):
+            result = update_imported_dependencies(already_imported, ["yaml.dumper"])
+
+        assert result == []
+        assert len(already_imported) == 1
+
+    def test_collect_report_marks_sent_with_normalized_lookup(self):
+        """collect_report should find entries by normalized key when marking as sent."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+        from ddtrace.internal.telemetry.dependency_tracker import _normalize_dep_name
+
+        tracker = DependencyTracker()
+
+        with (
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch(
+                "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
+                return_value=("PyYAML", "6.0"),
+            ),
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = {"yaml"}
+
+            result = tracker.collect_report()
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["name"] == "PyYAML"
+
+        # Entry should be stored under normalized key and marked as sent
+        key = _normalize_dep_name("PyYAML")
+        assert key in tracker._imported_dependencies
+        assert tracker._imported_dependencies[key]._initial_report_sent is True

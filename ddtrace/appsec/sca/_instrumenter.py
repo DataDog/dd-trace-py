@@ -45,18 +45,19 @@ def _first_instr_line(code: types.CodeType) -> int:
     bytecode instructions.  inject_hook needs the first *instruction*
     line, which is the first line of the function body.
 
-    Handles the cross-version difference:
-    - Python <3.12: starts_line is an int (the absolute line number) or None
-    - Python >=3.12: starts_line is a bool; line_number has the actual int
+    In CPython, ``dis.Instruction.starts_line`` is typically the absolute
+    line number (or ``None``).  We also defensively handle instruction
+    objects that expose a ``line_number`` attribute and prefer it when
+    present before falling back to ``starts_line``.
     """
     import dis
 
     for instr in dis.get_instructions(code):
-        # Python >=3.12: starts_line is bool, line_number is the int
+        # Prefer explicit line_number when provided by the instruction object.
         line = getattr(instr, "line_number", None)
         if line is not None:
             return line
-        # Python <3.12: starts_line is the int line number
+        # Otherwise use starts_line when it carries the absolute line number.
         if instr.starts_line is not None and isinstance(instr.starts_line, int):
             return instr.starts_line
     return code.co_firstlineno
