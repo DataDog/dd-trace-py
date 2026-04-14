@@ -1,5 +1,7 @@
 from collections import deque
+from functools import lru_cache
 
+from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
@@ -104,6 +106,70 @@ async def execute(func, handler, args, kwargs):
                     raise
 
 
+# Regex group prefixes that mark a group as non-capturing.
+# (?P<name>...) starts with "?P<" but IS capturing — it is intentionally absent here.
+_NON_CAPTURING_PREFIXES = ("?:", "?=", "?!", "?<=", "?<!")
+
+
+@lru_cache(maxsize=512)
+def _regex_to_route(pattern: str) -> str:
+    """
+    Convert a compiled regex pattern to an ``http.route``-style string.
+
+    This mirrors what Tornado's ``PathMatches._find_groups`` produces: capturing
+    groups (positional ``(...)`` and named ``(?P<name>...)``) are replaced with
+    ``%s``, while non-capturing constructs (``(?:...)``, lookaheads, lookbehinds)
+    are kept verbatim so the route remains readable.
+
+    Unlike ``_find_groups`` this never returns ``None`` — it always produces a
+    usable route string regardless of pattern complexity.
+    """
+    # Strip the anchors that Tornado's PathMatches.__init__ appends.
+    if pattern.startswith("^"):
+        pattern = pattern[1:]
+    if pattern.endswith("$"):
+        pattern = pattern[:-1]
+
+    result = []
+    i = 0
+    n = len(pattern)
+
+    while i < n:
+        if pattern[i] == "\\":
+            # Escaped character — copy both chars and move on.
+            result.append(pattern[i : i + 2])
+            i += 2
+            continue
+
+        if pattern[i] != "(":
+            result.append(pattern[i])
+            i += 1
+            continue
+
+        # Peek past the opening paren to decide whether this is capturing.
+        capturing = not any(pattern[i + 1 :].startswith(p) for p in _NON_CAPTURING_PREFIXES)
+
+        # Find the matching closing paren, respecting nesting and escapes.
+        depth = 1
+        j = i + 1
+        while j < n and depth > 0:
+            if pattern[j] == "\\":
+                j += 2
+            elif pattern[j] == "(":
+                depth += 1
+                j += 1
+            elif pattern[j] == ")":
+                depth -= 1
+                j += 1
+            else:
+                j += 1
+
+        result.append("%s" if capturing else pattern[i:j])
+        i = j
+
+    return "".join(result)
+
+
 def _find_route(initial_rule_set, request):
     """
     We have to walk through the same chain of rules that tornado does to find a matching rule.
@@ -115,9 +181,15 @@ def _find_route(initial_rule_set, request):
 
     while len(rules) > 0:
         rule = rules.popleft()
-        if (m := rule.matcher.match(request)) is not None:
-            if hasattr(rule.matcher, "_path"):
-                return rule.matcher._path, m.get("path_args", []) or m.get("path_kwargs", {})
+        matcher = rule.matcher
+        if (m := matcher.match(request)) is not None:
+            if isinstance(matcher, PathMatches):
+                path_args = m.get("path_args", []) or m.get("path_kwargs", {})
+                if matcher._path is not None:
+                    return matcher._path, path_args
+
+                return _regex_to_route(matcher.regex.pattern), path_args
+
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(reversed(rule.target.rules))
 
