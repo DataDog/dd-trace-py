@@ -3204,14 +3204,14 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
+                        "pydantic-ai": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1", "==1.0.0"],
+                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
