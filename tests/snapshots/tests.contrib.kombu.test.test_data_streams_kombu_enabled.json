@@ -10,15 +10,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bad5100000000",
+      "_dd.p.tid": "69de95c800000000",
+      "_dd.svc_src": "kombu",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz_k6oz2q,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "kombu",
       "kombu.exchange": "dsm_test_exchange",
       "kombu.routing_key": "dsm_test",
       "language": "python",
       "out.host": "127.0.0.1",
       "out.vhost": "/",
-      "pathway.hash": "14241834167477407193",
-      "runtime-id": "aea8d840512c49d785fe2848c222fc76",
+      "pathway.hash": "13618132776631307998",
+      "runtime-id": "0ddc9d942ad94907bf6d9b6630ae462e",
       "span.kind": "producer"
     },
     "metrics": {
@@ -28,10 +30,10 @@
       "_sampling_priority_v1": 1.0,
       "kombu.body_length": 16.0,
       "network.destination.port": 5672.0,
-      "process_id": 45049.0
+      "process_id": 64679.0
     },
-    "duration": 3139000,
-    "start": 1769712977201497000
+    "duration": 4512417,
+    "start": 1776195016238933833
   },
      {
        "name": "kombu.receive",
@@ -44,17 +46,19 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "697bad5100000000",
+         "_dd.p.tid": "69de95c800000000",
+         "_dd.svc_src": "kombu",
+         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz_k6oz2q,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
          "component": "kombu",
          "kombu.exchange": "dsm_test_exchange",
          "kombu.routing_key": "dsm_test",
          "language": "python",
          "out.host": "127.0.0.1",
          "out.vhost": "/",
-         "pathway.hash": "10302394269421895618",
-         "runtime-id": "aea8d840512c49d785fe2848c222fc76",
+         "pathway.hash": "5087588053493223456",
+         "runtime-id": "0ddc9d942ad94907bf6d9b6630ae462e",
          "span.kind": "consumer",
-         "tracestate": "dd=p:e89d9c8a1f58ba15;s:1;t.dm:-0;t.tid:697bad5100000000"
+         "tracestate": "dd=p:cf4503e4ddc61d2b;s:1;t.dm:-0;t.tid:69de95c800000000"
        },
        "metrics": {
          "_dd.measured": 1.0,
@@ -62,8 +66,8 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1.0,
          "network.destination.port": 5672.0,
-         "process_id": 45049.0
+         "process_id": 64679.0
        },
-       "duration": 91000,
-       "start": 1769712977206529000
+       "duration": 178125,
+       "start": 1776195016245056000
      }]]
