@@ -512,7 +512,6 @@ import opentelemetry
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
