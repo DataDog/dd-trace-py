@@ -1,6 +1,7 @@
 stages:
   - package
   - tests
+  - system-tests
   - fuzz
   - shared-pipeline
   - benchmarks
@@ -15,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "c56273abb92d4e9557453e904bf5819ab7f0e52a"
+  SYSTEM_TESTS_REF: "2c44787de1c98f37db6d1cfc7156fe43878cfe9d"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -60,6 +61,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
 
 "pipeline variables":

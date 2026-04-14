@@ -24,11 +24,11 @@ XDIST_UNSET = "UNSET"
 
 
 def is_xdist_worker_env() -> bool:
-    """Return True if the current process is running as an xdist worker.
+    """Return True if the current process is currently running as an xdist worker.
 
-    Reads os.environ live so it returns the correct answer even when inline_run()
-    is called inside an outer xdist worker that has cleared PYTEST_XDIST_WORKER
-    from the environment.
+    Unlike PYTEST_XDIST_WORKER_VALUE (frozen at import time), this reads os.environ
+    live, so it returns the correct answer even when inline_run() is called inside
+    an outer xdist worker that has cleared PYTEST_XDIST_WORKER from the environment.
     """
     return env.get("PYTEST_XDIST_WORKER") is not None
 
