@@ -1,19 +1,15 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Iterable  # noqa:F401
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 from ..logger import get_logger
-from .dependency import DependencyEntry
 
 
 log = get_logger(__name__)
@@ -72,30 +68,6 @@ def _get_application(key: tuple[str, str, str]) -> dict:
         application["process_tags"] = p_tags
 
     return application
-
-
-def update_imported_dependencies(
-    already_imported: dict[str, DependencyEntry], new_modules: Iterable[str]
-) -> list[dict[str, str]]:
-    deps = []
-
-    for module_name in new_modules:
-        dists = get_module_distribution_versions(module_name)
-        if not dists:
-            continue
-
-        name, version = dists
-        if name == "ddtrace":
-            continue
-
-        if name in already_imported:
-            continue
-
-        entry = DependencyEntry(name=name, version=version, metadata=None)
-        already_imported[name] = entry
-        deps.append(entry.to_telemetry_dict())
-
-    return deps
 
 
 def get_application(service: str, version: str, env: str) -> dict:
