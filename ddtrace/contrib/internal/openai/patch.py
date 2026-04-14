@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import sys
 
@@ -259,6 +260,45 @@ def _patched_endpoint(patch_hook):
     return patched_endpoint
 
 
+def _inject_into_parse_cache(api_response, traced_value):
+    """Replace the cached parse result on an AsyncAPIResponse so callers
+    who call ``await api_response.parse()`` receive the traced stream wrapper
+    instead of the original unwrapped stream.
+
+    This accesses private SDK internals that may change across versions:
+      - OpenAI SDK >=2.0 (``openai>=2.0.0``): ``_parsed_by_type`` dict keyed by ``_cast_to``
+      - OpenAI SDK 1.x (``openai>=1.0,<2``): single ``_parsed`` attribute
+    """
+    try:
+        if hasattr(api_response, "_parsed_by_type"):
+            api_response._parsed_by_type[api_response._cast_to] = traced_value
+        elif hasattr(api_response, "_parsed"):
+            api_response._parsed = traced_value
+    except Exception:  # nosec B110
+        pass
+
+
+async def _maybe_preparse_async_response(resp, err):
+    """If *resp* is an async API response (has an async ``parse()``), eagerly
+    await it so the sync ``_traced_endpoint`` generator receives the real
+    stream object instead of an unawaited coroutine.
+
+    Returns the parsed object on success, or the original *resp* on any
+    failure (so tracing never changes application-visible behaviour).
+    """
+    if resp is not None and err is None and hasattr(resp, "parse"):
+        try:
+            parsed = resp.parse()
+            if asyncio.iscoroutine(parsed):
+                return await parsed
+            # Sync parse() — return the parsed value directly.
+            return parsed
+        # CancelledError is a BaseException in Python 3.9+
+        except (Exception, asyncio.CancelledError):  # nosec B110
+            pass
+    return resp
+
+
 class _TracedAsyncPaginator:
     """Wrapper for AsyncPaginator objects to enable tracing for both await and async for usage."""
 
@@ -314,11 +354,18 @@ class _TracedAsyncPaginator:
                 err = e
                 raise
             finally:
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
-                        resp = e.value
+                        hook_val = e.value
+                        if resp is not send_resp and hook_val is not None:
+                            _inject_into_parse_cache(resp, hook_val)
+                            # resp stays as the original API response; the
+                            # traced stream is now in its parse cache.
+                        else:
+                            resp = hook_val
             return resp
 
         return _trace_and_await().__await__()
@@ -353,13 +400,17 @@ def _patched_endpoint_async(patch_hook):
                 err = e
                 raise
             finally:
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
                         override_return = e.value
 
             if override_return is not None:
+                if resp is not send_resp and override_return is not None:
+                    _inject_into_parse_cache(resp, override_return)
+                    return resp
                 return override_return
             return resp
 
