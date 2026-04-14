@@ -19,10 +19,8 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
-from ddtrace.internal.settings.profiling import profiling_enabled_at_startup
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -188,24 +186,6 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        if not ddup.is_available:
-            # Module-level code in settings/profiling.py already logged this when
-            # profiling was explicitly enabled (DD_PROFILING_ENABLED=true). Only
-            # log here for the auto path (import ddtrace.profiling.auto without the
-            # env var), where the module-level check was skipped.
-            if not profiling_enabled_at_startup:
-                telemetry_writer.add_log(
-                    TELEMETRY_LOG_LEVEL.ERROR,
-                    f"Failed to load ddup module ({ddup.failure_msg}), disabling profiling",
-                )
-            # If _ddup failed to import entirely, its functions (config, start, …)
-            # won't be defined; skip them and disable collectors to avoid crashes.
-            # When only ddup.is_available is mocked in tests, the real functions are
-            # still present and must be called so that other collectors work correctly.
-            if not hasattr(ddup, "config"):
-                self._collectors.clear()
-                return
-
         ddup.config(
             env=self.env,
             service=self.service,
@@ -231,23 +211,11 @@ class _ProfilerInstance(service.Service):
 
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
-            from ddtrace.internal.datadog.profiling import stack as _native_stack
-
-            if not _native_stack.is_available:
-                # Same deduplication logic as for ddup: only log here when profiling
-                # was NOT explicitly enabled at startup (i.e., the auto path).
-                if not profiling_enabled_at_startup:
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Failed to load stack module (%s), disabling stack profiling"
-                        % (_native_stack.failure_msg or "stack not available"),
-                    )
-            else:
-                try:
-                    self._collectors.append(stack.StackCollector(tracer=self.tracer))
-                    LOG.debug("Profiling collector (stack) initialized")
-                except Exception:
-                    LOG.error("Failed to start stack collector, disabling.", exc_info=True)
+            try:
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them

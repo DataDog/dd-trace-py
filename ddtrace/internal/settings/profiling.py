@@ -480,35 +480,32 @@ ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 config = ProfilingConfig()
 report_configuration(config)
 
-# Record whether profiling was explicitly enabled at import time.  This is used
-# by Profiler._build_default_exporters() to decide whether it should emit the
-# ddup/stack failure telemetry (auto path) or whether module-level already did
-# (DD_PROFILING_ENABLED=true path), avoiding double-logging.
-profiling_enabled_at_startup: bool = bool(config.enabled)  # pyright: ignore[reportAttributeAccessIssue]
+ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
-if config.enabled:
-    ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
-    if not ddup_is_available:
-        msg = ddup_failure_msg or "libdd not available"
+if not ddup_is_available:
+    msg = ddup_failure_msg or "libdd not available"
+    if config.enabled:
         logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-        telemetry_writer.add_log(
-            TELEMETRY_LOG_LEVEL.ERROR,
-            f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
-        )
-        config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
+    )
+    config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# We also need to check if stack module is available, and turn it off if it is not.
-if config.enabled and config.stack.enabled:  # pyright: ignore[reportAttributeAccessIssue]
-    stack_failure_msg, stack_is_available = _check_for_stack_available()
-    if not stack_is_available:
-        msg = stack_failure_msg or "stack not available"
-        logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+# We also need to check if stack module is available, and turn if off
+# if it s not.
+stack_failure_msg, stack_is_available = _check_for_stack_available()
+if not stack_is_available:
+    msg = stack_failure_msg or "stack not available"
+    if config.stack.enabled:
+        if config.enabled:
+            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
         telemetry_writer.add_log(
             TELEMETRY_LOG_LEVEL.ERROR,
             "Failed to load stack module (%s), disabling stack profiling" % msg,
         )
-        config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
