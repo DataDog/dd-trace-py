@@ -11,14 +11,15 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699d6cc500000000",
+      "_dd.p.tid": "69de949100000000",
       "_dd.svc_src": "yaaredis",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "123c53d12c1142a5a8b7c8664012ffb6",
+      "runtime-id": "300b8215b4e5439fbb16724ae927b702",
       "server.address": "localhost",
       "span.kind": "client"
     },
@@ -29,11 +30,11 @@
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 6379.0,
       "out.redis_db": 0.0,
-      "process_id": 39056.0,
+      "process_id": 59648.0,
       "redis.args_length": 1.0
     },
-    "duration": 8058625,
-    "start": 1771924677211231175
+    "duration": 3212792,
+    "start": 1776194705790103884
   }],
 [
   {
@@ -48,14 +49,15 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699d6cc500000000",
+      "_dd.p.tid": "69de949100000000",
       "_dd.svc_src": "yaaredis",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "123c53d12c1142a5a8b7c8664012ffb6",
+      "runtime-id": "300b8215b4e5439fbb16724ae927b702",
       "server.address": "localhost",
       "span.kind": "client"
     },
@@ -67,9 +69,9 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.redis_db": 0.0,
-      "process_id": 39056.0,
+      "process_id": 59648.0,
       "redis.args_length": 2.0
     },
-    "duration": 259250,
-    "start": 1771924677222992634
+    "duration": 175875,
+    "start": 1776194705793655384
   }]]
