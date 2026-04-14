@@ -230,7 +230,7 @@ class Span(SpanData):
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)
+            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
             return
 
         try:
