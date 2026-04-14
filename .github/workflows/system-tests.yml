@@ -95,7 +95,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
+          ref: '2c44787de1c98f37db6d1cfc7156fe43878cfe9d'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -148,7 +148,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
+          ref: '2c44787de1c98f37db6d1cfc7156fe43878cfe9d'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -369,7 +369,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'eb6e4517e0cef0aaa18e2401895f4a545200c6e6'
+          ref: '2c44787de1c98f37db6d1cfc7156fe43878cfe9d'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -439,13 +439,14 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     secrets: inherit
     with:
       library: python_lambda
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
+      push_to_test_optimization: true
 
   integration-frameworks-combine-wheels:
     runs-on: ubuntu-latest
@@ -468,20 +469,17 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     secrets: inherit
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
+      push_to_test_optimization: true
 
   tracer-release:
-    # TODO: re-enable once DataDog/system-tests reusable workflow supports dd-sts
-    if: false
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
-    secrets:
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
-      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
     with:
       library: python
       ref: main
