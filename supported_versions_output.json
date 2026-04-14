@@ -558,8 +558,8 @@
     {
         "dependency": "protobuf",
         "integration": "protobuf",
-        "minimum_tracer_supported": "6.30.1",
-        "max_tracer_supported": "6.32.0",
+        "minimum_tracer_supported": "6.33.6",
+        "max_tracer_supported": "7.34.1",
         "auto-instrumented": false
     },
     {

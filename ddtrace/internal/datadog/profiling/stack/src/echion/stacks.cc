@@ -12,7 +12,7 @@ FrameStack::render(EchionSampler& echion)
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
     for (auto it = this->begin(); it != this->end(); ++it) {
-        auto& frame = (*it).get();
+        auto& frame = *it;
 
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
@@ -61,7 +61,7 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
             continue;
         }
 
-        stack.push_back(*maybe_frame);
+        stack.push_back(maybe_frame->get());
         count++;
 
         if (count >= max_depth) {
