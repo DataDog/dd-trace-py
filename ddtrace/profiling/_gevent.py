@@ -102,6 +102,10 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     ptr_size = ctypes.sizeof(ctypes.c_void_p)
     sub_size = 512
 
+    def _read_ptr(buf: ctypes.Array[ctypes.c_char], offset: int) -> int:
+        """Read a pointer-sized integer from a ctypes buffer at the given offset."""
+        return int.from_bytes(buf[offset : offset + ptr_size], sys.byteorder)  # type: ignore[arg-type]
+
     def _probe_fn() -> None:
         greenlet.getcurrent().parent.switch()
 
@@ -124,14 +128,14 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     frame_offset = None
 
     for p_off in range(0, gl_size - ptr_size + 1, ptr_size):
-        pimpl_ptr = int.from_bytes(bytes(buf[p_off : p_off + ptr_size]), sys.byteorder)
+        pimpl_ptr = _read_ptr(buf, p_off)
         if pimpl_ptr == 0 or pimpl_ptr < 0x1000 or pimpl_ptr == type_addr:
             continue
 
         try:
             pimpl_buf = (ctypes.c_char * sub_size).from_address(pimpl_ptr)
             for f_off in range(0, sub_size - ptr_size + 1, ptr_size):
-                if int.from_bytes(bytes(pimpl_buf[f_off : f_off + ptr_size]), sys.byteorder) != frame_addr:
+                if _read_ptr(pimpl_buf, f_off) != frame_addr:
                     continue
 
                 # Validate with a second greenlet
@@ -142,12 +146,12 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
                     continue
 
                 buf2 = (ctypes.c_char * gl_size).from_address(id(g2))
-                pimpl2 = int.from_bytes(bytes(buf2[p_off : p_off + ptr_size]), sys.byteorder)
+                pimpl2 = _read_ptr(buf2, p_off)
                 if pimpl2 == 0:
                     continue
 
                 pimpl_buf2 = (ctypes.c_char * sub_size).from_address(pimpl2)
-                if int.from_bytes(bytes(pimpl_buf2[f_off : f_off + ptr_size]), sys.byteorder) == id(frame2):
+                if _read_ptr(pimpl_buf2, f_off) == id(frame2):
                     pimpl_offset = p_off
                     frame_offset = f_off
                     break
@@ -173,12 +177,12 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     def _stack_probe_fn() -> None:
         me = greenlet.getcurrent()
         me_buf = (ctypes.c_char * gl_size).from_address(id(me))
-        my_pimpl = int.from_bytes(bytes(me_buf[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
+        my_pimpl = _read_ptr(me_buf, pimpl_offset)
         my_sub = (ctypes.c_char * sub_size).from_address(my_pimpl)
 
         snapshot = {}
         for off in range(0, sub_size - ptr_size + 1, ptr_size):
-            snapshot[off] = int.from_bytes(bytes(my_sub[off : off + ptr_size]), sys.byteorder)
+            snapshot[off] = _read_ptr(my_sub, off)
 
         me.parent.switch(snapshot)
 
@@ -186,12 +190,12 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     active_snapshot = g3.switch()  # g3 is now paused
 
     buf3 = (ctypes.c_char * gl_size).from_address(id(g3))
-    pimpl3 = int.from_bytes(bytes(buf3[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
+    pimpl3 = _read_ptr(buf3, pimpl_offset)
     paused_sub = (ctypes.c_char * sub_size).from_address(pimpl3)
 
     g4 = greenlet(lambda: None)  # unstarted
     buf4 = (ctypes.c_char * gl_size).from_address(id(g4))
-    pimpl4 = int.from_bytes(bytes(buf4[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
+    pimpl4 = _read_ptr(buf4, pimpl_offset)
 
     candidates = []
     if pimpl4 != 0:
@@ -201,8 +205,8 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
                 if off == frame_offset:
                     continue
                 active_val = active_snapshot.get(off, 0)
-                paused_val = int.from_bytes(bytes(paused_sub[off : off + ptr_size]), sys.byteorder)
-                unstarted_val = int.from_bytes(bytes(unstarted_sub[off : off + ptr_size]), sys.byteorder)
+                paused_val = _read_ptr(paused_sub, off)
+                unstarted_val = _read_ptr(unstarted_sub, off)
 
                 # stack_stop: non-NULL for started (active AND paused), NULL for unstarted,
                 # and stable (same value) across active/paused transitions.
