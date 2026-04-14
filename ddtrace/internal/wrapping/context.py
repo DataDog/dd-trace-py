@@ -675,6 +675,33 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
 
+            # Compute the modified code object before committing any side-effects
+            # so we can bail cleanly if the bytecode library can't handle this
+            # function (e.g. on Python 3.15 before upstream bytecode support lands).
+            # AIDEV-NOTE: bytecode 0.17.0 does not know the stack effect of
+            # CLEANUP_THROW (new in 3.15, used in async-generator throw handling) or
+            # INTRINSIC_ASYNC_GEN_WRAP.  cfg.compute_stacksize() raises RuntimeError
+            # when tracing through those instructions.  Fall back to an explicit
+            # stacksize (original + headroom for context overhead) with stack checking
+            # disabled.  CPython still enforces its own bounds at runtime, so an
+            # over-estimated stacksize only wastes a few words of stack space.
+            try:
+                new_code = bc.to_code()
+            except RuntimeError:
+                if sys.version_info >= (3, 15):
+                    # bytecode 0.17.0 raises RuntimeError from cfg.compute_stacksize()
+                    # when it encounters CLEANUP_THROW (new in Python 3.15, used in
+                    # async-generator throw handling).  compute_exception_stack_depths
+                    # only traces to each TryBegin's position — not through CLEANUP_THROW
+                    # — so it succeeds; only the main stacksize computation needs to be
+                    # bypassed.  CPython still enforces its own stack bounds at runtime.
+                    new_code = bc.to_code(
+                        stacksize=code.co_stacksize + 8,
+                        check_pre_and_post=False,
+                    )
+                else:
+                    raise
+
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
@@ -683,7 +710,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # it later if required.
             link_function_to_code(code, f)
 
-            set_function_code(f, bc.to_code())
+            set_function_code(f, new_code)
 
         def unwrap(self) -> None:
             f = self.__wrapped__
