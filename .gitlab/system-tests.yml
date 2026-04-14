@@ -73,7 +73,7 @@
       echo -e "\e[0Ksection_end:`date +%s`:dd_sts\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:upload_junit\r\e[0KUpload junit xml results"
-      datadog-ci junit upload ./logs*/reportJunit.xml --service system-tests --env ci --verbose --xpath-tag "test.codeowners=/testcase/properties/property[@name='test.codeowners']"
+      datadog-ci junit upload ${CI_PROJECT_DIR}/system-tests/logs*/reportJunit.xml --service system-tests --env ci --verbose --xpath-tag "test.codeowners=/testcase/properties/property[@name='test.codeowners']"
       echo -e "\e[0Ksection_end:`date +%s`:upload_junit\r\e[0K"
 
 system-tests parametric:
