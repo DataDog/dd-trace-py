@@ -439,7 +439,7 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-pubsub:
       min: 2.10.0
-      max: 2.36.0
+      max: 2.37.0
 
 - integration_name: google_genai
   is_external_package: true
