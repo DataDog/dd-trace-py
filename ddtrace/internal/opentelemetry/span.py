@@ -184,6 +184,9 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
+        if isinstance(key, bytes):
+            key = ensure_text(key)
+
         # Override reserved OTel span attributes
         ddattribute = _OTelDatadogMapping.get(key)
         if ddattribute is not None:

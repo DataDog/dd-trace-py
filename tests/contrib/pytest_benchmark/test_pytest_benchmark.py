@@ -48,7 +48,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
 
         assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), (float, int))
-        assert isinstance(spans[0].get_metric(BENCHMARK_RUN), int)
+        assert isinstance(spans[0].get_metric(BENCHMARK_RUN), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_IQR), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), (float, int))
@@ -61,7 +61,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert isinstance(spans[0].get_tag(STATISTICS_OUTLIERS), str)
         assert isinstance(spans[0].get_metric(STATISTICS_Q1), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_Q3), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_N), int)
+        assert isinstance(spans[0].get_metric(STATISTICS_N), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), (float, int))

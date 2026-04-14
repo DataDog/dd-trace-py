@@ -1,5 +1,8 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyTuple},
+    types::{
+        PyAnyMethods as _, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
+        PyInt, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
+    },
     Bound, IntoPyObject as _, Py, PyAny, Python,
 };
 
@@ -8,7 +11,7 @@ use libdd_trace_utils::span::SpanText as _;
 
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
-    extract_i64_or_default, wall_clock_ns,
+    extract_i64_or_default, try_extract_backed_string, wall_clock_ns,
 };
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
@@ -34,6 +37,10 @@ impl SpanData {
         self._trace_id_py = None;
     }
 }
+
+/// `http.status_code` must always be stored in meta (not metrics) because
+/// the trace agent calculates HTTP metrics from it.
+const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
 
 #[pyo3::pymethods]
 impl SpanData {
@@ -398,5 +405,268 @@ impl SpanData {
     #[inline(always)]
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
+    }
+
+    // ── Attribute API (meta / metrics) ──────────────────────────────────────
+
+    /// Set a tag/metric on the span. Routes string values to meta, numeric values to
+    /// metrics, deleting the key from the other map to avoid duplicates.
+    ///
+    /// Special case: `http.status_code` is always stored as a string in meta,
+    /// regardless of the value type.
+    ///
+    /// Supported value types: str, int, float, bool (stored as 0/1 metric), bytes
+    /// (decoded as UTF-8 string). Any other type is coerced via str(value).
+    #[pyo3(name = "_set_attribute")]
+    fn set_attribute(
+        &mut self,
+        key: &Bound<'_, PyAny>,
+        value: &Bound<'_, PyAny>,
+    ) -> pyo3::PyResult<()> {
+        let Some(key_pbs) = try_extract_backed_string(key) else {
+            return Ok(());
+        };
+
+        if let Ok(s) = value.cast::<PyString>() {
+            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
+                return Ok(());
+            };
+            self.data.metrics.remove(&*key_pbs);
+            self.data.meta.insert(key_pbs, v);
+        } else if &*key_pbs == HTTP_STATUS_CODE_KEY {
+            // Force http.status_code to string regardless of value type
+            let Ok(s) = value.str() else {
+                return Ok(());
+            };
+            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
+                return Ok(());
+            };
+            self.data.metrics.remove(&*key_pbs);
+            self.data.meta.insert(key_pbs, v);
+        } else if value.cast::<PyFloat>().is_ok() {
+            let Ok(n) = value.extract::<f64>() else {
+                return Ok(());
+            };
+            if n.is_nan() || n.is_infinite() {
+                return Ok(());
+            }
+            self.data.meta.remove(&*key_pbs);
+            self.data.metrics.insert(key_pbs, n);
+        } else if value.cast::<PyInt>().is_ok() {
+            // Catches int and bool (PyBool subclasses PyInt); downcast (not downcast_exact)
+            // is used so subclasses are included.
+            let Ok(n) = value.extract::<f64>() else {
+                return Ok(());
+            };
+            self.data.meta.remove(&*key_pbs);
+            self.data.metrics.insert(key_pbs, n);
+        } else if let Ok(b) = value.cast::<PyBytes>() {
+            // Decode bytes as UTF-8 (with U+FFFD replacements for invalid sequences).
+            let decoded = String::from_utf8_lossy(b.as_bytes());
+            let py = key.py();
+            let py_str = PyString::new(py, &decoded);
+            let Some(v) = PyBackedString::try_from(py_str).ok() else {
+                return Ok(());
+            };
+            self.data.metrics.remove(&*key_pbs);
+            self.data.meta.insert(key_pbs, v);
+        } else {
+            // Fallback: coerce to string via str(value). Swallow any Python exception.
+            let Ok(s) = value.str() else {
+                return Ok(());
+            };
+            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
+                return Ok(());
+            };
+            self.data.metrics.remove(&*key_pbs);
+            self.data.meta.insert(key_pbs, v);
+        }
+        Ok(())
+    }
+
+    /// Set multiple attributes from a dict/mapping, routing each value via `_set_attribute`.
+    ///
+    /// Accepts any Python dict (fast path) or any object that implements the mapping protocol
+    /// (e.g. `collections.OrderedDict`, `types.MappingProxyType`). If the argument supports
+    /// neither, the call is a no-op. Invalid value types follow the same coercion rules as
+    /// `_set_attribute`.
+    #[pyo3(name = "_set_attributes")]
+    fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+        if let Ok(d) = attrs.cast::<PyDict>() {
+            for (k, v) in d.iter() {
+                let _ = self.set_attribute(&k, &v);
+            }
+        } else if let Ok(m) = attrs.cast::<PyMapping>() {
+            if let Ok(items) = m.items() {
+                for item in items.iter() {
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
+                    let _ = self.set_attribute(&k, &v);
+                }
+            }
+        }
+        // Not a dict or mapping — bail silently.
+        Ok(())
+    }
+
+    /// Return True if the span has an attribute (string or numeric) with the given key.
+    #[pyo3(name = "_has_attribute")]
+    fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
+        let Some(k) = try_extract_backed_string(key) else {
+            return false;
+        };
+        self.data.meta.contains_key(&*k) || self.data.metrics.contains_key(&*k)
+    }
+
+    /// Remove an attribute (from both meta and metrics) by key.
+    #[pyo3(name = "_remove_attribute")]
+    fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
+        let Some(k) = try_extract_backed_string(key) else {
+            return;
+        };
+        self.data.meta.remove(&*k);
+        self.data.metrics.remove(&*k);
+    }
+
+    /// Return the attribute value for the given key, or None if not found.
+    /// Meta (string) attributes take priority over metrics with the same key.
+    #[pyo3(name = "_get_attribute")]
+    fn get_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
+        let k = try_extract_backed_string(key)?;
+        if let Some(v) = self.data.meta.get(&*k) {
+            Some(v.as_py(py))
+        } else if let Some(&n) = self.data.metrics.get(&*k) {
+            Some(n.into_pyobject(py).expect("f64 into_pyobject").into_any())
+        } else {
+            None
+        }
+    }
+
+    /// Return the string attribute for the given key, or None if not found.
+    #[pyo3(name = "_get_str_attribute")]
+    fn get_str_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
+        let k = try_extract_backed_string(key)?;
+        self.data.meta.get(&*k).map(|v| v.as_py(py))
+    }
+
+    /// Return the numeric attribute for the given key, or None if not found.
+    #[pyo3(name = "_get_numeric_attribute")]
+    fn get_numeric_attribute(&self, key: &Bound<'_, PyAny>) -> Option<f64> {
+        let k = try_extract_backed_string(key)?;
+        self.data.metrics.get(&*k).copied()
+    }
+
+    /// Return all attributes (both string and numeric) merged into a single dict.
+    /// Numeric attributes override string attributes for the same key (matches Python
+    /// `{**self._meta, **self._metrics}` semantics).
+    #[pyo3(name = "_get_attributes")]
+    fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, v) in &self.data.meta {
+            d.set_item(k.as_py(py), v.as_py(py))?;
+        }
+        for (k, &v) in &self.data.metrics {
+            d.set_item(k.as_py(py), v)?;
+        }
+        Ok(d)
+    }
+
+    /// Return all string attributes as a Python dict snapshot.
+    #[pyo3(name = "_get_str_attributes")]
+    fn get_str_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, v) in &self.data.meta {
+            d.set_item(k.as_py(py), v.as_py(py))?;
+        }
+        Ok(d)
+    }
+
+    /// Return all numeric attributes as a Python dict snapshot.
+    #[pyo3(name = "_get_numeric_attributes")]
+    fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
+        let d = PyDict::new(py);
+        for (k, &v) in &self.data.metrics {
+            d.set_item(k.as_py(py), v)?;
+        }
+        Ok(d)
+    }
+
+    /// Apply setdefault semantics from a Python dict/mapping: for each key/value pair,
+    /// if the key is not already present in either meta or metrics, insert it
+    /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
+    ///
+    /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
+    /// Used by callers that previously called `_update_tags_from_context`.
+    /// Callers handle any locking on the source dict themselves.
+    #[pyo3(name = "_set_default_attributes")]
+    fn set_default_attributes(&mut self, values: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+        if let Ok(d) = values.cast::<PyDict>() {
+            for (k, v) in d.iter() {
+                self.set_default_attribute_entry(&k, &v);
+            }
+        } else if let Ok(m) = values.cast::<PyMapping>() {
+            if let Ok(items) = m.items() {
+                for item in items.iter() {
+                    let Ok(pair) = item.cast::<PyTuple>() else {
+                        continue;
+                    };
+                    let Ok(k) = pair.get_item(0) else {
+                        continue;
+                    };
+                    let Ok(v) = pair.get_item(1) else {
+                        continue;
+                    };
+                    self.set_default_attribute_entry(&k, &v);
+                }
+            }
+        }
+        // Not a dict or mapping — bail silently.
+        Ok(())
+    }
+}
+
+impl SpanData {
+    /// Inner logic for `_set_default_attributes`: insert one key/value pair with setdefault
+    /// semantics. Bails silently on bad key type, bad value type, or duplicate key.
+    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
+        let Some(key_pbs) = try_extract_backed_string(k) else {
+            return;
+        };
+
+        // Setdefault: skip keys already present in either map
+        if self.data.meta.contains_key(&*key_pbs) || self.data.metrics.contains_key(&*key_pbs) {
+            return;
+        }
+
+        if let Ok(s) = v.cast::<PyString>() {
+            let Some(val) = PyBackedString::try_from(s.clone()).ok() else {
+                return;
+            };
+            self.data.meta.insert(key_pbs, val);
+        } else if v.cast::<PyFloat>().is_ok() || v.cast::<PyInt>().is_ok() {
+            let Ok(n) = v.extract::<f64>() else {
+                return;
+            };
+            if n.is_nan() || n.is_infinite() {
+                return;
+            }
+            self.data.metrics.insert(key_pbs, n);
+        }
+        // Skip other types — context dicts only contain str and numeric values
     }
 }
