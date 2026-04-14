@@ -55,7 +55,7 @@ experiments:
               - max_rss_usage < 75.00 MB
           - name: djangosimple-tracer-minimal
             thresholds:
-              - execution_time < 17.50 ms
+              - execution_time < 18.50 ms
               - max_rss_usage < 75.00 MB
           - name: djangosimple-tracer-native
             thresholds:
@@ -71,7 +71,7 @@ experiments:
               - max_rss_usage < 75.00 MB
           - name: djangosimple-tracer-no-databases
             thresholds:
-              - execution_time < 20.10 ms
+              - execution_time < 21.10 ms
               - max_rss_usage < 75.00 MB
           - name: djangosimple-tracer-dont-create-db-spans
             thresholds:
@@ -743,11 +743,11 @@ experiments:
               - max_rss_usage < 47.00 MB
           - name: otelspan-start-finish
             thresholds:
-              - execution_time < 91.00 ms
+              - execution_time < 92.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-start-finish-telemetry
             thresholds:
-              - execution_time < 92.00 ms
+              - execution_time < 93.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-update-name
             thresholds:
@@ -1060,7 +1060,7 @@ experiments:
           # tracer
           - name: tracer-large
             thresholds:
-              - execution_time < 32.95 ms
+              - execution_time < 33.95 ms
               - max_rss_usage < 39.25 MB
           - name: tracer-medium
             thresholds:

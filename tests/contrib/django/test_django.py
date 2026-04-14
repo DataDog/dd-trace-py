@@ -2723,3 +2723,80 @@ def test_django_base_handler_failure(client, test_spans):
         assert root.resource == "GET ^$"
     finally:
         client.handler.get_response = original
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_class_view(test_spans):
+    """Async class-based views should be traced without raising
+    'RuntimeError: coroutine ignored GeneratorExit' on Python 3.13+.
+
+    Regression test for the fix to traced_func which previously used a sync
+    context manager around an unawaited coroutine return.
+    """
+    from django.test import AsyncClient
+
+    async_client = AsyncClient()
+    resp = await async_client.get("/async-view/")
+    assert resp.status_code == 200
+    assert resp.content == b"async response"
+
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+    spans = list(test_spans.filter_spans(name="django.view.get"))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource="tests.contrib.django.views.AsyncView.get",
+        error=0,
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_function_view(test_spans):
+    """Async function-based views should be traced without raising
+    'RuntimeError: coroutine ignored GeneratorExit' on Python 3.13+.
+    """
+    from django.test import AsyncClient
+
+    async_client = AsyncClient()
+    resp = await async_client.get("/async-fn-view/")
+    assert resp.status_code == 200
+    assert resp.content == b"async function response"
+
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+def test_wrap_middleware_class_async_hooks():
+    """wrap_middleware_class should use wrapt wrapping (not bytecode wrapping)
+    for async middleware hooks to avoid 'RuntimeError: coroutine ignored
+    GeneratorExit' on Python 3.13+.
+    """
+    from inspect import iscoroutinefunction
+
+    from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
+    from ddtrace.contrib.internal.django.middleware import wrap_middleware_class
+    from ddtrace.internal.wrapping import is_wrapped
+    from tests.contrib.django.middleware import AsyncCallMiddleware
+
+    async_hooks = ("__call__", "process_view", "process_request", "process_exception")
+
+    # Verify that all hooks are async before wrapping
+    for hook in async_hooks:
+        assert iscoroutinefunction(getattr(AsyncCallMiddleware, hook)), f"{hook} should be async"
+
+    wrap_middleware_class(AsyncCallMiddleware, "tests.contrib.django.middleware.AsyncCallMiddleware")
+
+    try:
+        for hook in async_hooks:
+            # Async hooks should be wrapt-wrapped (not bytecode-wrapped)
+            assert contrib_trace_utils.iswrapped(AsyncCallMiddleware, hook), f"{hook} should be wrapt-wrapped"
+            assert not is_wrapped(getattr(AsyncCallMiddleware, hook).__wrapped__), (
+                f"{hook} should not be bytecode-wrapped"
+            )
+    finally:
+        # Clean up wrapt wrapping so it doesn't affect other tests
+        for hook in async_hooks:
+            if contrib_trace_utils.iswrapped(AsyncCallMiddleware, hook):
+                contrib_trace_utils.unwrap(AsyncCallMiddleware, hook)

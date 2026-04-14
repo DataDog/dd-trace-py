@@ -206,7 +206,17 @@ setup_msvc() {
   _find_vswhere
 
   # ── Install VS Build Tools if missing ──────────────────────────────────────
+  # Also install when vswhere exists (VS Installer shell present) but finds no
+  # actual VS products — this happens on freshly provisioned runners.
+  local _need_vs_install=false
   if [[ -z "${vswhere:-}" || ! -f "$vswhere" ]]; then
+    _need_vs_install=true
+  elif [[ -z "$("$vswhere" -all -products '*' -property installationPath 2>/dev/null | head -1 | tr -d '\r' || true)" ]]; then
+    echo "vswhere found but no Visual Studio installation detected."
+    _need_vs_install=true
+  fi
+
+  if [[ "$_need_vs_install" == "true" ]]; then
     echo "VS Build Tools not found — installing now."
     echo "  (this is slow ~10-20 min; pre-install on runner image to avoid this)"
 
@@ -237,7 +247,7 @@ setup_msvc() {
   # -all includes "incomplete" installs (installer shell only, no workloads yet).
   local vs_path vs_path_unix
   vs_path=$("$vswhere" -all -products '*' -property installationPath 2>/dev/null | head -1 | tr -d '\r')
-  [[ -n "$vs_path" ]] || { echo "ERROR: No Visual Studio installation found" >&2; exit 1; }
+  [[ -n "$vs_path" ]] || { echo "ERROR: No Visual Studio installation found after install attempt" >&2; exit 1; }
   echo "VS installation path: $vs_path"
   vs_path_unix=$(cygpath -u "${vs_path}" 2>/dev/null || echo "${vs_path//\\//}")
 
@@ -409,9 +419,9 @@ debug_system_info() {
     if [[ -d "$vc_tools_dir" ]]; then
       echo "  VC/Tools/MSVC versions: $(ls "$vc_tools_dir" | tr '\n' ' ')"
       local sample_cl
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x64/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x64):  ${sample_cl:-NOT FOUND}"
-      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1)
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1 || true)
       echo "  cl.exe (x86):  ${sample_cl:-NOT FOUND}"
     else
       echo "  VC/Tools/MSVC: NOT FOUND at ${vc_tools_dir}"

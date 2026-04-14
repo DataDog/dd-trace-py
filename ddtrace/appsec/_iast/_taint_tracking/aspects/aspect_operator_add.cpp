@@ -50,9 +50,10 @@ add_aspect(PyObject* result_o,
         const auto tainted = safe_allocate_tainted_object();
         tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
         set_tainted_object(result_o, tainted, tx_taint_map);
+        return result_o;
     }
 
-    // At this point we have both to_candidate_text and to_text_to_add to we add the
+    // At this point we have both to_candidate_text and to_text_to_add so we add the
     // ranges from both to result_o
     const auto tainted = safe_allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
