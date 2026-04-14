@@ -262,7 +262,6 @@ def test_span_binary_unicode_set_tag(span_log):
     assert span.get_tag("key_str") == "🤔"
 
 
-
 def test_span_repr_metastruct():
     span = Span("span_test")
     assert "metastruct={}" in repr(span)
