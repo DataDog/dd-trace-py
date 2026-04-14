@@ -2,7 +2,6 @@ import ray
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.ray import RayJobEvent
 from ddtrace.contrib.internal.ray.core.actor import inject_tracing_into_actor_class
 from ddtrace.contrib.internal.ray.core.actor import traced_actor_method_submission
@@ -11,8 +10,6 @@ from ddtrace.contrib.internal.ray.core.api import traced_put
 from ddtrace.contrib.internal.ray.core.api import traced_wait
 from ddtrace.contrib.internal.ray.core.remote_function import traced_submit_task
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -21,15 +18,9 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import tracer
 
 from .constants import DEFAULT_JOB_NAME
-from .constants import RAY_JOB_SUBMIT_STATUS
-from .constants import RAY_STATUS_ERROR
-from .constants import RAY_STATUS_SUCCESS
-from .constants import RAY_SUBMISSION_ID_TAG
-from .core.utils import _set_dist_ai_metrics
-from .core.utils import _set_runtime_context_attributes
+from .constants import RAY_JOB_NAME
 from .core.utils import get_dd_job_name_from_entrypoint
 from .core.utils import redact_paths
 
@@ -88,6 +79,9 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         metadata_job_name = metadata.get("job_name", None)
         job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
+    # Ensure dashboard-side submission spans can resolve the current Ray job name.
+    env[RAY_JOB_NAME] = job_name
+
     # These dictionary are used to inject the tracing context in env variables
     # that are going to be sent to all ray workers
     runtime_env = kwargs.get("runtime_env") or {}
@@ -114,26 +108,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         dispatch_end_event=False,
     ) as ctx:
         try:
-            # Keep a dedicated submission span so job submit traces remain
-            # behaviorally equivalent while migrating to event-based execution.
-
-            # THIS CODE PATH WILL BE DELETED IN A FOLLOW UP PR
-            with tracer.trace(
-                "ray.job.submit",
-                service=job_name or DEFAULT_JOB_NAME,
-                span_type=SpanTypes.RAY,
-            ) as submit_span:
-                submit_span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-                _set_dist_ai_metrics(submit_span)
-                _set_runtime_context_attributes(submit_span, submission_id)
-                submit_span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
-                try:
-                    resp = wrapped(*args, **kwargs)
-                    submit_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_SUCCESS)
-                except BaseException:
-                    submit_span._set_attribute(RAY_JOB_SUBMIT_STATUS, RAY_STATUS_ERROR)
-                    raise
-
+            resp = wrapped(*args, **kwargs)
             with _job_context_lock:
                 _job_contexts[submission_id] = ctx
             return resp
