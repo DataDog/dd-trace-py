@@ -111,7 +111,7 @@ class SamplingRule(object):
                     return False
 
                 # SamplingRules only support integers for matching or glob patterns.
-                if num_val.is_integer():
+                if isinstance(num_val, int) or num_val.is_integer():
                     value = str(int(num_val))
                 elif not pattern.wildcards_only:
                     # Only match floats to patterns that only contain wildcards (ex: * or ?*)
