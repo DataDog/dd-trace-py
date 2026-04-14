@@ -176,6 +176,9 @@ class SessionManager:
                 TestTag.TEST_SESSION_NAME: self._get_test_session_name(),
                 TestTag.COMPONENT: self.session.test_framework,
                 TestTag.ENV: self.env,
+                # Ensure service.name is present in metadata["*"] so the uploader
+                # does not overwrite it with values from the Bazel context.json.
+                "service.name": self.service,
             },
         )
 
