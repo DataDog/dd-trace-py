@@ -37,7 +37,7 @@ The Ray integration can be configured using environment variables:
 - ``DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED``: Enable tracing of ``task.submit`` and
     ``actor_method.submit`` spans (default: ``False``). This is disabled by default to
     reduce span volume in high-throughput Ray workloads when execution spans are sufficient.
-    Enable it when you need visibility into queueing/submission latency, fan-out patterns,
+    Enable it when you need visibility into queuing/submission latency, fan-out patterns,
     or when work is submitted but delayed before execution.
 
 - ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
