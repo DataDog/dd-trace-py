@@ -42,7 +42,6 @@ from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
@@ -606,15 +605,9 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        if dd_config._trace_writer_native:
-            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-            kwargs["stats_opt_out"] = asm_config._apm_opt_out
-            self._inner_writer = NativeWriter(*args, **kwargs)
-        else:
-            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
-                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
-            self._inner_writer = AgentWriter(*args, **kwargs)
-
+        kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+        kwargs["stats_opt_out"] = asm_config._apm_opt_out
+        self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
