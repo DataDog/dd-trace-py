@@ -136,6 +136,18 @@ class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
         self.write("OK")
 
 
+class RouteOrderSpecificHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.write("specific")
+
+
+class RouteOrderCatchAllHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, path=None):
+        self.write("catch_all")
+
+
 class CustomDefaultHandler(tornado.web.ErrorHandler):
     """
     Default handler that is used in case of 404 error; in our tests
@@ -299,6 +311,14 @@ def make_app(settings=None):
         [(r"/nested_app/handler1/", SuccessHandler), (r"/nested_app/handler2/", SuccessHandler)], **settings
     )
 
+    route_order_app = tornado.web.Application(
+        [
+            (r"/route_order/specific/", RouteOrderSpecificHandler),
+            (r"/route_order/(.*)", RouteOrderCatchAllHandler),
+        ],
+        **settings,
+    )
+
     return tornado.web.Application(
         [
             # custom handlers
@@ -306,6 +326,7 @@ def make_app(settings=None):
             (r"/status_code/([0-9]+)", ResponseStatusHandler),
             (r"/nested/.*", NestedHandler),
             (r"/nested_app/.*", nested_application),
+            (r"/route_order/.*", route_order_app),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),
             (r"/exception/", ExceptionHandler),

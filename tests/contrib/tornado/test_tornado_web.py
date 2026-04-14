@@ -105,6 +105,34 @@ class TestTornadoWeb(TornadoTestCase):
             assert_span_http_status_code(request_span, 200)
             assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
 
+    def test_nested_application_route_order(self):
+        """
+        Regression test: routes inside a nested application must be matched in declaration
+        order, so a specific route declared before a catch-all wins when both could match.
+
+        The bug was that _find_route used deque.extendleft(rule.target.rules) without
+        reversing first, causing rules to be inserted in reverse order and the last-declared
+        route to be tried first.
+        """
+        # The specific route is declared first in the nested app; it must win over the
+        # catch-all even though both patterns match "/route_order/specific/".
+        response = self.fetch("/route_order/specific/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/route_order/specific/"
+
+        # A URL that only matches the catch-all must still resolve correctly.
+        response = self.fetch("/route_order/other/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/route_order/%s"
+
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
         # using the automatic Context retrieval

@@ -119,7 +119,7 @@ def _find_route(initial_rule_set, request):
             if hasattr(rule.matcher, "_path"):
                 return rule.matcher._path, m.get("path_args", []) or m.get("path_kwargs", {})
             elif hasattr(rule.target, "rules"):
-                rules.extendleft(rule.target.rules)
+                rules.extendleft(reversed(rule.target.rules))
 
     return "^$", {}
 
