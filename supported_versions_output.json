@@ -355,7 +355,7 @@
         "dependency": "google-cloud-pubsub",
         "integration": "google_cloud_pubsub",
         "minimum_tracer_supported": "2.10.0",
-        "max_tracer_supported": "2.36.0",
+        "max_tracer_supported": "2.37.0",
         "auto-instrumented": true
     },
     {
@@ -718,7 +718,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.52.1",
+        "max_tracer_supported": "1.0.0",
         "auto-instrumented": true
     },
     {
