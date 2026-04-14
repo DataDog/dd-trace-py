@@ -1,78 +1,30 @@
 [[
   {
-    "name": "kinesis.command",
-    "service": "aws.kinesis",
-    "resource": "kinesis.createstream",
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_anthropic.chat_models.ChatAnthropic",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "http",
+    "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
-      "aws.agent": "botocore",
-      "aws.operation": "CreateStream",
-      "aws.partition": "aws",
-      "aws.region": "us-east-1",
-      "aws_service": "kinesis",
-      "component": "botocore",
-      "http.status_code": "200",
+      "_dd.p.tid": "69de967700000000",
+      "_dd.svc_src": "tests.contrib.langchain",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
+      "langchain.request.model": "claude-3-opus-20240229",
+      "langchain.request.provider": "anthropic",
       "language": "python",
-      "region": "us-east-1",
-      "runtime-id": "137317e78736409db8bbd872d9344d5b",
-      "span.kind": "client"
+      "runtime-id": "c155e8a7ad46475cb22c8e8c49cdcb66"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 488.0,
-      "retry_attempts": 0.0
+      "process_id": 488.0
     },
-    "duration": 2121958,
-    "start": 1776100425602355797
-  }],
-[
-  {
-    "name": "kinesis.command",
-    "service": "aws.kinesis",
-    "resource": "kinesis.putrecords",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "tests.contrib.botocore",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
-      "aws.agent": "botocore",
-      "aws.operation": "PutRecords",
-      "aws.partition": "aws",
-      "aws.region": "us-east-1",
-      "aws_service": "kinesis",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "region": "us-east-1",
-      "runtime-id": "137317e78736409db8bbd872d9344d5b",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 488.0,
-      "retry_attempts": 0.0
-    },
-    "duration": 1532375,
-    "start": 1776100425604852880
+    "duration": 17756000,
+    "start": 1776195191948320500
   }]]

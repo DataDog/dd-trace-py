@@ -10,12 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
+      "_dd.p.tid": "69de967700000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.stream": "True",
       "language": "python",
-      "runtime-id": "9f89ab446bde4d25839bf1a87afb45f0"
+      "runtime-id": "c155e8a7ad46475cb22c8e8c49cdcb66"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -24,8 +24,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 488.0
     },
-    "duration": 144556542,
-    "start": 1776100425081188463
+    "duration": 106652459,
+    "start": 1776195191496836958
   },
      {
        "name": "langchain.request",
@@ -45,164 +45,6 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 111776250,
-       "start": 1776100425109598797
-     }],
-[
-  {
-    "name": "sqs.command",
-    "service": "aws.sqs",
-    "resource": "sqs.listqueues",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "mysvc",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
-      "aws.agent": "botocore",
-      "aws.operation": "ListQueues",
-      "aws.partition": "aws",
-      "aws.region": "us-east-1",
-      "aws.requestid": "M5ZDKALTG7BG0G7R27UKX5NTIWETI9ZTR8PNRPVOCDBTVI9B1370",
-      "aws_service": "sqs",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "region": "us-east-1",
-      "runtime-id": "6fe0a0b6ec06420caefdf4e3d3e6972a",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 1125.0,
-      "retry_attempts": 0.0
-    },
-    "duration": 10130833,
-    "start": 1776100425130854672
-  }],
-[
-  {
-    "name": "sqs.command",
-    "service": "aws.sqs",
-    "resource": "sqs.createqueue",
-    "trace_id": 2,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "mysvc",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
-      "aws.agent": "botocore",
-      "aws.operation": "CreateQueue",
-      "aws.partition": "aws",
-      "aws.region": "us-east-1",
-      "aws.requestid": "LV43EHJSXAM968L02O2BBG8KVHAQ444IR4XXBJKIUR0L373WXNF4",
-      "aws.sqs.queue_name": "Test",
-      "aws_service": "sqs",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "queuename": "Test",
-      "region": "us-east-1",
-      "runtime-id": "6fe0a0b6ec06420caefdf4e3d3e6972a",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 1125.0,
-      "retry_attempts": 0.0
-    },
-    "duration": 3328625,
-    "start": 1776100425141325755
-  }],
-[
-  {
-    "name": "kms.command",
-    "service": "aws.kms",
-    "resource": "kms.listkeys",
-    "trace_id": 3,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "mysvc",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244900000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
-      "aws.agent": "botocore",
-      "aws.operation": "ListKeys",
-      "aws.partition": "aws",
-      "aws.region": "us-east-1",
-      "aws_service": "kms",
-      "component": "botocore",
-      "http.status_code": "200",
-      "language": "python",
-      "region": "us-east-1",
-      "runtime-id": "6fe0a0b6ec06420caefdf4e3d3e6972a",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 1125.0,
-      "retry_attempts": 0.0
-    },
-    "duration": 52157708,
-    "start": 1776100425156089755
-  }],
-[
-  {
-    "name": "urllib3.request",
-    "service": "urllib3",
-    "resource": "urllib3.request",
-    "trace_id": 4,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "http",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "tests.contrib.botocore",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd244700000000",
-      "_dd.svc_src": "urllib3",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
-      "component": "urllib3",
-      "http.method": "POST",
-      "http.retries_remain": "False",
-      "http.status_code": "200",
-      "http.url": "http://localhost:4566/",
-      "http.useragent": "Botocore/1.34.49 ua/2.0 os/linux#6.12.67-linuxkit md/arch#aarch64 lang/python#3.12.12 md/pyimpl#CPython cfg/retry-mode#legacy",
-      "language": "python",
-      "out.host": "localhost",
-      "runtime-id": "137317e78736409db8bbd872d9344d5b",
-      "server.address": "localhost",
-      "span.kind": "client"
-    },
-    "metrics": {
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 488.0
-    },
-    "duration": 4058375,
-    "start": 1776100423038661504
-  }]]
+       "duration": 97903959,
+       "start": 1776195191501815708
+     }]]
