@@ -491,15 +491,6 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
-                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
-                # and NativeWriter.
-                Venv(
-                    name="integration-snapshot-native-writer",
-                    env={
-                        "AGENT_VERSION": "testagent",
-                        "_DD_TRACE_WRITER_NATIVE": "1",
-                    },
-                ),
             ],
         ),
         Venv(
@@ -1902,7 +1893,10 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
+            command=(
+                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
+                " --ignore=tests/contrib/pytest/snapshot/"
+            ),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -1952,8 +1946,49 @@ venv = Venv(
             ],
         ),
         Venv(
+            # Snapshot tests for the v2 pytest plugin run separately so they get their own CI job
+            # with the test agent service, and to avoid mixing snapshot vs non-snapshot coverage.
+            # DD_PYTEST_USE_NEW_PLUGIN=false loads the v2 plugin (ddtrace/contrib/internal/pytest).
+            # test_pytest_snapshot.py is permanently skipped (_USE_PLUGIN_V2=True hardcoded);
+            # test_pytest_snapshot_v2.py and test_pytest_xdist_snapshot.py always run.
+            name="pytest:snapshot",
+            command="pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/",
+            pkgs={
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            venvs=[
+                # pytest~=6.0 is excluded: anyio (via httpx) registers a pytest plugin that
+                # imports _pytest.scope, which only exists in pytest>=7.2. Version compatibility
+                # with older pytest is covered by the main pytest venv.
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "pytest": ["~=7.2", "~=8.0"],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={
+                        "pytest": ["~=7.2", "~=8.0", latest],
+                        "msgpack": latest,
+                        "asynctest": "==0.13.0",
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="testing",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3437,7 +3472,26 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command=(
+                "pytest --ddtrace -n auto {cmdargs} tests/ci_visibility"
+                " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
+            ),
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+                "gevent": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+        ),
+        Venv(
+            name="ci_visibility:snapshot",
+            command="pytest --ddtrace {cmdargs} tests/ci_visibility/api/test_api_fake_runners.py",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
