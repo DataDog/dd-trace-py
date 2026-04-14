@@ -15,18 +15,17 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
-from ..constants import RAY_JOB_NAME
 from ..constants import RAY_STATUS_FAILED
 from ..constants import RAY_SUBMISSION_ID
 from .utils import ENTRY_POINT_REGEX
 from .utils import _extract_tracing_context_from_env
+from .utils import _get_ray_service_name
 from .utils import _inject_context_in_env
 from .utils import _inject_dd_trace_ctx_kwarg
 
 
 log = get_logger(__name__)
 
-RAY_SERVICE_NAME = env.get(RAY_JOB_NAME)
 
 RAY_ACTOR_MODULE_DENYLIST = {
     "ray.data._internal",
@@ -69,7 +68,7 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
         RaySubmissionEvent(
             component=ray_config.integration_name,
             integration_config=ray_config,
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             resource=f"{actor_name}.{method_name}.remote",
             method_args=get_argument_value(args, kwargs, 1, "args"),
             method_kwargs=get_argument_value(args, kwargs, 2, "kwargs"),
@@ -99,7 +98,7 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
     with core.context_with_event(
         RayExecutionEvent(
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=RAY_SERVICE_NAME,
+            service=_get_ray_service_name(),
             component=ray_config.integration_name,
             distributed_context=context,
             use_active_context=active_context is not None,
@@ -153,7 +152,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with core.context_with_event(
             RayExecutionEvent(
                 resource=f"exec {entrypoint_name}",
-                service=RAY_SERVICE_NAME,
+                service=_get_ray_service_name(),
                 component=ray_config.integration_name,
                 distributed_context=context,
                 use_active_context=active_context is not None,

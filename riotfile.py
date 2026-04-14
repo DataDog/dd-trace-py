@@ -3314,6 +3314,7 @@ venv = Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             pkgs={
+                "falcon": latest,
                 # pkg_resources was removed in v82.0.0
                 "setuptools": "<82",
             },

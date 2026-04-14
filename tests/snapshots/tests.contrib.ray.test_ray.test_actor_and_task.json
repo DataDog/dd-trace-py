@@ -1,7 +1,7 @@
 [[
   {
     "name": "task.submit",
-    "service": "tests.contrib.ray",
+    "service": "unnamed.ray.job",
     "resource": "tests.contrib.ray.test_ray.compute_value.remote",
     "trace_id": 0,
     "span_id": 1,
@@ -9,17 +9,18 @@
     "type": "ray",
     "error": 0,
     "meta": {
+      "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.p.tid": "69d617ab00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+      "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
+      "runtime-id": "6b56a2ece74241eeb7884140feb8f13f",
       "span.kind": "producer"
     },
     "metrics": {
@@ -32,12 +33,12 @@
       "_sampling_priority_v1": 2.0,
       "process_id": 605.0
     },
-    "duration": 591334,
-    "start": 1775577709642803002
+    "duration": 741000,
+    "start": 1775638443627858253
   },
      {
        "name": "task.execute",
-       "service": "tests.contrib.ray",
+       "service": "unnamed.ray.job",
        "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_actor_and_task.<locals>.compute_value",
        "trace_id": 0,
        "span_id": 2,
@@ -45,10 +46,11 @@
        "type": "ray",
        "error": 0,
        "meta": {
+         "_dd.base_service": "tests.contrib.ray",
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+         "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
          "ray.task.status": "success",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
@@ -60,13 +62,13 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 72583,
-       "start": 1775577709643231586
+       "duration": 92709,
+       "start": 1775638443628389961
      }],
 [
   {
     "name": "task.submit",
-    "service": "tests.contrib.ray",
+    "service": "unnamed.ray.job",
     "resource": "tests.contrib.ray.test_ray.compute_value.remote",
     "trace_id": 1,
     "span_id": 1,
@@ -74,17 +76,18 @@
     "type": "ray",
     "error": 0,
     "meta": {
+      "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.p.tid": "69d617ab00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+      "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
       "ray.task.submit_status": "success",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
+      "runtime-id": "6b56a2ece74241eeb7884140feb8f13f",
       "span.kind": "producer"
     },
     "metrics": {
@@ -97,12 +100,12 @@
       "_sampling_priority_v1": 2.0,
       "process_id": 605.0
     },
-    "duration": 718833,
-    "start": 1775577709644097586
+    "duration": 1003041,
+    "start": 1775638443629295170
   },
      {
        "name": "task.execute",
-       "service": "tests.contrib.ray",
+       "service": "unnamed.ray.job",
        "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_actor_and_task.<locals>.compute_value",
        "trace_id": 1,
        "span_id": 2,
@@ -110,10 +113,11 @@
        "type": "ray",
        "error": 0,
        "meta": {
+         "_dd.base_service": "tests.contrib.ray",
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+         "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
          "ray.task.status": "success",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
@@ -125,13 +129,13 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 85583,
-       "start": 1775577709644630086
+       "duration": 124250,
+       "start": 1775638443630045586
      }],
 [
   {
     "name": "actor_method.submit",
-    "service": "tests.contrib.ray",
+    "service": "unnamed.ray.job",
     "resource": "TestRayIntegration.test_actor_and_task.<locals>.ComputationManager.compute_and_store.remote",
     "trace_id": 2,
     "span_id": 1,
@@ -139,16 +143,17 @@
     "type": "ray",
     "error": 0,
     "meta": {
+      "_dd.base_service": "tests.contrib.ray",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69d52a6d00000000",
+      "_dd.p.tid": "69d617ab00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ray",
       "component": "ray",
       "language": "python",
       "ray.hostname": "docker-desktop",
       "ray.job_id": "01000000",
-      "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+      "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
+      "runtime-id": "6b56a2ece74241eeb7884140feb8f13f",
       "span.kind": "producer"
     },
     "metrics": {
@@ -161,12 +166,12 @@
       "_sampling_priority_v1": 2.0,
       "process_id": 605.0
     },
-    "duration": 10429125,
-    "start": 1775577709635160877
+    "duration": 16612416,
+    "start": 1775638443614656920
   },
      {
        "name": "actor_method.execute",
-       "service": "tests.contrib.ray",
+       "service": "unnamed.ray.job",
        "resource": "ComputationManager.compute_and_store",
        "trace_id": 2,
        "span_id": 2,
@@ -174,10 +179,11 @@
        "type": "ray",
        "error": 0,
        "meta": {
+         "_dd.base_service": "tests.contrib.ray",
          "component": "ray",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+         "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
          "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
          "span.kind": "consumer"
        },
@@ -188,12 +194,12 @@
          "_dd.measured": 1.0,
          "_sampling_priority_v1": 2.0
        },
-       "duration": 8877709,
-       "start": 1775577709636469627
+       "duration": 12498208,
+       "start": 1775638443618434878
      },
         {
           "name": "actor_method.execute",
-          "service": "tests.contrib.ray",
+          "service": "unnamed.ray.job",
           "resource": "ComputationManager.increment_count",
           "trace_id": 2,
           "span_id": 3,
@@ -201,10 +207,11 @@
           "type": "ray",
           "error": 0,
           "meta": {
+            "_dd.base_service": "tests.contrib.ray",
             "component": "ray",
             "ray.hostname": "docker-desktop",
             "ray.job_id": "01000000",
-            "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+            "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
             "span.kind": "consumer"
           },
@@ -215,12 +222,12 @@
             "_dd.measured": 1.0,
             "_sampling_priority_v1": 2.0
           },
-          "duration": 148375,
-          "start": 1775577709636953836
+          "duration": 162167,
+          "start": 1775638443619108753
         },
         {
           "name": "task.submit",
-          "service": "tests.contrib.ray",
+          "service": "unnamed.ray.job",
           "resource": "tests.contrib.ray.test_ray.batch_compute.remote",
           "trace_id": 2,
           "span_id": 4,
@@ -228,13 +235,14 @@
           "type": "ray",
           "error": 0,
           "meta": {
+            "_dd.base_service": "tests.contrib.ray",
             "component": "ray",
             "ray.hostname": "docker-desktop",
             "ray.job_id": "01000000",
-            "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+            "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
             "ray.task.submit_status": "success",
             "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-            "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
+            "runtime-id": "6b56a2ece74241eeb7884140feb8f13f",
             "span.kind": "producer"
           },
           "metrics": {
@@ -246,12 +254,12 @@
             "_sampling_priority_v1": 2.0,
             "process_id": 605.0
           },
-          "duration": 7919208,
-          "start": 1775577709637318836
+          "duration": 11300667,
+          "start": 1775638443619504586
         },
            {
              "name": "task.execute",
-             "service": "tests.contrib.ray",
+             "service": "unnamed.ray.job",
              "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_actor_and_task.<locals>.batch_compute",
              "trace_id": 2,
              "span_id": 5,
@@ -259,10 +267,11 @@
              "type": "ray",
              "error": 0,
              "meta": {
+               "_dd.base_service": "tests.contrib.ray",
                "component": "ray",
                "ray.hostname": "docker-desktop",
                "ray.job_id": "01000000",
-               "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+               "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
                "ray.task.status": "success",
                "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                "span.kind": "consumer"
@@ -274,12 +283,12 @@
                "_dd.measured": 1.0,
                "_sampling_priority_v1": 2.0
              },
-             "duration": 4833167,
-             "start": 1775577709640313294
+             "duration": 6236708,
+             "start": 1775638443624451670
            },
               {
                 "name": "task.submit",
-                "service": "tests.contrib.ray",
+                "service": "unnamed.ray.job",
                 "resource": "tests.contrib.ray.test_ray.compute_value.remote",
                 "trace_id": 2,
                 "span_id": 6,
@@ -287,13 +296,14 @@
                 "type": "ray",
                 "error": 0,
                 "meta": {
+                  "_dd.base_service": "tests.contrib.ray",
                   "component": "ray",
                   "ray.hostname": "docker-desktop",
                   "ray.job_id": "01000000",
-                  "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+                  "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
                   "ray.task.submit_status": "success",
                   "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-                  "runtime-id": "dd437655c11e4cfa94c5761b6cb36d72",
+                  "runtime-id": "6b56a2ece74241eeb7884140feb8f13f",
                   "span.kind": "producer"
                 },
                 "metrics": {
@@ -305,12 +315,12 @@
                   "_sampling_priority_v1": 2.0,
                   "process_id": 605.0
                 },
-                "duration": 2201083,
-                "start": 1775577709640544586
+                "duration": 3072292,
+                "start": 1775638443624686836
               },
                  {
                    "name": "task.execute",
-                   "service": "tests.contrib.ray",
+                   "service": "unnamed.ray.job",
                    "resource": "tests.contrib.ray.test_ray.TestRayIntegration.test_actor_and_task.<locals>.compute_value",
                    "trace_id": 2,
                    "span_id": 7,
@@ -318,10 +328,11 @@
                    "type": "ray",
                    "error": 0,
                    "meta": {
+                     "_dd.base_service": "tests.contrib.ray",
                      "component": "ray",
                      "ray.hostname": "docker-desktop",
                      "ray.job_id": "01000000",
-                     "ray.node_id": "438b10b9131bad5685acc78b8119224547f6d06b5bca1e566d9e945a",
+                     "ray.node_id": "2c1ede1b629710eb184ef4b2db6e47be83ea366088501df2230b60ed",
                      "ray.task.status": "success",
                      "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
                      "span.kind": "consumer"
@@ -333,6 +344,6 @@
                      "_dd.measured": 1.0,
                      "_sampling_priority_v1": 2.0
                    },
-                   "duration": 100583,
-                   "start": 1775577709642501669
+                   "duration": 118584,
+                   "start": 1775638443627464461
                  }]]
