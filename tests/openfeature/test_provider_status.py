@@ -252,8 +252,6 @@ class TestProviderInitializationBlocking:
 
     def test_initialize_timeout_raises(self):
         """initialize() should raise ProviderNotReadyError after timeout expires."""
-        from openfeature.exception import ProviderNotReadyError
-
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider(initialization_timeout=0.5)
 

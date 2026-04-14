@@ -129,7 +129,6 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics = FlagEvalMetrics()
             self._flag_eval_hook = FlagEvalHook(self._flag_eval_metrics)
 
-
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
