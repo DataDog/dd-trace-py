@@ -190,7 +190,7 @@ class _ProfilerInstance(service.Service):
 
         if not ddup.is_available:
             # Module-level code in settings/profiling.py already logged this when
-            # profiling was explicitly enabled (DD_PROFILING_ENABLED=true).  Only
+            # profiling was explicitly enabled (DD_PROFILING_ENABLED=true). Only
             # log here for the auto path (import ddtrace.profiling.auto without the
             # env var), where the module-level check was skipped.
             if not profiling_enabled_at_startup:
@@ -198,7 +198,13 @@ class _ProfilerInstance(service.Service):
                     TELEMETRY_LOG_LEVEL.ERROR,
                     f"Failed to load ddup module ({ddup.failure_msg}), disabling profiling",
                 )
-            return
+            # If _ddup failed to import entirely, its functions (config, start, …)
+            # won't be defined; skip them and disable collectors to avoid crashes.
+            # When only ddup.is_available is mocked in tests, the real functions are
+            # still present and must be called so that other collectors work correctly.
+            if not hasattr(ddup, "config"):
+                self._collectors.clear()
+                return
 
         ddup.config(
             env=self.env,
