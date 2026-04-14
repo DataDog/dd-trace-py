@@ -222,17 +222,18 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self._set_attribute(VERSION_KEY, value)
+            self._set_attribute(VERSION_KEY, value)  # type: ignore[arg-type]
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
+
+            self.set_metric(key, value)  # type: ignore[arg-type] # ast-grep-ignore: span-set-metric
             return
 
         try:
-            self._set_attribute(key, value)
+            self._set_attribute(key, value)  # type: ignore[arg-type]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
