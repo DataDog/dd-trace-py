@@ -30,6 +30,11 @@ from ddtrace.contrib.internal.tornado.handlers import _regex_to_route
         ("/a/(b([0-9]+))/$", "/a/%s/"),
         # --- Escaped parens are not treated as group delimiters ---
         (r"/items/\([0-9]+\)/$", r"/items/\([0-9]+\)/"),
+        # --- Character classes: '(' inside '[…]' is literal, not a group ---
+        ("/foo/[()]/([0-9]+)/$", "/foo/[()]/%s/"),
+        ("/bar/[^()]+/([0-9]+)/$", "/bar/[^()]+/%s/"),
+        # A ']' right after '[' is a literal ']' inside the class.
+        ("/baz/[]()]/([0-9]+)/$", "/baz/[]()]/%s/"),
     ],
 )
 def test_regex_to_route(pattern, expected):

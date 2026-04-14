@@ -141,6 +141,26 @@ def _regex_to_route(pattern: str) -> str:
             i += 2
             continue
 
+        if pattern[i] == "[":
+            # Character class — copy verbatim until the closing ']'.
+            # Inside '[…]', '(' is literal, not a group boundary.
+            j = i + 1
+            if j < n and pattern[j] == "^":
+                j += 1
+            # A ']' immediately after '[' or '[^' is a literal ']', not the end.
+            if j < n and pattern[j] == "]":
+                j += 1
+            while j < n and pattern[j] != "]":
+                if pattern[j] == "\\":
+                    j += 2
+                else:
+                    j += 1
+            if j < n:
+                j += 1  # skip the closing ']'
+            result.append(pattern[i:j])
+            i = j
+            continue
+
         if pattern[i] != "(":
             result.append(pattern[i])
             i += 1
