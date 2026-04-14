@@ -3496,11 +3496,7 @@ venv = Venv(
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                ),
-            ],
+            pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
         Venv(
             name="ci_visibility:snapshot",
