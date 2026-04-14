@@ -444,10 +444,21 @@ def patch() -> None:
 
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
-    _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
+    if _greenlet_frame_offsets:
+        # Offsets available: the sampler reads frames directly from greenlet
+        # memory at sample time.  No settrace callback needed, so zero
+        # Python code runs per greenlet switch.  Greenlet tracking relies
+        # on the patched spawn/joinall above; dead detection uses rawlink.
+        pass
+    else:
+        # Fallback: install settrace for per-switch frame caching and
+        # lazy tracking of pre-existing greenlets.
+        _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
 
 
 def unpatch() -> None:
+    global _greenlet_frame_offsets
+
     # Unpatch the spawn method to stop tracking greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = _Greenlet
     gevent.spawn = _Greenlet.spawn
@@ -458,4 +469,6 @@ def unpatch() -> None:
 
     gevent.hub.spawn_raw = _gevent_hub_spawn_raw
 
-    settrace(_original_greenlet_tracer)
+    if not _greenlet_frame_offsets:
+        settrace(_original_greenlet_tracer)
+    _greenlet_frame_offsets = None
