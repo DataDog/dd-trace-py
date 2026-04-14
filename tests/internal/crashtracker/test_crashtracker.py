@@ -162,11 +162,11 @@ def test_crashtracker_simple():
             sys.exit(-1)
 
         # Part 5, Check for the crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Part 6, Check to see if the listening socket was triggered, if so accept the connection
         # then check to see if the resulting connection is readable
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
         # just check for the presence of the raw string 'string_at' in the response.
         assert b"string_at" in report["body"]
@@ -203,10 +203,10 @@ def test_crashtracker_simple_fork():
             sys.exit(-1)  # just in case
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert b"string_at" in report["body"]
 
 
@@ -265,10 +265,10 @@ def test_crashtracker_simple_sigbus():
             sys.exit(-1)  # just in case
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert report["body"]
 
 
@@ -299,11 +299,11 @@ def test_crashtracker_raise_sigsegv():
             sys.exit(-1)
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
-        assert report["body"]
+        report = utils.get_crash_report(client, service=ct.service)
+        assert b"os_kill" in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -333,11 +333,11 @@ def test_crashtracker_raise_sigbus():
             sys.exit(-1)
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
-        assert report["body"]
+        report = utils.get_crash_report(client, service=ct.service)
+        assert b"os_kill" in report["body"]
 
 
 preload_code = """
@@ -356,8 +356,11 @@ sys.exit(-1)
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     # Call the program
+    service = "test_crashtracker_preload_default"
+    env = os.environ.copy()
+    env["DD_SERVICE"] = service
     with utils.with_test_agent() as client:
-        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code)
+        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -365,18 +368,20 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
         assert exitcode == -11  # exit code for SIGSEGV
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
         assert b"string_at" in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
     # Call the program
+    service = "test_crashtracker_preload_disabled"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_ENABLED"] = "false"
         stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
@@ -385,8 +390,9 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert not stderr
         assert exitcode == -11
 
-        # No crash reports should be sent
-        assert client.crash_messages() == []
+        # No crash reports should be sent. Since other tests might be sending reports
+        # to the same agent, we check that no report with our service name was sent.
+        assert not any(service.encode() in msg["body"] for msg in client.crash_messages())
 
 
 auto_code = """
@@ -405,8 +411,11 @@ sys.exit(-1)
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_auto_default(run_python_code_in_subprocess):
     # Call the program
+    service = "test_crashtracker_auto_default"
+    env = os.environ.copy()
+    env["DD_SERVICE"] = service
     with utils.with_test_agent() as client:
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code)
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -414,10 +423,10 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
         assert exitcode == -11
 
         # Part 5, check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Part 6, check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
         assert b"string_at" in report["body"]
 
 
@@ -426,8 +435,10 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
     import json
 
     # Call the program
+    service = "test_crashtracker_auto_nostack"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
@@ -437,10 +448,10 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
         assert exitcode == -11
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Wait for the connection
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
 
         # Check that we don't have stack in error; we might still have it in runtime_stacks
         body = json.loads(report["body"])
@@ -452,8 +463,10 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
     # Call the program
+    service = "test_crashtracker_auto_disabled"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_ENABLED"] = "false"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
@@ -462,8 +475,9 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
         assert not stderr
         assert exitcode == -11
 
-        # No crash reports should be sent
-        assert client.crash_messages() == []
+        # No crash reports should be sent. Since other tests might be sending reports
+        # to the same agent, we check that no report with our service name was sent.
+        assert not any(service.encode() in msg["body"] for msg in client.crash_messages())
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -471,8 +485,10 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
     import json
 
+    service = "test_crashtracker_runtime_stacktrace_required"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
@@ -481,10 +497,10 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         assert exitcode == -11
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
 
         # We should get the experimental field because `string_at` is in both the
         # native frames stacktrace and experimental runtime_stacks field
@@ -545,8 +561,10 @@ sys.exit(-1)
 def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
     import json
 
+    service = "test_crashtracker_native_extension_crash"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(_native_extension_crash_code, env=env)
 
         assert not stdout
@@ -567,8 +585,10 @@ def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Call the program
+    service = "test_crashtracker_user_tags_envvar"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
 
         # Injecting tags, but since the way we validate them is with a raw-data string search, we make things unique
         tag_prefix = "cryptocrystalline"
@@ -585,10 +605,10 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
         assert exitcode == -11
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
 
         # Now check for the tags
         for k, v in tags.items():
@@ -598,8 +618,10 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+    service = "test_crashtracker_set_tag_profiler_config"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
+        env["DD_SERVICE"] = service
         env["DD_PROFILING_ENABLED"] = "1"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
@@ -608,10 +630,10 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         assert exitcode == -11
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=service)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
         profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
@@ -652,10 +674,10 @@ def test_crashtracker_user_tags_profiling():
             sys.exit(-1)
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert b"string_at" in report["body"]
 
         # Now check for the tags
@@ -699,10 +721,10 @@ def test_crashtracker_user_tags_core():
             sys.exit(-1)
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert b"string_at" in report["body"]
 
         # Now check for the tags
@@ -739,10 +761,10 @@ def test_crashtracker_process_tags():
             sys.exit(-1)
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
 
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert b"string_at" in report["body"]
 
         # Verify process_tags are present in crash report
@@ -934,9 +956,9 @@ def test_crashtracker_receiver_env_inheritance():
             sys.exit(-1)
 
         # Check for crash ping
-        _ping = utils.get_crash_ping(client)
+        _ping = utils.get_crash_ping(client, service=ct.service)
         # Check for crash report
-        report = utils.get_crash_report(client)
+        report = utils.get_crash_report(client, service=ct.service)
         assert b"string_at" in report["body"]
 
     # Clean up

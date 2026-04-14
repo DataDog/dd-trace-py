@@ -25,16 +25,17 @@ def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional
         crashtracker_config.stderr_filename = stderr
         crashtracker_config.resolve_frames = "full"
 
-        tags.update(
-            {
-                "service": "my_favorite_service",
-                "version": "v0.0.0.0.0.0.1",
-                "runtime": "shmython",
-                "runtime_version": "v9001",
-                "runtime_id": "0",
-                "library_version": "v2.7.1.8",
-            }
-        )
+        default_tags = {
+            "service": "my_favorite_service",
+            "version": "v0.0.0.0.0.0.1",
+            "runtime": "shmython",
+            "runtime_version": "v9001",
+            "runtime_id": "0",
+            "library_version": "v2.7.1.8",
+        }
+        for k, v in default_tags.items():
+            if k not in tags:
+                tags[k] = v
 
         ret = crashtracking.start(tags)
     except Exception as e:
@@ -85,14 +86,27 @@ def set_cerulean_mollusk():
 class CrashtrackerWrapper:
     _seed = 0
 
-    def __init__(self, port: int = 9126, base_name="", tags={}):
+    def __init__(self, port: int = 9126, base_name="", tags=None):
         if CrashtrackerWrapper._seed == 0:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
+
+        if tags is None:
+            tags = {}
 
         self.port = port
         self.stdout = f"stdout.{base_name}.{CrashtrackerWrapper._seed}.log"
         self.stderr = f"stderr.{base_name}.{CrashtrackerWrapper._seed}.log"
+        self.base_name = base_name
         self.tags = tags
+
+        if "service" not in self.tags:
+            if base_name:
+                self.service = f"my_favorite_service_{base_name}_{CrashtrackerWrapper._seed}"
+            else:
+                self.service = f"my_favorite_service_{CrashtrackerWrapper._seed}"
+            self.tags["service"] = self.service
+        else:
+            self.service = self.tags["service"]
 
         for file in [self.stdout, self.stderr]:
             if os.path.exists(file):
@@ -162,21 +176,39 @@ def _get_matching_crash_messages(
     return matching_messages
 
 
-def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
+def get_crash_report(test_agent_client: TestAgentClient, service: Optional[str] = None) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
+    import json
 
     def is_crash_report(msg: TestAgentRequest) -> bool:
-        return b'"level":"ERROR"' in msg["body"]
+        if b'"level":"ERROR"' not in msg["body"]:
+            return False
+        if service:
+            try:
+                body = json.loads(msg["body"])
+                return body.get("application", {}).get("service_name") == service
+            except Exception:
+                return False
+        return True
 
     messages = _get_matching_crash_messages(test_agent_client, predicate=is_crash_report)
     return messages[0]
 
 
-def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
+def get_crash_ping(test_agent_client: TestAgentClient, service: Optional[str] = None) -> TestAgentRequest:
     """Wait for a crash ping from the crashtracker listener socket."""
+    import json
 
     def is_crash_ping(msg: TestAgentRequest) -> bool:
-        return b'"level":"DEBUG"' in msg["body"]
+        if b'"level":"DEBUG"' not in msg["body"]:
+            return False
+        if service:
+            try:
+                body = json.loads(msg["body"])
+                return body.get("application", {}).get("service_name") == service
+            except Exception:
+                return False
+        return True
 
     messages = _get_matching_crash_messages(test_agent_client, predicate=is_crash_ping)
     return messages[0]
