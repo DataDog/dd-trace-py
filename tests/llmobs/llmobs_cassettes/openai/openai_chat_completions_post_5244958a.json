@@ -1,0 +1,57 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 1.109.1",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "1.109.1",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "arm64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.9.25",
+      "X-Stainless-Async": "false",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "714"
+    },
+    "body": "{\"messages\":[{\"content\":\"You are a {role} assistant.\",\"role\":\"system\"},{\"content\":\"Your expertise is in data analysis.\",\"role\":\"system\"},{\"content\":\"Additional context: focus on accuracy\",\"role\":\"system\"},{\"content\":\"I'm a user seeking help.\",\"role\":\"user\"},{\"content\":\"Please help with analyzing datasets\",\"role\":\"user\"},{\"content\":\"Specifically, I need statistical methods\",\"role\":\"user\"},{\"content\":\"I understand your request.\",\"role\":\"assistant\"},{\"content\":\"I'll help you with analyzing datasets.\",\"role\":\"assistant\"},{\"content\":\"Let me provide insights\",\"role\":\"assistant\"},{\"content\":\"Make it detailed and under 150 words\",\"role\":\"developer\"}],\"model\":\"gpt-3.5-turbo\",\"n\":1,\"stream\":false,\"temperature\":0.7}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "CF-RAY": "98339cbb7ecb4d19-BOS",
+      "Connection": "keep-alive",
+      "Content-Encoding": "gzip",
+      "Content-Type": "application/json",
+      "Date": "Mon, 22 Sep 2025 17:44:47 GMT",
+      "Server": "cloudflare",
+      "Set-Cookie": "__cf_bm=euWjg3ikr4nZKHcbyuC.bYYnK.jXMyVDv3M4aT6XUzs-1758563087-1.0.1.1-7qSk1dqCq8_3JgUxMKFTaZb61GS3Enu13aoYBKeccB0N4kAz01tSFR_V1y_b9AVXq0kftzhrYul86M9PdfDKfZBIRIQ3CKZL5HvcL7vb8kI; path=/; expires=Mon, 22-Sep-25 18:14:47 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+      "Transfer-Encoding": "chunked",
+      "X-Content-Type-Options": "nosniff",
+      "access-control-expose-headers": "X-Request-ID",
+      "alt-svc": "h3=\":443\"; ma=86400",
+      "cf-cache-status": "DYNAMIC",
+      "openai-processing-ms": "751",
+      "openai-project": "proj_gt6TQZPRbZfoY2J9AQlEJMpd",
+      "openai-version": "2020-10-01",
+      "x-envoy-upstream-service-time": "774",
+      "x-openai-proxy-wasm": "v0.1",
+      "x-ratelimit-limit-requests": "10000",
+      "x-ratelimit-limit-tokens": "50000000",
+      "x-ratelimit-remaining-requests": "9999",
+      "x-ratelimit-remaining-tokens": "49999907",
+      "x-ratelimit-reset-requests": "6ms",
+      "x-ratelimit-reset-tokens": "0s",
+      "x-request-id": "req_4f13c054e468464b944056e3299b282c"
+    },
+    "body": "{\n  \"id\": \"chatcmpl-CIesgrrGj7PzEPdG5OvPNZTzmC9Xw\",\n  \"object\": \"chat.completion\",\n  \"created\": 1758563086,\n  \"model\": \"gpt-3.5-turbo-0125\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"Certainly! I will assist you in analyzing datasets using statistical methods. We can start by exploring the data with descriptive statistics like mean, median, and standard deviation. Then, we can apply inferential statistics such as hypothesis testing or regression analysis to draw meaningful conclusions. It's important to ensure data accuracy throughout the analysis process to maintain the reliability of the results. Feel free to share more details about your specific dataset and analysis goals for a more tailored approach.\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 108,\n    \"completion_tokens\": 90,\n    \"total_tokens\": 198,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\": null\n}\n"
+  }
+}
