@@ -489,9 +489,6 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        # Use the NativeWriter instead of the AgentWriter
-        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", True, asbool)
-
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
@@ -690,7 +687,16 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        if "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" in env:
+            deprecate(
+                "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED is deprecated",
+                message="Please use DD_TRACE_INFERRED_SPANS_ENABLED instead.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        self._inferred_proxy_services_enabled = _get_config(
+            ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
+        )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # Resource renaming
