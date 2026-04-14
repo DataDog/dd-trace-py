@@ -195,11 +195,17 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
+                # TODO: remove bool→str coercion once set_tag callers are migrated
+                if isinstance(v, bool):
+                    v = str(v)
                 self._ddspan.set_tag(k, v)
             return
         if key == "http.status_code":
             if isinstance(value, (int, float)):
                 value = str(value)
+        # TODO: remove bool→str coercion once set_tag callers are migrated
+        if isinstance(value, bool):
+            value = str(value)
         if isinstance(value, (str, bytes)):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)
