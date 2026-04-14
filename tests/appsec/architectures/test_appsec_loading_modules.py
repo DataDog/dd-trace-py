@@ -20,16 +20,20 @@ MODULE_IAST_ONLY = [
     "ddtrace.appsec._shared._stacktrace",
 ]
 
-# Modules in _shared that are NOT eagerly imported at startup.
-# Currently empty — _stacktrace moved to _shared but is still eagerly
-# loaded by IAST, so it belongs in MODULE_IAST_ONLY above.
-MODULE_SHARED = []
+MODULE_SCA_ONLY = [
+    "ddtrace.appsec.sca",
+    "ddtrace.appsec.sca._cve_loader",
+    "ddtrace.appsec.sca._instrumenter",
+    "ddtrace.appsec.sca._registry",
+    "ddtrace.appsec.sca._resolver",
+]
 
 
 @pytest.mark.parametrize("appsec_enabled", ["true", "false"])
 @pytest.mark.parametrize("iast_enabled", ["true", None])
+@pytest.mark.parametrize("sca_enabled", ["true", None])
 @pytest.mark.parametrize("aws_lambda", [None, "any"])
-def test_loading(appsec_enabled, iast_enabled, aws_lambda):
+def test_loading(appsec_enabled, iast_enabled, sca_enabled, aws_lambda):
     flask_app = pathlib.Path(__file__).parent / "mini.py"
     env = os.environ.copy()
     if appsec_enabled:
@@ -40,6 +44,10 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         env["DD_IAST_ENABLED"] = iast_enabled
     else:
         env.pop("DD_IAST_ENABLED", None)
+    if sca_enabled:
+        env["DD_APPSEC_SCA_ENABLED"] = sca_enabled
+    else:
+        env.pop("DD_APPSEC_SCA_ENABLED", None)
     if aws_lambda:
         env["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
     else:
@@ -77,8 +85,11 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                             assert m in data["appsec"], f"{m} not in {data['appsec']}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']}"
-                    for m in MODULE_SHARED:
-                        assert m not in data["appsec"], f"{m} in {data['appsec']}"
+                    for m in MODULE_SCA_ONLY:
+                        if sca_enabled and not aws_lambda:
+                            assert m in data["appsec"], f"{m} not in {data['appsec']}"
+                        else:
+                            assert m not in data["appsec"], f"{m} in {data['appsec']}"
                 print(f"Test passed {i}", flush=True)
                 return
             except HTTPError as e:

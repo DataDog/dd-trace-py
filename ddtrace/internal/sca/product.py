@@ -13,6 +13,7 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 """
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import config as tracer_config
 
 
@@ -22,7 +23,7 @@ requires: list[str] = []
 
 
 def enabled() -> bool:
-    return tracer_config._sca_enabled
+    return tracer_config._sca_enabled and not in_aws_lambda()
 
 
 def _get_installed_packages():
@@ -110,7 +111,7 @@ def post_preload():
     inject_hook.  Modules not yet imported get ModuleWatchdog hooks for
     lazy instrumentation.
     """
-    if not tracer_config._sca_enabled:
+    if not enabled():
         return
 
     try:
@@ -126,7 +127,7 @@ def start():
     Actual instrumentation happens in post_preload() after integrations
     are patched.
     """
-    if not tracer_config._sca_enabled:
+    if not enabled():
         return
 
     try:
@@ -153,7 +154,7 @@ def restart(join: bool = False) -> None:
     the state we just set up.  See system_tests_error.md for the full
     debugging trace.
     """
-    if not tracer_config._sca_enabled:
+    if not enabled():
         return
 
     stop(join=join)
