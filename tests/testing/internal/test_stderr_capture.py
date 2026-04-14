@@ -9,6 +9,8 @@ import time
 
 import pytest
 
+from ddtrace.testing.internal.stderr_capture import _MAX_MESSAGE_BYTES
+from ddtrace.testing.internal.stderr_capture import _TRUNCATION_SUFFIX
 from ddtrace.testing.internal.stderr_capture import FileCapture
 from ddtrace.testing.internal.stderr_capture import StderrCapture
 from ddtrace.testing.internal.stderr_capture import StdoutCapture
@@ -81,6 +83,8 @@ class TestStderrCaptureRedirect:
         assert event["dd.span_id"] == "222"
         assert event["hostname"] == "test-host"
         assert event["service"] == "test-service"
+        assert event["status"] == "info"
+        assert event["ddtags"] == "datadog.product:citest"
         assert "date" in event
         assert isinstance(event["date"], int)
 
@@ -138,15 +142,62 @@ class TestStderrCaptureRedirect:
         capture.start()
         try:
             # Write a single line larger than _MAX_MESSAGE_BYTES (1 MB).
-            big_line = b"X" * (1024 * 1024 + 100) + b"\n"
+            big_line = b"X" * (_MAX_MESSAGE_BYTES + 100) + b"\n"
             os.write(2, big_line)
             time.sleep(0.5)
         finally:
             capture.stop()
 
         assert len(writer.events) >= 1
-        assert writer.events[0]["message"].endswith("... [truncated]")
-        assert len(writer.events[0]["message"]) == 1024 * 1024
+        msg = writer.events[0]["message"]
+        assert msg.endswith(_TRUNCATION_SUFFIX)
+        assert len(msg) == _MAX_MESSAGE_BYTES
+
+    def test_non_utf8_bytes_are_replaced(self) -> None:
+        """Invalid UTF-8 sequences should be replaced rather than dropping the line."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            # b"\xff\xfe" is not valid UTF-8.
+            os.write(2, b"prefix \xff\xfe suffix\n")
+            time.sleep(0.2)
+        finally:
+            capture.stop()
+
+        assert len(writer.events) >= 1
+        msg = writer.events[0]["message"]
+        assert "prefix" in msg
+        assert "suffix" in msg
+        # Replacement characters (U+FFFD) stand in for the invalid bytes.
+        assert "\ufffd" in msg
+
+    def test_empty_lines_are_not_forwarded(self) -> None:
+        """Blank lines (bare newlines) should be silently dropped."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            os.write(2, b"\n\nreal line\n\n")
+            time.sleep(0.2)
+        finally:
+            capture.stop()
+
+        messages = [e["message"] for e in writer.events]
+        assert messages == ["real line"]
+
+    def test_partial_line_at_stop_is_forwarded(self) -> None:
+        """A line with no trailing newline should still be forwarded when capture stops."""
+        writer = _FakeLogsWriter()
+        capture = StderrCapture(writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
+        capture.start()
+        try:
+            os.write(2, b"no newline at end")
+        finally:
+            capture.stop()
+
+        messages = [e["message"] for e in writer.events]
+        assert "no newline at end" in messages
 
     def test_trace_context_updates_between_lines(self) -> None:
         """Each line should pick up the current trace context at the time it is read."""
@@ -344,7 +395,7 @@ class TestFileCapture:
         assert "late arrival" in messages
 
     def test_stop_before_file_appears(self) -> None:
-        """stop() should not hang if the file never appears."""
+        """stop() should return promptly even if the file never appears."""
         writer = _FakeLogsWriter()
         tmp_dir = tempfile.mkdtemp()
         path = os.path.join(tmp_dir, "never_created.log")
@@ -352,8 +403,12 @@ class TestFileCapture:
         try:
             capture = FileCapture(path, writer, get_trace_context=lambda: ("0", "0"))  # type: ignore[arg-type]
             capture.start()
-            capture.stop()  # should return promptly
+            t0 = time.monotonic()
+            capture.stop()
+            elapsed = time.monotonic() - t0
             assert not capture._started
+            # stop() should drain and return well within the 5 s join timeout.
+            assert elapsed < 2.0, f"stop() took {elapsed:.2f}s — likely hung waiting for file"
         finally:
             os.rmdir(tmp_dir)
 
