@@ -1,0 +1,19 @@
+id: span-metrics-access
+message: |
+  Do not access `_metrics` directly. Use the Span attribute API instead:
+    - Write: `span._set_attribute(key, value)`
+    - Read key: `span._get_numeric_attribute(key)`
+    - Check key: `span._has_attribute(key)`
+    - Read all: `span._get_numeric_attributes()`
+severity: error
+language: python
+ignores:
+  - "ddtrace/_trace/context.py"
+  - "ddtrace/internal/openfeature/_flageval_metrics.py"
+  - "ddtrace/internal/writer/writer.py"
+rule:
+  pattern: $X._metrics
+constraints:
+  X:
+    not:
+      regex: "context|ctx|Context"

@@ -210,15 +210,19 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
+                # Prevents .pyc write races when xdist workers run subprocesses that all
+                # import ddtrace from the same editable install simultaneously.
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         ),
         Venv(
@@ -487,15 +491,6 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
-                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
-                # and NativeWriter.
-                Venv(
-                    name="integration-snapshot-native-writer",
-                    env={
-                        "AGENT_VERSION": "testagent",
-                        "_DD_TRACE_WRITER_NATIVE": "1",
-                    },
-                ),
             ],
         ),
         Venv(
@@ -591,6 +586,14 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
+                    env={
+                        # Python 3.12+ emits a DeprecationWarning when os.fork() is called
+                        # from a multi-threaded process. The forksafe tests intentionally
+                        # fork from a multi-threaded subprocess (ddtrace starts background
+                        # threads on import), so suppress the warning to avoid spurious
+                        # stderr output that causes @pytest.mark.subprocess() to fail.
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         # pkg_resources was removed in v82.0.0
@@ -1890,7 +1893,10 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
+            command=(
+                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
+                " --ignore=tests/contrib/pytest/snapshot/"
+            ),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -1940,8 +1946,49 @@ venv = Venv(
             ],
         ),
         Venv(
+            # Snapshot tests for the v2 pytest plugin run separately so they get their own CI job
+            # with the test agent service, and to avoid mixing snapshot vs non-snapshot coverage.
+            # DD_PYTEST_USE_NEW_PLUGIN=false loads the v2 plugin (ddtrace/contrib/internal/pytest).
+            # test_pytest_snapshot.py is permanently skipped (_USE_PLUGIN_V2=True hardcoded);
+            # test_pytest_snapshot_v2.py and test_pytest_xdist_snapshot.py always run.
+            name="pytest:snapshot",
+            command="pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/",
+            pkgs={
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            venvs=[
+                # pytest~=6.0 is excluded: anyio (via httpx) registers a pytest plugin that
+                # imports _pytest.scope, which only exists in pytest>=7.2. Version compatibility
+                # with older pytest is covered by the main pytest venv.
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "pytest": ["~=7.2", "~=8.0"],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={
+                        "pytest": ["~=7.2", "~=8.0", latest],
+                        "msgpack": latest,
+                        "asynctest": "==0.13.0",
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="testing",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3101,6 +3148,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
@@ -3131,9 +3190,10 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
@@ -3192,16 +3252,6 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
-            },
-        ),
-        Venv(
-            name="mlflow",
-            command="pytest {cmdargs} tests/contrib/mlflow",
-            pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "mlflow[default]": ["~=3.9.0", latest],
-                # pkg_resources was removed in v82.0.0
-                "setuptools": "<82",
             },
         ),
         Venv(
@@ -3299,6 +3349,7 @@ venv = Venv(
             name="google_cloud_pubsub",
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             pkgs={
+                "falcon": latest,
                 # pkg_resources was removed in v82.0.0
                 "setuptools": "<82",
             },
@@ -3421,7 +3472,26 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command=(
+                "pytest --ddtrace -n auto {cmdargs} tests/ci_visibility"
+                " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
+            ),
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+                "gevent": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+        ),
+        Venv(
+            name="ci_visibility:snapshot",
+            command="pytest --ddtrace {cmdargs} tests/ci_visibility/api/test_api_fake_runners.py",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -4428,6 +4498,27 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.10"),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_litellm_guardrail",
+            command="pytest {cmdargs} tests/appsec/ai_guard/litellm_guardrail/",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.78.5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
+                    },
                 ),
             ],
         ),

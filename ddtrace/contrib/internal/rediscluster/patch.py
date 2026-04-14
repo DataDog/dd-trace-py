@@ -10,6 +10,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.redis.patch import instrumented_execute_command
 from ddtrace.contrib.internal.redis.patch import instrumented_pipeline
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -97,9 +98,11 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     with tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
-        service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
         span_type=SpanTypes.REDIS,
     ) as s:
+        set_service_and_source(
+            s, trace_utils.ext_service(pin, config.rediscluster, "rediscluster"), config.rediscluster
+        )
         s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         s._set_attribute(COMPONENT, config.rediscluster.integration_name)
         s._set_attribute(db.SYSTEM, redisx.APP)

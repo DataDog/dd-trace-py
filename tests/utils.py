@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import Any
 from typing import Optional
 from typing import TypedDict
 from typing import cast
@@ -42,7 +43,6 @@ from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
@@ -111,7 +111,7 @@ def override_env(env, replace_os_env=False):
 
 
 @contextlib.contextmanager
-def override_global_config(values):
+def override_global_config(values: dict[str, Any]):
     """
     Temporarily override an global configuration::
 
@@ -174,6 +174,7 @@ def override_global_config(values):
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
         "_model_lab_enabled",
+        "_trace_wrap_span_name_include_class",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -606,15 +607,9 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        if dd_config._trace_writer_native:
-            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-            kwargs["stats_opt_out"] = asm_config._apm_opt_out
-            self._inner_writer = NativeWriter(*args, **kwargs)
-        else:
-            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
-                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
-            self._inner_writer = AgentWriter(*args, **kwargs)
-
+        kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+        kwargs["stats_opt_out"] = asm_config._apm_opt_out
+        self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
@@ -817,7 +812,7 @@ class TestSpan(Span):
             return self.get_tags() == meta
 
         for key, value in meta.items():
-            if key not in self._meta:
+            if not self._has_attribute(key):
                 return False
             if self.get_tag(key) != value:
                 return False
@@ -867,7 +862,7 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)
+                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
                 assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
                     self, key, self.get_tag(key), value
                 )
@@ -888,12 +883,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self._metrics == metrics
+            assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert key in self._metrics, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._metrics[key], value
+                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
+                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._get_numeric_attribute(key), value
                 )
 
     def assert_span_event_count(self, count):

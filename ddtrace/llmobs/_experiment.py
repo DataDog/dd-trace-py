@@ -1,6 +1,5 @@
 from abc import ABC
 from abc import abstractmethod
-import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -53,12 +52,15 @@ from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -859,6 +861,7 @@ if PydanticEvaluator is not None:
             expected_output: Optional[JSONType] = None,
             duration: Optional[float] = None,
         ) -> EvaluatorResult:
+            asyncio = get_asyncio()
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -1162,6 +1165,80 @@ class ExperimentRun:
         self.run_iteration = run._run_iteration
         self.summary_evaluations = summary_evaluations or {}
         self.rows = rows or []
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        """Convert experiment run rows to a pandas DataFrame with MultiIndex columns.
+
+        Each top-level group (``input``, ``output``, ``expected_output``,
+        ``evaluations``, ``metadata``, ``error``, ``span_id``, ``trace_id``) becomes
+        the first level of the column MultiIndex.  Dict-valued fields are flattened
+        one level deep; scalar fields use an empty string as the sub-column name.
+
+        Evaluation cells contain the full evaluation dict
+        (``value``, ``type``, ``reasoning``, ``assessment``).
+
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        column_tuples: set = set()
+        data_rows = []
+        for row in self.rows:
+            flat: dict = {}
+
+            input_data = row.get("input", {})
+            if isinstance(input_data, dict):
+                for k, v in input_data.items():
+                    flat[("input", k)] = v
+                    column_tuples.add(("input", k))
+            else:
+                flat[("input", "")] = input_data
+                column_tuples.add(("input", ""))
+
+            output_data = row.get("output")
+            if isinstance(output_data, dict):
+                for k, v in output_data.items():
+                    flat[("output", k)] = v
+                    column_tuples.add(("output", k))
+            else:
+                flat[("output", "")] = output_data
+                column_tuples.add(("output", ""))
+
+            expected = row.get("expected_output", {})
+            if isinstance(expected, dict):
+                for k, v in expected.items():
+                    flat[("expected_output", k)] = v
+                    column_tuples.add(("expected_output", k))
+            else:
+                flat[("expected_output", "")] = expected
+                column_tuples.add(("expected_output", ""))
+
+            metadata = row.get("metadata", {})
+            if isinstance(metadata, dict):
+                for k, v in metadata.items():
+                    flat[("metadata", k)] = v
+                    column_tuples.add(("metadata", k))
+
+            for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                flat[("evaluations", eval_name)] = eval_data
+                column_tuples.add(("evaluations", eval_name))
+
+            flat[("error", "")] = row.get("error")
+            flat[("span_id", "")] = row.get("span_id")
+            flat[("trace_id", "")] = row.get("trace_id")
+            column_tuples.update([("error", ""), ("span_id", ""), ("trace_id", "")])
+
+            data_rows.append(flat)
+
+        records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
+        return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
 class ExperimentResult(TypedDict):
@@ -2113,11 +2190,12 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         async with semaphore:
@@ -2166,7 +2244,7 @@ class Experiment:
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(*task_args)
+                            output_data = await self._task(*task_args)  # type: ignore[misc]
                         else:
                             output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
@@ -2233,6 +2311,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2269,11 +2348,12 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> EvaluationResult:
+        asyncio = get_asyncio()
         idx = task_result["idx"]
         input_data = record["input_data"]
         output_data = task_result["output"]
@@ -2309,8 +2389,8 @@ class Experiment:
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__
-                            eval_result = await evaluator(input_data, output_data, expected_output)
+                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2332,7 +2412,7 @@ class Experiment:
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await asyncio.to_thread(
-                                evaluator,  # type: ignore[arg-type]
+                                evaluator,
                                 input_data,
                                 output_data,
                                 expected_output,
@@ -2396,6 +2476,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
@@ -2412,6 +2493,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2500,7 +2582,7 @@ class Experiment:
             metadata_list,
             eval_results_by_name,
         ) = self._prepare_summary_evaluator_data(task_results, eval_results)
-
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_summary_single(
@@ -2732,6 +2814,7 @@ class SyncExperiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
     ) -> None:
+        self.result: Optional[ExperimentResult] = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -2765,6 +2848,7 @@ class SyncExperiment:
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
+        asyncio = get_asyncio()
         coro = self._experiment.run(
             jobs=jobs,
             raise_errors=raise_errors,
@@ -2775,13 +2859,59 @@ class SyncExperiment:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
+            result = asyncio.run(coro)
         else:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                result = pool.submit(asyncio.run, coro).result()
+        self.result = result
+        return result
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        r"""Return all runs stacked into a single MultiIndex DataFrame.
+
+        Rows from every run in ``self.result["runs"]`` are concatenated in
+        run-iteration order. Two extra top-level column groups are prepended:
+
+        - ``("run_id", "")``        — UUID of the run (str)
+        - ``("run_iteration", "")`` — 1-based run counter (int)
+
+        These columns let callers filter or group by run:
+
+        .. code-block:: python
+
+            df = experiment.as_dataframe()
+            run1 = df[df[("run_iteration", "")] == 1]
+            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        if self.result is None:
+            raise ValueError("No result found. Call run() before as_dataframe().")
+
+        frames = []
+        for run in self.result.get("runs", []):
+            df = run.as_dataframe()
+            df.insert(0, ("run_id", ""), str(run.run_id))
+            df.insert(1, ("run_iteration", ""), run.run_iteration)
+            df.columns = pd.MultiIndex.from_tuples(df.columns)
+            frames.append(df)
+
+        if not frames:
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)
 
     @property
     def url(self) -> str:
