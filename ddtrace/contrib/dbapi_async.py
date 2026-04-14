@@ -1,3 +1,5 @@
+import inspect
+
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -223,6 +225,19 @@ class TracedAsyncConnection(TracedConnection):
         # reference the func that would be called to ensure that errors
         # messages will be the same.
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+    def cursor(self, *args, **kwargs):
+        cursor = self.__wrapped__.cursor(*args, **kwargs)
+        # mysql.connector.aio returns an awaitable cursor.
+        if inspect.isawaitable(cursor):
+
+            async def _wrap_cursor():
+                awaited_cursor = await cursor
+                return self._self_cursor_cls(awaited_cursor, cfg=self._self_config, db_tags=self._self_db_tags)
+
+            return _wrap_cursor()
+
+        return self._self_cursor_cls(cursor, cfg=self._self_config, db_tags=self._self_db_tags)
 
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         if not is_tracing_enabled():
