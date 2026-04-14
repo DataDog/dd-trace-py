@@ -30,8 +30,23 @@ suites:
       - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
+    pattern: 'ci_visibility$'
+  ci_visibility:snapshot:
+    parallelism: 4
+    paths:
+      - '@ci_visibility'
+      - '@ci'
+      - '@core'
+      - '@coverage'
+      - '@git'
+      - '@pytest'
+      - '@codeowners'
+      - '@unittest'
+      - '@testing'
+      - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
     snapshot: true
+    pattern: 'ci_visibility:snapshot'
   dd_coverage:
     parallelism: 3
     paths:
