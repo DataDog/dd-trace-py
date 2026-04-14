@@ -20,6 +20,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings import env
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -236,7 +237,7 @@ def test_user_threads_have_native_id():
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
-@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
+@pytest.mark.skipif(not env.get("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
@@ -269,7 +270,7 @@ def test_lock_gevent_tasks() -> None:
     )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    init_linenos(env["DD_PROFILING_FILE_PATH"])
 
     def play_with_lock() -> None:
         lock: threading.Lock = threading.Lock()  # !CREATE! test_lock_gevent_tasks
@@ -325,7 +326,7 @@ def test_lock_gevent_tasks() -> None:
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
-@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
+@pytest.mark.skipif(not env.get("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
@@ -358,7 +359,7 @@ def test_rlock_gevent_tasks() -> None:
     )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
-    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    init_linenos(env["DD_PROFILING_FILE_PATH"])
 
     def play_with_lock() -> None:
         lock: threading.RLock = threading.RLock()  # !CREATE! test_rlock_gevent_tasks

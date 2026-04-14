@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.settings import env
 from tests.profiling.collector import test_utils
 
 
@@ -50,7 +51,7 @@ def test_uvloop_variations_install_and_run() -> None:
         uvloop.install()
         asyncio.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
@@ -171,7 +172,7 @@ def test_uvloop_variations_uvloop_run() -> None:
     with ProfilerContextManager():
         uvloop.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
@@ -293,7 +294,7 @@ def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
         # uvloop is not installed nor used!
         asyncio.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    output_filename = env["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")

@@ -6,16 +6,17 @@ import sys
 
 import pytest
 
+from ddtrace.internal.settings import env
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 
 
 def test_call_script() -> None:
-    env = os.environ.copy()
-    env["DD_PROFILING_ENABLED"] = "1"
+    subenv = env.copy()
+    subenv["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py"), env=env
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py"), env=subenv
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
@@ -27,12 +28,12 @@ def test_call_script() -> None:
     assert hello == "hello world", stdout.strip()
 
 
-@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
+@pytest.mark.skipif(not env.get("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent():
-    env = os.environ.copy()
-    env["DD_PROFILING_ENABLED"] = "1"
+    subenv = env.copy()
+    subenv["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"), env=env
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"), env=subenv
     )
     assert exitcode == 0, (stdout, stderr)
 
@@ -43,15 +44,15 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
     """
     filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    env["DD_PROFILING_ENABLED"] = "1"
+    subenv = env.copy()
+    subenv["DD_PROFILING_OUTPUT_PPROF"] = filename
+    subenv["DD_PROFILING_CAPTURE_PCT"] = "100"
+    subenv["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "simple_program.py"),
-        env=env,
+        env=subenv,
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
@@ -68,11 +69,11 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    subenv = env.copy()
+    subenv["DD_PROFILING_OUTPUT_PPROF"] = filename
+    subenv["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=subenv
     )
     assert exitcode == 0, stderr
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
@@ -150,10 +151,10 @@ def test_fork(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
-@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
+@pytest.mark.skipif(not env.get("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent() -> None:
-    env = os.environ.copy()
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
+    subenv = env.copy()
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=subenv)
     assert exitcode == 0
 
 
@@ -166,16 +167,16 @@ methods = multiprocessing.get_all_start_methods()
 )
 def test_multiprocessing(method: str, tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_ENABLED"] = "1"
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    subenv = env.copy()
+    subenv["DD_PROFILING_OUTPUT_PPROF"] = filename
+    subenv["DD_PROFILING_ENABLED"] = "1"
+    subenv["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
         method,
-        env=env,
+        env=subenv,
     )
     assert exitcode == 0, (stdout, stderr)
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout

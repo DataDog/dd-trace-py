@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 import time
 from unittest import mock
@@ -8,6 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings import env
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -16,7 +16,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
+TESTING_GEVENT = env.get("DD_PROFILE_TEST_GEVENT") or False
 
 
 @pytest.fixture(autouse=True)

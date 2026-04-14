@@ -9,6 +9,7 @@ from typing import Optional
 import uuid
 
 import ddtrace
+from ddtrace.internal.settings import env
 from tests.utils import TestAgentClient
 from tests.utils import TestAgentRequest
 
@@ -198,7 +199,7 @@ def with_test_agent() -> Generator[TestAgentClient, None, None]:
     # Also propagate via env var so that tests which launch subprocesses with
     # ddtrace.auto (e.g. test_crashtracker_preload_*) pick up the token automatically
     # without any changes to the subprocess code.
-    os.environ["_DD_CRASHTRACKING_TEST_TOKEN"] = token
+    env["_DD_CRASHTRACKING_TEST_TOKEN"] = token
     crashtracker_config._test_token = token
 
     base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"
@@ -215,5 +216,5 @@ def with_test_agent() -> Generator[TestAgentClient, None, None]:
         yield client
     finally:
         client.clear()
-        del os.environ["_DD_CRASHTRACKING_TEST_TOKEN"]
+        del env["_DD_CRASHTRACKING_TEST_TOKEN"]
         crashtracker_config._test_token = None

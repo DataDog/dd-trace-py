@@ -34,6 +34,7 @@ from typing import Optional
 
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+TESTING_GEVENT = env.get("DD_PROFILE_TEST_GEVENT", False)
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
