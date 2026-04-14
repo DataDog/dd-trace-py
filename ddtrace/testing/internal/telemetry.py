@@ -314,7 +314,7 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
 
     def finish(self) -> None:
         if self._accumulated_metrics:
-            from ddtrace import config
+            from ddtrace.internal.settings._telemetry import config as telemetry_config
 
             generate_metrics_event = {
                 "request_type": TELEMETRY_EVENT_TYPE.METRICS.value,
@@ -328,7 +328,9 @@ class PayloadFileTelemetryAPI(TelemetryAPI):
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
                 "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
-                "application": get_application(config.SERVICE, config.VERSION, config.ENV),
+                "application": get_application(
+                    telemetry_config.SERVICE, telemetry_config.VERSION, telemetry_config.ENV
+                ),
                 "host": get_host_info(),
                 "payload": [generate_metrics_event],
             }
