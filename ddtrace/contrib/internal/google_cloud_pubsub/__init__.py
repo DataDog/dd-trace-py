@@ -15,6 +15,20 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
     from google.cloud import pubsub_v1
     ...
 
+Push Subscriptions
+~~~~~~~~~~~~~~~~~~
+
+Push subscriptions are also supported. When a push subscription delivers a message
+via HTTP to your web server, the integration creates an inferred ``gcp.pubsub.receive``
+span that captures subscription and message metadata.
+
+For push subscription instrumentation to work, the subscription must be configured with:
+
+- **Enable payload unwrapping** (``--push-no-wrapper``): delivers the raw message data
+  as the HTTP request body instead of the default Pub/Sub JSON wrapper.
+- **Write metadata** (``--push-no-wrapper-write-metadata``): writes Pub/Sub metadata
+  (subscription name, message ID, and trace context) as HTTP headers on the push request.
+
 Configuration
 ~~~~~~~~~~~~~
 
