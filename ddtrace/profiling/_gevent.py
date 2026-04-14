@@ -102,7 +102,7 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     ptr_size = ctypes.sizeof(ctypes.c_void_p)
     sub_size = 512
 
-    def _probe_fn():
+    def _probe_fn() -> None:
         greenlet.getcurrent().parent.switch()
 
     # ---- Phase 1: discover pimpl_offset and frame_offset ----
@@ -124,14 +124,14 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     frame_offset = None
 
     for p_off in range(0, gl_size - ptr_size + 1, ptr_size):
-        pimpl_ptr = int.from_bytes(buf[p_off : p_off + ptr_size], sys.byteorder)
+        pimpl_ptr = int.from_bytes(bytes(buf[p_off : p_off + ptr_size]), sys.byteorder)
         if pimpl_ptr == 0 or pimpl_ptr < 0x1000 or pimpl_ptr == type_addr:
             continue
 
         try:
             pimpl_buf = (ctypes.c_char * sub_size).from_address(pimpl_ptr)
             for f_off in range(0, sub_size - ptr_size + 1, ptr_size):
-                if int.from_bytes(pimpl_buf[f_off : f_off + ptr_size], sys.byteorder) != frame_addr:
+                if int.from_bytes(bytes(pimpl_buf[f_off : f_off + ptr_size]), sys.byteorder) != frame_addr:
                     continue
 
                 # Validate with a second greenlet
@@ -142,12 +142,12 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
                     continue
 
                 buf2 = (ctypes.c_char * gl_size).from_address(id(g2))
-                pimpl2 = int.from_bytes(buf2[p_off : p_off + ptr_size], sys.byteorder)
+                pimpl2 = int.from_bytes(bytes(buf2[p_off : p_off + ptr_size]), sys.byteorder)
                 if pimpl2 == 0:
                     continue
 
                 pimpl_buf2 = (ctypes.c_char * sub_size).from_address(pimpl2)
-                if int.from_bytes(pimpl_buf2[f_off : f_off + ptr_size], sys.byteorder) == id(frame2):
+                if int.from_bytes(bytes(pimpl_buf2[f_off : f_off + ptr_size]), sys.byteorder) == id(frame2):
                     pimpl_offset = p_off
                     frame_offset = f_off
                     break
@@ -156,7 +156,7 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
         if pimpl_offset is not None:
             break
 
-    if pimpl_offset is None:
+    if pimpl_offset is None or frame_offset is None:
         raise RuntimeError("Could not discover greenlet frame offset")
 
     # ---- Phase 2: discover stack_stop_offset ----
@@ -170,15 +170,15 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     # is the field that is non-NULL in all three cases (active, paused) but
     # NULL for unstarted, AND has the same value in active and paused states.
 
-    def _stack_probe_fn():
+    def _stack_probe_fn() -> None:
         me = greenlet.getcurrent()
         me_buf = (ctypes.c_char * gl_size).from_address(id(me))
-        my_pimpl = int.from_bytes(me_buf[pimpl_offset : pimpl_offset + ptr_size], sys.byteorder)
+        my_pimpl = int.from_bytes(bytes(me_buf[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
         my_sub = (ctypes.c_char * sub_size).from_address(my_pimpl)
 
         snapshot = {}
         for off in range(0, sub_size - ptr_size + 1, ptr_size):
-            snapshot[off] = int.from_bytes(my_sub[off : off + ptr_size], sys.byteorder)
+            snapshot[off] = int.from_bytes(bytes(my_sub[off : off + ptr_size]), sys.byteorder)
 
         me.parent.switch(snapshot)
 
@@ -186,12 +186,12 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
     active_snapshot = g3.switch()  # g3 is now paused
 
     buf3 = (ctypes.c_char * gl_size).from_address(id(g3))
-    pimpl3 = int.from_bytes(buf3[pimpl_offset : pimpl_offset + ptr_size], sys.byteorder)
+    pimpl3 = int.from_bytes(bytes(buf3[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
     paused_sub = (ctypes.c_char * sub_size).from_address(pimpl3)
 
     g4 = greenlet(lambda: None)  # unstarted
     buf4 = (ctypes.c_char * gl_size).from_address(id(g4))
-    pimpl4 = int.from_bytes(buf4[pimpl_offset : pimpl_offset + ptr_size], sys.byteorder)
+    pimpl4 = int.from_bytes(bytes(buf4[pimpl_offset : pimpl_offset + ptr_size]), sys.byteorder)
 
     candidates = []
     if pimpl4 != 0:
@@ -201,8 +201,8 @@ def _discover_greenlet_offsets() -> tuple[int, int, int]:
                 if off == frame_offset:
                     continue
                 active_val = active_snapshot.get(off, 0)
-                paused_val = int.from_bytes(paused_sub[off : off + ptr_size], sys.byteorder)
-                unstarted_val = int.from_bytes(unstarted_sub[off : off + ptr_size], sys.byteorder)
+                paused_val = int.from_bytes(bytes(paused_sub[off : off + ptr_size]), sys.byteorder)
+                unstarted_val = int.from_bytes(bytes(unstarted_sub[off : off + ptr_size]), sys.byteorder)
 
                 # stack_stop: non-NULL for started (active AND paused), NULL for unstarted,
                 # and stable (same value) across active/paused transitions.
