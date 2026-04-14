@@ -149,7 +149,7 @@ class RouteMixedPatternHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self, item_id):
-        self.write(item_id)
+        self.write("mixed")
 
 
 class RouteOrderSpecificHandler(tornado.web.RequestHandler):
