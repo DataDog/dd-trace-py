@@ -176,12 +176,13 @@ def disable_asm() -> None:
         from ddtrace.appsec._listeners import disable_appsec
 
         disable_appsec(reconfigure_tracer=True)
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
+        if not asm_config._asm_enabled:
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
 
 def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC)
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+        if load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC):
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
