@@ -4,6 +4,11 @@ from platform import system
 import sys
 from typing import Optional
 
+from ddtrace.appsec._constants import AI_GUARD_ENABLED
+from ddtrace.appsec._constants import AI_GUARD_ENDPOINT
+from ddtrace.appsec._constants import AI_GUARD_MAX_CONTENT_SIZE
+from ddtrace.appsec._constants import AI_GUARD_MAX_MESSAGES_LENGTH
+from ddtrace.appsec._constants import AI_GUARD_TIMEOUT
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -14,11 +19,6 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import AI_GUARD_ENABLED
-from ddtrace.internal.constants import AI_GUARD_ENDPOINT
-from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
-from ddtrace.internal.constants import AI_GUARD_MAX_MESSAGES_LENGTH
-from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
