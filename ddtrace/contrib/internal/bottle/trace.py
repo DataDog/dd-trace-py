@@ -61,7 +61,6 @@ class TracePlugin(object):
                     query=request.query_string,
                     request_route=full_route,
                     request_method=method,
-                    trace_query_string=config.bottle.trace_query_string,
                     integration_config=config.bottle,
                     headers_case_sensitive=True,
                     activate_distributed_headers=True,

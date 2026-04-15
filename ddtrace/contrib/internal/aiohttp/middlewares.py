@@ -9,9 +9,8 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
-REQUEST_CONTEXT_KEY = "datadog_context"
+REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
-REQUEST_SPAN_KEY = "__datadog_request_span"
 
 
 async def trace_middleware(app, handler):
@@ -65,9 +64,9 @@ async def trace_middleware(app, handler):
             dispatch_end_event=False,
         ) as ctx:
             req_span = ctx.span
-            # attach the context and the root span to the request; the Context
-            # may be freely used by the application code
-            request[REQUEST_CONTEXT_KEY] = ctx
+
+            # attach the execution context to the request
+            request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
 
             try:
                 response = await handler(request)
@@ -84,7 +83,7 @@ async def trace_middleware(app, handler):
 
 def finish_request_span(request, response):
     # safe-guard: discard if we don't have a request span
-    ctx = request.get(REQUEST_CONTEXT_KEY)
+    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
     if not ctx or not ctx.span:
         return
 

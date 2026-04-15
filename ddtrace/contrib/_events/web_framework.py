@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
-from ddtrace.contrib._events.http_client import HttpRequestBaseEvent
+from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
@@ -37,8 +37,8 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Framework-resolved route template/path used for http.route and resource enrichment.
     request_route: Optional[str] = event_field(default=None)
 
-    # Optional override controlling whether the query string is tagged on the span.
-    # Created because aiohttp can override that
+    # Optional per-request override for query string tagging.
+    # aiohttp supports app-level trace_query_string that can differ from integration_config.
     trace_query_string: Optional[bool] = event_field(default=None)
 
     def __post_init__(self):

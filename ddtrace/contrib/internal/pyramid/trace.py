@@ -73,7 +73,6 @@ def trace_tween_factory(handler, registry):
                     request_url=request.url,
                     request_method=request.method,
                     request_route=None,
-                    trace_query_string=config.pyramid.trace_query_string,
                     query=request.query_string,
                     activate_distributed_headers=True,
                     headers_case_sensitive=True,

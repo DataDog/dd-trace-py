@@ -47,12 +47,17 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             integration_config=event.integration_config,
             method=method,
             url=event.request_url,
+            # set_http_meta will check only integration_config to set or not query
+            # however, aiohttp support per-app trace_query_string config overrides
+            query=event.query if event.trace_query_string is None else None,
             status_code=status_code,
             request_headers=event.request_headers,
             response_headers=dict(res_headers) if res_headers is not None else None,
             route=event.request_route,
         )
 
+        # aiohttp supports per-app trace_query_string overrides that may differ from
+        # integration_config.trace_query_string.
         if event.trace_query_string and event.query is not None:
             span._set_attribute(http.QUERY_STRING, event.query)
 
