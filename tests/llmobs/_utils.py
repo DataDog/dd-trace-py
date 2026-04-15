@@ -16,7 +16,7 @@ import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -339,7 +339,7 @@ def _llmobs_base_span_event(
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": parent_id,
-        "name": name or _get_span_name(span),
+        "name": name or get_llmobs_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",

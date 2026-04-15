@@ -21,8 +21,8 @@ from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -196,7 +196,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         parent = _get_nearest_llmobs_ancestor(span)
         trace_info = self._llmobs_get_trace_info(oai_span)
         if parent and trace_info and get_llmobs_parent_id(span) == trace_info.current_top_level_agent_span_id:
-            name = _get_span_name(parent) + " (LLM)"
+            name = (get_llmobs_span_name(parent) or parent.name) + " (LLM)"
 
         input_messages = None
         if oai_span.input:

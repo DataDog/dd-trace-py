@@ -46,6 +46,8 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
+from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
@@ -63,7 +65,10 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
+from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
@@ -75,6 +80,7 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -122,7 +128,6 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
-from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _normalize_trace_id_to_hex
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
@@ -133,6 +138,7 @@ from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import resolve_ml_app
@@ -160,6 +166,15 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+_STANDARD_INTEGRATION_SPAN_NAMES = (
+    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
+    CREWAI_APM_SPAN_NAME,
+    GEMINI_APM_SPAN_NAME,
+    LANGCHAIN_APM_SPAN_NAME,
+    LITELLM_APM_SPAN_NAME,
+    VERTEXAI_APM_SPAN_NAME,
+)
 
 
 # requests/concurrent frameworks for distributed injection/extraction
@@ -481,10 +496,10 @@ class LLMObs(Service):
 
     def _on_span_finish(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
-            self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
             if self._export_llmobs:
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+                self._submit_llmobs_span(span)
+                span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
 
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -580,7 +595,7 @@ class LLMObs(Service):
             "trace_id": submitted_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
-            "name": _get_span_name(span),
+            "name": get_llmobs_span_name(span),
             "start_ns": span.start_ns,
             "duration": cast(int, span.duration_ns),
             "status": "error" if span.error else "ok",
@@ -1900,8 +1915,16 @@ class LLMObs(Service):
             parent_id = ROOT_PARENT_ID
             ml_app, session_id = None, None
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        resolved_name = span.name  # Resolve span name eagerly so it's available in meta_struct at span finish time
+        if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
+            resolved_name = span.resource
         _annotate_llmobs_span_data(
-            span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
+            span,
+            name=resolved_name,
+            parent_id=parent_id,
+            trace_id=llmobs_trace_id,
+            ml_app=ml_app,
+            session_id=session_id,
         )
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
