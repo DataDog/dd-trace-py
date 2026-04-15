@@ -1,0 +1,60 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 1.109.1",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "1.109.1",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "arm64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.9.25",
+      "X-Stainless-Async": "false",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "241"
+    },
+    "body": "{\"model\":\"gpt-3.5-turbo-instruct\",\"prompt\":[\"You are a helpful assistant. Please answer this question: What is machine learning?\"],\"frequency_penalty\":0,\"logit_bias\":{},\"max_tokens\":256,\"n\":1,\"presence_penalty\":0,\"temperature\":0.7,\"top_p\":1}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "CF-RAY": "96b72efd18634cd5-BOS",
+      "Cache-Control": "no-cache, must-revalidate",
+      "Connection": "keep-alive",
+      "Content-Encoding": "gzip",
+      "Content-Type": "application/json",
+      "Date": "Thu, 07 Aug 2025 13:40:03 GMT",
+      "Server": "cloudflare",
+      "Set-Cookie": "__cf_bm=E7M6tK6_m07TG2jd3_3dQheW.VrykThVm6qZWuJmQJQ-1754574003-1.0.1.1-rf8ee_O7Usj6tnGjMRpmNMpwzd0i6GYgIyL4irJEgjCwGq_t2XfmLLt3xNSUt.aqbVEpcC2nkly6exkU6ZXK.fkfPO3y0QX4Pqpe8xS6rLc; path=/; expires=Thu, 07-Aug-25 14:10:03 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None",
+      "Transfer-Encoding": "chunked",
+      "X-Content-Type-Options": "nosniff",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "X-Request-ID",
+      "alt-svc": "h3=\":443\"; ma=86400",
+      "cf-cache-status": "DYNAMIC",
+      "openai-model": "gpt-3.5-turbo-instruct:20230824-v2",
+      "openai-processing-ms": "743",
+      "openai-project": "proj_gt6TQZPRbZfoY2J9AQlEJMpd",
+      "openai-version": "2020-10-01",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "via": "envoy-router-667b55c4ff-2dhvp",
+      "x-envoy-upstream-service-time": "767",
+      "x-ratelimit-limit-requests": "3500",
+      "x-ratelimit-limit-tokens": "90000",
+      "x-ratelimit-remaining-requests": "3498",
+      "x-ratelimit-remaining-tokens": "89979",
+      "x-ratelimit-reset-requests": "17ms",
+      "x-ratelimit-reset-tokens": "14ms",
+      "x-request-id": "req_aafc2aba1dd8429c9d04d8e005f8fe89"
+    },
+    "body": "{\n  \"id\": \"cmpl-C1v8dxTpIe8hAPdDoFYOfKi93Tgqc\",\n  \"object\": \"text_completion\",\n  \"created\": 1754574003,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n  \"choices\": [\n    {\n      \"text\": \"\\n\\nMachine learning is a subset of artificial intelligence that involves teaching computers to learn from data and make predictions or decisions without being explicitly programmed for each task. It uses algorithms and statistical models to analyze and identify patterns in data, and then uses that information to make informed decisions or predictions. It is often used in applications such as image and speech recognition, natural language processing, and data analysis.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 16,\n    \"completion_tokens\": 77,\n    \"total_tokens\": 93\n  }\n}\n"
+  }
+}
