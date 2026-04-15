@@ -339,7 +339,7 @@ def _llmobs_base_span_event(
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": parent_id,
-        "name": name or get_llmobs_span_name(span),
+        "name": name or get_llmobs_span_name(span) or span.name,
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",

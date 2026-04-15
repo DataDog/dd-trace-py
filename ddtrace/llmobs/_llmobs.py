@@ -496,9 +496,9 @@ class LLMObs(Service):
 
     def _on_span_finish(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
+            self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
             if self._export_llmobs:
-                self._submit_llmobs_span(span)
                 span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
 
     def _submit_llmobs_span(self, span: Span) -> None:
@@ -617,58 +617,25 @@ class LLMObs(Service):
 
     @staticmethod
     def _llmobs_tags(span: Span) -> list[str]:
-        dd_tags = config.tags
-        tags = {
-            **dd_tags,
-            "version": config.version or "",
-            "env": config.env or "",
-            "service": span.service or "",
-            "source": "integration",
-            "ml_app": get_llmobs_ml_app(span),
-            "ddtrace.version": __version__,
-            "language": "python",
-            "error": span.error,
-        }
+        tags = dict(get_llmobs_tags(span) or {})
+
+        tags["error"] = span.error
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
-        session_id = get_llmobs_session_id(span)
-        if session_id:
-            tags["session_id"] = session_id
 
-        existing_tags = get_llmobs_tags(span)
-
-        if existing_tags is not None:
-            tags.update(existing_tags)
-
-        # set experiment tags on children spans if the tags do not already exist
-        experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_KEY)
-        if experiment_id and "experiment_id" not in tags:
-            tags["experiment_id"] = experiment_id
-
-        run_id = span.context.get_baggage_item(EXPERIMENT_RUN_ID_KEY)
-        if run_id and "run_id" not in tags:
-            tags["run_id"] = run_id
-
-        run_iteration = span.context.get_baggage_item(EXPERIMENT_RUN_ITERATION_KEY)
-        if run_iteration and "run_iteration" not in tags:
-            tags["run_iteration"] = run_iteration
-
-        dataset_name = span.context.get_baggage_item(EXPERIMENT_DATASET_NAME_KEY)
-        if dataset_name and "dataset_name" not in tags:
-            tags["dataset_name"] = dataset_name
-
-        project_name = span.context.get_baggage_item(EXPERIMENT_PROJECT_NAME_KEY)
-        if project_name and "project_name" not in tags:
-            tags["project_name"] = project_name
-
-        project_id = span.context.get_baggage_item(EXPERIMENT_PROJECT_ID_KEY)
-        if project_id and "project_id" not in tags:
-            tags["project_id"] = project_id
-
-        experiment_name = span.context.get_baggage_item(EXPERIMENT_NAME_KEY)
-        if experiment_name and "experiment_name" not in tags:
-            tags["experiment_name"] = experiment_name
+        for baggage_key, tag_key in (
+            (EXPERIMENT_ID_KEY, "experiment_id"),
+            (EXPERIMENT_RUN_ID_KEY, "run_id"),
+            (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
+            (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
+            (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
+            (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
+            (EXPERIMENT_NAME_KEY, "experiment_name"),
+        ):
+            val = span.context.get_baggage_item(baggage_key)
+            if val and tag_key not in tags:
+                tags[tag_key] = val
 
         return ["{}:{}".format(k, v) for k, v in tags.items()]
 
@@ -1918,6 +1885,20 @@ class LLMObs(Service):
         resolved_name = span.name  # Resolve span name eagerly so it's available in meta_struct at span finish time
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
             resolved_name = span.resource
+
+        initial_tags = {
+            **config.tags,
+            "version": config.version or "",
+            "env": config.env or "",
+            "service": span.service or "",
+            "source": "integration",
+            "ml_app": ml_app,
+            "ddtrace.version": __version__,
+            "language": "python",
+        }
+        if session_id:
+            initial_tags["session_id"] = session_id
+
         _annotate_llmobs_span_data(
             span,
             name=resolved_name,
@@ -1925,6 +1906,7 @@ class LLMObs(Service):
             trace_id=llmobs_trace_id,
             ml_app=ml_app,
             session_id=session_id,
+            tags=initial_tags,
         )
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
