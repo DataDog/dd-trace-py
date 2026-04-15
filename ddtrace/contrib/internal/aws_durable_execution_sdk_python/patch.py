@@ -42,7 +42,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"aws-durable-execution-sdk-python": ">=1.4.0"}
+    return {"aws_durable_execution_sdk_python": ">=1.4.0"}
 
 
 def _get_service():
