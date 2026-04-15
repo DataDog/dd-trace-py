@@ -12,7 +12,7 @@ from .utils import make_message
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_publish_creates_producer_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("publish test")
@@ -20,7 +20,7 @@ async def test_publish_creates_producer_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_consume_callback_creates_consumer_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("consume callback test")
@@ -47,7 +47,7 @@ async def test_consume_callback_creates_consumer_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_queue_get_creates_consumer_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("get test")
@@ -60,7 +60,7 @@ async def test_queue_get_creates_consumer_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_message_ack_creates_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("ack test")
@@ -72,7 +72,7 @@ async def test_message_ack_creates_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_message_nack_creates_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("nack test")
@@ -84,7 +84,7 @@ async def test_message_nack_creates_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_message_reject_creates_span(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("reject test")
@@ -96,7 +96,7 @@ async def test_message_reject_creates_span(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_publish_consume_full_flow(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("full flow test")
@@ -122,7 +122,7 @@ async def test_publish_consume_full_flow(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_publish_multiple_messages(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         for i in range(3):
@@ -131,7 +131,7 @@ async def test_publish_multiple_messages(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_nack_with_requeue(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("requeue nack test")
@@ -149,7 +149,7 @@ async def test_nack_with_requeue(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_queue_get_empty_queue(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         incoming = await queue.get(no_ack=True, fail=False, timeout=1)
@@ -157,7 +157,7 @@ async def test_queue_get_empty_queue(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message", "meta.out.host"])
 async def test_queue_get_empty_queue_raises(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         with pytest.raises(aio_pika.exceptions.QueueEmpty):
@@ -165,7 +165,7 @@ async def test_queue_get_empty_queue_raises(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_distributed_tracing_publish_to_consume(patch_aio_pika):
     with override_config("aio_pika", dict(distributed_tracing_enabled=True)):
         async with aio_pika_ctx() as (channel, exchange, queue):
@@ -192,7 +192,7 @@ async def test_distributed_tracing_publish_to_consume(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_distributed_tracing_publish_to_get(patch_aio_pika):
     with override_config("aio_pika", dict(distributed_tracing_enabled=True)):
         async with aio_pika_ctx() as (channel, exchange, queue):
@@ -206,7 +206,7 @@ async def test_distributed_tracing_publish_to_get(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_distributed_tracing_disabled(patch_aio_pika):
     with override_config("aio_pika", dict(distributed_tracing_enabled=False)):
         async with aio_pika_ctx() as (channel, exchange, queue):
@@ -233,7 +233,7 @@ async def test_distributed_tracing_disabled(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_service_name_override(patch_aio_pika):
     with override_config("aio_pika", dict(service="my-custom-rabbitmq")):
         async with aio_pika_ctx() as (channel, exchange, queue):
@@ -242,7 +242,7 @@ async def test_service_name_override(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_publish_with_custom_headers(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("headers test", headers={"x-custom": "value", "x-priority": "high"})
@@ -256,7 +256,7 @@ async def test_publish_with_custom_headers(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message", "meta.out.host"])
 async def test_publish_to_nonexistent_exchange(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         temp_exchange = await channel.declare_exchange(
@@ -272,7 +272,7 @@ async def test_publish_to_nonexistent_exchange(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_publish_sets_connection_tags_for_peer_service(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue):
         msg = make_message("peer service test")

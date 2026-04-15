@@ -173,7 +173,7 @@ async def test_dsm_publish_consume_linked_pathway(patch_aio_pika, dsm_processor,
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.out.host"])
 async def test_dsm_span_has_pathway_hash(patch_aio_pika, dsm_processor):
     """Spans should have DSM pathway hash tag set."""
     async with aio_pika_ctx() as (channel, exchange, queue):
