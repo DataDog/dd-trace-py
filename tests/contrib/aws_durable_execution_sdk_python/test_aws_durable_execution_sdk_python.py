@@ -830,3 +830,639 @@ class TestConfiguration:
         # Should get exactly 1 execution span, not duplicated by double patching
         execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
         assert len(execution_spans) == 1, "Double patching should not produce duplicate spans"
+
+
+# ===========================================================================
+# Helper: build initial state with custom input payload
+# ===========================================================================
+def _build_initial_state_with_payload(input_payload_str):
+    """Build initial state with a custom input payload string."""
+    from aws_durable_execution_sdk_python.lambda_service import (
+        ExecutionDetails,
+        Operation,
+        OperationStatus,
+        OperationType,
+    )
+
+    execution_op = Operation(
+        operation_id="exec-op-0",
+        operation_type=OperationType.EXECUTION,
+        status=OperationStatus.STARTED,
+        execution_details=ExecutionDetails(input_payload=input_payload_str),
+    )
+    return [execution_op]
+
+
+# ===========================================================================
+# Test class: Context Propagation (Distributed Tracing)
+# ===========================================================================
+class TestContextPropagation:
+    """Tests for distributed tracing context propagation across invoke calls.
+
+    Context propagation enables linking traces across service boundaries:
+    - On invoke: trace context is injected into the payload dict via _datadog key
+    - On execution: trace context is extracted from _datadog in the input_event
+    """
+
+    def test_extraction_links_execution_to_parent_trace(self, tracer):
+        """When input_event contains _datadog headers, the execution span is a child of the upstream trace."""
+        from ddtrace.propagation.http import HTTPPropagator
+
+        from aws_durable_execution_sdk_python import durable_execution
+
+        # Create upstream span to get valid trace context headers
+        with tracer.tracer.trace("upstream.invoke") as upstream_span:
+            upstream_trace_id = upstream_span.trace_id
+            upstream_span_id = upstream_span.span_id
+            headers = {}
+            HTTPPropagator.inject(upstream_span.context, headers)
+
+        # Clear the upstream span from collected spans
+        tracer.pop()
+
+        # Build input payload with _datadog headers
+        input_payload = json.dumps({
+            "order_id": "ORD-42",
+            "_datadog": headers,
+        })
+        initial_ops = _build_initial_state_with_payload(input_payload)
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def ctx_workflow(event, context):
+            return {"received": True}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            sdk_output = ctx_workflow(event, lambda_ctx)
+
+        inner = _extract_result(sdk_output)
+        assert inner["received"] is True
+
+        spans = tracer.pop()
+        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        assert len(workflow_spans) == 1
+        workflow_span = workflow_spans[0]
+
+        # Verify full span structure
+        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.span_type == "serverless"
+        assert workflow_span.resource == "aws_durable_execution.execution"
+        assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
+        assert workflow_span.get_tag("span.kind") == "server"
+        assert workflow_span.error == 0
+
+        # The execution span should be linked to the upstream trace
+        assert workflow_span.trace_id == upstream_trace_id, (
+            "Execution span trace_id should match upstream trace_id"
+        )
+        assert workflow_span.parent_id == upstream_span_id, (
+            "Execution span parent_id should match upstream span_id"
+        )
+
+    def test_extraction_disabled_no_parent_linkage(self, tracer):
+        """When distributed_tracing_enabled=False, _datadog is ignored and span is a root."""
+        from ddtrace.propagation.http import HTTPPropagator
+
+        from aws_durable_execution_sdk_python import durable_execution
+
+        # Create upstream span context
+        with tracer.tracer.trace("upstream.invoke") as upstream_span:
+            upstream_trace_id = upstream_span.trace_id
+            headers = {}
+            HTTPPropagator.inject(upstream_span.context, headers)
+
+        tracer.pop()
+
+        input_payload = json.dumps({
+            "order_id": "ORD-42",
+            "_datadog": headers,
+        })
+        initial_ops = _build_initial_state_with_payload(input_payload)
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def no_extract_workflow(event, context):
+            return {"received": True}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=False)):
+            no_extract_workflow(event, lambda_ctx)
+
+        spans = tracer.pop()
+        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        assert len(workflow_spans) == 1
+        workflow_span = workflow_spans[0]
+
+        # Verify span is still well-formed
+        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.span_type == "serverless"
+        assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
+
+        # With distributed tracing disabled, the span should NOT be linked to upstream
+        assert workflow_span.trace_id != upstream_trace_id, (
+            "With distributed tracing disabled, trace_id should not match upstream"
+        )
+
+    def test_extraction_without_datadog_headers_creates_root_span(self, tracer):
+        """When input_event has no _datadog key, the execution span is a root span."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def root_workflow(event, context):
+            return {"status": "ok"}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            sdk_output = root_workflow(event, lambda_ctx)
+
+        inner = _extract_result(sdk_output)
+        assert inner["status"] == "ok"
+
+        spans = tracer.pop()
+        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        assert len(workflow_spans) == 1
+        workflow_span = workflow_spans[0]
+
+        # Verify full span structure
+        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.span_type == "serverless"
+        assert workflow_span.resource == "aws_durable_execution.execution"
+        assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
+        assert workflow_span.get_tag("span.kind") == "server"
+        assert workflow_span.error == 0
+
+        # Without _datadog headers, the span should be a root span
+        assert workflow_span.parent_id == 0 or workflow_span.parent_id is None, (
+            "Without _datadog headers, execution span should be a root span"
+        )
+
+    def test_injection_adds_datadog_to_invoke_payload(self, tracer):
+        """invoke() adds _datadog headers to the dict payload for distributed tracing."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        # Create a mock function to capture what _traced_invoke passes to the SDK
+        captured_args = {}
+
+        def mock_func(*args, **kwargs):
+            captured_args["args"] = args
+            captured_args["kwargs"] = kwargs
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        payload = {"order_id": "ORD-42", "amount": 99.95}
+        args = ("payment-fn", payload)
+        kwargs = {"name": "process-payment"}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify invoke span structure
+        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.span_type == "serverless"
+        assert invoke_span.resource == "process-payment"
+        assert invoke_span.get_tag("span.kind") == "client"
+        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-fn"
+        assert invoke_span.error == 0
+
+        # Verify the payload passed to the underlying function has _datadog
+        actual_args = captured_args["args"]
+        actual_payload = actual_args[1]
+        assert "_datadog" in actual_payload, "Payload should contain _datadog headers"
+        assert isinstance(actual_payload["_datadog"], dict), "_datadog should be a dict of headers"
+        # Verify _datadog contains trace context headers (at minimum the trace-id)
+        datadog_headers = actual_payload["_datadog"]
+        assert len(datadog_headers) > 0, "_datadog should contain propagation headers"
+
+        # Verify original payload keys are preserved
+        assert actual_payload["order_id"] == "ORD-42"
+        assert actual_payload["amount"] == 99.95
+
+    def test_injection_disabled_no_datadog_in_payload(self, tracer):
+        """When distributed_tracing_enabled=False, no _datadog is added to the payload."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        captured_args = {}
+
+        def mock_func(*args, **kwargs):
+            captured_args["args"] = args
+            captured_args["kwargs"] = kwargs
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        payload = {"order_id": "ORD-42"}
+        args = ("payment-fn", payload)
+        kwargs = {"name": "process-payment"}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=False)):
+            _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify span still exists and is well-formed
+        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.span_type == "serverless"
+        assert invoke_span.get_tag("span.kind") == "client"
+
+        # Verify no _datadog was injected
+        actual_args = captured_args["args"]
+        actual_payload = actual_args[1]
+        assert "_datadog" not in actual_payload, "With disabled config, payload should not have _datadog"
+        assert actual_payload["order_id"] == "ORD-42"
+
+    def test_injection_non_dict_payload_graceful(self, tracer):
+        """When payload is not a dict, injection is skipped gracefully."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        captured_args = {}
+
+        def mock_func(*args, **kwargs):
+            captured_args["args"] = args
+            captured_args["kwargs"] = kwargs
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        # Non-dict payload (a string)
+        args = ("payment-fn", "string-payload")
+        kwargs = {"name": "process-payment"}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify span is still created correctly
+        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.span_type == "serverless"
+        assert invoke_span.get_tag("span.kind") == "client"
+        assert invoke_span.error == 0
+
+        # Verify payload was passed through unchanged
+        actual_args = captured_args["args"]
+        assert actual_args[1] == "string-payload", "Non-dict payload should be passed unchanged"
+
+    def test_injection_does_not_mutate_original_payload(self, tracer):
+        """Injecting _datadog should not mutate the caller's original payload dict."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        def mock_func(*args, **kwargs):
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        original_payload = {"order_id": "ORD-42"}
+        args = ("payment-fn", original_payload)
+        kwargs = {"name": "process-payment"}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        tracer.pop()
+
+        # The original payload dict should NOT be mutated
+        assert "_datadog" not in original_payload, (
+            "Original payload dict should not be mutated by injection"
+        )
+
+    def test_distributed_tracing_enabled_by_default(self, tracer):
+        """distributed_tracing_enabled should be True by default."""
+        from ddtrace import config as dd_config
+
+        assert dd_config.aws_durable_execution_sdk_python.distributed_tracing_enabled is True, (
+            "distributed_tracing_enabled should be True by default"
+        )
+
+    def test_extraction_with_child_spans_preserves_trace(self, tracer):
+        """When extracting context, step and invoke child spans share the same trace_id."""
+        from ddtrace.propagation.http import HTTPPropagator
+
+        from aws_durable_execution_sdk_python import durable_execution
+
+        # Create upstream context
+        with tracer.tracer.trace("upstream.invoke") as upstream_span:
+            upstream_trace_id = upstream_span.trace_id
+            upstream_span_id = upstream_span.span_id
+            headers = {}
+            HTTPPropagator.inject(upstream_span.context, headers)
+
+        tracer.pop()
+
+        # Build input with _datadog and also set up invoke pre-completed state
+        input_payload_dict = {"order_id": "ORD-42", "_datadog": headers}
+        input_payload = json.dumps(input_payload_dict)
+
+        from aws_durable_execution_sdk_python.lambda_service import (
+            ChainedInvokeDetails,
+            ExecutionDetails,
+            Operation,
+            OperationStatus,
+            OperationType,
+        )
+
+        invoke_op_id = _step_id(None, 3)
+        execution_op = Operation(
+            operation_id="exec-op-0",
+            operation_type=OperationType.EXECUTION,
+            status=OperationStatus.STARTED,
+            execution_details=ExecutionDetails(input_payload=input_payload),
+        )
+        invoke_op = Operation(
+            operation_id=invoke_op_id,
+            operation_type=OperationType.CHAINED_INVOKE,
+            status=OperationStatus.SUCCEEDED,
+            name="process-payment",
+            chained_invoke_details=ChainedInvokeDetails(
+                result=json.dumps({"payment_id": "PAY-789", "status": "approved"}),
+            ),
+        )
+        initial_ops = [execution_op, invoke_op]
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def linked_workflow(event, context):
+            def validate(step_ctx):
+                return {"valid": True}
+
+            context.step(validate, name="validate")
+            context.step(validate, name="calc")
+            payment = context.invoke(
+                function_name="payment-fn",
+                payload={"total": 100},
+                name="process-payment",
+            )
+            return {"payment": payment}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            sdk_output = linked_workflow(event, lambda_ctx)
+
+        spans = tracer.pop()
+
+        # Verify we got the expected span types
+        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+
+        assert len(execution_spans) == 1
+        assert len(step_spans) == 2
+        assert len(invoke_spans) == 1
+
+        execution_span = execution_spans[0]
+
+        # Execution span should be linked to the upstream trace
+        assert execution_span.trace_id == upstream_trace_id
+        assert execution_span.parent_id == upstream_span_id
+
+        # All spans should share the upstream trace_id
+        for span in spans:
+            assert span.trace_id == upstream_trace_id, (
+                "Span '{}' (resource={}) should share the upstream trace_id".format(
+                    span.name, span.resource
+                )
+            )
+
+        # Step and invoke spans should be children of the execution span
+        for span in step_spans + invoke_spans:
+            assert span.parent_id == execution_span.span_id, (
+                "Span '{}' (resource={}) should be child of execution span".format(
+                    span.name, span.resource
+                )
+            )
+
+
+# ===========================================================================
+# Test class: Peer Service
+# ===========================================================================
+class TestPeerService:
+    """Tests for peer service support on invoke spans.
+
+    The PeerServiceProcessor automatically computes ``peer.service`` from
+    source tags on client spans.  The integration sets ``out.host`` on
+    invoke spans so the processor can derive peer.service from the
+    target function name.
+    """
+
+    def test_invoke_span_sets_out_host_to_function_name(self, tracer):
+        """The invoke span should have out.host set to the target function name."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_with_invoke()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def peer_workflow(event, context):
+            def validate(step_ctx):
+                return {"valid": True}
+
+            def calc(step_ctx):
+                return {"total": 100}
+
+            context.step(validate, name="validate")
+            context.step(calc, name="calc")
+            payment = context.invoke(
+                function_name="payment-processor-fn",
+                payload={"order_id": "ORD-42", "total": 100},
+                name="process-payment",
+            )
+            return {"payment": payment}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+        sdk_output = peer_workflow(event, lambda_ctx)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify full invoke span structure
+        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.span_type == "serverless"
+        assert invoke_span.resource == "process-payment"
+        assert invoke_span.get_tag("span.kind") == "client"
+        assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
+        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-processor-fn"
+
+        # out.host should be set to the function name for peer service derivation
+        assert invoke_span.get_tag("out.host") == "payment-processor-fn", (
+            "Invoke span should have out.host set to the target function name"
+        )
+
+    def test_invoke_span_out_host_uses_function_name_directly(self, tracer):
+        """invoke() with a mock captures out.host matching the function_name arg."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        def mock_func(*args, **kwargs):
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        payload = {"order_id": "ORD-42"}
+        args = ("my-downstream-lambda", payload)
+        kwargs = {"name": "call-downstream"}
+
+        _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify out.host is set to the function name
+        assert invoke_span.get_tag("out.host") == "my-downstream-lambda"
+        assert invoke_span.get_tag("span.kind") == "client"
+        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "my-downstream-lambda"
+        assert invoke_span.resource == "call-downstream"
+
+    def test_execution_span_does_not_set_out_host(self, tracer):
+        """The execution span (server) should NOT have out.host — peer service is only for client spans."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def simple_workflow(event, context):
+            return {"status": "ok"}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+        simple_workflow(event, lambda_ctx)
+
+        spans = tracer.pop()
+        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        assert len(execution_spans) == 1
+        execution_span = execution_spans[0]
+
+        # Server spans should not have out.host
+        assert execution_span.get_tag("span.kind") == "server"
+        assert execution_span.get_tag("out.host") is None, (
+            "Execution (server) span should not have out.host"
+        )
+
+    def test_step_span_does_not_set_out_host(self, tracer):
+        """The step span (internal) should NOT have out.host — peer service is only for client spans."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def step_only_workflow(event, context):
+            def my_step(step_ctx):
+                return "done"
+            return context.step(my_step, name="my-step")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+
+        try:
+            step_only_workflow(event, lambda_ctx)
+        except Exception:
+            pass
+
+        spans = tracer.pop()
+        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        assert len(step_spans) >= 1
+        step_span = step_spans[0]
+
+        # Internal spans should not have out.host
+        assert step_span.get_tag("span.kind") == "internal"
+        assert step_span.get_tag("out.host") is None, (
+            "Step (internal) span should not have out.host"
+        )
+
+    def test_invoke_without_function_name_no_out_host(self, tracer):
+        """When function_name is None/missing, out.host should not be set."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+
+        def mock_func(*args, **kwargs):
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        # No function_name in args or kwargs
+        args = ()
+        kwargs = {"name": "call-no-target"}
+
+        _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Without a function_name, out.host should not be set
+        assert invoke_span.get_tag("out.host") is None, (
+            "out.host should not be set when function_name is missing"
+        )
+
+    def test_peer_service_computed_from_out_host(self, tracer):
+        """When peer service defaults are enabled, peer.service is derived from out.host."""
+        from unittest.mock import MagicMock
+
+        from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+        from ddtrace.internal.peer_service.processor import PeerServiceProcessor
+        from ddtrace.internal.settings.peer_service import PeerServiceConfig
+
+        def mock_func(*args, **kwargs):
+            return "mock-result"
+
+        mock_instance = MagicMock()
+        args = ("target-lambda-fn", {"data": "test"})
+        kwargs = {"name": "peer-test"}
+
+        _traced_invoke(mock_func, mock_instance, args, kwargs)
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+        invoke_span = invoke_spans[0]
+
+        # Verify out.host is set (prerequisite for peer service)
+        assert invoke_span.get_tag("out.host") == "target-lambda-fn"
+
+        # Manually run the PeerServiceProcessor with defaults enabled to verify
+        # the full peer.service computation works
+        ps_config = PeerServiceConfig(set_defaults_enabled=True, peer_service_mapping={})
+        processor = PeerServiceProcessor(ps_config)
+        processor.process_trace([invoke_span])
+
+        # Verify peer.service was computed from out.host
+        assert invoke_span.get_tag("peer.service") == "target-lambda-fn", (
+            "peer.service should be derived from out.host (function_name)"
+        )
+        assert invoke_span.get_tag("_dd.peer.service.source") == "out.host", (
+            "peer.service source should be out.host"
+        )
