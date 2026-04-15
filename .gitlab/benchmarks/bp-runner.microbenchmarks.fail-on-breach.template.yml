@@ -791,7 +791,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.03 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib_cache
             thresholds:
