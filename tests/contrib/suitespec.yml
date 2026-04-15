@@ -290,7 +290,6 @@ suites:
       - '@datastreams'
       - tests/contrib/aio_pika/*
       - tests/snapshots/tests.contrib.aio_pika.*
-    runner: riot
     services:
       - rabbitmq
     snapshot: true
