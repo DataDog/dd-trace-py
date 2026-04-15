@@ -599,8 +599,10 @@ AI Guard
      type: Boolean
      default: True
      description: |
-       Whether AI Guard should block requests that violate security policies.
-       When set to ``False``, AI Guard evaluates but does not raise ``AIGuardAbortError`` on policy violations.
+       Controls whether AI Guard blocking is enabled. When set to ``True`` (default), the blocking
+       behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
+       force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
+       never raised, regardless of the in-app blocking setting.
 
 Code Security
 -------------
