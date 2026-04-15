@@ -9,26 +9,30 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
-      "banana": "True",
+      "_dd.p.dm": "-3",
+      "_dd.p.ksr": "0",
+      "_dd.p.tid": "69dfabd200000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp52wgvxyw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+      "runtime-id": "44398bbabb8c43dba4285ee1a4e9ee04",
+      "tag1": "mycooltag"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": -1.0,
+      "process_id": 4425.0
     },
-    "duration": 60000,
-    "start": 1707776518618875000
+    "duration": 82292,
+    "start": 1776266194430616333
   }],
 [
   {
-    "name": "should_send1",
+    "name": "should_send2",
     "service": "ddtrace_subprocess_dir",
-    "resource": "should_send1",
+    "resource": "banana",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -36,25 +40,27 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
-      "banana": "True",
+      "_dd.p.tid": "69dfabd200000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp52wgvxyw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+      "runtime-id": "44398bbabb8c43dba4285ee1a4e9ee04",
+      "tag1": "mycooltag"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4425.0
     },
-    "duration": 49000,
-    "start": 1707776518617308000
+    "duration": 25500,
+    "start": 1776266194431099958
   }],
 [
   {
-    "name": "should_send2",
+    "name": "should_send1",
     "service": "ddtrace_subprocess_dir",
-    "resource": "banana",
+    "resource": "should_send1",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
@@ -62,19 +68,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
+      "_dd.p.tid": "69dfabd200000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp52wgvxyw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "banana": "True",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
-      "tag1": "mycooltag"
+      "runtime-id": "44398bbabb8c43dba4285ee1a4e9ee04"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4425.0
     },
-    "duration": 72000,
-    "start": 1707776518615597000
+    "duration": 8958,
+    "start": 1776266194431190958
   }],
 [
   {
@@ -87,20 +95,20 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-3",
-      "_dd.p.ksr": "0",
-      "_dd.p.tid": "65ca9a0600000000",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfabd200000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp52wgvxyw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "banana": "True",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
-      "tag1": "mycooltag"
+      "runtime-id": "44398bbabb8c43dba4285ee1a4e9ee04"
     },
     "metrics": {
-      "_dd.rule_psr": 0,
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4425.0
     },
-    "duration": 101000,
-    "start": 1707776518613453000
+    "duration": 6333,
+    "start": 1776266194431230583
   }]]

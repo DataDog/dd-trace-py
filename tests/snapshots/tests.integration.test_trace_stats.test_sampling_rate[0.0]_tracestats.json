@@ -6,16 +6,16 @@
       {
         "Name": "operation",
         "Resource": "operation",
-        "Service": null,
+        "Service": "tests.integration",
         "Type": "",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 10,
         "TopLevelHits": 10,
-        "Duration": 204583,
+        "Duration": 148709,
         "Errors": 0,
-        "OkSummary": 2070,
-        "ErrorSummary": 15
+        "OkSummary": 1167,
+        "ErrorSummary": 24
       }
     ]
   }

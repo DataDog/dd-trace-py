@@ -12,19 +12,21 @@
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "1",
-      "_dd.p.tid": "65cd344600000000",
+      "_dd.p.tid": "69dfabd100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpfuyko5h6,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "9356e035b52344f6b4a7227820d797d5",
+      "runtime-id": "0ea01d88e2fd411288859ba9b8b3010a",
       "test": "tag"
     },
     "metrics": {
       "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1.0,
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 91633
+      "_sampling_priority_v1": 2.0,
+      "process_id": 4411.0
     },
-    "duration": 230000,
-    "start": 1707947078045612000
+    "duration": 66250,
+    "start": 1776266193977905958
   }]]

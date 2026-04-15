@@ -10,17 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfabd600000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp0tfnv20h,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
+      "runtime-id": "1d9d9245e9074f14b45d7a1279b94d89"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 19794
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4504.0
     },
-    "duration": 86588,
-    "start": 1691163616713154842
+    "duration": 89125,
+    "start": 1776266198075715377
   },
      {
        "name": "child",
@@ -31,6 +34,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 10853,
-       "start": 1691163616713219858
+       "meta": {
+         "_dd.svc_src": "ddtrace_subprocess_dir"
+       },
+       "duration": 19417,
+       "start": 1776266198075772918
      }]]
