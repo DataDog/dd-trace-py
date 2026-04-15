@@ -58,16 +58,14 @@ def _build_span_event(
     if span_id is None:
         span_id = generate_128bit_trace_id()
     apm_trace_id = format_trace_id(root_span.trace_id)
-    llmobs_trace_id = get_llmobs_trace_id(root_span)
-    if llmobs_trace_id is None:
-        llmobs_trace_id = root_span.trace_id
+    llmobs_trace_id_str = get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id)
     session_id = get_llmobs_session_id(root_span)
     ml_app = get_llmobs_ml_app(root_span)
     tags = [f"ml_app:{ml_app}", f"session_id:{session_id}", "integration:bedrock_agents"]
     span_event: LLMObsSpanEvent = {
         "name": span_name,
         "span_id": str(span_id),
-        "trace_id": format_trace_id(llmobs_trace_id),
+        "trace_id": llmobs_trace_id_str,
         "parent_id": str(parent_id or root_span.span_id),
         "tags": tags,
         "start_ns": int(start_ns or root_span.start_ns),
@@ -83,7 +81,7 @@ def _build_span_event(
         "metrics": {},
         "_dd": {
             "span_id": str(span_id),
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": llmobs_trace_id_str,
             "apm_trace_id": apm_trace_id,
         },
     }
