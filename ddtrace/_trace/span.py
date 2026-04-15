@@ -35,7 +35,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
@@ -60,9 +59,6 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
     return f"{large_int:032x}"[:16]
-
-
-_INT_TYPES = frozenset([net.TARGET_PORT])
 
 
 class Span(SpanData):
@@ -217,34 +213,13 @@ class Span(SpanData):
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""
-        # Special case, force `http.status_code` as a string
-        # DEV: `http.status_code` *has* to be in `meta` for metrics
-        #   calculated in the trace agent
-        if key == http.STATUS_CODE:
-            value = str(value)
-
-        # Determine once up front
-        val_is_an_int = is_integer(value)
-
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        if key in _INT_TYPES and not val_is_an_int:
+        if key == net.TARGET_PORT:
             try:
                 value = int(value)  # type: ignore
-                val_is_an_int = True
             except (ValueError, TypeError):
                 pass
-
-        # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
-            return
-
-        # All floats should be set as a metric
-        elif isinstance(value, float):
-            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
-            return
-
         elif key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
@@ -256,19 +231,17 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self.set_tag(VERSION_KEY, value)
+            self._set_attribute(VERSION_KEY, value)  # type: ignore[arg-type]
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
+            self.set_metric(key, value)  # type: ignore[arg-type]  # ast-grep-ignore: span-set-metric
             return
 
         try:
-            self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
-            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
-                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+            self._set_attribute(key, value)  # type: ignore[arg-type]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -353,13 +326,11 @@ class Span(SpanData):
         """Return all numeric attributes."""
         return self._metrics  # ast-grep-ignore: span-metrics-access
 
-    def get_tag(self, key: str) -> Optional[str]:
-        """Return the given tag or None if it doesn't exist."""
-        return self._meta.get(key, None)  # ast-grep-ignore: span-meta-access
+    get_tag = _get_str_attribute
 
     def get_tags(self) -> dict[str, str]:
         """Return all tags."""
-        return self._meta.copy()  # ast-grep-ignore: span-meta-access
+        return dict(self._get_str_attributes())
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -390,14 +361,7 @@ class Span(SpanData):
                 log.debug("ignoring not number metric %s:%s", key, value)
                 return
 
-        # don't allow nan or inf
-        if math.isnan(value) or math.isinf(value):
-            log.debug("ignoring not real metric %s:%s", key, value)
-            return
-
-        if key in self._meta:  # ast-grep-ignore: span-meta-access
-            del self._meta[key]  # ast-grep-ignore: span-meta-access
-        self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
+        self._set_attribute(key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -407,9 +371,11 @@ class Span(SpanData):
             for k, v in metrics.items():
                 self.set_metric(k, v)  # ast-grep-ignore: span-set-metric
 
-    def get_metric(self, key: str) -> Optional[NumericType]:
-        """Return the given metric or None if it doesn't exist."""
-        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
+    get_metric = _get_numeric_attribute
+
+    def get_metrics(self) -> dict[str, NumericType]:
+        """Return all metrics."""
+        return dict(self._get_numeric_attributes())
 
     def _add_event(
         self, name: str, attributes: Optional[dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
@@ -419,10 +385,6 @@ class Span(SpanData):
     def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
-
-    def get_metrics(self) -> dict[str, NumericType]:
-        """Return all metrics."""
-        return self._metrics.copy()  # ast-grep-ignore: span-metrics-access
 
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
