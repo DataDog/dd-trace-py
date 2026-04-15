@@ -23,6 +23,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator as Propagator
 from ddtrace.trace import tracer
 
 
@@ -33,6 +34,7 @@ config._add(
     "aws_durable_execution_sdk_python",
     dict(
         _default_service="aws_durable_execution_sdk_python",
+        distributed_tracing_enabled=True,
     ),
 )
 
@@ -103,12 +105,35 @@ def _traced_durable_execution(func, instance, args, kwargs):
         except Exception:
             pass
 
+        # --- Extract distributed tracing context from input_event ---
+        # AIDEV-NOTE: When a durable execution is invoked via DurableContext.invoke(),
+        # the caller injects trace context into the payload dict under a "_datadog" key.
+        # We extract it here to link this execution span to the caller's trace.
+        parent_ctx = None
+        if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
+            if isinstance(input_event, dict) and "_datadog" in input_event:
+                try:
+                    parent_ctx = Propagator.extract(input_event["_datadog"])
+                    if parent_ctx.trace_id is None:
+                        parent_ctx = None
+                except Exception:
+                    parent_ctx = None
+
         # --- Create the execution span ---
-        span = tracer.trace(
-            name="aws_durable_execution.execution",
-            resource="aws_durable_execution.execution",
-            span_type="serverless",
-        )
+        if parent_ctx is not None:
+            span = tracer.start_span(
+                name="aws_durable_execution.execution",
+                child_of=parent_ctx,
+                resource="aws_durable_execution.execution",
+                span_type="serverless",
+                activate=True,
+            )
+        else:
+            span = tracer.trace(
+                name="aws_durable_execution.execution",
+                resource="aws_durable_execution.execution",
+                span_type="serverless",
+            )
         _set_base_tags(span)
         span._set_attribute("span.kind", "server")
         if arn:
@@ -224,8 +249,33 @@ def _traced_invoke(func, instance, args, kwargs):
     span._set_attribute("span.kind", "client")
     if function_name:
         span._set_attribute("aws.durable_execution.invoke.function_name", str(function_name))
+        # AIDEV-NOTE: out.host enables peer service computation by the
+        # PeerServiceProcessor.  It derives peer.service from out.host on
+        # client spans, giving downstream dependency visibility in APM.
+        span._set_attribute("out.host", str(function_name))
     if invoke_name:
         span._set_attribute("aws.durable_execution.invoke.name", invoke_name)
+
+    # --- Inject distributed tracing context into payload ---
+    # AIDEV-NOTE: When the payload is a dict, we inject trace context under a
+    # "_datadog" key so the downstream @durable_execution handler can extract it
+    # and link its execution span to this invoke span's trace.  We shallow-copy
+    # the dict to avoid mutating the caller's original payload.
+    if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
+        try:
+            payload = kwargs.get("payload") or (args[1] if len(args) > 1 else None)
+            if isinstance(payload, dict):
+                _datadog_headers = {}
+                Propagator.inject(span.context, _datadog_headers)
+                payload = dict(payload)  # shallow copy to avoid mutating caller's dict
+                payload["_datadog"] = _datadog_headers
+                if "payload" in kwargs:
+                    kwargs = dict(kwargs)
+                    kwargs["payload"] = payload
+                elif len(args) > 1:
+                    args = (args[0], payload) + args[2:]
+        except Exception:
+            pass
 
     try:
         result = func(*args, **kwargs)
