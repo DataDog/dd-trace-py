@@ -131,6 +131,20 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert request_span.get_tag("http.route") == "/mixed/(?:items|things)/%s/"
 
+    def test_endpoint_collection_uses_route_resolution(self):
+        from ddtrace.internal.endpoints import endpoint_collection
+
+        endpoints = {(ep.method, ep.path, ep.resource_name) for ep in endpoint_collection.endpoints}
+
+        assert ("GET", "/success/", "tests.contrib.tornado.web.app.SuccessHandler") in endpoints
+        assert ("GET", "/status_code/%s", "tests.contrib.tornado.web.app.ResponseStatusHandler") in endpoints
+        assert ("GET", "/complex/(?:new|existing)/", "tests.contrib.tornado.web.app.RouteComplexPatternHandler") in (
+            endpoints
+        )
+        assert ("GET", "/mixed/(?:items|things)/%s/", "tests.contrib.tornado.web.app.RouteMixedPatternHandler") in (
+            endpoints
+        )
+
     def test_nested_application_route_order(self):
         """
         Regression test: routes inside a nested application must be matched in declaration

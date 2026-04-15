@@ -26,6 +26,18 @@ from ddtrace.contrib.internal.tornado.handlers import _regex_to_route
         # --- Lookaheads / lookbehinds kept verbatim ---
         ("/(?=items)[a-z]+/$", "/(?=items)[a-z]+/"),
         ("/(?!admin)[a-z]+/$", "/(?!admin)[a-z]+/"),
+        ("/(?<=v)/([0-9]+)/$", "/(?<=v)/%s/"),
+        ("/(?<!beta)/([0-9]+)/$", "/(?<!beta)/%s/"),
+        # --- Atomic group (?>...) kept verbatim — non-capturing, no backtracking ---
+        ("/(?>[a-z]+)/([0-9]+)/$", "/(?>[a-z]+)/%s/"),
+        # --- Conditional group (?(id)yes|no) kept verbatim ---
+        # Note: (a)? — the capturing group (a) becomes %s, the ? quantifier stays.
+        ("/(a)?/b(?(1)c|d)/$", "/%s?/b(?(1)c|d)/"),
+        # --- Named backreference (?P=name) kept verbatim — not a capturing group ---
+        ("/(?P<word>[a-z]+)/(?P=word)/$", "/%s/(?P=word)/"),
+        # --- Inline comment (?#...) removed entirely — matches nothing ---
+        ("/foo(?#this is a comment)/([0-9]+)/$", "/foo/%s/"),
+        ("/foo/(?#comment)([0-9]+)/$", "/foo/%s/"),
         # --- Nested groups: outer capturing → %s, content (including inner) dropped ---
         ("/a/(b([0-9]+))/$", "/a/%s/"),
         # --- Escaped parens are not treated as group delimiters ---

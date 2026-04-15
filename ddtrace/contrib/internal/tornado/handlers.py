@@ -106,9 +106,24 @@ async def execute(func, handler, args, kwargs):
                     raise
 
 
-# Regex group prefixes that mark a group as non-capturing.
-# (?P<name>...) starts with "?P<" but IS capturing — it is intentionally absent here.
-_NON_CAPTURING_PREFIXES = ("?:", "?=", "?!", "?<=", "?<!")
+# Regex group prefixes that mark a group as non-capturing (kept verbatim in the route).
+# Full Python re syntax for groups starting with '(':
+#   (?:...)   non-capturing group
+#   (?=...)   positive lookahead
+#   (?!...)   negative lookahead
+#   (?<=...)  positive lookbehind
+#   (?<!...)  negative lookbehind
+#   (?>...)   atomic group
+#   (?(...)   conditional group
+#   (?P=name) named backreference  — NOT a capturing group despite starting with ?P
+#
+# Capturing groups — intentionally absent, they become %s in the route:
+#   (...)         positional capturing group
+#   (?P<name>...) named capturing group
+#
+# Comments — handled separately in _regex_to_route, removed entirely from the route:
+#   (?#...)  inline comment — matches nothing, contributes nothing to the path
+_NON_CAPTURING_PREFIXES = ("?:", "?=", "?!", "?<=", "?<!", "?>", "?(", "?P=")
 
 
 @lru_cache(maxsize=512)
@@ -166,8 +181,9 @@ def _regex_to_route(pattern: str) -> str:
             i += 1
             continue
 
-        # Peek past the opening paren to decide whether this is capturing.
-        capturing = not any(pattern[i + 1 :].startswith(p) for p in _NON_CAPTURING_PREFIXES)
+        # Peek past the opening parenthesis to decide whether this is capturing.
+        suffix = pattern[i + 1 :]
+        capturing = not any(suffix.startswith(p) for p in _NON_CAPTURING_PREFIXES)
 
         # Find the matching closing paren, respecting nesting and escapes.
         depth = 1
@@ -184,10 +200,21 @@ def _regex_to_route(pattern: str) -> str:
             else:
                 j += 1
 
-        result.append("%s" if capturing else pattern[i:j])
+        if suffix.startswith("?#"):
+            # Inline comment (?#...) — matches nothing, omit from route entirely.
+            pass
+        else:
+            result.append("%s" if capturing else pattern[i:j])
         i = j
 
     return "".join(result)
+
+
+def _path_for_path_match(matcher: PathMatches) -> str:
+    if matcher._path is not None:
+        return matcher._path
+
+    return _regex_to_route(matcher.regex.pattern)
 
 
 def _find_route(initial_rule_set, request):
@@ -205,10 +232,7 @@ def _find_route(initial_rule_set, request):
         if (m := matcher.match(request)) is not None:
             if isinstance(matcher, PathMatches):
                 path_args = m.get("path_args", []) or m.get("path_kwargs", {})
-                if matcher._path is not None:
-                    return matcher._path, path_args
-
-                return _regex_to_route(matcher.regex.pattern), path_args
+                return _path_for_path_match(matcher), path_args
 
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(reversed(rule.target.rules))
