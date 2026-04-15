@@ -18,14 +18,14 @@ from typing import Any
 
 import pytest
 
-from ddtrace import Pin
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
-from tests.utils import DummyTracer
-from tests.utils import TracerTestCase
+from tests.utils import TracerSpanContainer
 from tests.utils import override_config
+from tests.utils import scoped_tracer
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +222,10 @@ def _create_invocation_event(initial_operations, mock_service_client):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def tracer():
-    tracer = DummyTracer()
-    yield tracer
-    tracer.pop()
+    with scoped_tracer() as _tracer:
+        container = TracerSpanContainer(_tracer)
+        yield container
+        container.reset()
 
 
 @pytest.fixture(autouse=True)
