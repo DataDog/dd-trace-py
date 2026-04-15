@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AI Guard: Add ``DD_AI_GUARD_BLOCK`` environment variable to control whether AI Guard blocks
+    requests that violate security policies. Defaults to ``True``. Set to ``False`` to run AI Guard
+    in monitor-only mode where evaluations are performed but ``AIGuardAbortError`` is not raised.
