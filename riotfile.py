@@ -3280,6 +3280,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aws_durable_execution_sdk_python",
+            command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "aws-durable-execution-sdk-python": ["~=1.4.0", latest],
+            },
+        ),
+        Venv(
             name="aiokafka",
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
