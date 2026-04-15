@@ -1579,7 +1579,7 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["ci.workspace_path"] == "/workspace"
 
     def test_upload_coverage_report_with_pr_number_tag(self, mock_telemetry: Mock) -> None:
-        """Test coverage report upload preserves pr.number tags."""
+        """Test coverage report upload preserves pr.* tags."""
 
         mock_connector = Mock()
         mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
