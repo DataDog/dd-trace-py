@@ -28,7 +28,7 @@ class HttpBaseEvent(Event):
     """Common HTTP request/response data.
 
     This event contains the information needed by both AppSec and APM events when tracing
-    http calls (wether client or server).
+    http calls (whether client or server).
     """
 
     request_url: str = event_field()
