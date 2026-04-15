@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    remote config: Fixes a spurious ``Unable to create shared memory`` warning
-    on every AWS Lambda cold start by skipping the ``multiprocessing.Array``
-    allocation when running in Lambda, where ``/dev/shm`` is unavailable.
+    lambda: Fixes a spurious ``Unable to create shared memory`` warning
+    on every AWS Lambda cold start.
