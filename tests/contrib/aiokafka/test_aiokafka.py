@@ -86,6 +86,7 @@ async def test_send_multiple_servers():
     topic = await create_topic("send_multiple_servers")
     async with producer_ctx([BOOTSTRAP_SERVERS] * 3) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        await producer.flush()
 
 
 @pytest.mark.asyncio

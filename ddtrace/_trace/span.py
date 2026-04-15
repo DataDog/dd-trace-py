@@ -60,6 +60,9 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return f"{large_int:032x}"[:16]
 
 
+_INT_TYPES = frozenset([net.TARGET_PORT])
+
+
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
@@ -219,8 +222,7 @@ class Span(SpanData):
 
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        INT_TYPES = (net.TARGET_PORT,)
-        if key in INT_TYPES and not val_is_an_int:
+        if key in _INT_TYPES and not val_is_an_int:
             try:
                 value = int(value)  # type: ignore
                 val_is_an_int = True
