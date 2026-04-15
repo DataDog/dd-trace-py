@@ -9,7 +9,6 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD

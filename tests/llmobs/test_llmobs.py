@@ -8,8 +8,9 @@ import pytest
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
-from ddtrace.llmobs import _constants as const
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -52,9 +53,9 @@ def test_set_correct_parent_id(llmobs, tracer):
     with tracer.trace("root"):
         with llmobs.workflow("llm_span") as llm_span:
             pass
-    assert get_llmobs_parent_id(llm_span) is None
+    assert get_llmobs_parent_id(llm_span) == ROOT_PARENT_ID
     with llmobs.workflow("root_llm_span") as root_span:
-        assert get_llmobs_parent_id(root_span) is None
+        assert get_llmobs_parent_id(root_span) == ROOT_PARENT_ID
         with tracer.trace("child_span") as child_span:
             assert get_llmobs_parent_id(child_span) is None
             with llmobs.task("llm_span") as grandchild_span:
@@ -339,7 +340,7 @@ def test_metrics_are_set(tracer, llmobs_events):
 
 def test_langchain_span_name_is_set_to_class_name(tracer, llmobs_events):
     """Test span names for langchain auto-instrumented spans is set correctly."""
-    with tracer.trace(const.LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
+    with tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm")
     assert llmobs_events[0]["name"] == "expected_name"
 
@@ -637,7 +638,7 @@ def test_llmobs_trace_id_written_to_local_root_meta(llmobs, llmobs_events):
     # The local root (fastapi.request) should have llmobs_trace_id set as a tag
     assert root.get_tag("llmobs_trace_id") is not None
     # It should match the workflow span's llmobs_trace_id
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+    assert root.get_tag("llmobs_trace_id") == wf_trace_id
     # llmobs_parent_id should be the workflow span's span_id
     assert root.get_tag("llmobs_parent_id") == str(wf.span_id)
 
@@ -657,7 +658,7 @@ def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_e
     # The child span shares the same local root
     assert child._local_root is root
     # So the processor will find llmobs_trace_id on the root span in the same payload
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+    assert root.get_tag("llmobs_trace_id") == wf_trace_id
 
 
 def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_events):
@@ -670,7 +671,7 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_eve
 
     # The local root should have the first child's trace ID (first-wins)
     assert root.get_tag("llmobs_trace_id") is not None
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(first_trace_id)
+    assert root.get_tag("llmobs_trace_id") == first_trace_id
     # The two workflows should have different trace IDs
     assert first_trace_id != second_trace_id
 

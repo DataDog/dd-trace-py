@@ -542,7 +542,9 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
-        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
+        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+        if parent_id is None:
+            raise ValueError("Failed to extract LLMObs parent ID from span context.")
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -1856,7 +1858,9 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = get_llmobs_trace_id(active) or format_trace_id(active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = get_llmobs_trace_id(active) or format_trace_id(
+                active.trace_id
+            )
             return context
         return None
 
@@ -1887,7 +1891,8 @@ class LLMObs(Service):
                 session_id = None
         else:
             llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
-            parent_id, ml_app, session_id = None, None, None
+            parent_id = ROOT_PARENT_ID
+            ml_app, session_id = None, None
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         _annotate_llmobs_span_data(
             span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
@@ -2726,7 +2731,9 @@ class LLMObs(Service):
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
             llmobs_trace_id = (
-                _propagated_trace_id if _propagated_trace_id is not None else format_trace_id(generate_128bit_trace_id())
+                _propagated_trace_id
+                if _propagated_trace_id is not None
+                else format_trace_id(generate_128bit_trace_id())
             )
         else:
             ml_app = resolve_ml_app()
@@ -2804,7 +2811,7 @@ class LLMObs(Service):
                     "Defaulting to the corresponding APM trace ID."
                 )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = format_trace_id(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
