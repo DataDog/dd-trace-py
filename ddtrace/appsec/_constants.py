@@ -444,6 +444,9 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 
 class AI_GUARD(metaclass=Constant_Class):
+    # environment variables
+    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
+
     # span related information
     RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
 

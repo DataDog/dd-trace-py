@@ -590,6 +590,18 @@ Application & API Security
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
 
+AI Guard
+--------
+
+.. ddtrace-configuration-options::
+
+   DD_AI_GUARD_BLOCK:
+     type: Boolean
+     default: True
+     description: |
+       Whether AI Guard should block requests that violate security policies.
+       When set to ``False``, AI Guard evaluates but does not raise ``AIGuardAbortError`` on policy violations.
+
 Code Security
 -------------
 
