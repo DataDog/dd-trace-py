@@ -71,7 +71,8 @@ def test_connector_fallback_on_array_creation_failure():
 def test_connector_uses_dummy_shared_array_in_aws_lambda(monkeypatch):
     """In AWS Lambda, shared memory (/dev/shm) is unavailable. The connector
     should skip the allocation attempt entirely and use _DummySharedArray
-    without logging a warning."""
+    without logging a warning.
+    """
     from ddtrace.internal.remoteconfig._connectors import _DummySharedArray
 
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-function")
