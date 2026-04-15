@@ -1,0 +1,8 @@
+features:
+  - |
+    LLM Observability: Adds support for submitting trace-level and session-level evaluation metrics
+    via ``LLMObs.submit_evaluation()``. Two new parameters are introduced: ``eval_scope`` (one of
+    ``"span"`` (default), ``"trace"``, or ``"session"``) and ``session_id`` (required when
+    ``eval_scope="session"``). Use ``eval_scope="trace"`` to associate an evaluation with an entire
+    trace by providing the root span, or ``eval_scope="session"`` to associate an evaluation with a
+    session by providing the ``session_id``.
