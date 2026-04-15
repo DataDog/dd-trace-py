@@ -13,14 +13,24 @@ from ddtrace.internal.core.events import event_field
 JsonType = Union[None, bool, int, float, str, Sequence["JsonType"], Mapping[str, "JsonType"]]
 
 
-class _HttpClientResponse(Protocol):
+class _HttpBaseResponse(Protocol):
     @property
     def headers(self) -> MutableMapping[str, str]: ...
 
+    def json(self) -> JsonType: ...
+
+
+class _HttpResponseWithStatusCode(_HttpBaseResponse, Protocol):
     @property
     def status_code(self) -> int: ...
 
-    def json(self) -> JsonType: ...
+
+class _HttpResponseWithStatus(_HttpBaseResponse, Protocol):
+    @property
+    def status(self) -> int: ...
+
+
+_HttpResponse = Union[_HttpResponseWithStatus, _HttpResponseWithStatusCode]
 
 
 @dataclass
@@ -38,8 +48,10 @@ class HttpBaseEvent(Event):
     response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
 
-    def set_response(self, response: _HttpClientResponse) -> None:
-        self.response_status_code = response.status_code
+    def set_response(self, response: _HttpResponse) -> None:
+        self.response_status_code = getattr(response, "status_code", None)
+        if self.response_status_code is None:
+            self.response_status_code = getattr(response, "status")
         self.response_headers = response.headers
 
 
