@@ -117,6 +117,7 @@ INTEGRATION_CONFIGS = frozenset(
         "redis",
         "mako",
         "sqlite3",
+        "aws_durable_execution_sdk_python",
         "aws_lambda",
         "gevent",
         "sanic",
