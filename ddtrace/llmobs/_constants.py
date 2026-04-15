@@ -10,6 +10,7 @@ PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
