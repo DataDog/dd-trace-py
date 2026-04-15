@@ -378,9 +378,11 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
     assessment=None,
     reasoning=None,
+    eval_scope=None,
+    session_id=None,
 ):
+    is_session_scope = eval_scope == "session"
     eval_metric_event = {
-        "join_on": {},
         "metric_type": metric_type,
         "label": label,
         "tags": [
@@ -388,10 +390,12 @@ def _expected_llmobs_eval_metric_event(
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
     }
-    if tag_key is not None and tag_value is not None:
-        eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
-    if span_id is not None and trace_id is not None:
-        eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
+    if not is_session_scope:
+        eval_metric_event["join_on"] = {}
+        if tag_key is not None and tag_value is not None:
+            eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
+        if span_id is not None and trace_id is not None:
+            eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:
@@ -415,6 +419,10 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["ml_app"] = ml_app
     if metadata is not None:
         eval_metric_event["metadata"] = metadata
+    if eval_scope is not None:
+        eval_metric_event["eval_scope"] = eval_scope
+    if session_id is not None:
+        eval_metric_event["session_id"] = session_id
     return eval_metric_event
 
 

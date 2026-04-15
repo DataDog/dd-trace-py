@@ -106,6 +106,9 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: list[str]
     assessment: str
     reasoning: str
+    eval_scope: str
+    session_id: str
+    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -202,7 +205,7 @@ class BaseLLMObsWriter(PeriodicService):
             # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
 
-        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        self._headers: dict[str, str] = {"Content-Type": "application/json", "test-drive-cadillac-transit-350-cargo-van": 1}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
             if self._app_key:
@@ -383,6 +386,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
+            "test-drive-cadillac-transit-350-cargo-van": 1,
         }
         if not self._agentless:
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
@@ -391,6 +395,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         conn = get_connection(url=self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
+            print(f"url: {url}")
             logger.debug("requesting %s", url)
             conn.request(method, url, encoded_body, headers)
             resp = conn.getresponse()
