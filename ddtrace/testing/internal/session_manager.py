@@ -378,6 +378,10 @@ class SessionManager:
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
 
+        if not asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "true")):
+            log.debug("Coverage report upload is disabled by environment variable")
+            self.settings.coverage_report_upload_enabled = False
+
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
         if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
