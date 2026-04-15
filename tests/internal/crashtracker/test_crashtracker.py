@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import warnings
 
@@ -490,6 +491,77 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         body = json.loads(report["body"])
         message = json.loads(body["payload"]["logs"][0]["message"])
         assert "string_at" in json.dumps(message["experimental"])
+
+
+# Subprocess code for test_crashtracker_native_extension_crash.
+#
+# Using C++ means the symbol is name-mangled in the binary
+# (e.g. _ZN5crash9null_derefEv). The crashtracker must demangle it back to
+# "crash::null_deref()"
+_native_extension_crash_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ctypes
+import os
+import subprocess
+import sys
+import tempfile
+
+_cpp_source = '''
+#include <cstdlib>
+namespace crash {
+    void null_deref() {
+        volatile int* p = nullptr;
+        *p = 0xDEAD;
+    }
+}
+extern "C" void trigger_crash() { crash::null_deref(); }
+'''
+
+_tmpdir = tempfile.mkdtemp()
+_src = os.path.join(_tmpdir, "crash_ext.cpp")
+_so  = os.path.join(_tmpdir, "crash_ext.so")
+with open(_src, "w") as _f:
+    _f.write(_cpp_source)
+
+_r = subprocess.run(["g++", "-shared", "-fPIC", "-o", _so, _src], capture_output=True)
+if _r.returncode != 0:
+    sys.exit(99)  # g++ not available or compilation failed
+
+_lib = ctypes.CDLL(_so)
+_lib.trigger_crash.restype  = None
+_lib.trigger_crash.argtypes = []
+
+import ddtrace.auto  # starts the crashtracker
+_lib.trigger_crash()
+sys.exit(-1)
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(not shutil.which("g++"), reason="g++ required to compile the native extension")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
+def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
+    import json
+
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(_native_extension_crash_code, env=env)
+
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11, f"Expected SIGSEGV (-11), got {exitcode}"
+
+        _ping = utils.get_crash_ping(client)
+
+        report = utils.get_crash_report(client)
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+
+        native_stack = json.dumps(message["error"]["stack"])
+
+        assert "crash::null_deref" in native_stack, native_stack
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

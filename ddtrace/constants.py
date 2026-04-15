@@ -30,6 +30,7 @@ _MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 _DJM_ENABLED_KEY = "_dd.djm.enabled"
 _FILTER_KEPT_KEY = "_dd.filter.kept"
 _AI_OBS_ENABLED_KEY = "_dd.ai_obs.enabled"
+_INFERRED_SPAN_KEY = "_dd.inferred_span"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
 _CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
