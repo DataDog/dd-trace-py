@@ -53,6 +53,7 @@ class StackCollector(collector.Collector):
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.set_target_overhead(config.stack.adaptive_sampling_target_overhead)
         stack.set_max_sampling_period(config.stack.adaptive_sampling_max_interval)
+        stack.set_max_threads(config.stack.max_threads)
         if not stack.start():
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable
