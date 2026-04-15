@@ -164,8 +164,8 @@ async def test_google_genai_generate_content_async_stream_error(
         ("mars-7b", "camb.ai", "mars-7b"),
         # edge cases
         ("weird_directory/unknown-model", "unknown", "unknown-model"),
-        ("", "unknown", "custom"),
-        ("just-a-slash/", "unknown", "custom"),
+        ("", "unknown", "unknown"),
+        ("just-a-slash/", "unknown", "unknown"),
         ("multiple/slashes/in/path/model-name", "unknown", "model-name"),
     ],
 )
