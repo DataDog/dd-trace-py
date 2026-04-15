@@ -149,7 +149,7 @@ components:
     - ddtrace/vendor/*
 suites:
   crashtracker:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@crashtracker'
       - '@core'

@@ -563,23 +563,17 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
-            # Run serially (-n 0): crashtracker tests start receiver subprocesses
-            # and poll the test agent; parallel execution causes resource contention
-            # and spurious 30-second timeouts.
-            command="pytest -v -n 0 {cmdargs} tests/crashtracker/",
+            command="pytest -v {cmdargs} tests/crashtracker/",
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
+                "pytest-asyncio": "~=0.23.7",
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={
-                        "pytest-asyncio": "~=0.23.7",
-                        "setuptools": "<82",
-                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12"),
@@ -587,8 +581,6 @@ venv = Venv(
                         "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
                     },
                     pkgs={
-                        "pytest-asyncio": "~=0.23.7",
-                        "setuptools": "<82",
                         "zope-event": "==5.0",
                         "zope-interface": "==7.2",
                     },
