@@ -10,21 +10,18 @@ AIDEV-NOTE: SuspendExecution is a BaseException used for control flow.
 It must NOT mark spans as errored. All wrappers explicitly handle it.
 """
 import functools
-import hashlib
 import sys
 
 import aws_durable_execution_sdk_python
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
+from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -45,18 +42,6 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"aws_durable_execution_sdk_python": ">=1.4.0"}
-
-
-def _get_service():
-    """Get the configured service name for this integration."""
-    pin = Pin.get_from(aws_durable_execution_sdk_python)
-    return trace_utils.int_service(pin, config.aws_durable_execution_sdk_python)
-
-
-def _set_base_tags(span):
-    """Set common tags on all spans from this integration."""
-    set_service_and_source(span, _get_service(), config.aws_durable_execution_sdk_python)
-    span._set_attribute(COMPONENT, config.aws_durable_execution_sdk_python.integration_name)
 
 
 # ---------------------------------------------------------------------------
@@ -82,26 +67,30 @@ def _traced_durable_execution(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     @functools.wraps(user_func)
-    def traced_user_func(input_event, durable_context):
+    def traced_user_func(*inner_args, **inner_kwargs):
         """Traced wrapper around the user's workflow function."""
-        pin = Pin.get_from(aws_durable_execution_sdk_python)
-        if not pin or not pin.enabled():
-            return user_func(input_event, durable_context)
-
         # Lazy import to avoid errors when the SDK is not installed
         from aws_durable_execution_sdk_python.exceptions import SuspendExecution
 
+        # AIDEV-NOTE: The user function signature is (input_event, durable_context).
+        # We extract them safely from *args/**kwargs for metadata extraction,
+        # keeping the wrapper resilient to future SDK signature changes.
+        input_event = inner_args[0] if inner_args else inner_kwargs.get("input_event")
+        durable_context = inner_args[1] if len(inner_args) > 1 else inner_kwargs.get("durable_context")
+
         # --- Extract metadata from the DurableContext ---
-        arn = None
-        replay_status = None
+        tags = {}
         try:
-            arn = getattr(durable_context.state, "durable_execution_arn", None)
+            arn = getattr(durable_context.state, "durable_execution_arn", None) if durable_context else None
+            if arn:
+                tags["aws.durable_execution.arn"] = arn
         except Exception:
             pass
         try:
-            status_enum = getattr(durable_context.state, "_replay_status", None)
-            if status_enum is not None:
-                replay_status = status_enum.name  # "NEW" or "REPLAY"
+            if durable_context:
+                status_enum = getattr(durable_context.state, "_replay_status", None)
+                if status_enum is not None:
+                    tags["aws.durable_execution.replay_status"] = status_enum.name  # "NEW" or "REPLAY"
         except Exception:
             pass
 
@@ -109,67 +98,70 @@ def _traced_durable_execution(func, instance, args, kwargs):
         # AIDEV-NOTE: When a durable execution is invoked via DurableContext.invoke(),
         # the caller injects trace context into the payload dict under a "_datadog" key.
         # We extract it here to link this execution span to the caller's trace.
-        parent_ctx = None
+        distributed_context = None
         if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
             if isinstance(input_event, dict) and "_datadog" in input_event:
                 try:
                     parent_ctx = Propagator.extract(input_event["_datadog"])
-                    if parent_ctx.trace_id is None:
-                        parent_ctx = None
+                    if parent_ctx.trace_id is not None:
+                        distributed_context = parent_ctx
                 except Exception:
-                    parent_ctx = None
+                    pass
 
-        # --- Create the execution span ---
-        if parent_ctx is not None:
-            span = tracer.start_span(
-                name="aws_durable_execution.execution",
-                child_of=parent_ctx,
-                resource="aws_durable_execution.execution",
-                span_type="serverless",
-                activate=True,
-            )
-        else:
-            span = tracer.trace(
-                name="aws_durable_execution.execution",
-                resource="aws_durable_execution.execution",
-                span_type="serverless",
-            )
-        _set_base_tags(span)
-        span._set_attribute("span.kind", "server")
-        if arn:
-            span._set_attribute("aws.durable_execution.arn", arn)
-        if replay_status:
-            span._set_attribute("aws.durable_execution.replay_status", replay_status)
+        # --- Create the execution span via event ---
+        event = TracingEvent.create(
+            component=config.aws_durable_execution_sdk_python.integration_name,
+            integration_config=config.aws_durable_execution_sdk_python,
+            operation_name="aws_durable_execution.execution",
+            span_type="serverless",
+            span_kind="server",
+            resource="aws_durable_execution.execution",
+            service=int_service(None, config.aws_durable_execution_sdk_python),
+            tags=tags,
+            distributed_context=distributed_context,
+            use_active_context=distributed_context is None,
+        )
 
-        try:
-            result = user_func(input_event, durable_context)
-            span.finish()
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                result = user_func(*inner_args, **inner_kwargs)
+            except SuspendExecution:
+                # AIDEV-NOTE: SuspendExecution is control flow, not an error.
+                ctx.dispatch_ended_event()
+                raise
+            except BaseException:
+                ctx.dispatch_ended_event(*sys.exc_info())
+                raise
+            ctx.dispatch_ended_event()
             return result
-        except SuspendExecution:
-            # AIDEV-NOTE: SuspendExecution is control flow, not an error.
-            span.finish()
-            raise
-        except BaseException:
-            span.set_exc_info(*sys.exc_info())
-            span.finish()
-            raise
 
     # Replace user func with traced version, call the original decorator
     new_args = (traced_user_func,) + args[1:]
     return func(*new_args, **kwargs)
 
 
+def _try_tag_replayed(span, step_func, step_executed):
+    """Tag a step span with whether it was replayed from checkpoint.
+
+    AIDEV-NOTE: When the SDK replays a step from checkpoint, it returns the cached
+    result without calling the step function.  The ``step_executed`` flag tracks
+    whether the function was actually invoked, giving accurate per-step replay
+    detection without relying on private SDK internals.
+    """
+    try:
+        if callable(step_func):
+            span.set_tag("aws.durable_execution.step.replayed", str(not step_executed[0]).lower())
+    except Exception:
+        pass
+
+
 def _traced_step(func, instance, args, kwargs):
     """Wrapper for DurableContext.step().
 
-    Creates a child span for each step execution with the step name,
-    operation ID, and standard tags.
+    Creates a child span for each step execution with the step name
+    and standard tags.
     """
     from aws_durable_execution_sdk_python.exceptions import SuspendExecution
-
-    pin = Pin.get_from(aws_durable_execution_sdk_python)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
 
     # --- Extract step name ---
     step_func = args[0] if args else None
@@ -181,44 +173,54 @@ def _traced_step(func, instance, args, kwargs):
         or getattr(step_func, "__name__", None)
     )
 
-    # --- Predict the operation_id the SDK will generate ---
-    # AIDEV-NOTE: The SDK increments an OrderedCounter and computes a
-    # blake2b hash.  We peek at the counter before the SDK call to
-    # pre-compute the same ID.  If internal APIs change, we fall back
-    # gracefully.
-    operation_id = None
-    try:
-        next_counter = instance._step_counter._counter + 1
-        parent_id = instance._parent_id
-        raw = "{}-{}".format(parent_id, next_counter) if parent_id else str(next_counter)
-        operation_id = hashlib.blake2b(raw.encode()).hexdigest()[:64]
-    except Exception:
-        pass
+    # --- Wrap step function to detect replay vs fresh execution ---
+    # AIDEV-NOTE: When the SDK replays a step from checkpoint, it returns the cached
+    # result without calling the step function.  By wrapping the function and tracking
+    # whether it was invoked, we accurately determine if the step was replayed without
+    # relying on private SDK internals (e.g. operation_id or step_counter).
+    _step_executed = [False]
+    if callable(step_func):
+        _original_step_func = step_func
 
-    # --- Create the step span ---
-    span = tracer.trace(
-        name="aws_durable_execution.step",
-        resource=step_name or "step",
-        span_type="worker",
-    )
-    _set_base_tags(span)
-    span._set_attribute("span.kind", "internal")
+        @functools.wraps(_original_step_func)
+        def _tracked_step_func(*a, **kw):
+            _step_executed[0] = True
+            return _original_step_func(*a, **kw)
+
+        args = (_tracked_step_func,) + args[1:]
+
+    # --- Build tags ---
+    tags = {}
     if step_name:
-        span._set_attribute("aws.durable_execution.step.name", step_name)
-    if operation_id:
-        span._set_attribute("aws.durable_execution.step.operation_id", operation_id)
+        tags["aws.durable_execution.step.name"] = step_name
 
-    try:
-        result = func(*args, **kwargs)
-        span.finish()
+    # --- Create the step span via event ---
+    event = TracingEvent.create(
+        component=config.aws_durable_execution_sdk_python.integration_name,
+        integration_config=config.aws_durable_execution_sdk_python,
+        operation_name="aws_durable_execution.step",
+        span_type="worker",
+        span_kind="internal",
+        resource=step_name or "step",
+        service=int_service(None, config.aws_durable_execution_sdk_python),
+        tags=tags,
+    )
+
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            result = func(*args, **kwargs)
+        except SuspendExecution:
+            # AIDEV-NOTE: SuspendExecution is control flow, not an error.
+            _try_tag_replayed(ctx.span, step_func, _step_executed)
+            ctx.dispatch_ended_event()
+            raise
+        except BaseException:
+            _try_tag_replayed(ctx.span, step_func, _step_executed)
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        _try_tag_replayed(ctx.span, step_func, _step_executed)
+        ctx.dispatch_ended_event()
         return result
-    except SuspendExecution:
-        span.finish()
-        raise
-    except BaseException:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
 
 
 def _traced_invoke(func, instance, args, kwargs):
@@ -229,65 +231,67 @@ def _traced_invoke(func, instance, args, kwargs):
     """
     from aws_durable_execution_sdk_python.exceptions import SuspendExecution
 
-    pin = Pin.get_from(aws_durable_execution_sdk_python)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-
     # --- Extract invoke parameters ---
     # invoke(function_name, payload, name=None, config=None)
     function_name = kwargs.get("function_name") or (args[0] if args else None)
     # payload is args[1] if positional
     invoke_name = kwargs.get("name")
 
-    # --- Create the invoke span ---
-    span = tracer.trace(
-        name="aws_durable_execution.invoke",
-        resource=invoke_name or function_name or "invoke",
-        span_type="serverless",
-    )
-    _set_base_tags(span)
-    span._set_attribute("span.kind", "client")
+    # --- Build tags ---
+    tags = {}
     if function_name:
-        span._set_attribute("aws.durable_execution.invoke.function_name", str(function_name))
+        tags["aws.durable_execution.invoke.function_name"] = str(function_name)
         # AIDEV-NOTE: out.host enables peer service computation by the
         # PeerServiceProcessor.  It derives peer.service from out.host on
         # client spans, giving downstream dependency visibility in APM.
-        span._set_attribute("out.host", str(function_name))
+        tags["out.host"] = str(function_name)
     if invoke_name:
-        span._set_attribute("aws.durable_execution.invoke.name", invoke_name)
+        tags["aws.durable_execution.invoke.name"] = invoke_name
 
-    # --- Inject distributed tracing context into payload ---
-    # AIDEV-NOTE: When the payload is a dict, we inject trace context under a
-    # "_datadog" key so the downstream @durable_execution handler can extract it
-    # and link its execution span to this invoke span's trace.  We shallow-copy
-    # the dict to avoid mutating the caller's original payload.
-    if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
+    # --- Create the invoke span via event ---
+    event = TracingEvent.create(
+        component=config.aws_durable_execution_sdk_python.integration_name,
+        integration_config=config.aws_durable_execution_sdk_python,
+        operation_name="aws_durable_execution.invoke",
+        span_type="serverless",
+        span_kind="client",
+        resource=invoke_name or function_name or "invoke",
+        service=int_service(None, config.aws_durable_execution_sdk_python),
+        tags=tags,
+    )
+
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        # --- Inject distributed tracing context into payload ---
+        # AIDEV-NOTE: When the payload is a dict, we inject trace context under a
+        # "_datadog" key so the downstream @durable_execution handler can extract it
+        # and link its execution span to this invoke span's trace.  We shallow-copy
+        # the dict to avoid mutating the caller's original payload.
+        if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
+            try:
+                payload = kwargs.get("payload") or (args[1] if len(args) > 1 else None)
+                if isinstance(payload, dict):
+                    _datadog_headers = {}
+                    Propagator.inject(ctx.span.context, _datadog_headers)
+                    payload = dict(payload)  # shallow copy to avoid mutating caller's dict
+                    payload["_datadog"] = _datadog_headers
+                    if "payload" in kwargs:
+                        kwargs = dict(kwargs)
+                        kwargs["payload"] = payload
+                    elif len(args) > 1:
+                        args = (args[0], payload) + args[2:]
+            except Exception:
+                pass
+
         try:
-            payload = kwargs.get("payload") or (args[1] if len(args) > 1 else None)
-            if isinstance(payload, dict):
-                _datadog_headers = {}
-                Propagator.inject(span.context, _datadog_headers)
-                payload = dict(payload)  # shallow copy to avoid mutating caller's dict
-                payload["_datadog"] = _datadog_headers
-                if "payload" in kwargs:
-                    kwargs = dict(kwargs)
-                    kwargs["payload"] = payload
-                elif len(args) > 1:
-                    args = (args[0], payload) + args[2:]
-        except Exception:
-            pass
-
-    try:
-        result = func(*args, **kwargs)
-        span.finish()
+            result = func(*args, **kwargs)
+        except SuspendExecution:
+            ctx.dispatch_ended_event()
+            raise
+        except BaseException:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        ctx.dispatch_ended_event()
         return result
-    except SuspendExecution:
-        span.finish()
-        raise
-    except BaseException:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
 
 
 def patch():
@@ -296,7 +300,6 @@ def patch():
         return
 
     aws_durable_execution_sdk_python._datadog_patch = True
-    Pin().onto(aws_durable_execution_sdk_python)
 
     # AIDEV-NOTE: durable_execution is re-exported from the top-level __init__
     # via ``from .execution import durable_execution``. That creates a separate

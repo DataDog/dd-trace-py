@@ -10,6 +10,7 @@ All traces submitted from this integration are tagged by:
 - ``aws.durable_execution.arn``: The ARN of the durable execution.
 - ``aws.durable_execution.replay_status``: Whether the execution is NEW or REPLAY.
 - ``aws.durable_execution.step.name``: The name of the step being executed.
+- ``aws.durable_execution.step.replayed``: Whether the step was replayed from checkpoint (``"true"``) or executed fresh (``"false"``).
 - ``aws.durable_execution.invoke.function_name``: The target function name for invoke calls.
 
 
