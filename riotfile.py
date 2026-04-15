@@ -97,7 +97,7 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
 }
-if _nightly_build:
+if _nightly_build or True:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
 
 
