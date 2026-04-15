@@ -9,6 +9,7 @@ from ddtrace import config as dd_config
 from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
@@ -476,10 +477,13 @@ def pytest_configure(config: pytest_Config) -> None:
 
                 if not hasattr(config, "workerinput"):
                     # Main process: reset per-session xdist ITR skip counter.
-                    # AIDEV-NOTE: hasattr(config, "workerinput") is the correct worker check here —
-                    # it reflects the *current* session, not the outer process. An os.environ read
-                    # would be wrong inside inline_run() called from an outer xdist worker because
-                    # PYTEST_XDIST_WORKER would still be set in that process's environment.
+                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
+                    # When inline_run() is called inside an outer xdist worker, the constant is
+                    # "gw0" for the entire process lifetime, so the reset would never fire and
+                    # pytest.global_worker_itr_results would accumulate across inline_run calls.
+                    # hasattr(config, "workerinput") is the correct check: it is True only for
+                    # worker configs of the *current* session, not for outer-run workers.
                     pytest.global_worker_itr_results = 0
 
         else:
@@ -499,6 +503,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
+    # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
+    reset_coverage_state()
+
     if not is_test_visibility_enabled():
         return
 
