@@ -65,7 +65,7 @@ def extract_provider_and_model_name(
         model_path = _get_attr(instance, model_name_attr, "")
 
     if not model_path or not isinstance(model_path, str):
-        return UNKNOWN_MODEL_PROVIDER, "custom"
+        return UNKNOWN_MODEL_PROVIDER, UNKNOWN_MODEL_PROVIDER
 
     model_name = model_path.split("/")[-1] if "/" in model_path else model_path
 
@@ -73,7 +73,7 @@ def extract_provider_and_model_name(
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else "custom"
+    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else UNKNOWN_MODEL_PROVIDER
 
 
 def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
