@@ -11,28 +11,30 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66b2668100000000",
+      "_dd.p.tid": "69de460400000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
       "db.system": "mariadb",
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a14aa859f9654c0289bca9ccce8681db",
+      "runtime-id": "7db942b23cee4052a1c5d8699e105801",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 3306,
-      "process_id": 48692
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 3306.0,
+      "process_id": 62349.0
     },
-    "duration": 121250,
-    "start": 1722967681609904797
+    "duration": 243792,
+    "start": 1776174596044051633
   }],
 [
   {
@@ -47,25 +49,27 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66b2668100000000",
+      "_dd.p.tid": "69de460400000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
       "db.system": "mariadb",
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a14aa859f9654c0289bca9ccce8681db",
+      "runtime-id": "7db942b23cee4052a1c5d8699e105801",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "network.destination.port": 3306,
-      "process_id": 48692
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "network.destination.port": 3306.0,
+      "process_id": 62349.0
     },
-    "duration": 36750,
-    "start": 1722967681610223297
+    "duration": 60959,
+    "start": 1776174596044688133
   }]]
