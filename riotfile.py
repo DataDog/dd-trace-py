@@ -2003,7 +2003,7 @@ venv = Venv(
                 # coverage upload functionality themselves, so having the plugin also run
                 # coverage upload concurrently causes interference (the plugin's global
                 # coverage.py instance gets stopped by the tests, corrupting state).
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "true",
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false",
             },
             venvs=[
                 Venv(
