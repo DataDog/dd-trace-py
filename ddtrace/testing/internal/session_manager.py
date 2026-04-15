@@ -96,6 +96,7 @@ class SessionManager:
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
+            self.override_settings_with_env_vars()
 
         self.api_client.close()
 
