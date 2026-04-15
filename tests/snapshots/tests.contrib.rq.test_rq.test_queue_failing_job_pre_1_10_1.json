@@ -11,26 +11,28 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a893d800000000",
+      "_dd.p.tid": "69de954b00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "error.message": "error",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 86, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/queue.py\", line 484, in enqueue_job\n    job = self.run_job(job)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/queue.py\", line 370, in run_job\n    job.perform()\n  File \"/home/bits/project/ddtrace/contrib/internal/trace_utils.py\", line 309, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/home/bits/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 86, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/queue.py\", line 484, in enqueue_job\n    job = self.run_job(job)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/queue.py\", line 370, in run_job\n    job.perform()\n  File \"/home/bits/project/ddtrace/contrib/internal/trace_utils.py\", line 310, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/home/bits/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
       "error.type": "tests.contrib.rq.jobs.MyException",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
-      "job.id": "0a57bf3b-e8ba-4651-a2ce-37981dba89f2",
+      "job.id": "a67c6e1d-2008-4c8a-b196-878756d87fc5",
       "language": "python",
       "queue.name": "sync-q",
-      "runtime-id": "3bef17745d644bd5b616d01696165990",
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 57410.0
+      "process_id": 62795.0
     },
-    "duration": 4364042,
-    "start": 1772655576944658792
+    "duration": 3453125,
+    "start": 1776194891007770095
   },
      {
        "name": "rq.job.perform",
@@ -46,10 +48,10 @@
          "_dd.svc_src": "rq",
          "component": "rq",
          "error.message": "error",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/home/bits/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/home/bits/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
          "error.type": "tests.contrib.rq.jobs.MyException",
-         "job.id": "0a57bf3b-e8ba-4651-a2ce-37981dba89f2"
+         "job.id": "a67c6e1d-2008-4c8a-b196-878756d87fc5"
        },
-       "duration": 2064167,
-       "start": 1772655576946016875
+       "duration": 1355417,
+       "start": 1776194891009081428
      }]]
