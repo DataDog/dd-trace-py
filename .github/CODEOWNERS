@@ -109,7 +109,9 @@ tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
 tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
+tests/snapshots/test_api_fake_runners*                @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
+tests/snapshots/tests.contrib.pytest.*                @DataDog/ci-app-libraries
 tests/testing/                                        @DataDog/ci-app-libraries
 # scripts
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
