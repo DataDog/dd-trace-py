@@ -120,7 +120,23 @@ class _Test_FastAPI_Base:
 
 
 class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
-    pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/{param_int:int}/{param_str:str}",
+        "/asm/",
+        "/new_service/{service_name:str}",
+        "/login/",
+        "/login_sdk/",
+        "/rasp/{endpoint:str}/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = re.sub(r"\{[a-z_]+:int\}", "123", path)
+        path = re.sub(r"\{[a-z_]+:str\}", "abczx", path)
+        return path
 
 
 class Test_FastAPI_RC(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats_RC):

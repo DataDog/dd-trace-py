@@ -8,7 +8,6 @@ import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
-from ddtrace import config
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
@@ -252,11 +251,6 @@ def _generate_in_subprocess(random_topic):
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
     ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
-            ddtrace.tracer._span_aggregator.writer._send_payload
-        )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
