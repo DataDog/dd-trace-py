@@ -2254,15 +2254,19 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
         eval_scope="trace",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        _expected_llmobs_eval_metric_event(
-            metric_type="score",
-            label="quality",
-            ml_app="test_app",
-            span_id="123",
-            trace_id="456",
-            score_value=0.9,
-            eval_scope="trace",
-        )
+        {
+            "metric_type": "score",
+            "label": "quality",
+            "tags": [
+                "ddtrace.version:{}".format(ddtrace.__version__),
+                "ml_app:test_app",
+            ],
+            "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
+            "score_value": 0.9,
+            "timestamp_ms": mock.ANY,
+            "ml_app": "test_app",
+            "eval_scope": "trace",
+        }
     )
 
 
@@ -2275,18 +2279,21 @@ def test_submit_evaluation_session_scope(llmobs, mock_llmobs_eval_metric_writer)
         eval_scope="session",
         session_id="test-session-id",
     )
-    expected = _expected_llmobs_eval_metric_event(
-        metric_type="score",
-        label="quality",
-        ml_app="test_app",
-        score_value=0.9,
-        eval_scope="session",
-        session_id="test-session-id",
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        {
+            "metric_type": "score",
+            "label": "quality",
+            "tags": [
+                "ddtrace.version:{}".format(ddtrace.__version__),
+                "ml_app:test_app",
+            ],
+            "score_value": 0.9,
+            "timestamp_ms": mock.ANY,
+            "ml_app": "test_app",
+            "eval_scope": "session",
+            "session_id": "test-session-id",
+        }
     )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(expected)
-    # Verify join_on is NOT in the payload
-    actual_event = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
-    assert "join_on" not in actual_event
 
 
 def test_submit_evaluation_session_scope_with_span_raises_error(llmobs):
