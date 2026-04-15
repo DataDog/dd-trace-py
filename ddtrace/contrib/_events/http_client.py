@@ -16,7 +16,6 @@ from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.settings.integration import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -66,12 +65,11 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
     http_operation: str = event_field()
     query: str = event_field()
     target_host: Optional[str] = event_field()
-    config: "IntegrationConfig" = event_field()
 
     response: Optional[_HttpClientResponse] = event_field(default=None)
 
     def __post_init__(self):
-        self.span_name = schematize_url_operation(
+        self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
 
@@ -81,7 +79,7 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
 
 
 @dataclass
-class HttpClientSendEvent(HttpClientBaseEvent, Event):
+class HttpClientSendEvent(HttpClientBaseEvent):
     """HTTP client send event
 
     This represents individual requests in a single http client call.
