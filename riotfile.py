@@ -1999,6 +1999,11 @@ venv = Venv(
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
+                # Disable coverage report upload for this suite: these tests exercise the
+                # coverage upload functionality themselves, so having the plugin also run
+                # coverage upload concurrently causes interference (the plugin's global
+                # coverage.py instance gets stopped by the tests, corrupting state).
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false",
             },
             venvs=[
                 Venv(
