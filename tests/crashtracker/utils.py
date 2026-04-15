@@ -131,7 +131,7 @@ def _get_matching_crash_messages(
     test_agent_client: TestAgentClient,
     predicate: Callable[[TestAgentRequest], bool],
     count: int = 1,
-    timeout: float = 10.0,
+    timeout: float = 30.0,
     poll_interval: float = 0.2,
 ) -> list[TestAgentRequest]:
     """

@@ -5,7 +5,7 @@ import warnings
 
 import pytest
 
-import tests.internal.crashtracker.utils as utils
+import tests.crashtracker.utils as utils
 
 
 # Crashtracking tests intentionally fork after initializing ddtrace, which spawns worker
@@ -27,7 +27,7 @@ def test_crashtracker_available():
 def test_crashtracker_config():
     import pytest
 
-    from tests.internal.crashtracker.utils import CrashtrackerWrapper
+    from tests.crashtracker.utils import CrashtrackerWrapper
 
     ct = CrashtrackerWrapper(1234, "config")
     assert ct.start()
@@ -45,7 +45,7 @@ def test_crashtracker_config_bytes():
 
     from ddtrace.internal.core import crashtracking
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
-    from tests.internal.crashtracker.utils import read_files
+    from tests.crashtracker.utils import read_files
 
     # Delete the stdout and stderr files if they exist
     base_name = b"config_bytes"
@@ -84,7 +84,7 @@ def test_crashtracker_started():
     import pytest
 
     from ddtrace.internal.core import crashtracking
-    from tests.internal.crashtracker.utils import CrashtrackerWrapper
+    from tests.crashtracker.utils import CrashtrackerWrapper
 
     try:
         ct = CrashtrackerWrapper(1234, "started")
@@ -107,7 +107,7 @@ def test_crashtracker_receiver_not_in_path():
     import pytest
 
     from ddtrace.internal.core import crashtracking
-    from tests.internal.crashtracker.utils import CrashtrackerWrapper
+    from tests.crashtracker.utils import CrashtrackerWrapper
 
     try:
         # Remove the receiver from the path. This mimics the case where we don't
@@ -146,13 +146,14 @@ def test_crashtracker_simple():
     import ctypes
     import os
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
+        ct = utils.CrashtrackerWrapper(base_name="simple")
+
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="simple")  # test agent
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg, stdout_msg
@@ -184,7 +185,7 @@ def test_crashtracker_simple_fork():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     # Part 1 and 2
     with utils.with_test_agent() as client:
@@ -224,7 +225,7 @@ def test_crashtracker_simple_sigbus():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     # Part 0, set up the interface to mmap.  We don't want to use mmap.mmap because it has too much protection.
     libc = ctypes.CDLL(find_library("c"))
@@ -282,7 +283,7 @@ def test_crashtracker_raise_sigsegv():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
         ct = utils.CrashtrackerWrapper(base_name="raise_sigsegv")
@@ -316,7 +317,7 @@ def test_crashtracker_raise_sigbus():
     import os
     import signal
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
         ct = utils.CrashtrackerWrapper(base_name="raise_sigbus")
@@ -357,9 +358,9 @@ sys.exit(-1)
 def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     # Call the program
     service = "test_crashtracker_preload_default"
-    env = os.environ.copy()
-    env["DD_SERVICE"] = service
     with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
         stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
 
         # Check for expected exit condition
@@ -412,9 +413,9 @@ sys.exit(-1)
 def test_crashtracker_auto_default(run_python_code_in_subprocess):
     # Call the program
     service = "test_crashtracker_auto_default"
-    env = os.environ.copy()
-    env["DD_SERVICE"] = service
     with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
@@ -445,7 +446,9 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
         # Check for expected exit condition
         assert not stdout
         assert not stderr
-        assert exitcode == -11
+        # ctypes.string_at(0) typically produces SIGSEGV (-11) but can produce
+        # SIGBUS (-7) on some kernel versions / memory configurations.
+        assert exitcode in (-11, -7), f"Expected crash signal, got {exitcode}"
 
         # Check for crash ping
         _ping = utils.get_crash_ping(client, service=service)
@@ -651,7 +654,7 @@ def test_crashtracker_user_tags_profiling():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     # Define some tags
     tag_prefix = "manganese_oxides"
@@ -661,10 +664,11 @@ def test_crashtracker_user_tags_profiling():
     }
 
     with utils.with_test_agent() as client:
+        ct = utils.CrashtrackerWrapper(base_name="user_tags_profiling", tags=tags)
+
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="user_tags_profiling", tags=tags)
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg
@@ -697,7 +701,7 @@ def test_crashtracker_user_tags_core():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     # Define some tags
     tag_prefix = "manganese_oxides"
@@ -707,11 +711,11 @@ def test_crashtracker_user_tags_core():
     }
 
     with utils.with_test_agent() as client:
+        ct = utils.CrashtrackerWrapper(base_name="user_tags_core", tags=tags)
+
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
-            # Set the tags before starting
-            ct = utils.CrashtrackerWrapper(base_name="user_tags_core", tags=tags)
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg
@@ -745,13 +749,14 @@ def test_crashtracker_process_tags():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
+        ct = utils.CrashtrackerWrapper(base_name="tags_required")
+
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="tags_required")
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg
@@ -789,7 +794,7 @@ def test_crashtracker_echild_hang():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     # Create a port and listen on it
     with utils.with_test_agent():
@@ -867,7 +872,7 @@ def test_crashtracker_no_zombies():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     with utils.with_test_agent():
         err_file = "/tmp/zombie_error.log"
@@ -934,19 +939,20 @@ def test_crashtracker_receiver_env_inheritance():
     # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    import tests.internal.crashtracker.utils as utils
+    import tests.crashtracker.utils as utils
 
     test_env_key = "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"
     test_env_value = "true"
     os.environ[test_env_key] = test_env_value
 
     with utils.with_test_agent() as client:
+        ct = utils.CrashtrackerWrapper(base_name="env_inheritance")
+
         # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             assert os.environ.get(test_env_key) == test_env_value
 
-            ct = utils.CrashtrackerWrapper(base_name="env_inheritance")
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg, stdout_msg
