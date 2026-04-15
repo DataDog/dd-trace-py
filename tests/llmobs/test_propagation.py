@@ -166,7 +166,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers.get("x-datadog-parent-id")
-        assert get_llmobs_parent_id(span) is None
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
 
 
 def test_inject_distributed_headers_simple(llmobs):
@@ -366,7 +366,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert get_llmobs_parent_id(span) is None
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
         assert get_llmobs_ml_app(span) == "test-app"
 
 
