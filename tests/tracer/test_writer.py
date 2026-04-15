@@ -1116,7 +1116,9 @@ def test_writer_telemetry_enabled_on_linux(
 
     with mock_sys_platform(platform):
         with override_global_config(dict(_telemetry_enabled=config_value)):
-            _writer = NativeWriter("http://localhost:8126/v0.5/traces", get_shared_test_native_runtime(), sync_mode=True)
+            _writer = NativeWriter(
+                "http://localhost:8126/v0.5/traces", get_shared_test_native_runtime(), sync_mode=True
+            )
 
             if expected_enabled:
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
@@ -1402,5 +1404,7 @@ def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_se
 
 def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
-    writer = NativeWriter("http://localhost:8126", get_shared_test_native_runtime(), otlp_endpoint="http://localhost:4318/v1/traces")
+    writer = NativeWriter(
+        "http://localhost:8126", get_shared_test_native_runtime(), otlp_endpoint="http://localhost:4318/v1/traces"
+    )
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
