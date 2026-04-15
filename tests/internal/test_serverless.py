@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.serverless import in_azure_app_service
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from tests.utils import override_env
@@ -26,6 +27,23 @@ def test_is_azure_function():
 
 def test_not_azure_function():
     assert in_azure_function() is False
+
+
+def test_is_azure_app_service():
+    with override_env(dict(WEBSITE_SITE_NAME="my-app")):
+        assert in_azure_app_service() is True
+
+
+def test_not_azure_app_service_without_site_name():
+    assert in_azure_app_service() is False
+
+
+def test_not_azure_app_service_when_azure_function():
+    # Azure Functions also set WEBSITE_SITE_NAME — must NOT be classified as App Service
+    with override_env(
+        dict(WEBSITE_SITE_NAME="my-func", FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="~4")
+    ):
+        assert in_azure_app_service() is False
 
 
 standard_blocklist = [

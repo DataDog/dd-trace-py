@@ -35,3 +35,13 @@ def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function."""
     return env.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and env.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
+
+
+def in_azure_app_service():
+    # type: () -> bool
+    """Returns whether the environment is an Azure App Service (not an Azure Function).
+
+    Azure App Services set WEBSITE_SITE_NAME but do not set FUNCTIONS_WORKER_RUNTIME,
+    which distinguishes them from Azure Functions (which set both).
+    """
+    return env.get("WEBSITE_SITE_NAME", "") != "" and env.get("FUNCTIONS_WORKER_RUNTIME", "") == ""

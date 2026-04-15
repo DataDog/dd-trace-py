@@ -26,6 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.serverless import in_azure_app_service
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
@@ -511,7 +512,7 @@ class Config(object):
             self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
-        if self.service is None and in_azure_function():
+        if self.service is None and (in_azure_function() or in_azure_app_service()):
             self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
