@@ -26,6 +26,7 @@ from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyWriter
+from tests.utils import get_shared_test_native_runtime
 
 
 class DummyProcessor(TraceProcessor):
@@ -52,6 +53,7 @@ def test_aggregator_single_span():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[
             mock_proc1,
             mock_proc2,
@@ -88,6 +90,7 @@ def test_aggregator_user_processors():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[Proc()],
         user_processors=[UserProc()],
     )
@@ -110,6 +113,7 @@ def test_aggregator_reset_default_args():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
@@ -146,6 +150,7 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
@@ -180,11 +185,12 @@ def test_aggregator_reset_with_args():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
 
-    aggr.writer = NativeWriter("http://localhost:8126", api_version="v0.5")
+    aggr.writer = NativeWriter("http://localhost:8126", get_shared_test_native_runtime(), api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
@@ -224,6 +230,7 @@ def test_aggregator_bad_processor():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
+        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[
             mock_good_before,
             mock_bad,
@@ -244,7 +251,12 @@ def test_aggregator_bad_processor():
 
 def test_aggregator_multi_span():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, dd_processors=[])
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=0,
+        native_runtime=get_shared_test_native_runtime(),
+        dd_processors=[],
+    )
     aggr.writer = writer
 
     # Normal usage
@@ -289,7 +301,11 @@ def test_config_partial_flush_min_spans_validation():
 
 def test_aggregator_partial_flush_0_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0)
+    aggr = SpanAggregator(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=0,
+        native_runtime=get_shared_test_native_runtime(),
+    )
     aggr.writer = writer
 
     # Normal usage
@@ -326,7 +342,11 @@ def test_aggregator_partial_flush_0_spans():
 
 def test_aggregator_partial_flush_2_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr = SpanAggregator(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=2,
+        native_runtime=get_shared_test_native_runtime(),
+    )
     aggr.writer = writer
 
     # Normal usage

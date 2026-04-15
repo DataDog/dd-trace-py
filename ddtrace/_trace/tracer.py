@@ -175,7 +175,7 @@ class Tracer(object):
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
 
-        self._native_runtime = NativeRuntime() if config._trace_writer_native else None
+        self._native_runtime = NativeRuntime()
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
@@ -938,7 +938,6 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
-            if self._native_runtime is not None:
-                self._native_runtime.shutdown()
+            self._native_runtime.shutdown()
         finally:
             self._shutdown_lock.release()

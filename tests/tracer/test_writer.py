@@ -20,7 +20,6 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
-from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
@@ -32,6 +31,7 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
+from tests.utils import get_shared_test_native_runtime
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -50,7 +50,7 @@ def mock_sys_platform(new_value):
 def managed_writer(writer_class, writer_url, **writer_kwargs):
     """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
     if writer_class is NativeWriter:
-        writer = writer_class(writer_url, NativeRuntime(), **writer_kwargs)
+        writer = writer_class(writer_url, get_shared_test_native_runtime(), **writer_kwargs)
     else:
         writer = writer_class(writer_url, **writer_kwargs)
     writer.start()
@@ -407,7 +407,7 @@ class NativeWriterTests(BaseTestCase):
 
     def test_on_shutdown_idempotent(self):
         """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
-        writer = NativeWriter("http://dne:1234", NativeRuntime())
+        writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime())
         writer.start()
         # First call should succeed
         writer.on_shutdown()
@@ -416,7 +416,7 @@ class NativeWriterTests(BaseTestCase):
 
     def test_on_shutdown_before_start(self):
         """Test that NativeWriter.on_shutdown() can be called before start() without raising ValueError."""
-        writer = NativeWriter("http://dne:1234", NativeRuntime())
+        writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime())
         # Call shutdown without ever calling start()
         writer.on_shutdown()
 
@@ -904,7 +904,7 @@ def test_racing_start():
 
 def test_bad_encoding(monkeypatch):
     with override_global_config({"_trace_api": "foo"}):
-        writer = NativeWriter("http://localhost:9126")
+        writer = NativeWriter("http://localhost:9126", get_shared_test_native_runtime())
         assert writer._api_version == "v0.5"
 
 
@@ -917,7 +917,7 @@ def test_bad_encoding(monkeypatch):
     ],
 )
 def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
-    writer = NativeWriter("http://dne:1234", api_version=init_api_version)
+    writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime(), api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
@@ -929,7 +929,7 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
 
 
 def test_native_writer_recreate_keeps_stats_opt_out():
-    writer = NativeWriter("http://dne:1234", NativeRuntime(), stats_opt_out=True)
+    writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime(), stats_opt_out=True)
     assert writer._stats_opt_out
 
     writer = writer.recreate()
@@ -940,7 +940,7 @@ def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass
 
-    writer = NativeWriter("http://dne:1234", response_callback=response_callback)
+    writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime(), response_callback=response_callback)
     assert writer._response_cb is response_callback
     writer = writer.recreate()
     assert isinstance(writer, NativeWriter)
@@ -1009,9 +1009,9 @@ def test_writer_api_version_selection(
             # Create a new writer
             if ddtrace_api_version is not None:
                 with override_global_config({"_trace_api": ddtrace_api_version}):
-                    writer = NativeWriter("http://dne:1234", api_version=api_version)
+                    writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime(), api_version=api_version)
             else:
-                writer = NativeWriter("http://dne:1234", api_version=api_version)
+                writer = NativeWriter("http://dne:1234", get_shared_test_native_runtime(), api_version=api_version)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
@@ -1116,7 +1116,7 @@ def test_writer_telemetry_enabled_on_linux(
 
     with mock_sys_platform(platform):
         with override_global_config(dict(_telemetry_enabled=config_value)):
-            _writer = NativeWriter("http://localhost:8126/v0.5/traces", NativeRuntime(), sync_mode=True)
+            _writer = NativeWriter("http://localhost:8126/v0.5/traces", get_shared_test_native_runtime(), sync_mode=True)
 
             if expected_enabled:
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
@@ -1402,5 +1402,5 @@ def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_se
 
 def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
-    writer = NativeWriter("http://localhost:8126", NativeRuntime(), otlp_endpoint="http://localhost:4318/v1/traces")
+    writer = NativeWriter("http://localhost:8126", get_shared_test_native_runtime(), otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"

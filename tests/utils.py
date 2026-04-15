@@ -61,7 +61,7 @@ from tests.subprocesstest import SubprocessTestCase
 _shared_test_native_runtime: NativeRuntime = None  # type: ignore[assignment]
 
 
-def _get_shared_test_native_runtime() -> NativeRuntime:
+def get_shared_test_native_runtime() -> NativeRuntime:
     global _shared_test_native_runtime
     if _shared_test_native_runtime is None:
         _shared_test_native_runtime = NativeRuntime()
@@ -624,7 +624,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
         kwargs["stats_opt_out"] = asm_config._apm_opt_out
-        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=_get_shared_test_native_runtime())
+        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=get_shared_test_native_runtime())
 
         DummyWriterMixin.__init__(self, *args, **kwargs)
 

@@ -300,9 +300,9 @@ class SpanAggregator(SpanProcessor):
         self,
         partial_flush_enabled: bool,
         partial_flush_min_spans: int,
+        native_runtime: "NativeRuntime",
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
-        native_runtime: Optional["NativeRuntime"] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -316,8 +316,8 @@ class SpanAggregator(SpanProcessor):
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
         self.writer = create_trace_writer(
-            response_callback=self._agent_response_callback,
             native_runtime=native_runtime,
+            response_callback=self._agent_response_callback,
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
