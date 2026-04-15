@@ -595,7 +595,7 @@ class LLMObs(Service):
             "trace_id": submitted_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
-            "name": get_llmobs_span_name(span),
+            "name": get_llmobs_span_name(span) or span.name,
             "start_ns": span.start_ns,
             "duration": cast(int, span.duration_ns),
             "status": "error" if span.error else "ok",
@@ -619,7 +619,7 @@ class LLMObs(Service):
     def _llmobs_tags(span: Span) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        tags["error"] = span.error
+        tags["error"] = str(span.error)
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
@@ -1869,7 +1869,7 @@ class LLMObs(Service):
             llmobs_trace_id = (
                 parent_llmobs_trace_id
                 if parent_llmobs_trace_id is not None
-                else format_trace_id(llmobs_parent.trace_id)
+                else format_trace_id(llmobs_parent.trace_id or 0)
             )
             if isinstance(llmobs_parent, Span):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
