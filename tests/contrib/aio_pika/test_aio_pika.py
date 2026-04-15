@@ -268,6 +268,7 @@ async def test_publish_with_custom_headers(patch_aio_pika):
     ignores=[
         "meta.error.stack",
         "meta.error.message",
+        "meta.error.type",
         "meta.out.host",
         "metrics.network.destination.port",
         "meta.tracestate",

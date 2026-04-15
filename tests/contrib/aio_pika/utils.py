@@ -71,4 +71,7 @@ async def aio_pika_ctx(
                 await exchange.delete()
             except Exception:
                 pass
-        await connection.close()
+        try:
+            await connection.close()
+        except Exception:
+            pass
