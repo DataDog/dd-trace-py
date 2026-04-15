@@ -73,7 +73,7 @@ class GenInfo
     using Ptr = std::unique_ptr<GenInfo>;
 
   private:
-    [[nodiscard]] static Result<GenInfo::Ptr> create_impl(PyObject* gen_addr, size_t recursion_depth);
+    [[nodiscard]] static Result<GenInfo::Ptr> create_impl(PyObject* gen_addr);
 
   public:
     // The address of the Task PyObject* the GenInfo represents
