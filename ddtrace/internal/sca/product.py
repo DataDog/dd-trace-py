@@ -41,13 +41,18 @@ def _get_installed_packages():
         return {}
 
 
-def _load_and_instrument():
+def _load_and_instrument(after_fork: bool = False):
     """Load CVE targets from static JSON and instrument applicable functions.
 
     Groups targets by qualified name and collects all CVE IDs per target.
     Uses apply_instrumentation_updates which handles both immediate
     instrumentation (module already imported) and deferred instrumentation
     via ModuleWatchdog (module not yet imported).
+
+    Args:
+        after_fork: If True, skip bytecode injection for already-imported
+            targets since they inherit injected hooks from the parent
+            process.  Only populate the registry so existing hooks work.
     """
     from ddtrace.appsec.sca._cve_loader import load_cve_targets
     from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
@@ -98,7 +103,7 @@ def _load_and_instrument():
         for cve_id in info["cve_ids"]:
             telemetry_writer.register_cve_metadata(info["dependency_name"], cve_id)
 
-    apply_instrumentation_updates(targets=targets)
+    apply_instrumentation_updates(targets=targets, after_fork=after_fork)
 
 
 def post_preload():
@@ -174,6 +179,6 @@ def restart(join: bool = False) -> None:
         return
 
     try:
-        _load_and_instrument()
+        _load_and_instrument(after_fork=True)
     except Exception:
         log.debug("Failed SCA instrumentation after restart", exc_info=True)

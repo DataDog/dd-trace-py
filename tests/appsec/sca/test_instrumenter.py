@@ -421,7 +421,7 @@ class TestForkCallbackOrdering:
                 side_effect=track_registry_reset,
             ),
             patch("ddtrace.internal.sca.product.start"),
-            patch("ddtrace.internal.sca.product._load_and_instrument"),
+            patch("ddtrace.internal.sca.product._load_and_instrument") as mock_load,
             patch("ddtrace.internal.sca.product.stop"),
         ):
             mock_config._sca_enabled = True  # Must be True or restart() returns early
@@ -430,3 +430,6 @@ class TestForkCallbackOrdering:
         # Both resets should have been called
         assert "instrumenter_reset" in reset_calls, "restart() must call _reset_after_fork"
         assert "registry_reset" in reset_calls, "restart() must call _reset_global_registry_after_fork"
+        # restart() must pass after_fork=True to skip re-injecting hooks
+        # on functions whose bytecode already carries the hook from the parent.
+        mock_load.assert_called_once_with(after_fork=True)

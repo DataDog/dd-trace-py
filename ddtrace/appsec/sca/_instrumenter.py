@@ -200,7 +200,7 @@ class Instrumenter:
                 return False
 
 
-def apply_instrumentation_updates(targets: list[dict]) -> None:
+def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False) -> None:
     """Apply instrumentation updates from CVE data or Remote Configuration.
 
     For each target:
@@ -211,18 +211,33 @@ def apply_instrumentation_updates(targets: list[dict]) -> None:
 
     Args:
         targets: List of dicts with keys: target, dependency_name, cve_ids.
+        after_fork: If True, skip bytecode injection for already-imported
+            targets since they inherit injected hooks from the parent
+            process.  Only populate the registry so existing hooks work.
     """
     try:
         registry = get_global_registry()
         instrumenter = get_instrumenter(registry)
 
-        _process_additions(instrumenter, registry, targets)
+        _process_additions(instrumenter, registry, targets, after_fork=after_fork)
     except Exception:
         log.debug("Fatal error in apply_instrumentation_updates", exc_info=True)
 
 
-def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegistry, targets: list[dict]) -> None:
-    """Process target additions: resolve and instrument, or defer via ModuleWatchdog."""
+def _process_additions(
+    instrumenter: Instrumenter,
+    registry: InstrumentationRegistry,
+    targets: list[dict],
+    after_fork: bool = False,
+) -> None:
+    """Process target additions: resolve and instrument, or defer via ModuleWatchdog.
+
+    Args:
+        after_fork: When True, skip bytecode injection for targets whose
+            modules are already imported — their code objects already
+            carry the hook from the parent process.  We only populate
+            the registry so the existing hooks can look up CVE info.
+    """
     from ddtrace.appsec.sca._resolver import SymbolResolver
 
     for target_info in targets:
@@ -232,7 +247,10 @@ def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegi
 
         try:
             if registry.has_target(target_name) and registry.is_instrumented(target_name):
-                log.debug("Target already instrumented: %s", target_name)
+                # Merge any new CVE IDs that weren't present at initial registration
+                # (e.g. incremental Remote Configuration updates).
+                registry.merge_cve_ids(target_name, cve_ids)
+                log.debug("Target already instrumented, merged CVEs: %s", target_name)
                 continue
 
             # Register target with CVE info (even if not yet resolvable)
@@ -248,7 +266,14 @@ def _process_additions(instrumenter: Instrumenter, registry: InstrumentationRegi
             result = SymbolResolver.resolve(target_name)
             if result:
                 _, func = result
-                instrumenter.instrument(target_name, func)
+                if after_fork:
+                    # Bytecode already has hooks from the parent process.
+                    # Just mark as instrumented so the registry is populated
+                    # for the existing hooks and we don't re-inject.
+                    registry.mark_instrumented(target_name, func.__code__)
+                    log.debug("Registered existing instrumentation after fork: %s", target_name)
+                else:
+                    instrumenter.instrument(target_name, func)
             else:
                 # Module not yet imported — register a ModuleWatchdog hook
                 module_name, _, _ = target_name.partition(":")

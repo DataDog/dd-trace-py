@@ -131,6 +131,38 @@ def test_registry_thread_safety():
         assert registry.has_target(f"target{i}")
 
 
+def test_registry_merge_cve_ids():
+    registry = InstrumentationRegistry()
+    registry.add_target(
+        "module.path:function",
+        package_name="requests",
+        cve_ids=["CVE-2024-1234"],
+    )
+    # Merge new CVEs
+    assert registry.merge_cve_ids("module.path:function", ["CVE-2024-5678", "CVE-2024-9999"])
+    info = registry.get_target_info("module.path:function")
+    assert info is not None
+    assert set(info.cve_ids) == {"CVE-2024-1234", "CVE-2024-5678", "CVE-2024-9999"}
+
+
+def test_registry_merge_cve_ids_no_duplicates():
+    registry = InstrumentationRegistry()
+    registry.add_target(
+        "module.path:function",
+        package_name="requests",
+        cve_ids=["CVE-2024-1234"],
+    )
+    # Merging existing CVEs should return False (nothing added)
+    assert not registry.merge_cve_ids("module.path:function", ["CVE-2024-1234"])
+    info = registry.get_target_info("module.path:function")
+    assert info.cve_ids == ("CVE-2024-1234",)
+
+
+def test_registry_merge_cve_ids_nonexistent():
+    registry = InstrumentationRegistry()
+    assert not registry.merge_cve_ids("nonexistent", ["CVE-2024-1234"])
+
+
 def test_get_global_registry():
     registry1 = get_global_registry()
     registry2 = get_global_registry()

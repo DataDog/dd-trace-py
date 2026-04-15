@@ -132,6 +132,29 @@ class InstrumentationRegistry:
             return state.cached_info
         return None
 
+    def merge_cve_ids(self, qualified_name: str, new_cve_ids: list[str]) -> bool:
+        """Merge additional CVE IDs into an existing target.
+
+        Rebuilds cached_info so the detection hook sees the updated set.
+        Returns True if any new CVEs were actually added.
+        """
+        with self._lock:
+            state = self._targets.get(qualified_name)
+            if not state:
+                return False
+            existing = set(state.cve_ids)
+            added = [cve for cve in new_cve_ids if cve not in existing]
+            if not added:
+                return False
+            state.cve_ids.extend(added)
+            state.cached_info = TargetInfo(
+                package_name=state.package_name,
+                cve_ids=tuple(state.cve_ids),
+                line=state.line,
+            )
+            log.debug("Merged %d new CVEs into %s", len(added), qualified_name)
+            return True
+
     def clear(self) -> None:
         with self._lock:
             self._targets.clear()
