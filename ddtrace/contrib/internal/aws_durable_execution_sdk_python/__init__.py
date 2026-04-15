@@ -37,4 +37,16 @@ Configuration
    ``DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE`` environment variable.
 
    Default: ``"aws_durable_execution_sdk_python"``
+
+.. py:data:: ddtrace.config.aws_durable_execution_sdk_python["distributed_tracing_enabled"]
+
+   Whether to enable distributed tracing across chained Lambda invocations.
+   When enabled, trace context is injected into ``invoke()`` payloads and
+   extracted from the input event in ``@durable_execution`` handlers, linking
+   traces across service boundaries.
+
+   This option can also be set with the
+   ``DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
 """
