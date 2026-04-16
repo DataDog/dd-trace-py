@@ -557,6 +557,37 @@ venv = Venv(
             },
         ),
         Venv(
+            name="crashtracker",
+            env={
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            command="pytest -v {cmdargs} tests/crashtracker/",
+            pkgs={
+                "pytest-randomly": latest,
+                "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
+                "pytest-asyncio": "~=0.23.7",
+                "setuptools": "<82",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    env={
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
+                    pkgs={
+                        "zope-event": "==5.0",
+                        "zope-interface": "==7.2",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -1999,6 +2030,11 @@ venv = Venv(
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
+                # Disable coverage report upload for this suite: these tests exercise the
+                # coverage upload functionality themselves, so having the plugin also run
+                # coverage upload concurrently causes interference (the plugin's global
+                # coverage.py instance gets stopped by the tests, corrupting state).
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false",
             },
             venvs=[
                 Venv(

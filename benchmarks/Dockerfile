@@ -40,6 +40,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
   # ddtrace includes c extensions
   build-essential \
+  # libdatadog requires autoconf/automake/libtool to build
+  autoconf \
+  automake \
+  libtool \
   # uuid is used to generate identifier for run if one is not provided
   uuid-runtime \
   # provides ab for testing
