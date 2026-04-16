@@ -921,3 +921,22 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
 
     _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
+
+
+def test_ksr_formatting_locale_independent():
+    """_dd.p.ksr formatting must use '.' as decimal separator regardless of locale."""
+    import locale
+    from ddtrace.internal.sampling import _format_ksr
+
+    original_locale = locale.getlocale(locale.LC_ALL)
+    try:
+        try:
+            locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
+        except locale.Error:
+            pytest.skip("de_DE.UTF-8 locale not available")
+        assert _format_ksr(0.3) == "0.3"
+        assert _format_ksr(0.5) == "0.5"
+        assert _format_ksr(1.0) == "1"
+        assert _format_ksr(0.000001) == "0.000001"
+    finally:
+        locale.setlocale(locale.LC_ALL, original_locale)
