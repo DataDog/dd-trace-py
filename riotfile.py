@@ -132,7 +132,7 @@ venv = Venv(
         Venv(
             name="meta-testing",
             pys=["3.10"],
-            command="pytest {cmdargs} --no-ddtrace tests/meta",
+            command="pytest {cmdargs} tests/meta",
             env={
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
@@ -475,7 +475,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -497,7 +497,7 @@ venv = Venv(
             name="integration-civisibility",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -2068,7 +2068,7 @@ venv = Venv(
         ),
         Venv(
             name="unittest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
+            command="pytest {cmdargs} tests/contrib/unittest/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2084,7 +2084,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
+            command="pytest {cmdargs} tests/contrib/asynctest/",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -2105,7 +2105,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest_bdd",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
@@ -2140,7 +2140,7 @@ venv = Venv(
         Venv(
             name="pytest_benchmark",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2161,7 +2161,7 @@ venv = Venv(
         Venv(
             name="pytest:flaky",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            command="pytest {cmdargs} --no-cov -p no:flaky tests/contrib/pytest_flaky/",
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
@@ -3358,7 +3358,7 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "boto3": latest,
@@ -3874,7 +3874,7 @@ venv = Venv(
                 "selenium": "~=4.0",
                 "webdriver-manager": latest,
             },
-            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
             },
