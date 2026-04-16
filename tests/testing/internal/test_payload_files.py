@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import itertools
 import json
 from unittest.mock import Mock
@@ -155,6 +156,45 @@ class TestPayloadFileCoverageWriter:
         writer.connector = Mock()
         writer._send_events([{"test_session_id": 1, "files": []}])
         writer.connector.post_files.assert_not_called()
+
+    def test_coverage_bitmaps_are_base64_encoded(self, tmp_path):
+        """Coverage bitmaps (bytes) must be base64-encoded for JSON serialization."""
+        cov_dir = tmp_path / "coverage"
+        writer = PayloadFileCoverageWriter(connector_setup=_noop, output_dir=str(cov_dir))
+        bitmap_data = b"\x01\x02\xff\x00\xab"
+        events: list[Event] = [
+            {
+                "test_session_id": 1,
+                "test_suite_id": 2,
+                "span_id": 3,
+                "files": [
+                    {"filename": "src/foo.py", "bitmap": bitmap_data},
+                    {"filename": "src/bar.py", "bitmap": b"\xde\xad"},
+                ],
+            }
+        ]
+        writer._send_events(events)
+
+        files = list(cov_dir.glob("coverage-*.json"))
+        assert len(files) == 1
+
+        data = json.loads(files[0].read_text())
+        coverages = data["coverages"]
+        assert len(coverages) == 1
+        written_files = coverages[0]["files"]
+        assert written_files[0]["bitmap"] == base64.b64encode(bitmap_data).decode("ascii")
+        assert written_files[1]["bitmap"] == base64.b64encode(b"\xde\xad").decode("ascii")
+
+    def test_coverage_bitmap_encoding_does_not_mutate_original_events(self, tmp_path):
+        """Base64 encoding should not modify the original event dicts."""
+        cov_dir = tmp_path / "coverage"
+        writer = PayloadFileCoverageWriter(connector_setup=_noop, output_dir=str(cov_dir))
+        original_bitmap = b"\x01\x02\x03"
+        events: list[Event] = [{"test_session_id": 1, "files": [{"filename": "f.py", "bitmap": original_bitmap}]}]
+        writer._send_events(events)
+
+        # Original event should still have bytes, not a base64 string
+        assert events[0]["files"][0]["bitmap"] is original_bitmap
 
     def test_coverage_and_test_payloads_go_to_separate_dirs(self, tmp_path):
         tests_dir = tmp_path / "tests"

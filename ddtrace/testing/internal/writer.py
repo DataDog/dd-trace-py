@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import base64
 import logging
 import threading
 import typing as t
@@ -375,7 +376,8 @@ class TestCoverageWriter(BaseWriter):
 class PayloadFileCoverageWriter(TestCoverageWriter):
     """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
 
-    Used in payload-files mode (Bazel).
+    Used in payload-files mode (Bazel). Coverage bitmaps (bytes) are
+    base64-encoded so they survive JSON serialization.
     """
 
     __test__ = False
@@ -385,9 +387,24 @@ class PayloadFileCoverageWriter(TestCoverageWriter):
         self._output_dir = output_dir
 
     def _send_events(self, events: list[Event]) -> bool:
+        encoded_events = []
+        for event in events:
+            event_copy = dict(event)
+            if "files" in event_copy:
+                event_copy["files"] = [
+                    {
+                        **f,
+                        "bitmap": base64.b64encode(f["bitmap"]).decode("ascii")
+                        if isinstance(f.get("bitmap"), bytes)
+                        else f.get("bitmap"),
+                    }
+                    for f in event_copy["files"]
+                ]
+            encoded_events.append(event_copy)
+
         write_payload_file(
             output_dir=self._output_dir,
-            payload={"version": 2, "coverages": events},
+            payload={"version": 2, "coverages": encoded_events},
             kind="coverage",
         )
         return True
