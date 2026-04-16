@@ -1,7 +1,7 @@
 [[
   {
     "name": "rabbitmq.publish",
-    "service": "rabbitmq",
+    "service": "tests.contrib.aio_pika",
     "resource": "test_exchange_aiopika",
     "trace_id": 0,
     "span_id": 1,
@@ -9,7 +9,6 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.aio_pika",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69d3e41700000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
@@ -36,7 +35,7 @@
   },
      {
        "name": "rabbitmq.get",
-       "service": "rabbitmq",
+       "service": "tests.contrib.aio_pika",
        "resource": "test_queue_aiopika",
        "trace_id": 0,
        "span_id": 2,
@@ -44,7 +43,6 @@
        "type": "worker",
        "error": 0,
        "meta": {
-         "_dd.base_service": "tests.contrib.aio_pika",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "69d3e41700000000",
          "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
@@ -71,7 +69,7 @@
 [
   {
     "name": "rabbitmq.ack",
-    "service": "rabbitmq",
+    "service": "tests.contrib.aio_pika",
     "resource": "test_exchange_aiopika",
     "trace_id": 1,
     "span_id": 1,
@@ -79,7 +77,6 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.aio_pika",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69d3e41700000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",

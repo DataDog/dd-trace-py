@@ -1,7 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import MutableMapping
-from typing import Optional
 
 import aio_pika
 from wrapt import wrap_function_wrapper as _w
@@ -13,20 +11,20 @@ from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingPublishEvent
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
-DEFAULT_SERVICE = "rabbitmq"
+log = get_logger(__name__)
+
 _INTEGRATION_NAME = "aio-pika"
 _MESSAGING_SYSTEM = "rabbitmq"
 
 config._add(
     "aio_pika",
     dict(
-        _default_service=schematize_service_name(DEFAULT_SERVICE),
         distributed_tracing_enabled=asbool(env.get("DD_AIO_PIKA_DISTRIBUTED_TRACING", True)),
     ),
 )
@@ -38,10 +36,6 @@ def get_version() -> str:
 
 def _supported_versions() -> dict[str, str]:
     return {"aio_pika": ">=9.0.0"}
-
-
-def _get_service() -> Optional[str]:
-    return trace_utils.ext_service(None, config.aio_pika)
 
 
 def _extract_conn_tags(instance) -> tuple[dict[str, str], dict[str, float]]:
@@ -63,18 +57,13 @@ def _extract_conn_tags(instance) -> tuple[dict[str, str], dict[str, float]]:
             metrics[net.TARGET_PORT] = float(url.port)
         return tags, metrics
     except AttributeError:
+        log.debug(
+            "aio_pika: could not extract connection tags from %r — "
+            "the integration may be patching an unexpected object type",
+            instance,
+            exc_info=True,
+        )
         return {}, {}
-
-
-def _decode_headers(headers: MutableMapping[str, Any]) -> dict[str, str]:
-    """Convert AMQP headers (bytes values) to a string dict for propagators."""
-    result: dict[str, str] = {}
-    for key, val in headers.items():
-        if isinstance(val, (bytes, bytearray)):
-            result[key] = val.decode("utf-8", errors="ignore")
-        elif val is not None:
-            result[key] = str(val)
-    return result
 
 
 async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -96,7 +85,6 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
         destination=exchange_name,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        service=_get_service(),
         resource=exchange_name,
         headers=message.headers,
         body=getattr(message, "body", b"") or b"",
@@ -127,7 +115,7 @@ async def traced_consumer(
         try:
             raw = msg.header.properties.headers
             if raw:
-                decoded_headers = _decode_headers(raw)
+                decoded_headers = trace_utils.decode_amqp_headers(raw)
         except AttributeError:
             pass
 
@@ -136,7 +124,6 @@ async def traced_consumer(
         destination=exchange_name,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        service=_get_service(),
         resource=exchange_name,
         headers=decoded_headers,
         body=body,
@@ -166,7 +153,7 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
     if result is not None:
         raw = getattr(result, "headers", None)
         if raw:
-            decoded_headers = _decode_headers(raw)
+            decoded_headers = trace_utils.decode_amqp_headers(raw)
         body = getattr(result, "body", b"") or b""
 
     event = MessagingConsumeEvent(
@@ -174,7 +161,6 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
         destination=queue_name,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        service=_get_service(),
         resource=queue_name,
         headers=decoded_headers,
         body=body,
@@ -202,7 +188,6 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
             destination=exchange_name,
             component=_INTEGRATION_NAME,
             integration_config=config.aio_pika,
-            service=_get_service(),
             resource=exchange_name,
             operation=operation,
         )

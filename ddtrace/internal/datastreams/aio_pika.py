@@ -5,6 +5,9 @@ from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
 
 def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:
+    # AIDEV-NOTE: inline import avoids a circular import — this module is loaded
+    # at import time via the `if config._data_streams_enabled` block below, which
+    # can happen before the data_streams_processor is fully initialised.
     from . import data_streams_processor as get_processor
 
     proc = get_processor()
