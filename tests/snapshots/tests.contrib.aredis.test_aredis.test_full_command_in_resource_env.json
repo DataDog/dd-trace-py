@@ -11,18 +11,20 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5eb2300000000",
+      "_dd.p.tid": "69de94d700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz3g7ns_9,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "ad2356ba7e0f40c8a914b75439b464fd"
+      "runtime-id": "74d740e4e6a44d71a5c550380559ebd3"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 28077.0
+      "process_id": 61322.0
     },
-    "duration": 11631750,
-    "start": 1772481315756475917
+    "duration": 4173250,
+    "start": 1776194775135773555
   },
      {
        "name": "redis.command",
@@ -51,8 +53,8 @@
          "out.redis_db": 0.0,
          "redis.args_length": 2.0
        },
-       "duration": 9357041,
-       "start": 1772481315757883084
+       "duration": 3727334,
+       "start": 1776194775135927763
      },
      {
        "name": "redis.command",
@@ -80,6 +82,6 @@
          "out.redis_db": 0.0,
          "redis.pipeline_length": 2.0
        },
-       "duration": 240250,
-       "start": 1772481315767843084
+       "duration": 184875,
+       "start": 1776194775139744138
      }]]

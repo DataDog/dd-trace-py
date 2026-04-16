@@ -99,10 +99,12 @@ def extract_appveyor(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[st
         if extended:
             commit_message += "\n" + extended
 
+    is_pull_request = bool(env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH"))
     return {
         CITag.PROVIDER_NAME: "appveyor",
         GitTag.REPOSITORY_URL: repository,
         GitTag.COMMIT_SHA: commit,
+        GitTag.COMMIT_HEAD_SHA: env.get("APPVEYOR_PULL_REQUEST_HEAD_COMMIT"),
         CITag.WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
         CITag.PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
         CITag.PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
@@ -110,10 +112,12 @@ def extract_appveyor(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[st
         CITag.PIPELINE_URL: url,
         CITag.JOB_URL: url,
         GitTag.BRANCH: branch,
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("APPVEYOR_REPO_BRANCH") if is_pull_request else None,
         GitTag.TAG: tag,
         GitTag.COMMIT_MESSAGE: commit_message,
         GitTag.COMMIT_AUTHOR_NAME: env.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
         GitTag.COMMIT_AUTHOR_EMAIL: env.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("APPVEYOR_PULL_REQUEST_NUMBER"),
     }
 
 
@@ -144,6 +148,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> dict[str, t.Opti
         GitTag.BRANCH: env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
         or env.get("BUILD_SOURCEBRANCH")
         or env.get("BUILD_SOURCEBRANCHNAME"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("SYSTEM_PULLREQUEST_TARGETBRANCH"),
         GitTag.COMMIT_MESSAGE: env.get("BUILD_SOURCEVERSIONMESSAGE"),
         GitTag.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         GitTag.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
@@ -158,6 +163,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> dict[str, t.Opti
             },
             separators=(",", ":"),
         ),
+        GitTag.PULL_REQUEST_NUMBER: env.get("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER"),
     }
 
 
@@ -170,6 +176,7 @@ def extract_bitbucket(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
     return {
         GitTag.BRANCH: env.get("BITBUCKET_BRANCH"),
         GitTag.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("BITBUCKET_PR_DESTINATION_BRANCH"),
         GitTag.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
         GitTag.TAG: env.get("BITBUCKET_TAG"),
         CITag.JOB_URL: url,
@@ -179,6 +186,7 @@ def extract_bitbucket(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         CITag.PIPELINE_URL: url,
         CITag.PROVIDER_NAME: "bitbucket",
         CITag.WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("BITBUCKET_PR_ID"),
     }
 
 
@@ -186,6 +194,8 @@ def extract_bitbucket(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
 def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Buildkite environ."""
     # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
+    pull_request_number = env.get("BUILDKITE_PULL_REQUEST")
+    is_pull_request = pull_request_number not in (None, "", "false")
     node_label_list: list[str] = []
     buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
@@ -196,6 +206,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
     return {
         GitTag.BRANCH: env.get("BUILDKITE_BRANCH"),
         GitTag.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("BUILDKITE_PULL_REQUEST_BASE_BRANCH") if is_pull_request else None,
         GitTag.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
         GitTag.TAG: env.get("BUILDKITE_TAG"),
         CITag.PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
@@ -220,6 +231,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         ),
         CITag.NODE_LABELS: json.dumps(node_label_list, separators=(",", ":")),
         CITag.NODE_NAME: env.get("BUILDKITE_AGENT_ID"),
+        GitTag.PULL_REQUEST_NUMBER: pull_request_number if is_pull_request else None,
     }
 
 
@@ -231,6 +243,7 @@ def extract_circle_ci(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         GitTag.COMMIT_SHA: env.get("CIRCLE_SHA1"),
         GitTag.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
         GitTag.TAG: env.get("CIRCLE_TAG"),
+        CITag.JOB_ID: env.get("CIRCLE_BUILD_NUM"),
         CITag.PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
         CITag.PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
         CITag.PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
@@ -239,6 +252,7 @@ def extract_circle_ci(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         CITag.JOB_NAME: env.get("CIRCLE_JOB"),
         CITag.PROVIDER_NAME: "circleci",
         CITag.WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("CIRCLE_PR_NUMBER"),
         CITag._CI_ENV_VARS: json.dumps(
             {
                 "CIRCLE_WORKFLOW_ID": env.get("CIRCLE_WORKFLOW_ID"),
@@ -255,6 +269,7 @@ def extract_codefresh(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
     build_id = env.get("CF_BUILD_ID")
     return {
         GitTag.BRANCH: env.get("CF_BRANCH"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("CF_PULL_REQUEST_TARGET"),
         CITag.PIPELINE_ID: build_id,
         CITag.PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
         CITag.PIPELINE_URL: env.get("CF_BUILD_URL"),
@@ -264,6 +279,7 @@ def extract_codefresh(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
             {"CF_BUILD_ID": build_id},
             separators=(",", ":"),
         ),
+        GitTag.PULL_REQUEST_NUMBER: env.get("CF_PULL_REQUEST_NUMBER"),
     }
 
 
@@ -286,6 +302,7 @@ def extract_gitlab(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]
     return {
         GitTag.BRANCH: env.get("CI_COMMIT_REF_NAME"),
         GitTag.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"),
         GitTag.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         GitTag.TAG: env.get("CI_COMMIT_TAG"),
         CITag.STAGE_NAME: env.get("CI_JOB_STAGE"),
@@ -312,6 +329,10 @@ def extract_gitlab(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]
         ),
         CITag.NODE_LABELS: env.get("CI_RUNNER_TAGS"),
         CITag.NODE_NAME: env.get("CI_RUNNER_ID"),
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: env.get("CI_MERGE_REQUEST_TARGET_BRANCH_SHA"),
+        GitTag.PULL_REQUEST_BASE_BRANCH_SHA: env.get("CI_MERGE_REQUEST_DIFF_BASE_SHA"),
+        GitTag.COMMIT_HEAD_SHA: env.get("CI_MERGE_REQUEST_SOURCE_BRANCH_SHA"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("CI_MERGE_REQUEST_IID"),
     }
 
 
@@ -331,6 +352,7 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
     return {
         GitTag.BRANCH: env.get("GIT_BRANCH"),
         GitTag.COMMIT_SHA: env.get("GIT_COMMIT"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("CHANGE_TARGET"),
         GitTag.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
         CITag.PIPELINE_ID: env.get("BUILD_TAG"),
         CITag.PIPELINE_NAME: name,
@@ -346,6 +368,7 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
         ),
         CITag.NODE_LABELS: json.dumps(node_labels_list, separators=(",", ":")),
         CITag.NODE_NAME: env.get("NODE_NAME"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("CHANGE_ID"),
     }
 
 
@@ -356,15 +379,20 @@ def extract_teamcity(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[st
         CITag.JOB_URL: env.get("BUILD_URL"),
         CITag.JOB_NAME: env.get("TEAMCITY_BUILDCONF_NAME"),
         CITag.PROVIDER_NAME: "teamcity",
+        GitTag.PULL_REQUEST_NUMBER: env.get("TEAMCITY_PULLREQUEST_NUMBER"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("TEAMCITY_PULLREQUEST_TARGET_BRANCH"),
     }
 
 
 @register_provider("TRAVIS")
 def extract_travis(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Travis environ."""
+    is_pull_request = env.get("TRAVIS_EVENT_TYPE") == "pull_request"
     return {
         GitTag.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
         GitTag.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
+        GitTag.COMMIT_HEAD_SHA: env.get("TRAVIS_PULL_REQUEST_SHA") if is_pull_request else None,
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("TRAVIS_BRANCH") if is_pull_request else None,
         GitTag.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("TRAVIS_REPO_SLUG")),
         GitTag.TAG: env.get("TRAVIS_TAG"),
         CITag.JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
@@ -375,6 +403,7 @@ def extract_travis(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]
         CITag.PROVIDER_NAME: "travisci",
         CITag.WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
         GitTag.COMMIT_MESSAGE: env.get("TRAVIS_COMMIT_MESSAGE"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("TRAVIS_PULL_REQUEST") if is_pull_request else None,
     }
 
 
@@ -382,7 +411,7 @@ def extract_travis(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]
 def extract_bitrise(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Bitrise environ."""
     commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
-    branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
+    branch = env.get("BITRISEIO_PULL_REQUEST_HEAD_BRANCH") or env.get("BITRISE_GIT_BRANCH")
     if env.get("BITRISE_GIT_MESSAGE"):
         message = env.get("BITRISE_GIT_MESSAGE")
     elif env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or env.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
@@ -402,12 +431,15 @@ def extract_bitrise(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
         GitTag.REPOSITORY_URL: env.get("GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: commit,
         GitTag.BRANCH: branch,
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("BITRISEIO_GIT_BRANCH_DEST"),
         GitTag.TAG: env.get("BITRISE_GIT_TAG"),
         GitTag.COMMIT_MESSAGE: message,
         GitTag.COMMIT_AUTHOR_NAME: env.get("GIT_CLONE_COMMIT_AUTHOR_NAME"),
         GitTag.COMMIT_AUTHOR_EMAIL: env.get("GIT_CLONE_COMMIT_AUTHOR_EMAIL"),
         GitTag.COMMIT_COMMITTER_NAME: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
-        GitTag.COMMIT_COMMITTER_EMAIL: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        GitTag.COMMIT_COMMITTER_EMAIL: env.get("GIT_CLONE_COMMIT_COMMITER_EMAIL")
+        or env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("BITRISE_PULL_REQUEST"),
     }
 
 
@@ -423,10 +455,12 @@ def extract_buddy(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]
         GitTag.REPOSITORY_URL: env.get("BUDDY_SCM_URL"),
         GitTag.COMMIT_SHA: env.get("BUDDY_EXECUTION_REVISION"),
         GitTag.BRANCH: env.get("BUDDY_EXECUTION_BRANCH"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("BUDDY_RUN_PR_BASE_BRANCH"),
         GitTag.TAG: env.get("BUDDY_EXECUTION_TAG"),
         GitTag.COMMIT_MESSAGE: env.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
         GitTag.COMMIT_COMMITTER_NAME: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
         GitTag.COMMIT_COMMITTER_EMAIL: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("BUDDY_RUN_PR_NO"),
     }
 
 
@@ -442,6 +476,7 @@ def extract_codebuild(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
             tags.update(
                 {
                     CITag.PROVIDER_NAME: "awscodepipeline",
+                    CITag.JOB_ID: env.get("DD_ACTION_EXECUTION_ID"),
                     CITag.PIPELINE_ID: env.get("DD_PIPELINE_EXECUTION_ID"),
                     CITag._CI_ENV_VARS: json.dumps(
                         {
@@ -455,3 +490,28 @@ def extract_codebuild(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
             )
 
     return tags
+
+
+@register_provider("DRONE")
+def extract_drone(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
+    """Extract CI tags from Drone environ."""
+    repository = env.get("DRONE_GIT_HTTP_URL")
+    if not repository and env.get("DRONE_REPO"):
+        repository = "https://github.com/{0}.git".format(env.get("DRONE_REPO"))
+    return {
+        CITag.PROVIDER_NAME: "drone",
+        CITag.STAGE_NAME: env.get("DRONE_STAGE_NAME"),
+        CITag.JOB_NAME: env.get("DRONE_STEP_NAME"),
+        CITag.PIPELINE_NUMBER: env.get("DRONE_BUILD_NUMBER"),
+        CITag.PIPELINE_URL: env.get("DRONE_BUILD_LINK"),
+        CITag.WORKSPACE_PATH: env.get("DRONE_WORKSPACE"),
+        GitTag.BRANCH: env.get("DRONE_BRANCH") or env.get("DRONE_COMMIT_BRANCH"),
+        GitTag.PULL_REQUEST_BASE_BRANCH: env.get("DRONE_TARGET_BRANCH"),
+        GitTag.COMMIT_SHA: env.get("DRONE_COMMIT_SHA"),
+        GitTag.REPOSITORY_URL: repository,
+        GitTag.TAG: env.get("DRONE_TAG"),
+        GitTag.COMMIT_AUTHOR_NAME: env.get("DRONE_COMMIT_AUTHOR_NAME"),
+        GitTag.COMMIT_AUTHOR_EMAIL: env.get("DRONE_COMMIT_AUTHOR_EMAIL"),
+        GitTag.COMMIT_MESSAGE: env.get("DRONE_COMMIT_MESSAGE"),
+        GitTag.PULL_REQUEST_NUMBER: env.get("DRONE_PULL_REQUEST"),
+    }

@@ -30,13 +30,20 @@ def pytest_configure():
 @pytest.fixture
 def guardrail():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        return DatadogAIGuardGuardrail()
+        yield DatadogAIGuardGuardrail(block=True)
 
 
 @pytest.fixture
 def guardrail_monitor():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        return DatadogAIGuardGuardrail(block=False)
+        yield DatadogAIGuardGuardrail(block=False)
+
+
+@pytest.fixture
+def guardrail_default():
+    """Guardrail with block=None (default), delegating to env/config."""
+    with override_ai_guard_config(_AI_GUARD_CONFIG):
+        yield DatadogAIGuardGuardrail()
 
 
 def make_choice(content=None, tool_calls=None, function_call=None):
