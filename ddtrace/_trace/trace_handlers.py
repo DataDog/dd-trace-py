@@ -1412,6 +1412,16 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute("pubsub.method", ctx.get_item("pubsub_method"))
+
+
 def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
     span = ctx.span
@@ -1721,6 +1731,7 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
     core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
@@ -1850,6 +1861,7 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "google_cloud_pubsub.receive",
+        "google_cloud_pubsub.request",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
