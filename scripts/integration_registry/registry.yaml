@@ -805,7 +805,7 @@ integrations:
   tested_versions_by_dependency:
     pyramid:
       min: 1.10.8
-      max: 2.0.2
+      max: 2.1.0
 
 - integration_name: pytest
   is_external_package: true

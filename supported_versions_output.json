@@ -631,7 +631,7 @@
         "dependency": "pyramid",
         "integration": "pyramid",
         "minimum_tracer_supported": "1.10.8",
-        "max_tracer_supported": "2.0.2",
+        "max_tracer_supported": "2.1",
         "auto-instrumented": true
     },
     {
