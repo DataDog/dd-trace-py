@@ -107,7 +107,6 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     assessment: str
     reasoning: str
     eval_scope: str
-    session_id: str
     metadata: dict[str, Any]
 
 

@@ -2234,7 +2234,7 @@ def test_submit_evaluation_incorrect_json_value_type_raises_error(llmobs, mock_l
 
 
 def test_submit_evaluation_invalid_eval_scope_raises_error(llmobs):
-    with pytest.raises(ValueError, match="eval_scope must be one of 'span', 'trace', or 'session'."):
+    with pytest.raises(ValueError, match="eval_scope must be one of 'span' or 'trace'."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"},
             label="quality",
@@ -2268,65 +2268,6 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "eval_scope": "trace",
         }
     )
-
-
-def test_submit_evaluation_session_scope(llmobs, mock_llmobs_eval_metric_writer):
-    llmobs.submit_evaluation(
-        label="quality",
-        metric_type="score",
-        value=0.9,
-        ml_app="test_app",
-        eval_scope="session",
-        session_id="test-session-id",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
-        {
-            "metric_type": "score",
-            "label": "quality",
-            "tags": [
-                "ddtrace.version:{}".format(ddtrace.__version__),
-                "ml_app:test_app",
-            ],
-            "score_value": 0.9,
-            "timestamp_ms": mock.ANY,
-            "ml_app": "test_app",
-            "eval_scope": "session",
-            "session_id": "test-session-id",
-        }
-    )
-
-
-def test_submit_evaluation_session_scope_with_span_raises_error(llmobs):
-    with pytest.raises(ValueError, match="span and span_with_tag_value must not be provided for session scope"):
-        llmobs.submit_evaluation(
-            span={"span_id": "123", "trace_id": "456"},
-            label="quality",
-            metric_type="score",
-            value=0.9,
-            eval_scope="session",
-            session_id="test-session-id",
-        )
-
-
-def test_submit_evaluation_session_scope_missing_session_id_raises_error(llmobs):
-    with pytest.raises(ValueError, match="session_id is required for session scope evaluations."):
-        llmobs.submit_evaluation(
-            label="quality",
-            metric_type="score",
-            value=0.9,
-            eval_scope="session",
-        )
-
-
-def test_submit_evaluation_span_scope_with_session_id_raises_error(llmobs):
-    with pytest.raises(ValueError, match="session_id must not be provided for span or trace scope evaluations."):
-        llmobs.submit_evaluation(
-            span={"span_id": "123", "trace_id": "456"},
-            label="quality",
-            metric_type="score",
-            value=0.9,
-            session_id="test-session-id",
-        )
 
 
 class TestBuildSpanEventFromMetaStructE2E:

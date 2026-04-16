@@ -158,6 +158,7 @@ from ddtrace.version import __version__
 
 log = get_logger(__name__)
 
+
 # requests/concurrent frameworks for distributed injection/extraction
 _INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {
     "requests": "requests",
@@ -2462,20 +2463,18 @@ class LLMObs(Service):
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
-        session_id: Optional[str] = None,
     ) -> None:
         """
-        Submits a custom evaluation metric for a given span, trace, or session.
+        Submits a custom evaluation metric for a given span or trace.
 
         :param str label: The name of the evaluation metric.
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
-                            the span associated with this evaluation. Required for span and trace scopes.
+                            the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
                             uniquely identifying the span associated with this evaluation.
-                            Required for span and trace scopes (alternative to `span`).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
@@ -2484,13 +2483,9 @@ class LLMObs(Service):
                                 evaluation metric.
         :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
-        :param str eval_scope: The scope of the evaluation. One of "span" (default), "trace", or "session".
+        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
                                 Use "trace" to associate the evaluation with an entire trace (the span provided
-                                via `span` should be the root span). Use "session" to associate the evaluation
-                                with a session (requires `session_id`; do not provide `span` or
-                                `span_with_tag_value`).
-        :param str session_id: The session ID to associate the evaluation with. Required when eval_scope
-                                is "session".
+                                via `span` should be the root span).
         """
         if cls.enabled is False:
             log.debug(
@@ -2502,6 +2497,46 @@ class LLMObs(Service):
         error = None
         join_on: dict[str, Any] = {}
         try:
+            has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
+
+            if not has_exactly_one_joining_key:
+                error = "provided_both_span_and_tag_joining_key"
+                raise ValueError(
+                    "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation metric."
+                )
+
+            if span is not None:
+                if (
+                    not isinstance(span, dict)
+                    or not isinstance(span.get("span_id"), str)
+                    or not isinstance(span.get("trace_id"), str)
+                ):
+                    error = "invalid_span"
+                    raise TypeError(
+                        "`span` must be a dictionary containing both span_id and trace_id keys. "
+                        "LLMObs.export_span() can be used to generate this dictionary from a given span."
+                    )
+                join_on["span"] = span
+            elif span_with_tag_value is not None:
+                if (
+                    not isinstance(span_with_tag_value, dict)
+                    or not isinstance(span_with_tag_value.get("tag_key"), str)
+                    or not isinstance(span_with_tag_value.get("tag_value"), str)
+                ):
+                    error = "invalid_joining_key"
+                    raise TypeError(
+                        "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' "
+                        "containing string values"
+                    )
+                join_on["tag"] = {
+                    "key": span_with_tag_value.get("tag_key"),
+                    "value": span_with_tag_value.get("tag_value"),
+                }
+
+            if eval_scope not in ("span", "trace"):
+                error = "invalid_eval_scope"
+                raise ValueError("eval_scope must be one of 'span' or 'trace'.")
+
             timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
@@ -2560,6 +2595,7 @@ class LLMObs(Service):
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
+                "join_on": join_on,
                 "label": str(label),
                 "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
@@ -2568,62 +2604,6 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
                 "eval_scope": eval_scope,
             }
-
-            if eval_scope in ("span", "trace"):
-                if session_id is not None:
-                    error = "invalid_session_id_for_span_scope"
-                    raise ValueError("session_id must not be provided for span or trace scope evaluations.")
-
-                has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
-
-                if not has_exactly_one_joining_key:
-                    error = "provided_both_span_and_tag_joining_key"
-                    raise ValueError(
-                        "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation"
-                        " metric."
-                    )
-
-                if span is not None:
-                    if (
-                        not isinstance(span, dict)
-                        or not isinstance(span.get("span_id"), str)
-                        or not isinstance(span.get("trace_id"), str)
-                    ):
-                        error = "invalid_span"
-                        raise TypeError(
-                            "`span` must be a dictionary containing both span_id and trace_id keys. "
-                            "LLMObs.export_span() can be used to generate this dictionary from a given span."
-                        )
-                    join_on["span"] = span
-                    evaluation_metric["join_on"] = join_on
-                elif span_with_tag_value is not None:
-                    if (
-                        not isinstance(span_with_tag_value, dict)
-                        or not isinstance(span_with_tag_value.get("tag_key"), str)
-                        or not isinstance(span_with_tag_value.get("tag_value"), str)
-                    ):
-                        error = "invalid_joining_key"
-                        raise TypeError(
-                            "`span_with_tag_value` must be a dict with keys 'tag_key' and 'tag_value' "
-                            "containing string values"
-                        )
-                    join_on["tag"] = {
-                        "key": span_with_tag_value["tag_key"],
-                        "value": span_with_tag_value["tag_value"],
-                    }
-                    evaluation_metric["join_on"] = join_on
-
-            elif eval_scope == "session":
-                if span is not None or span_with_tag_value is not None:
-                    error = "invalid_span_for_session_scope"
-                    raise ValueError("span and span_with_tag_value must not be provided for session scope evaluations.")
-                if not session_id or not isinstance(session_id, str):
-                    error = "missing_session_id"
-                    raise ValueError("session_id is required for session scope evaluations.")
-                evaluation_metric["session_id"] = session_id
-            else:
-                error = "invalid_eval_scope"
-                raise ValueError("eval_scope must be one of 'span', 'trace', or 'session'.")
 
             if assessment:
                 if not isinstance(assessment, str) or assessment not in (
