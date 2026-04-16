@@ -5,8 +5,6 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
-
-CLAUDE_AGENT_SDK_VERSION = parse_version(claude_agent_sdk.__version__)
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
@@ -22,6 +20,8 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+CLAUDE_AGENT_SDK_VERSION = parse_version(claude_agent_sdk.__version__)
 
 
 class TestLLMObsClaudeAgentSdk:

@@ -167,8 +167,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     self.request_args, self.request_kwargs, self.primary_span
                 )
             user_content = getattr(chunk, "content", []) or []
-            if isinstance(user_content, list):
-                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
+            self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
             self._create_llm_span()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
