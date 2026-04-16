@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from ddtrace.internal import forksafe
 import ddtrace.internal.native as native
@@ -40,7 +41,7 @@ class NativeRuntime:
     def _after_fork_child(self) -> None:
         self._shared_runtime.after_fork_child()
 
-    def shutdown(self, timeout_ms: int = 5000) -> None:
+    def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         self._shared_runtime.shutdown(timeout_ms=timeout_ms)
         forksafe.unregister_before_fork(self._before_fork_hook)
         forksafe.unregister_parent(self._after_fork_parent_hook)
