@@ -783,6 +783,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
@@ -1003,6 +1004,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
+    def stop(self, timeout: Optional[float] = None) -> None:
+        try:
+            super().stop(timeout)
+        except ServiceStatusError:
+            # Writer was never started, but the native exporter may have
+            # background tasks (telemetry, health metrics) running on the
+            # SharedRuntime that need to be shut down.
+            self._shutdown_exporter()
+            raise
+
     def _stop_service(
         self,
         timeout: Optional[float] = None,
@@ -1011,11 +1022,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super(NativeWriter, self)._stop_service()
         self.join(timeout=timeout)
 
+    def _shutdown_exporter(self) -> None:
+        self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+
     def on_shutdown(self):
         try:
             self.periodic()
         finally:
-            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+            self._shutdown_exporter()
 
 
 def _use_log_writer() -> bool:
