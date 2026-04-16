@@ -1420,7 +1420,6 @@ def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
     span._set_attribute("pubsub.method", ctx.get_item("pubsub_method"))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:

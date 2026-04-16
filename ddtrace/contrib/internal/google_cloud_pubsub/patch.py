@@ -24,49 +24,49 @@ ensure_config_registered()
 
 
 # Method descriptors for admin/management operations.
-# Format: method_name -> dotted attr path on the request proto/dict/kwargs
+# Format: method_name -> (resource_name, [attribute, path])
 
-_PUBLISHER_ADMIN_METHODS = {
-    "create_topic": "name",
-    "update_topic": "topic.name",
-    "get_topic": "topic",
-    "list_topics": "project",
-    "list_topic_subscriptions": "topic",
-    "list_topic_snapshots": "topic",
-    "delete_topic": "topic",
-    "detach_subscription": "subscription",
+_PUBLISHER_ADMIN_METHODS: dict[str, tuple[str, list[str]]] = {
+    "create_topic": ("createTopic", ["name"]),
+    "update_topic": ("updateTopic", ["topic", "name"]),
+    "get_topic": ("getTopic", ["topic"]),
+    "list_topics": ("listTopics", ["project"]),
+    "list_topic_subscriptions": ("listTopicSubscriptions", ["topic"]),
+    "list_topic_snapshots": ("listTopicSnapshots", ["topic"]),
+    "delete_topic": ("deleteTopic", ["topic"]),
+    "detach_subscription": ("detachSubscription", ["subscription"]),
 }
 
-_SUBSCRIBER_ADMIN_METHODS = {
-    "create_subscription": "name",
-    "get_subscription": "subscription",
-    "update_subscription": "subscription.name",
-    "list_subscriptions": "project",
-    "delete_subscription": "subscription",
-    "modify_push_config": "subscription",
-    "get_snapshot": "snapshot",
-    "list_snapshots": "project",
-    "create_snapshot": "name",
-    "update_snapshot": "snapshot.name",
-    "delete_snapshot": "snapshot",
-    "seek": "subscription",
+_SUBSCRIBER_ADMIN_METHODS: dict[str, tuple[str, list[str]]] = {
+    "create_subscription": ("createSubscription", ["name"]),
+    "get_subscription": ("getSubscription", ["subscription"]),
+    "update_subscription": ("updateSubscription", ["subscription", "name"]),
+    "list_subscriptions": ("listSubscriptions", ["project"]),
+    "delete_subscription": ("deleteSubscription", ["subscription"]),
+    "modify_push_config": ("modifyPushConfig", ["subscription"]),
+    "get_snapshot": ("getSnapshot", ["snapshot"]),
+    "list_snapshots": ("listSnapshots", ["project"]),
+    "create_snapshot": ("createSnapshot", ["name"]),
+    "update_snapshot": ("updateSnapshot", ["snapshot", "name"]),
+    "delete_snapshot": ("deleteSnapshot", ["snapshot"]),
+    "seek": ("seek", ["subscription"]),
 }
 
-_SCHEMA_METHODS = {
-    "create_schema": "parent",
-    "get_schema": "name",
-    "list_schemas": "parent",
-    "delete_schema": "name",
-    "validate_schema": "parent",
-    "validate_message": "parent",
+_SCHEMA_METHODS: dict[str, tuple[str, list[str]]] = {
+    "create_schema": ("createSchema", ["parent"]),
+    "get_schema": ("getSchema", ["name"]),
+    "list_schemas": ("listSchemas", ["parent"]),
+    "delete_schema": ("deleteSchema", ["name"]),
+    "validate_schema": ("validateSchema", ["parent"]),
+    "validate_message": ("validateMessage", ["parent"]),
 }
 
 # These methods do not exist in older SDK versions (<2.16.0).
-_SCHEMA_OPTIONAL_METHODS = {
-    "list_schema_revisions": "name",
-    "commit_schema": "name",
-    "rollback_schema": "name",
-    "delete_schema_revision": "name",
+_SCHEMA_OPTIONAL_METHODS: dict[str, tuple[str, list[str]]] = {
+    "list_schema_revisions": ("listSchemaRevisions", ["name"]),
+    "commit_schema": ("commitSchema", ["name"]),
+    "rollback_schema": ("rollbackSchema", ["name"]),
+    "delete_schema_revision": ("deleteSchemaRevision", ["name"]),
 }
 
 
@@ -101,15 +101,6 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
         callback(message)
 
 
-def _snake_to_camel(name: str) -> str:
-    """Convert snake_case to camelCase.
-
-    Uses camelCase for consistency with other Datadog tracers (Node).
-    """
-    parts = name.split("_")
-    return parts[0] + "".join(p.capitalize() for p in parts[1:])
-
-
 def _get_nested_attr(obj: object, parts: list[str]):
     """
     Walk an attribute path on an object or a dict.
@@ -121,10 +112,8 @@ def _get_nested_attr(obj: object, parts: list[str]):
     return obj
 
 
-def _make_admin_wrapper(method_name: str, attr_path: str):
+def _make_admin_wrapper(resource_name: str, request_attr: list[str]):
     """Factory that creates a traced wrapper for a Pub/Sub admin/management method."""
-    camel_name = _snake_to_camel(method_name)
-    parts = attr_path.split(".")
 
     def wrapper(func, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]):
         # GAPIC methods support three calling conventions:
@@ -132,9 +121,9 @@ def _make_admin_wrapper(method_name: str, attr_path: str):
         # 2. create_topic(CreateTopicRequest(name="..."))         - supported by get_argument_value
         # 3. create_topic(name="...")                             - fall back to kwargs
         request = get_argument_value(args, kwargs, 0, "request", optional=True) or kwargs
-        resource_path = _get_nested_attr(request, parts) or ""
+        resource_path = _get_nested_attr(request, request_attr) or ""
         project_id, _ = parse_resource_path(resource_path)
-        resource = "{} {}".format(camel_name, resource_path) if resource_path else camel_name
+        resource = f"{resource_name} {resource_path}" if resource_path else resource_name
 
         with core.context_with_data(
             "google_cloud_pubsub.request",
@@ -143,26 +132,27 @@ def _make_admin_wrapper(method_name: str, attr_path: str):
             service=None,
             resource=resource,
             project_id=project_id,
-            pubsub_method=camel_name,
+            pubsub_method=resource_name,
+            measured=True,
         ):
             return func(*args, **kwargs)
 
     return wrapper
 
 
-def _wrap_methods(module_path: str, cls: type[Any], methods: dict[str, str], optional: bool = False):
+def _wrap_methods(module_path: str, cls: type[Any], methods: dict[str, tuple[str, list[str]]], optional: bool = False):
     """Wrap multiple methods on a class. Skip missing methods when optional=True."""
-    for method_name, attr_path in methods.items():
+    for method_name, (resource_name, request_attr) in methods.items():
         if optional and not hasattr(cls, method_name):
             continue
         _w(
             module_path,
-            "{}.{}".format(cls.__name__, method_name),
-            _make_admin_wrapper(method_name, attr_path),
+            f"{cls.__name__}.{method_name}",
+            _make_admin_wrapper(resource_name, request_attr),
         )
 
 
-def _unwrap_methods(cls: type[Any], methods: dict[str, str], optional: bool = False):
+def _unwrap_methods(cls: type[Any], methods: dict[str, tuple[str, list[str]]], optional: bool = False):
     """Unwrap multiple methods on a class."""
     for method_name in methods:
         if optional and not hasattr(cls, method_name):
