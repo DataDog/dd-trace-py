@@ -6,5 +6,10 @@ features:
     (for claude_agent_sdk >= 0.1.49).
 upgrade:
   - |
-    claude_agent_sdk: Tool span resource names changed from the tool name (e.g. ``Read``) to
-    ``claude_agent_sdk.tool``. The tool name is still captured in the span name.
+    claude_agent_sdk: The APM span name has changed from ``claude_agent_sdk.request`` to
+    ``claude_agent_sdk.query`` (for standalone queries) and
+    ``claude_agent_sdk.ClaudeSDKClient.query`` (for client queries). Tool span resource
+    names also changed from the tool name (e.g. ``Read``) to ``claude_agent_sdk.tool``;
+    the tool name is still captured in the span name (e.g. ``claude_agent_sdk.tool.Read``).
+    Users relying on these names in APM dashboards, monitors, or saved queries should update
+    them accordingly.
