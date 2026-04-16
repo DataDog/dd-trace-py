@@ -1,5 +1,7 @@
 stages:
   - package
+  - python-flask-realworld-parallel
+  - python-flask-realworld-parallel-slo
   - tests
   - fuzz
   - shared-pipeline
@@ -61,6 +63,9 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
+  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
+    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
+    ref: 'fayssal/integrate'
 
 "pipeline variables":
   stage: .pre
