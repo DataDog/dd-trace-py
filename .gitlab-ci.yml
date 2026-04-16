@@ -1,5 +1,6 @@
 stages:
   - package
+  # These benchmarks are planned to replace the legacy macrobenchmarks in the future
   - python-flask-realworld-parallel
   - python-flask-realworld-parallel-slo
   - tests
