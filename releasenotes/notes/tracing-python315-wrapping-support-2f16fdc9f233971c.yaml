@@ -1,9 +1,4 @@
 ---
 features:
   - |
-    Tracing: Adds Python 3.15 support for coroutine, generator, and async generator
-    wrapping. CPython 3.15 changed two bytecode operands used in the instrumentation
-    hot path (``YIELD_VALUE`` and ``RESUME`` opcodes in generator and coroutine frames),
-    which caused a ``NotImplementedError`` at import time on Python 3.15. The wrapping
-    modules (``asyncs``, ``generators``, ``context``) are updated with the correct
-    3.15 operands.
+    Tracing: Adds Python 3.15 support for coroutine, generator, and async generator wrapping.
