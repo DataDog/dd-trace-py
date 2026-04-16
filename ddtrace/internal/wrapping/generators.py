@@ -37,9 +37,8 @@ if PY >= (3, 16):
     raise NotImplementedError("This version of CPython is not supported yet")
 
 elif PY >= (3, 15):
-    # AIDEV-NOTE: Generator yield inside try blocks still uses RESUME 1 in 3.15 (only
-    # unprotected yields changed to RESUME 5). Our wrapper always yields inside a try
-    # block, so the assembly is identical to 3.14.
+    # Protected yields still use RESUME 1 in 3.15; our wrapper always yields inside a
+    # try block, so the assembly is identical to 3.14.
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
