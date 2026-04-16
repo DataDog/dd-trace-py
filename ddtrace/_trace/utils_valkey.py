@@ -24,7 +24,7 @@ format_command_args = stringify_cache_args
 
 
 def _set_span_tags(
-    span, pin, config_integration, args: Optional[list], instance, query: Optional[list], is_cluster: bool = False
+    span, config_integration, args: Optional[list], instance, query: Optional[list], is_cluster: bool = False
 ):
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     span._set_attribute(COMPONENT, config_integration.integration_name)
@@ -33,8 +33,6 @@ def _set_span_tags(
     if query is not None:
         span_name = schematize_cache_operation(valkeyx.RAWCMD, cache_provider=valkeyx.APP)  # type: ignore[operator]
         span._set_attribute(span_name, query)
-    if pin.tags:
-        span.set_tags(pin.tags)
     # some valkey clients do not have a connection_pool attribute (ex. aiovalkey v1.3)
     if not is_cluster and hasattr(instance, "connection_pool"):
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
@@ -47,25 +45,24 @@ def _set_span_tags(
 
 
 @contextmanager
-def _instrument_valkey_cmd(pin, config_integration, instance, args):
+def _instrument_valkey_cmd(config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
     with (
         core.context_with_data(
             "valkey.command",
             span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
-            pin=pin,
-            service=trace_utils.ext_service(pin, config_integration),
+            service=trace_utils.ext_service(None, config_integration),
             span_type=SpanTypes.VALKEY,
             resource=query.split(" ")[0] if config_integration.resource_only_command else query,
         ) as ctx,
         ctx.span as span,
     ):
-        _set_span_tags(span, pin, config_integration, args, instance, query)
+        _set_span_tags(span, config_integration, args, instance, query)
         yield ctx
 
 
 @contextmanager
-def _instrument_valkey_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
+def _instrument_valkey_execute_pipeline(config_integration, cmds, instance, is_cluster=False):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -73,15 +70,15 @@ def _instrument_valkey_execute_pipeline(pin, config_integration, cmds, instance,
     with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
-        service=trace_utils.ext_service(pin, config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.VALKEY,
     ) as span:
-        _set_span_tags(span, pin, config_integration, None, instance, cmd_string)
+        _set_span_tags(span, config_integration, None, instance, cmd_string)
         yield span
 
 
 @contextmanager
-def _instrument_valkey_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
+def _instrument_valkey_execute_async_cluster_pipeline(config_integration, cmds, instance):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -89,8 +86,8 @@ def _instrument_valkey_execute_async_cluster_pipeline(pin, config_integration, c
     with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
-        service=trace_utils.ext_service(pin, config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.VALKEY,
     ) as span:
-        _set_span_tags(span, pin, config_integration, None, instance, cmd_string)
+        _set_span_tags(span, config_integration, None, instance, cmd_string)
         yield span
