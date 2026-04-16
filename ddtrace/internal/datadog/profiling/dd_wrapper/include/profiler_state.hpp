@@ -92,6 +92,15 @@ class ProfilerState
     std::atomic<ddog_CancellationToken> upload_cancel{ { .inner = nullptr } };
     std::atomic<uint64_t> upload_seq{ 0 };
 
+    // Cached exporter — created lazily on first upload, reused across cycles.
+    // Protected by upload_lock (callers must hold it before accessing).
+    // Dropped and recreated on fork (child) and on cleanup (shutdown).
+    ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
+
+    // Create or return the cached exporter. Returns nullptr on error and
+    // writes a diagnostic to errmsg. Caller must hold upload_lock.
+    ddog_prof_ProfileExporter* get_or_create_exporter(std::string& errmsg);
+
     // ========================================================================
     // Interned string caches
     // ========================================================================

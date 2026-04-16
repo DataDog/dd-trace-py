@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 
 extern "C"
 {
@@ -136,6 +137,12 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
+    // Drop the cached exporter
+    if (ddog_exporter.inner != nullptr) {
+        ddog_prof_Exporter_drop(&ddog_exporter);
+        ddog_exporter = { .inner = nullptr };
+    }
+
     // Clear the profile, decreasing the refcount on the Profiles Dictionary
     profile_state.cleanup();
 
@@ -163,6 +170,15 @@ ProfilerState::prefork()
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     // upload_lock is now held - will be released in postfork_parent/child
+
+    // Drop the cached exporter before fork so the child doesn't inherit stale
+    // Rust state (tokio runtime, TLS, connection pool). Dropping here — in the
+    // parent, under lock, with no upload in flight — is safe. Both parent and
+    // child will lazily recreate the exporter on the next upload.
+    if (ddog_exporter.inner != nullptr) {
+        ddog_prof_Exporter_drop(&ddog_exporter);
+        ddog_exporter = { .inner = nullptr };
+    }
 }
 
 void
@@ -176,6 +192,9 @@ ProfilerState::postfork_child()
 {
     // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
     new (&upload_lock) std::mutex();
+
+    // The cached exporter was already dropped in prefork(), so ddog_exporter.inner
+    // is nullptr here. Nothing to do.
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
@@ -205,6 +224,79 @@ ProfilerState::postfork_child()
 
     // Reset the profile state
     profile_state.postfork_child();
+}
+
+ddog_prof_ProfileExporter*
+ProfilerState::get_or_create_exporter(std::string& errmsg)
+{
+    // Fast path: exporter already exists
+    if (ddog_exporter.inner != nullptr) {
+        return &ddog_exporter;
+    }
+
+    // Build tags for the exporter
+    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
+
+    std::vector<std::string> reasons{};
+    const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
+        { ExportTagKey::dd_env, dd_env },
+        { ExportTagKey::service, service },
+        { ExportTagKey::version, version },
+        { ExportTagKey::language, g_language_name },
+        { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_id, runtime_id },
+        { ExportTagKey::runtime_version, runtime_version },
+        { ExportTagKey::profiler_version, profiler_version },
+        { ExportTagKey::process_id, process_id }
+    };
+
+    for (const auto& [tag, data] : tag_data) {
+        if (!data.empty()) {
+            std::string tag_errmsg;
+            if (!add_tag(tags, tag, data, tag_errmsg)) {
+                reasons.push_back(std::string(to_string(tag)) + ": " + tag_errmsg);
+            }
+        }
+    }
+
+    // Add user-defined tags
+    for (const auto& tag : user_tags) {
+        std::string tag_errmsg;
+        if (!add_tag(tags, tag.first, tag.second, tag_errmsg)) {
+            reasons.push_back(std::string(tag.first) + ": " + tag_errmsg);
+        }
+    }
+
+    if (!reasons.empty()) {
+        ddog_Vec_Tag_drop(tags);
+        errmsg = "Error initializing exporter, missing or bad configuration: ";
+        for (size_t i = 0; i < reasons.size(); ++i) {
+            if (i > 0) {
+                errmsg += ", ";
+            }
+            errmsg += reasons[i];
+        }
+        return nullptr;
+    }
+
+    // Create the exporter
+    ddog_prof_ProfileExporter_Result res =
+      ddog_prof_Exporter_new(to_slice(g_library_name),
+                             to_slice(profiler_version),
+                             to_slice(g_language_name),
+                             &tags,
+                             ddog_prof_Endpoint_agent(to_slice(url), max_timeout_ms, /*use_system_resolver=*/false));
+    ddog_Vec_Tag_drop(tags);
+
+    if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
+        auto& err = res.err;
+        errmsg = err_to_msg(&err, "Error initializing exporter");
+        ddog_Error_drop(&err);
+        return nullptr;
+    }
+
+    ddog_exporter = res.ok;
+    return &ddog_exporter;
 }
 
 } // namespace Datadog

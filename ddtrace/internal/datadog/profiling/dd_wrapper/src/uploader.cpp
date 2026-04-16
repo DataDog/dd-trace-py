@@ -15,7 +15,7 @@
 using namespace Datadog;
 
 Datadog::Uploader::Uploader(std::string_view _output_filename,
-                            ddog_prof_ProfileExporter _ddog_exporter,
+                            ddog_prof_ProfileExporter& _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
                             Datadog::ProfilerStats _stats,
                             std::string_view _process_tags)
@@ -32,10 +32,9 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 
 Datadog::Uploader::~Uploader()
 {
-    // We need to call _drop() on the exporter and the cancellation token,
-    // as their inner pointers are allocated on the Rust side. And since
-    // there could be a request in flight, we first need to cancel it. Then,
-    // we drop the exporter and the cancellation token.
+    // Cancel any inflight upload and drop the cancellation token.
+    // The exporter is NOT dropped here — it is owned by ProfilerState and
+    // reused across upload cycles.
     auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
 
     if (current_cancel.inner != nullptr) {
@@ -43,7 +42,6 @@ Datadog::Uploader::~Uploader()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    ddog_prof_Exporter_drop(&ddog_exporter);
     ddog_prof_EncodedProfile_drop(&encoded_profile);
 }
 
@@ -156,7 +154,7 @@ Datadog::Uploader::upload_unlocked()
         ret = false;
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
-    ddog_prof_Exporter_drop(&ddog_exporter);
+    // The exporter is NOT dropped here — it is owned by ProfilerState and reused.
 
     return ret;
 }

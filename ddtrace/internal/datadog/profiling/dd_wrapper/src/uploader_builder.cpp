@@ -4,12 +4,10 @@
 #include "profiler_state.hpp"
 #include "sample.hpp"
 
-#include <numeric>
 #include <string>
 #include <string_view>
 #include <unistd.h>
 #include <utility>
-#include <vector>
 
 void
 Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
@@ -112,87 +110,17 @@ Datadog::UploaderBuilder::set_max_timeout_ms(uint64_t _max_timeout_ms)
     ProfilerState::get().max_timeout_ms = _max_timeout_ms;
 }
 
-std::string
-join(const std::vector<std::string>& vec, const std::string& delim)
-{
-    return std::accumulate(vec.begin(),
-                           vec.end(),
-                           std::string(),
-                           [&delim](const std::string& left, const std::string& right) -> std::string {
-                               // If the left and right operands are empty, we don't want to add a delimiter
-                               if (left.empty()) {
-                                   return right;
-                               }
-                               if (right.empty()) {
-                                   return left;
-                               }
-                               return left + delim + right;
-                           });
-}
-
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
     auto& state = ProfilerState::get();
 
-    // Setup the ddog_Exporter
-    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-
-    // Add the tags.  In the average case, the user has a structural problem with
-    // one of their tags, but it's really annoying to have to iteratively fix several
-    // tags, so we'll just collect all the reasons and report them all at once.
-    std::vector<std::string> reasons{};
-    const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, state.dd_env },
-        { ExportTagKey::service, state.service },
-        { ExportTagKey::version, state.version },
-        { ExportTagKey::language, language },
-        { ExportTagKey::runtime, state.runtime },
-        { ExportTagKey::runtime_id, state.runtime_id },
-        { ExportTagKey::runtime_version, state.runtime_version },
-        { ExportTagKey::profiler_version, state.profiler_version },
-        { ExportTagKey::process_id, state.process_id }
-    };
-
-    for (const auto& [tag, data] : tag_data) {
-        if (!data.empty()) {
-            std::string errmsg;
-            if (!add_tag(tags, tag, data, errmsg)) {
-                reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
-            }
-        }
-    }
-
-    // Add the user-defined tags, if any.
-    for (const auto& tag : state.user_tags) {
-        std::string errmsg;
-        if (!add_tag(tags, tag.first, tag.second, errmsg)) {
-            reasons.push_back(std::string(tag.first) + ": " + errmsg);
-        }
-    }
-
-    if (!reasons.empty()) {
-        ddog_Vec_Tag_drop(tags);
-        return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
-    }
-
-    // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(
-      to_slice("dd-trace-py"),
-      to_slice(state.profiler_version),
-      to_slice(family),
-      &tags,
-      ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
-    ddog_Vec_Tag_drop(tags);
-
-    if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
-        auto& err = res.err;
-        std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
-        ddog_Error_drop(&err); // errmsg contains a copy of err.message
+    // Get or create the cached exporter (lives in ProfilerState, reused across cycles).
+    std::string errmsg;
+    auto* exporter = state.get_or_create_exporter(errmsg);
+    if (exporter == nullptr) {
         return errmsg;
     }
-
-    auto* ddog_exporter = &res.ok;
 
     // Perform profile encoding before creating the Uploader
     // Also take the Profiler Stats and reset the one being written to
@@ -210,24 +138,14 @@ Datadog::UploaderBuilder::build()
         encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
         if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
             auto err = encoded.err;
-            std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
+            std::string serialize_errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
             ddog_Error_drop(&err);
-            ddog_prof_Exporter_drop(ddog_exporter);
-            return errmsg;
+            return serialize_errmsg;
         }
     }
 
-    // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok, std::move(stats) }
-    // because above code creates a temporary Uploader object, moves it into the
-    // variant, and then the destructor of the temporary Uploader object is called
-    // when the temporary Uploader object goes out of scope.
-    // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
-    // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         state.output_filename,
-                                                         *ddog_exporter,
-                                                         encoded.ok,
-                                                         stats,
-                                                         state.process_tags };
+    // The Uploader borrows the exporter (does not own it — ProfilerState does).
+    return std::variant<Datadog::Uploader, std::string>{
+        std::in_place_type<Datadog::Uploader>, state.output_filename, *exporter, encoded.ok, stats, state.process_tags
+    };
 }
