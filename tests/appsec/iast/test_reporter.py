@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.appsec._iast.reporter import Evidence
@@ -7,6 +5,7 @@ from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.reporter import _truncate_evidence_value
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -167,7 +166,7 @@ class TestEvidenceTruncation:
         max_length = asm_config._iast_truncation_max_value_length
 
         # Default should be 250 unless overridden by env var
-        env_value = os.environ.get("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH")
+        env_value = env.get("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH")
         if env_value:
             assert max_length == int(env_value)
         else:

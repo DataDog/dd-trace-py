@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.internal.settings import env
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH
@@ -19,12 +20,10 @@ from tests.utils import override_env
 PYTHON_VERSION = sys.version_info[:2]
 
 # Add modules in the denylist that must be tested anyway
-if IAST.PATCH_MODULES in os.environ:
-    os.environ[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(
-        ["moto", "moto[all]", "moto[ec2]", "moto[s3]"]
-    )
+if IAST.PATCH_MODULES in env:
+    env[IAST.PATCH_MODULES] += IAST.SEP_MODULES + IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 else:
-    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
+    env[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(["moto", "moto[all]", "moto[ec2]", "moto[s3]"])
 
 
 FILE_PATH = Path(__file__).resolve().parent
@@ -37,7 +36,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 # Remember to set to False before pushing it!
 _DEBUG_MODE = False
 
-IN_GITLAB = os.environ.get("GITLAB_CI", "false") in ("1", "true", "True")
+IN_GITLAB = env.get("GITLAB_CI", "false") in ("1", "true", "True")
 TEMPLATE_VENV_DIR = os.path.join(DDTRACE_PATH, "template_venv")
 CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_EXECUTABLE = os.path.join(TEMPLATE_VENV_DIR, "bin", "pip")
@@ -73,7 +72,7 @@ def cleanup(request):
 
 
 def get_pip_cache_dir(python):
-    cache_dir = os.environ.get("PIP_CACHE_DIR")
+    cache_dir = env.get("PIP_CACHE_DIR")
     if cache_dir:
         return cache_dir
 
@@ -87,16 +86,16 @@ def get_pip_cache_dir(python):
 @contextmanager
 def set_pip_cache_dir():
     """Set PIP_CACHE_DIR and restore its original state on exit."""
-    original_value = os.environ.get("PIP_CACHE_DIR")
+    original_value = env.get("PIP_CACHE_DIR")
     os.makedirs(PIP_CACHE_SHARED_VENVS_DIR, exist_ok=True)  # Ensure cache dir exists
-    os.environ["PIP_CACHE_DIR"] = PIP_CACHE_SHARED_VENVS_DIR
+    env["PIP_CACHE_DIR"] = PIP_CACHE_SHARED_VENVS_DIR
     try:
         yield
     finally:
         if original_value is not None:
-            os.environ["PIP_CACHE_DIR"] = original_value
+            env["PIP_CACHE_DIR"] = original_value
         else:
-            del os.environ["PIP_CACHE_DIR"]
+            del env["PIP_CACHE_DIR"]
 
 
 class PackageForTesting:
@@ -191,7 +190,7 @@ class PackageForTesting:
 
         cmd = [python_cmd, "-m", "pip", "install", "-U", package_fullversion]
         env = {}
-        env.update(os.environ)
+        env.update(env)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
         # doesn't work correctly with riot environment and python packages path
         proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
@@ -936,7 +935,7 @@ PACKAGES = sorted(_PACKAGES, key=lambda x: x.name)
 
 
 def _detect_virtualenv():
-    venv_path = os.environ.get("VIRTUAL_ENV")
+    venv_path = env.get("VIRTUAL_ENV")
     if venv_path:
         return True, venv_path
 

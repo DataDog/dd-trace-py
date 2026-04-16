@@ -1,5 +1,3 @@
-import os
-
 import django
 from django.conf import settings
 import pytest
@@ -13,12 +11,13 @@ from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
+from ddtrace.internal.settings import env
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
+env.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.django_tests.django_app.settings")
 
 
 # `pytest` automatically calls this function once when tests are run.
