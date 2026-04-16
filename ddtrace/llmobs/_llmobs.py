@@ -152,6 +152,8 @@ from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
+from ddtrace.llmobs._http import get_connection
+from ddtrace.internal.utils.http import Response
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
 
@@ -2635,6 +2637,134 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
         finally:
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
+
+    _VALID_SPAN_KINDS = frozenset({"agent", "workflow", "llm", "tool", "task", "embedding", "retrieval"})
+
+    @classmethod
+    def get_spans(
+        cls,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        query: Optional[str] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        from_date: str = "now-7d",
+        to_date: str = "now",
+        sort: str = "timestamp",
+        include_attachments: bool = True,
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        Retrieves LLM span events from the Datadog platform API.
+
+        :param str trace_id: Filter spans by trace ID. At least one of ``trace_id``, ``span_id``,
+                              or ``query`` must be provided.
+        :param str span_id: Filter to a specific span by ID.
+        :param str query: Filter spans using EVP query syntax.
+        :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
+                               ``tool``, ``task``, ``embedding``, ``retrieval``.
+        :param str span_name: Filter by span name.
+        :param str ml_app: Filter by ML application name. Defaults to the configured
+                            ``DD_LLMOBS_ML_APP`` (same resolution as ``submit_evaluation``).
+        :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
+        :param str from_date: Start of the time range. Accepts ISO 8601, date math
+                               (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
+        :param str to_date: End of the time range. Same formats as ``from_date``. Default: ``"now"``.
+        :param str sort: Sort order. ``"timestamp"`` for earliest-first (default),
+                          ``"-timestamp"`` for latest-first.
+        :param bool include_attachments: If ``True`` (default), span input/output content larger
+                                          than 25KB is fetched from blob storage and inlined into
+                                          the response. If ``False``, truncated values are returned.
+        :param int limit: Maximum number of spans to fetch per page (1–5000). Default: 100.
+        :returns: A flat list of span attribute dicts. Each dict contains fields such as
+                  ``span_id``, ``trace_id``, ``name``, ``span_kind``, ``start_ns``, ``duration``,
+                  ``input``, ``output``, ``metrics``, and ``tags``.
+        :rtype: list[dict]
+        """
+        if not any((trace_id, span_id, query)):
+            raise ValueError("At least one of `trace_id`, `span_id`, or `query` must be provided.")
+
+        if not config._dd_api_key:
+            raise ValueError("DD_API_KEY must be set to use LLMObs.get_spans().")
+
+        if not cls._app_key:
+            raise ValueError("DD_APP_KEY must be set to use LLMObs.get_spans().")
+
+        if span_kind is not None and span_kind not in cls._VALID_SPAN_KINDS:
+            raise ValueError(
+                "span_kind must be one of: {}.".format(", ".join(sorted(cls._VALID_SPAN_KINDS)))
+            )
+
+        ml_app = resolve_ml_app(ml_app)
+
+        base_url = _env.get("DD_LLMOBS_OVERRIDE_ORIGIN") or "https://api.{}".format(config._dd_site)
+        headers = {
+            "DD-API-KEY": config._dd_api_key,
+            "DD-APPLICATION-KEY": cls._app_key,
+            "Accept": "application/vnd.api+json",
+        }
+
+        optional_filters = (
+            ("trace_id", trace_id),
+            ("span_id", span_id),
+            ("query", query),
+            ("span_kind", span_kind),
+            ("span_name", span_name),
+            ("ml_app", ml_app),
+        )
+
+        base_params: dict[str, Any] = {
+            "filter[from]": from_date,
+            "filter[to]": to_date,
+            "sort": sort,
+            "include_attachments": str(include_attachments).lower(),
+            "page[limit]": limit,
+        }
+        for key, val in optional_filters:
+            if val is not None:
+                base_params["filter[{}]".format(key)] = val
+
+        tag_suffix = "".join(
+            "&filter[tag][{}]={}".format(urllib.parse.quote(k), urllib.parse.quote(v))
+            for k, v in (tags or {}).items()
+        )
+
+        spans: list[dict] = []
+        cursor = None
+        while True:
+            params = dict(base_params)
+            if cursor:
+                params["page[cursor]"] = cursor
+
+            path = "/api/v2/llm-obs/v1/spans/events?{}{}".format(
+                urllib.parse.urlencode(params), tag_suffix
+            )
+            log.debug("LLMObs.get_spans() fetching %s%s", base_url, path)
+
+            conn = get_connection(base_url)
+            try:
+                conn.request("GET", path, b"", headers)
+                resp = conn.getresponse()
+                response = Response.from_http_response(resp)
+            finally:
+                conn.close()
+
+            if response.status != 200:
+                raise ValueError(
+                    "LLMObs.get_spans() request failed with status {}: {}".format(
+                        response.status, response.body
+                    )
+                )
+
+            body = response.get_json() or {}
+            spans.extend(item.get("attributes", {}) for item in body.get("data", []))
+            cursor = body.get("meta", {}).get("page", {}).get("after")
+            if not cursor:
+                break
+
+        return spans
 
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:

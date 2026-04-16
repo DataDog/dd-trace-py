@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import threading
@@ -2268,6 +2269,118 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "eval_scope": "trace",
         }
     )
+
+
+# ── get_spans ──────────────────────────────────────────────────────────────────
+
+
+def _make_mock_response(status, body):
+    """Return a mock HTTP response object compatible with Response.from_http_response."""
+    mock_resp = mock.MagicMock()
+    mock_resp.status = status
+    mock_resp.read.return_value = json.dumps(body).encode()
+    mock_resp.reason = "OK" if status == 200 else "Error"
+    mock_resp.msg = None
+    return mock_resp
+
+
+@pytest.fixture
+def mock_get_connection(llmobs):
+    with mock.patch("ddtrace.llmobs._llmobs.get_connection") as m:
+        yield m
+
+
+def _setup_mock_connection(mock_get_connection, pages):
+    """
+    pages: list of (status, body) tuples, one per paginated request.
+    """
+    mock_conn = mock.MagicMock()
+    mock_get_connection.return_value = mock_conn
+    mock_conn.getresponse.side_effect = [_make_mock_response(s, b) for s, b in pages]
+    return mock_conn
+
+
+def test_get_spans_returns_span_list(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    page = {
+        "data": [
+            {"attributes": {"span_id": "abc", "name": "my_span", "span_kind": "llm"}},
+            {"attributes": {"span_id": "def", "name": "other_span", "span_kind": "agent"}},
+        ],
+        "meta": {"page": {}},
+    }
+    _setup_mock_connection(mock_get_connection, [(200, page)])
+    result = llmobs.get_spans(trace_id="trace123")
+    assert len(result) == 2
+    assert result[0]["span_id"] == "abc"
+    assert result[1]["span_id"] == "def"
+
+
+def test_get_spans_paginates(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    page1 = {
+        "data": [{"attributes": {"span_id": "s1"}}],
+        "meta": {"page": {"after": "cursor-xyz"}},
+    }
+    page2 = {
+        "data": [{"attributes": {"span_id": "s2"}}],
+        "meta": {"page": {}},
+    }
+    _setup_mock_connection(mock_get_connection, [(200, page1), (200, page2)])
+    result = llmobs.get_spans(trace_id="trace123")
+    assert len(result) == 2
+    assert result[0]["span_id"] == "s1"
+    assert result[1]["span_id"] == "s2"
+    assert mock_get_connection.call_count == 2
+
+
+def test_get_spans_no_filter_raises(llmobs):
+    with pytest.raises(ValueError, match="At least one of"):
+        llmobs.get_spans()
+
+
+def test_get_spans_missing_api_key_raises(llmobs):
+    import ddtrace
+    original = ddtrace.config._dd_api_key
+    try:
+        ddtrace.config._dd_api_key = ""
+        with pytest.raises(ValueError, match="DD_API_KEY"):
+            llmobs.get_spans(trace_id="t1")
+    finally:
+        ddtrace.config._dd_api_key = original
+
+
+def test_get_spans_missing_app_key_raises(llmobs):
+    original = llmobs._app_key
+    try:
+        llmobs._app_key = ""
+        with pytest.raises(ValueError, match="DD_APP_KEY"):
+            llmobs.get_spans(trace_id="t1")
+    finally:
+        llmobs._app_key = original
+
+
+def test_get_spans_invalid_span_kind_raises(llmobs):
+    llmobs._app_key = "test-app-key"
+    with pytest.raises(ValueError, match="span_kind must be one of"):
+        llmobs.get_spans(trace_id="t1", span_kind="invalid_kind")
+
+
+def test_get_spans_non_200_raises(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    _setup_mock_connection(mock_get_connection, [(404, {"errors": ["not found"]})])
+    with pytest.raises(ValueError, match="404"):
+        llmobs.get_spans(trace_id="trace123")
+
+
+def test_get_spans_with_tags(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs.get_spans(trace_id="t1", tags={"utterance_id": "123", "env": "prod"})
+    _, call_path, _, _ = mock_conn.request.call_args[0]
+    assert "filter%5Btag%5D%5Butterance_id%5D=123" in call_path or "filter[tag][utterance_id]=123" in call_path
+    assert "filter%5Btag%5D%5Benv%5D=prod" in call_path or "filter[tag][env]=prod" in call_path
 
 
 class TestBuildSpanEventFromMetaStructE2E:
