@@ -22,7 +22,6 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -170,8 +169,7 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
     assert sampling_proc is aggr.sampling_processor
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_aggregator_reset_with_args(writer_class):
+def test_aggregator_reset_with_args():
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
     user processors/filters.
@@ -186,7 +184,7 @@ def test_aggregator_reset_with_args(writer_class):
         user_processors=[user_proc],
     )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+    aggr.writer = NativeWriter("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 

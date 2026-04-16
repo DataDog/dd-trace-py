@@ -48,6 +48,7 @@ class BackendResult:
     error_type: t.Optional[ErrorType] = None
     error_description: t.Optional[str] = None
     response: t.Optional[http.client.HTTPResponse] = None
+    request_length: t.Optional[int] = None
     response_length: t.Optional[int] = None
     response_body: t.Optional[bytes] = None
     parsed_response: t.Any = None
@@ -280,6 +281,7 @@ class BackendConnector(threading.local):
             full_headers["Content-Encoding"] = "gzip"
 
         result = BackendResult()
+        result.request_length = len(data) if data is not None else 0
         start_time = time.perf_counter()
 
         try:
@@ -376,6 +378,7 @@ class BackendConnector(threading.local):
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
                     error=result.error_type,
+                    request_bytes=result.request_length,
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:

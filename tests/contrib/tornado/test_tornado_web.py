@@ -105,6 +105,74 @@ class TestTornadoWeb(TornadoTestCase):
             assert_span_http_status_code(request_span, 200)
             assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
 
+    def test_complex_pattern_route(self):
+        """
+        Regression test: when a route's regex contains a non-capturing group (or any
+        other construct that prevents Tornado from building a reverse mapping), _path is
+        None.  _find_route must fall back to _regex_to_route so that http.route is still
+        set and capturing groups are rendered as %s (consistent with Tornado's own format).
+        """
+        # Pure non-capturing group: no capturing groups, so pattern is kept verbatim.
+        response = self.fetch("/complex/new/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/complex/(?:new|existing)/"
+
+        # Mixed: non-capturing group + capturing group.
+        # The capturing group must be replaced with %s; the non-capturing group is kept.
+        response = self.fetch("/mixed/items/42/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/mixed/(?:items|things)/%s/"
+
+    def test_endpoint_collection_uses_route_resolution(self):
+        from ddtrace.internal.endpoints import endpoint_collection
+
+        endpoints = {(ep.method, ep.path, ep.resource_name) for ep in endpoint_collection.endpoints}
+
+        assert ("GET", "/success/", "tests.contrib.tornado.web.app.SuccessHandler") in endpoints
+        assert ("GET", "/status_code/%s", "tests.contrib.tornado.web.app.ResponseStatusHandler") in endpoints
+        assert ("GET", "/complex/(?:new|existing)/", "tests.contrib.tornado.web.app.RouteComplexPatternHandler") in (
+            endpoints
+        )
+        assert ("GET", "/mixed/(?:items|things)/%s/", "tests.contrib.tornado.web.app.RouteMixedPatternHandler") in (
+            endpoints
+        )
+
+    def test_nested_application_route_order(self):
+        """
+        Regression test: routes inside a nested application must be matched in declaration
+        order, so a specific route declared before a catch-all wins when both could match.
+
+        The bug was that _find_route used deque.extendleft(rule.target.rules) without
+        reversing first, causing rules to be inserted in reverse order and the last-declared
+        route to be tried first.
+        """
+        # The specific route is declared first in the nested app; it must win over the
+        # catch-all even though both patterns match "/route_order/specific/".
+        response = self.fetch("/route_order/specific/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/route_order/specific/"
+
+        # A URL that only matches the catch-all must still resolve correctly.
+        response = self.fetch("/route_order/other/")
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        request_span = traces[0][0]
+        assert request_span.get_tag("http.route") == "/route_order/%s"
+
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
         # using the automatic Context retrieval

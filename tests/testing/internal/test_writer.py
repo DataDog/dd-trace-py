@@ -33,8 +33,13 @@ from tests.testing.mocks import mock_test_suite
 class _ConcreteWriter(BaseWriter):
     """Minimal concrete subclass for testing BaseWriter."""
 
-    def __init__(self, min_flush_events: t.Optional[int] = None, fail_sends: bool = False) -> None:
-        super().__init__(min_flush_events=min_flush_events)
+    def __init__(
+        self,
+        min_flush_events: t.Optional[int] = None,
+        max_buffer_events: t.Optional[int] = None,
+        fail_sends: bool = False,
+    ) -> None:
+        super().__init__(min_flush_events=min_flush_events, max_buffer_events=max_buffer_events)
         self.sent_batches: list[list[Event]] = []
         self.fail_sends = fail_sends
 
@@ -86,6 +91,92 @@ class TestBaseWriterMinFlushEvents:
         writer.put_event(Event(n=3))
         writer.put_event(Event(n=4))
         assert len(writer.sent_batches) == 2
+
+
+class TestBaseWriterMaxBufferEvents:
+    """Tests for BaseWriter.max_buffer_events bounded buffer."""
+
+    def test_no_limit_when_disabled(self) -> None:
+        writer = _ConcreteWriter(max_buffer_events=None)
+        for i in range(100):
+            writer.put_event(Event(n=i))
+        assert len(writer.events) == 100
+
+    def test_drops_events_when_buffer_full(self) -> None:
+        writer = _ConcreteWriter(max_buffer_events=3)
+        for i in range(10):
+            writer.put_event(Event(n=i))
+        assert len(writer.events) == 3
+        assert writer._dropped_events == 7
+
+    def test_buffer_drains_then_accepts_again(self) -> None:
+        writer = _ConcreteWriter(max_buffer_events=2)
+        writer.put_event(Event(n=1))
+        writer.put_event(Event(n=2))
+        writer.put_event(Event(n=3))  # dropped
+        assert len(writer.events) == 2
+        assert writer._dropped_events == 1
+
+        # Drain the buffer via flush.
+        writer.flush()
+        assert len(writer.events) == 0
+
+        # Buffer accepts new events again.
+        writer.put_event(Event(n=4))
+        assert len(writer.events) == 1
+        assert writer._dropped_events == 1  # counter not reset
+
+    def test_max_buffer_events_compatible_with_min_flush(self) -> None:
+        """Both min_flush_events and max_buffer_events can coexist."""
+        writer = _ConcreteWriter(min_flush_events=2, max_buffer_events=5)
+        writer.put_event(Event(n=1))
+        writer.put_event(Event(n=2))
+        # min_flush_events triggers a sync flush after 2 events.
+        assert len(writer.sent_batches) == 1
+        assert len(writer.events) == 0
+
+
+class TestWaitFinishTimeout:
+    """Tests for BaseWriter.wait_finish(timeout=...)."""
+
+    def test_wait_finish_with_no_timeout(self) -> None:
+        writer = _ConcreteWriter()
+        writer.start()
+        writer.signal_finish()
+        writer.wait_finish()
+        assert not writer.task.is_alive()
+
+    def test_wait_finish_respects_timeout(self) -> None:
+        """wait_finish returns after the timeout even if the thread is still running."""
+
+        class _SlowWriter(BaseWriter):
+            def __init__(self) -> None:
+                super().__init__()
+                self.started_flushing = threading.Event()
+
+            def _send_events(self, events: list[Event]) -> bool:
+                self.started_flushing.set()
+                # Block until finish is signalled (simulates slow network).
+                self.should_finish.wait()
+                return True
+
+            def _encode_events(self, events: list[Event]) -> bytes:
+                return b"x"
+
+        writer = _SlowWriter()
+        writer.flush_interval_seconds = 0.01
+        writer.start()
+        writer.put_event(Event(n=1))
+        writer._flush_now.set()
+        writer.started_flushing.wait(timeout=5)
+
+        # With a short timeout, wait_finish should return even though the thread is stuck.
+        writer.signal_finish()
+        writer.wait_finish(timeout=0.1)
+        # Thread may still be alive because we timed out.
+        # Clean up: signal the thread to finish.
+        writer.should_finish.set()
+        writer.task.join(timeout=5)
 
 
 class TestGetMinFlushEvents:

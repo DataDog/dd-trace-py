@@ -136,6 +136,7 @@ class SessionManager:
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
+            self.override_settings_with_env_vars()
 
         self.api_client.close()
 
@@ -441,6 +442,11 @@ class SessionManager:
         if not asbool(env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
+
+        _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
+        if _coverage_upload_env.lower() in ("false", "0"):
+            log.debug("Coverage report upload is disabled by environment variable")
+            self.settings.coverage_report_upload_enabled = False
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
