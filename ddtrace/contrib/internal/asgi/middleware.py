@@ -195,6 +195,25 @@ class TraceMiddleware:
             - HTTP: asgi.request spans with HTTP metadata
             - websocket: websocket.receive, websocket.send, websocket.close spans
         """
+        # If scope already has a "datadog" context, this request is already being traced
+        # by a parent application's TraceMiddleware (e.g., sub-app mounted inside a main app).
+        # Skip duplicate tracing to avoid double WAF invocations and duplicate spans.
+        if "datadog" in scope:
+            return await self.app(scope, receive, send)
+
+        # On the first request to the root app, walk the route tree to register all
+        # endpoints (including those in mounted sub-apps) for API endpoint discovery.
+        # scope["app"] is set by Starlette before its middleware stack runs.
+        root_app = scope.get("app")
+        if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
+            try:
+                from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
+
+                _collect_routes_from_app(root_app)
+                root_app._datadog_endpoints_collected = True
+            except Exception:
+                log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+
         if scope["type"] == "http":
             method = scope["method"]
         elif scope["type"] == "websocket" and self.integration_config.trace_asgi_websocket_messages:
