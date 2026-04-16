@@ -102,8 +102,19 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, message):
 
 
 def _get_nested_attr(obj: object, parts: list[str]):
-    """
-    Walk an attribute path on an object or a dict.
+    """Walk `parts` to extract a nested value from a proto message or plain dict
+
+    Each step in the for loop resolves one level of nesting
+    * obj.get(part) for dicts
+    * getattr(obj, part) for proto messages
+
+    This is because GAPIC client methods accept both forms as requests
+    Returns None if any intermediate level is missing.
+
+    Example:
+      _get_nested_attr({"topic": {"name": "{topicName}"}}, ["topic", "name"])
+      _get_nested_attr(UpdateTopicRequest(topic=Topic(name="topicName")), ["topic", "name"])
+      return => "topicName"
     """
     for part in parts:
         if obj is None:
