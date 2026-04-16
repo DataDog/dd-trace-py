@@ -71,6 +71,7 @@ def normalize_git_tags(tags: _TagDict) -> None:
         tags[GitTag.BRANCH] = git.normalize_ref(branch)
         tags[GitTag.TAG] = git.normalize_ref(tag)
 
+    tags[GitTag.PULL_REQUEST_BASE_BRANCH] = git.normalize_ref(tags.get(GitTag.PULL_REQUEST_BASE_BRANCH))
     tags[GitTag.REPOSITORY_URL] = _filter_sensitive_info(tags.get(GitTag.REPOSITORY_URL))
 
 
