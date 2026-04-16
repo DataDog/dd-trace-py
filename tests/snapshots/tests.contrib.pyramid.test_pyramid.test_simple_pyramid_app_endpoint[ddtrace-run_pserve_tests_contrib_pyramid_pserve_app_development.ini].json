@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "sample_app",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de96c500000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69e1287700000000",
+      "_dd.svc_src": "pyramid",
       "_dd.tags.process": "entrypoint.name:pserve,entrypoint.type:script,entrypoint.workdir:project,svc.auto:sample_app",
       "component": "pyramid",
       "http.method": "GET",
@@ -22,7 +22,7 @@
       "http.useragent": "python-requests/2.32.3",
       "language": "python",
       "pyramid.route.name": "hello",
-      "runtime-id": "6e5272a5dcda494b9a1239c3ffb32301",
+      "runtime-id": "3b65fd1f785b4864b9bf82fa848a4bc4",
       "span.kind": "server"
     },
     "metrics": {
@@ -30,8 +30,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 70367.0
+      "process_id": 18738.0
     },
-    "duration": 88583,
-    "start": 1776195269823462381
+    "duration": 92459,
+    "start": 1776363639939057180
   }]]
