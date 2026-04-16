@@ -444,6 +444,9 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 
 class AI_GUARD(metaclass=Constant_Class):
+    # environment variables
+    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
+
     # span related information
     RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
 
@@ -461,6 +464,13 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+      
+    # environment variables
+    ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
+    ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
+    ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
+    ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
+    ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
 
 
 class SCA(metaclass=Constant_Class):

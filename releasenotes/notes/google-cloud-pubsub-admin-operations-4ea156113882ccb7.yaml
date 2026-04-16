@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    google_cloud_pubsub: This adds tracing for Google Cloud Pub/Sub admin operations on topic, subscription, snapshot, and schema management methods.
