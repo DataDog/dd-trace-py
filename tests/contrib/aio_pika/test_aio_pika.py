@@ -4,6 +4,8 @@ import aio_pika
 from aio_pika import ExchangeType
 import pytest
 
+from tests.utils import override_config
+
 from .utils import aio_pika_ctx
 from .utils import make_message
 from .utils import queue_get_with_retry
@@ -213,25 +215,26 @@ async def test_distributed_tracing_publish_to_get(patch_aio_pika):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=_SNAPSHOT_IGNORES)
 async def test_distributed_tracing_disabled(patch_aio_pika):
-    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
-        msg = make_message("no distributed tracing test")
-        await exchange.publish(msg, routing_key=routing_key)
+    with override_config("aio_pika", dict(distributed_tracing_enabled=False)):
+        async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+            msg = make_message("no distributed tracing test")
+            await exchange.publish(msg, routing_key=routing_key)
 
-        received = []
-        consume_done = asyncio.Event()
+            received = []
+            consume_done = asyncio.Event()
 
-        async def on_message(message: aio_pika.abc.AbstractIncomingMessage):
-            received.append(message)
-            await message.ack()
-            consume_done.set()
+            async def on_message(message: aio_pika.abc.AbstractIncomingMessage):
+                received.append(message)
+                await message.ack()
+                consume_done.set()
 
-        consumer_tag = await queue.consume(on_message, no_ack=False)
-        try:
-            await asyncio.wait_for(consume_done.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            pytest.fail("Timed out waiting for disabled distributed tracing consume")
-        finally:
-            await queue.cancel(consumer_tag)
+            consumer_tag = await queue.consume(on_message, no_ack=False)
+            try:
+                await asyncio.wait_for(consume_done.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                pytest.fail("Timed out waiting for disabled distributed tracing consume")
+            finally:
+                await queue.cancel(consumer_tag)
 
     assert len(received) == 1
 
