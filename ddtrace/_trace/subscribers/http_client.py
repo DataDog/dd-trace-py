@@ -43,7 +43,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
                 ctx.span,
                 event.integration_config,
                 method=event.request_method,
-                url=event.url,
+                url=event.request_url,
                 target_host=event.target_host,
                 status_code=event.response_status_code,
                 query=event.query,
