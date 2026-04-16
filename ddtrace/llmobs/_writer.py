@@ -956,7 +956,7 @@ class LLMObsAPIClient:
                 params["page[cursor]"] = cursor
             path = "/api/v2/llm-obs/v1/spans/events?{}{}".format(urllib.parse.urlencode(params), tag_suffix)
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
-            conn = get_connection(self._base_url)
+            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
             try:
                 conn.request("GET", path, b"", headers)
                 resp = conn.getresponse()
@@ -969,7 +969,7 @@ class LLMObsAPIClient:
                 )
             body = response.get_json() or {}
             spans.extend(item.get("attributes", {}) for item in body.get("data", []))
-            cursor = body.get("meta", {}).get("page", {}).get("after")
+            cursor = ((body.get("meta") or {}).get("page") or {}).get("after")
             if not cursor:
                 break
         return spans
