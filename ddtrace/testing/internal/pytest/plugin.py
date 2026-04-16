@@ -26,6 +26,8 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.logs import LogsHandler
+from ddtrace.testing.internal.logs import LogsWriter
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -34,6 +36,9 @@ from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.stderr_capture import FileCapture
+from ddtrace.testing.internal.stderr_capture import StderrCapture
+from ddtrace.testing.internal.stderr_capture import StdoutCapture
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -257,6 +262,16 @@ class TestOptPlugin:
 
         self._logs_writer: t.Optional[t.Any] = None
         self._logs_handler: t.Optional[t.Any] = None
+        self._capture: t.Optional[t.Any] = None
+
+        # Output capture: opt-in via _DD_CIVISIBILITY_LOG_CAPTURE_SOURCE.
+        # Accepted values:
+        #   "stderr"      — capture C-level fd 2 (StderrCapture)
+        #   "stdout"      — capture C-level fd 1 (StdoutCapture)
+        #   <file path>   — tail the given file (FileCapture)
+        # Requires log submission to be enabled so there is a LogsWriter to forward to.
+        _raw_capture_source = env.get("_DD_CIVISIBILITY_LOG_CAPTURE_SOURCE", "").strip()
+        self._log_capture_source = _raw_capture_source if (self.enable_log_submission and _raw_capture_source) else ""
 
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
@@ -306,9 +321,6 @@ class TestOptPlugin:
                         )
 
         if self.enable_log_submission:
-            from ddtrace.testing.internal.logs import LogsHandler
-            from ddtrace.testing.internal.logs import LogsWriter
-
             self._logs_writer = LogsWriter(
                 connector_setup=self.manager.connector_setup,
                 service=self.manager.session.service,
@@ -316,6 +328,16 @@ class TestOptPlugin:
             self._logs_writer.start()
             self._logs_handler = LogsHandler(self._logs_writer)
             logging.getLogger().addHandler(self._logs_handler)
+
+        if self._log_capture_source and self._logs_writer is not None:
+            source = self._log_capture_source
+            if source == "stderr":
+                self._capture = StderrCapture(self._logs_writer)
+            elif source == "stdout":
+                self._capture = StdoutCapture(self._logs_writer)
+            else:
+                self._capture = FileCapture(source, self._logs_writer)
+            self._capture.start()
 
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
@@ -367,6 +389,11 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+
+        # Stop output capture first so its reader thread drains before we tear down the writer.
+        if self._capture is not None:
+            self._capture.stop()
+            self._capture = None
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
