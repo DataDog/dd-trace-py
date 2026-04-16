@@ -1,0 +1,34 @@
+id: span-meta-access
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s._meta["key"] = "value"
+  : labels:
+    - source: s._meta
+      style: primary
+      start: 23
+      end: 30
+  self._meta[key]:
+    labels:
+    - source: self._meta
+      style: primary
+      start: 0
+      end: 10
+  span._meta.get("key"):
+    labels:
+    - source: span._meta
+      style: primary
+      start: 0
+      end: 10
+  span._meta["key"]:
+    labels:
+    - source: span._meta
+      style: primary
+      start: 0
+      end: 10
+  span._meta["key"] = "value":
+    labels:
+    - source: span._meta
+      style: primary
+      start: 0
+      end: 10

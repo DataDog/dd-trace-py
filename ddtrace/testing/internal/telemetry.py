@@ -73,10 +73,20 @@ class TelemetryAPI:
         return cls._instance
 
     def with_request_metric_names(
-        self, count: str, duration: str, response_bytes: t.Optional[str], error: str
+        self,
+        count: str,
+        duration: str,
+        response_bytes: t.Optional[str],
+        error: str,
+        request_bytes: t.Optional[str] = None,
     ) -> TelemetryAPIRequestMetrics:
         return TelemetryAPIRequestMetrics(
-            telemetry_api=self, count=count, duration=duration, response_bytes=response_bytes, error=error
+            telemetry_api=self,
+            count=count,
+            duration=duration,
+            response_bytes=response_bytes,
+            error=error,
+            request_bytes=request_bytes,
         )
 
     def finish(self) -> None:
@@ -298,9 +308,15 @@ class TelemetryAPIRequestMetrics:
     duration: str
     response_bytes: t.Optional[str]
     error: str
+    request_bytes: t.Optional[str] = None
 
     def record_request(
-        self, seconds: float, response_bytes: t.Optional[int], compressed_response: bool, error: t.Optional[ErrorType]
+        self,
+        seconds: float,
+        response_bytes: t.Optional[int],
+        compressed_response: bool,
+        error: t.Optional[ErrorType],
+        request_bytes: t.Optional[int] = None,
     ) -> None:
         self.telemetry_api.add_count_metric(self.count, 1)
         self.telemetry_api.add_distribution_metric(self.duration, seconds)
@@ -309,6 +325,8 @@ class TelemetryAPIRequestMetrics:
             # means we don't want to record it.
             response_tags = {"rs_compressed": compressed_response}
             self.telemetry_api.add_distribution_metric(self.response_bytes, response_bytes, response_tags)
+        if request_bytes is not None and self.request_bytes is not None:
+            self.telemetry_api.add_distribution_metric(self.request_bytes, request_bytes)
 
         if error is not None:
             self.record_error(error)

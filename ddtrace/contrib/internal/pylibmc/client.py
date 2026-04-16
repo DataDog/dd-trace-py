@@ -11,6 +11,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -164,10 +165,10 @@ class TracedClient(ObjectProxy):
 
         span = tracer.trace(
             schematize_cache_operation("memcached.cmd", cache_provider="memcached"),
-            service=pin.service,
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
         )
+        set_service_and_source(span, pin.service, config.pylibmc)
 
         span._set_attribute(COMPONENT, config.pylibmc.integration_name)
         span._set_attribute(db.SYSTEM, memcached.DBMS_NAME)

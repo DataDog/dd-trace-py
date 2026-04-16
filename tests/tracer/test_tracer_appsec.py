@@ -12,7 +12,6 @@ from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -38,8 +37,7 @@ def span(tracer):
         yield span
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_aggregator_reset_with_args(writer_class):
+def test_aggregator_reset_with_args():
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
     user processors/filters and trace api version (when ASM is enabled)
@@ -54,7 +52,7 @@ def test_aggregator_reset_with_args(writer_class):
         user_processors=[user_proc],
     )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+    aggr.writer = NativeWriter("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
@@ -219,8 +217,8 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
             with tracer.trace("test_span", service="asm_standalone") as span:
                 pass
 
-            assert span._metrics.get("_sampling_priority_v1") == AUTO_KEEP, (
-                f"Expected AUTO_KEEP (1), got {span._metrics.get('_sampling_priority_v1')}. "
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP, (
+                f"Expected AUTO_KEEP (1), got {span._get_numeric_attribute('_sampling_priority_v1')}. "
                 "Agent-based samplers should not interfere with ASM standalone mode."
             )
 

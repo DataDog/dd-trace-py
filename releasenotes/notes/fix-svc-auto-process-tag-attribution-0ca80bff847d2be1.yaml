@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes the ``svc.auto`` process tag attribution logic. The tag now correctly
+    reflects the auto-detected service name derived from the script or module entrypoint,
+    matching the service name the tracer would assign to spans.

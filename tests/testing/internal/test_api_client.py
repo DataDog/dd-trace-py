@@ -988,7 +988,7 @@ class TestAPIClientGetKnownCommits:
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -1025,7 +1025,7 @@ class TestAPIClientGetKnownCommits:
 
         assert "Error getting known commits from API" in caplog.text
 
-        assert commits == []
+        assert commits is None
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_known_commits_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -1061,7 +1061,7 @@ class TestAPIClientGetKnownCommits:
         assert "Failed to parse search_commits data" in caplog.text
         assert "'data'" in caplog.text
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -1267,7 +1267,7 @@ class TestAPIClientGetSkippableTests:
 
 
 @pytest.fixture
-def packfile(tmpdir: t.Any) -> Path:
+def packfile(tmpdir: t.Any) -> t.Generator[Path, None, None]:
     path = Path(str(tmpdir)) / "file.pack"
     path.write_text("twelve bytes")
     yield path
@@ -1577,6 +1577,38 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["ci.provider.name"] == "github"
         assert event_data["ci.pipeline.id"] == "123456"
         assert event_data["ci.workspace_path"] == "/workspace"
+
+    def test_upload_coverage_report_with_pr_number_tag(self, mock_telemetry: Mock) -> None:
+        """Test coverage report upload preserves pr.* tags."""
+
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                "pr.number": "42",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+        api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        files = mock_connector.post_files.call_args[1]["files"]
+        event_file = files[1]
+        event_data = json.loads(event_file.data.decode("utf-8"))
+
+        assert event_data["pr.number"] == "42"
 
     def test_upload_coverage_report_empty_report(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         """Test uploading an empty coverage report."""
