@@ -11,19 +11,22 @@
     "meta": {
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1264c00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "env": "my-env",
       "language": "python",
       "number3": "1",
-      "runtime-id": "7c8dd0a7578442dd931157f2f24c5b1f"
+      "runtime-id": "1c96a77489a043858d8c4a1a2da37333"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "number1": 123,
+      "_sampling_priority_v1": 1.0,
+      "number1": 123.0,
       "number2": 12.0,
-      "process_id": 18772
+      "process_id": 10045.0
     },
-    "duration": 62833,
-    "start": 1692900311239166212
+    "duration": 50625,
+    "start": 1776363084515875423
   }]]

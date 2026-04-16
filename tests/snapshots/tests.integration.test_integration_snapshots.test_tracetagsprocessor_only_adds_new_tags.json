@@ -9,16 +9,18 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.tid": "65d4cb4600000000",
+      "_dd.p.tid": "69e1265800000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpeastjpls,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "1c638d86e4034cf685c2df4b2c21b792"
+      "runtime-id": "2750580554cb4e2b8f9620327f0ab4cb"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 81660
+      "_sampling_priority_v1": 2.0,
+      "process_id": 10333.0
     },
-    "duration": 66000,
-    "start": 1708444486203789000
+    "duration": 70167,
+    "start": 1776363096319781637
   }]]
