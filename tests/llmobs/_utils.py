@@ -123,7 +123,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
         )
-    return expected_tags
+    return sorted(expected_tags)
 
 
 def _expected_llmobs_llm_span_event(

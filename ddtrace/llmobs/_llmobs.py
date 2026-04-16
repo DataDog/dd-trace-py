@@ -637,7 +637,7 @@ class LLMObs(Service):
             if val and tag_key not in tags:
                 tags[tag_key] = val
 
-        return ["{}:{}".format(k, v) for k, v in tags.items()]
+        return sorted("{}:{}".format(k, v) for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
