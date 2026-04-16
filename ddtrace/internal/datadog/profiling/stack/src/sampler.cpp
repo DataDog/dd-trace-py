@@ -196,9 +196,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Reset per-cycle asyncio task accumulator before iterating sampled threads
-        echion->reset_asyncio_task_count();
-
         // When max_threads_per_sample is set, we collect all threads first, then apply
         // reservoir sampling (Algorithm R) to select a uniform random subset, and only
         // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
@@ -294,7 +291,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
         Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
         Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
-        Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
         {
             const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
             Sample::profile_borrow().stats().set_greenlet_count(echion->greenlet_info_map().size());

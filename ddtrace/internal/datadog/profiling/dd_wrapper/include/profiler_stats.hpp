@@ -40,9 +40,6 @@ class ProfilerStats
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
 
-    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
-    std::optional<size_t> asyncio_task_count;
-
     // Number of greenlets currently tracked by the stack profiler
     std::optional<size_t> greenlet_count;
 
@@ -73,9 +70,6 @@ class ProfilerStats
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;
-
-    void set_asyncio_task_count(size_t count);
-    std::optional<size_t> get_asyncio_task_count() const;
 
     void set_greenlet_count(size_t count);
     std::optional<size_t> get_greenlet_count() const;

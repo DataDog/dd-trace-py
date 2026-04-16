@@ -48,7 +48,6 @@ Datadog::ProfilerStats::reset_state()
     string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
-    asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
 }
@@ -126,18 +125,6 @@ Datadog::ProfilerStats::get_heap_tracker_size() const
 }
 
 void
-Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
-{
-    asyncio_task_count = count;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_asyncio_task_count() const
-{
-    return asyncio_task_count;
-}
-
-void
 Datadog::ProfilerStats::set_greenlet_count(size_t count)
 {
     greenlet_count = count;
@@ -197,13 +184,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_heap_tracker_count) {
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
-        internal_metadata_json += ",";
-    }
-
-    auto maybe_asyncio_task_count = get_asyncio_task_count();
-    if (maybe_asyncio_task_count) {
-        internal_metadata_json += R"("asyncio_task_count": )";
-        append_to_string(internal_metadata_json, *maybe_asyncio_task_count);
         internal_metadata_json += ",";
     }
 
