@@ -1082,17 +1082,11 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
     them as structured data via TraceExporter.send_trace_chunks(), skipping the
     encode-then-decode round trip that NativeWriter performs.
 
-    Flushes occur periodically (default every 1s) or early when the buffer reaches a
-    configured threshold (max_chunks or max_spans), whichever comes first.
+    Flushes occur only on the periodic background thread (default every 1s). The producer
+    thread (writer.write) does only a list append and immediately returns.
     """
 
     STATSD_NAMESPACE = "tracer"
-
-    # DEV: Default thresholds for triggering an early (non-periodic) flush.
-    # These are span-count and chunk-count limits rather than byte-based limits
-    # since we don't know the encoded size until libdatadog serializes the payload.
-    DEFAULT_MAX_BUFFERED_SPANS = 10_000
-    DEFAULT_MAX_BUFFERED_CHUNKS = 1_000
 
     def __init__(
         self,
@@ -1107,8 +1101,6 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
         test_session_token: Optional[str] = None,
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
-        max_buffered_spans: Optional[int] = None,
-        max_buffered_chunks: Optional[int] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -1139,11 +1131,7 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
-        self._max_buffered_spans: int = max_buffered_spans or self.DEFAULT_MAX_BUFFERED_SPANS
-        self._max_buffered_chunks: int = max_buffered_chunks or self.DEFAULT_MAX_BUFFERED_CHUNKS
-
         self._trace_chunks: list[list["Span"]] = []
-        self._buffered_span_count: int = 0
         self._lock = threading.Lock()
 
         before_fork_hook = make_weak_method_hook(self.before_fork_hook)
@@ -1232,8 +1220,6 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
-            max_buffered_spans=self._max_buffered_spans,
-            max_buffered_chunks=self._max_buffered_chunks,
         )
 
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
@@ -1271,21 +1257,13 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
-        n_spans = len(spans)
-        flush_now = False
         with self._lock:
             self._trace_chunks.append(spans)
-            self._buffered_span_count += n_spans
-            if (
-                self._buffered_span_count >= self._max_buffered_spans
-                or len(self._trace_chunks) >= self._max_buffered_chunks
-            ):
-                flush_now = True
 
         self._metrics_dist("buffer.accepted.traces", 1)
-        self._metrics_dist("buffer.accepted.spans", n_spans)
+        self._metrics_dist("buffer.accepted.spans", len(spans))
 
-        if flush_now or self._sync_mode:
+        if self._sync_mode:
             self.flush_queue()
 
     def flush_queue(self, raise_exc: bool = False) -> None:
@@ -1295,7 +1273,6 @@ class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterfa
             chunks = self._trace_chunks
             n_chunks = len(chunks)
             self._trace_chunks = []
-            self._buffered_span_count = 0
 
         try:
             response_body = self._exporter.send_trace_chunks(chunks)
