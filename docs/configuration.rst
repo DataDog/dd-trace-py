@@ -590,6 +590,20 @@ Application & API Security
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
 
+AI Guard
+--------
+
+.. ddtrace-configuration-options::
+
+   DD_AI_GUARD_BLOCK:
+     type: Boolean
+     default: True
+     description: |
+       Controls whether AI Guard blocking is enabled. When set to ``True`` (default), the blocking
+       behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
+       force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
+       never raised, regardless of the in-app blocking setting.
+
 Code Security
 -------------
 
