@@ -26,11 +26,10 @@ impl SharedRuntimePy {
 #[pymethods]
 impl SharedRuntimePy {
     #[new]
-    fn new() -> PyResult<Self> {
+    fn new(py: Python<'_>) -> PyResult<Self> {
+        let inner = py.detach(|| SharedRuntime::new().map_err(shared_runtime_error_to_pyerr))?;
         Ok(Self {
-            inner: Some(Arc::new(
-                SharedRuntime::new().map_err(shared_runtime_error_to_pyerr)?,
-            )),
+            inner: Some(Arc::new(inner)),
         })
     }
 
@@ -51,18 +50,14 @@ impl SharedRuntimePy {
             .map_err(shared_runtime_error_to_pyerr)
     }
 
-    fn shutdown(&self, py: Python<'_>) -> PyResult<()> {
+    fn shutdown(&self, py: Python<'_>, timeout_ms: Option<u64>) -> PyResult<()> {
         let shared_runtime = self.try_as_ref()?.clone();
+        let timeout = timeout_ms.map(Duration::from_millis);
         py.detach(move || {
             shared_runtime
-                .shutdown(None)
+                .shutdown(timeout)
                 .map_err(shared_runtime_error_to_pyerr)
         })
-    }
-
-    fn drop(&mut self) -> PyResult<()> {
-        drop(self.inner.take());
-        Ok(())
     }
 
     fn debug(&self) -> String {

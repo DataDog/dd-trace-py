@@ -40,8 +40,8 @@ class NativeRuntime:
     def _after_fork_child(self) -> None:
         self._shared_runtime.after_fork_child()
 
-    def shutdown(self) -> None:
-        self._shared_runtime.shutdown()
+    def shutdown(self, timeout_ms: int = 5000) -> None:
+        self._shared_runtime.shutdown(timeout_ms=timeout_ms)
         forksafe.unregister_before_fork(self._before_fork_hook)
         forksafe.unregister_parent(self._after_fork_parent_hook)
         forksafe.unregister(self._after_fork_child_hook)

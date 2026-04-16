@@ -171,11 +171,13 @@ class SharedRuntime:
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
         ...
-    def shutdown(self) -> None:
-        """Gracefully shut down the shared runtime."""
-        ...
-    def drop(self) -> None:
-        """Drop the shared runtime, releasing resources immediately."""
+    def shutdown(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
         ...
     def debug(self) -> str:
         """Returns a string representation of the runtime. Should only be used for debugging."""
