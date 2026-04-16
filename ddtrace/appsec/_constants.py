@@ -464,7 +464,7 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
-      
+
     # environment variables
     ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
     ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
