@@ -90,7 +90,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             instance=self.instance,
         )
 
-    def _finalize_llm_span(self, chunk: Any) -> None:
+    def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         if self.current_llm_span is None:
             return
         span = self.current_llm_span
@@ -108,6 +108,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             response=chunk,
             operation="llm",
         )
+        if exception is not None:
+            span.set_exc_info(type(exception), exception, exception.__traceback__)
         span.finish()
 
         if chunk is not None:
@@ -189,7 +191,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     def finalize_stream(self, exception=None):
         try:
             if self.current_llm_span is not None:
-                self._finalize_llm_span(None)
+                self._finalize_llm_span(None, exception=exception)
 
             model = _extract_model_from_response(self.chunks)
             if model:

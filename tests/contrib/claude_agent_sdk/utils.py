@@ -226,7 +226,6 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
-MOCK_TOOL_RESULT_READ_ID = "toolu_01MultiTurnReadResult"
 MOCK_TOOL_RESULT_USER_READ = UserMessage(
     content=[ToolResultBlock(tool_use_id=MOCK_READ_TOOL_ID, content="myhost.local")]
 )
@@ -278,6 +277,7 @@ MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "result",
         "subtype": "success",
+        "stop_reason": "end_turn",
         "duration_ms": 100,
         "duration_api_ms": 90,
         "is_error": False,

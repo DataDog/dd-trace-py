@@ -1,8 +1,12 @@
 from unittest.mock import ANY
 
+import claude_agent_sdk
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
+
+CLAUDE_AGENT_SDK_VERSION = parse_version(claude_agent_sdk.__version__)
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
@@ -182,6 +186,9 @@ class TestLLMObsClaudeAgentSdk:
             model_provider="anthropic",
             input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "", "role": ""}],
+            error="builtins.ValueError",
+            error_message="Connection failed",
+            error_stack=ANY,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"},
         )
         assert llmobs_events[0] == expected_llm_event
@@ -282,9 +289,8 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={
-                "_dd": {
-                    "agent_manifest": expected_agent_manifest(),
-                },
+                **({"stop_reason": "end_turn"} if CLAUDE_AGENT_SDK_VERSION >= (0, 1, 49) else {}),
+                "_dd": {"agent_manifest": expected_agent_manifest()},
             },
             token_metrics={
                 "input_tokens": 14599,
@@ -626,9 +632,8 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={
-                "_dd": {
-                    "agent_manifest": expected_agent_manifest(),
-                },
+                **({"stop_reason": "end_turn"} if CLAUDE_AGENT_SDK_VERSION >= (0, 1, 49) else {}),
+                "_dd": {"agent_manifest": expected_agent_manifest()},
             },
             token_metrics={
                 "input_tokens": 14599,
