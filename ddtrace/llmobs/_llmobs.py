@@ -1882,7 +1882,8 @@ class LLMObs(Service):
             parent_id = ROOT_PARENT_ID
             ml_app, session_id = None, None
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
-        resolved_name = span.name  # Resolve span name eagerly so it's available in meta_struct at span finish time
+
+        resolved_name = span.name
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
             resolved_name = span.resource
 

@@ -15,8 +15,8 @@ except ImportError:
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -335,11 +335,14 @@ def _llmobs_base_span_event(
     if parent_id is None:
         llmobs_parent = _get_nearest_llmobs_ancestor(span)
         parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
+    span_name = name or span.name
+    if span_name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
+        span_name = span.resource
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": parent_id,
-        "name": name or get_llmobs_span_name(span) or span.name,
+        "name": span_name,
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
