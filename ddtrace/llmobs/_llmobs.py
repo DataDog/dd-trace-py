@@ -135,6 +135,7 @@ from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -152,8 +153,6 @@ from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
-from ddtrace.llmobs._http import get_connection
-from ddtrace.internal.utils.http import Response
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
 
@@ -464,6 +463,7 @@ class LLMObs(Service):
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
+        self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
         forksafe.register(self._child_after_fork)
 
@@ -2699,13 +2699,6 @@ class LLMObs(Service):
 
         ml_app = resolve_ml_app(ml_app)
 
-        base_url = _env.get("DD_LLMOBS_OVERRIDE_ORIGIN") or "https://api.{}".format(config._dd_site)
-        headers = {
-            "DD-API-KEY": config._dd_api_key,
-            "DD-APPLICATION-KEY": cls._app_key,
-            "Accept": "application/vnd.api+json",
-        }
-
         optional_filters = (
             ("trace_id", trace_id),
             ("span_id", span_id),
@@ -2731,40 +2724,7 @@ class LLMObs(Service):
             for k, v in (tags or {}).items()
         )
 
-        spans: list[dict] = []
-        cursor = None
-        while True:
-            params = dict(base_params)
-            if cursor:
-                params["page[cursor]"] = cursor
-
-            path = "/api/v2/llm-obs/v1/spans/events?{}{}".format(
-                urllib.parse.urlencode(params), tag_suffix
-            )
-            log.debug("LLMObs.get_spans() fetching %s%s", base_url, path)
-
-            conn = get_connection(base_url)
-            try:
-                conn.request("GET", path, b"", headers)
-                resp = conn.getresponse()
-                response = Response.from_http_response(resp)
-            finally:
-                conn.close()
-
-            if response.status != 200:
-                raise ValueError(
-                    "LLMObs.get_spans() request failed with status {}: {}".format(
-                        response.status, response.body
-                    )
-                )
-
-            body = response.get_json() or {}
-            spans.extend(item.get("attributes", {}) for item in body.get("data", []))
-            cursor = body.get("meta", {}).get("page", {}).get("after")
-            if not cursor:
-                break
-
-        return spans
+        return cls._instance._api_client.get_spans(base_params, tag_suffix)
 
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
