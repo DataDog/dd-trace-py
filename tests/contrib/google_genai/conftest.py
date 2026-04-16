@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import Mock
@@ -8,6 +7,7 @@ import pytest
 
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
@@ -35,8 +35,8 @@ def genai_client(request, genai):
     if request.param == "vertex_ai":
         return genai.Client(
             vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            project=env.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=env.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
     return genai.Client()
 
@@ -75,9 +75,9 @@ def llmobs_events(genai_llmobs, llmobs_span_writer):
 @pytest.fixture
 def genai(ddtrace_global_config):
     # tests require that these environment variables are set (especially for remote CI testing)
-    os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
-    os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
-    os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
+    env["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
+    env["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
+    env["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
     with override_global_config(ddtrace_global_config):
         patch()

@@ -35,6 +35,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordNew
@@ -48,11 +49,11 @@ from tests.utils import override_global_config
 
 
 TMP_CSV_FILE = "tmp.csv"
-TEST_PROJECT_NAME = os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")
+TEST_PROJECT_NAME = env.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")
 
 
 def wait_for_backend(sleep_dur=2):
-    if os.environ.get("RECORD_REQUESTS", "0") != "0":
+    if env.get("RECORD_REQUESTS", "0") != "0":
         time.sleep(sleep_dur)
 
 
@@ -1491,11 +1492,11 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
 
 
 def test_project_name_set(run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace.llmobs import LLMObs
@@ -1503,17 +1504,17 @@ from ddtrace.llmobs import LLMObs
 LLMObs.enable(ml_app="ml-app", project_name="test-project-123")
 assert LLMObs._project_name == "test-project-123"
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
 
 
 def test_project_name_set_env(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update(
         {
             "PYTHONPATH": ":".join(pypath),
             "DD_TRACE_ENABLED": "0",
@@ -1527,17 +1528,17 @@ from ddtrace.llmobs import LLMObs
 
 assert LLMObs._project_name == "test-project-123"
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
 
 
 def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update(
         {
             "PYTHONPATH": ":".join(pypath),
             "DD_TRACE_ENABLED": "0",
@@ -1551,7 +1552,7 @@ from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 
 assert LLMObs._project_name == DEFAULT_PROJECT_NAME
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
 
