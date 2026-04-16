@@ -31,7 +31,7 @@ def _isolate_from_outer_session(monkeypatch):
     pre-existing singleton makes enable() return early.
     """
     for key in list(os.environ):
-        if key.startswith(("DD_", "_CI_DD_", "DATADOG_")):
+        if key.startswith(("DD_", "_CI_DD_")):
             monkeypatch.delenv(key, raising=False)
 
     suspended = CIVisibility._suspend()
