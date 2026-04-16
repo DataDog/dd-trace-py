@@ -21,6 +21,7 @@ from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 CLAUDE_AGENT_SDK_VERSION = parse_version(claude_agent_sdk.__version__)
 
 
