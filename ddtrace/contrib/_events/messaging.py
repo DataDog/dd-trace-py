@@ -88,10 +88,10 @@ class MessagingConsumeEvent(TracingEvent):
     body: bytes = event_field(default=b"")
     distributed_tracing_enabled: bool = event_field(default=True)
     operation: str = event_field(default="receive")
-    #: If set, overrides the operation token used when building operation_name while
-    #: leaving the ``messaging.operation`` tag equal to ``operation``.  Use this
-    #: when the method name (e.g. "get") differs from the semantic operation
-    #: category (e.g. "receive").
+    # If set, overrides the operation token used when building operation_name while
+    # leaving the ``messaging.operation`` tag equal to ``operation``.  Use this
+    # when the method name (e.g. "get") differs from the semantic operation
+    # category (e.g. "receive").
     span_operation: str = event_field(default="")
 
     def __post_init__(self) -> None:

@@ -12,7 +12,7 @@ from ddtrace.contrib._events.messaging import MessagingPublishEvent
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -25,7 +25,7 @@ _MESSAGING_SYSTEM = "rabbitmq"
 config._add(
     "aio_pika",
     dict(
-        distributed_tracing_enabled=asbool(env.get("DD_AIO_PIKA_DISTRIBUTED_TRACING", True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_AIO_PIKA_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
