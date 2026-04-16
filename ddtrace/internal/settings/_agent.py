@@ -150,6 +150,14 @@ class AgentConfig(DDConfig):
         help_type="Boolean",
         help="Stores whether native span events are enabled",
     )
+
+    _trace_native_span_writer = DDConfig.v(
+        bool,
+        "trace_native_span_writer_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Enables the NativeSpanWriter, which passes span data directly to the trace exporter without msgpack encoding",
+    )
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
     # Effective DogStatsD URL (this is the one that will be used)
