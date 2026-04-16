@@ -112,6 +112,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
 
+    # Ensure headers is always a mutable mapping for HttpClientRequestEvent subscribers.
+    # Distributed tracing enablement is handled by subscribers (via integration config).
     if request_headers is None:
         request_headers = {}
         kwargs["headers"] = request_headers
