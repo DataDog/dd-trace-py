@@ -148,8 +148,9 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
         del tags[git.BRANCH]
     else:
         tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
-        tags[git.PULL_REQUEST_BASE_BRANCH] = git.normalize_ref(tags.get(git.PULL_REQUEST_BASE_BRANCH))
         tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
+
+    tags[git.PULL_REQUEST_BASE_BRANCH] = git.normalize_ref(tags.get(git.PULL_REQUEST_BASE_BRANCH))
 
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
