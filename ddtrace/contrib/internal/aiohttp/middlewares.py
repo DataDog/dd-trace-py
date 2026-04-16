@@ -9,6 +9,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
+REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 
@@ -67,6 +68,8 @@ async def trace_middleware(app, handler):
 
             # attach the execution context to the request
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
+            # legacy request key kept for backwards compatibility with documentation
+            request[REQUEST_CONTEXT_KEY] = req_span.context
 
             try:
                 response = await handler(request)
