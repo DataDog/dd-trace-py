@@ -511,6 +511,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["ml_app"] = ml_app
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
@@ -533,6 +534,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
