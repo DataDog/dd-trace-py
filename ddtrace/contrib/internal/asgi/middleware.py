@@ -289,7 +289,10 @@ class TraceMiddleware:
                 receive, body = await result.value
 
             client = scope.get("client")
-            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
+            # Both list and tuple must be supported for scope["client"].
+            # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
+            # may use a list, and Starlette's own testing code often uses a 2-item list here.
+            if isinstance(client, (list, tuple)) and len(client) and is_valid_ip(client[0]):
                 peer_ip = client[0]
             else:
                 peer_ip = None

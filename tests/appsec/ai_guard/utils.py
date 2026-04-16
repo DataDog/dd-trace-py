@@ -37,6 +37,7 @@ def assert_ai_guard_span(
         assert tag in span.get_tags(), f"Missing {tag} from spans tags"
         assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
     struct = span._get_struct_tag(AI_GUARD.TAG)
+    assert struct is not None
     for meta, value in meta_struct.items():
         assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"
         assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
@@ -45,9 +46,10 @@ def assert_ai_guard_span(
 def mock_evaluate_response(
     action: str,
     reason: str = "",
-    tags: list[str] = None,
+    tags: Optional[list[str]] = None,
     block: bool = True,
-    sds_findings: list = None,
+    sds_findings: Optional[list[Any]] = None,
+    tag_probs: Optional[dict[str, float]] = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -59,6 +61,8 @@ def mock_evaluate_response(
     }
     if sds_findings is not None:
         attributes["sds_findings"] = sds_findings
+    if tag_probs is not None:
+        attributes["tag_probs"] = tag_probs
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 
