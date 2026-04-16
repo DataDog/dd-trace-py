@@ -172,7 +172,7 @@ tests/profiling                              @DataDog/profiling-python
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
-tests/internal/crashtracker/                 @DataDog/profiling-python @DataDog/apm-core-python
+tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
