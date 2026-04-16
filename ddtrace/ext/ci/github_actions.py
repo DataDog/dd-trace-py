@@ -216,6 +216,7 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     tags = {
         git.BRANCH: environ.get("GITHUB_HEAD_REF") or environ.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("GITHUB_BASE_REF"),
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
         _PIPELINE_ID: github_run_id,

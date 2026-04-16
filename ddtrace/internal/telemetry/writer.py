@@ -278,8 +278,8 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["error"] = error_msg
 
     def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[dict[str, Any]]:
-        """Sent when TelemetryWriter is enabled or forks"""
-        if forksafe.is_fork_child() or self.started:
+        """Sent when TelemetryWriter is enabled or on the main process"""
+        if get_parent_runtime_id() is not None or self.started:
             # app-started events should only be sent by the main process
             return None
         #  list of configurations to be collected
@@ -669,7 +669,7 @@ class TelemetryWriter(PeriodicService):
         if deps := self._report_dependencies():
             events.append(self._get_event({"dependencies": deps}, TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED))
 
-        if shutting_down and not forksafe.is_fork_child():
+        if shutting_down and get_parent_runtime_id() is None:
             events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
         if heartbeat_payload := self._report_heartbeat():

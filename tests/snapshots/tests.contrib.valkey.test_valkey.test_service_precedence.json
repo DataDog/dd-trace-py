@@ -11,27 +11,68 @@
     "meta": {
       "_dd.base_service": "app-svc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69dfb8d600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "0f782133fa34462daf85cad95bb55fd2",
+      "runtime-id": "5984290416144fa181097c0f34321209",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET cheese"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 6379,
-      "out.valkey_db": 0,
-      "process_id": 20052,
-      "valkey.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.valkey_db": 0.0,
+      "process_id": 8455.0,
+      "valkey.args_length": 2.0
     },
-    "duration": 423750,
-    "start": 1692651822324419751
+    "duration": 601250,
+    "start": 1776269526273217003
+  }],
+[
+  {
+    "name": "valkey.command",
+    "service": "env-valkey",
+    "resource": "GET",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "valkey",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "app-svc",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfb8d600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "valkey",
+      "db.system": "valkey",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "5984290416144fa181097c0f34321209",
+      "server.address": "localhost",
+      "span.kind": "client",
+      "valkey.raw_command": "GET cheese"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.valkey_db": 0.0,
+      "process_id": 8455.0,
+      "valkey.args_length": 2.0
+    },
+    "duration": 133458,
+    "start": 1776269526274260961
   }]]
