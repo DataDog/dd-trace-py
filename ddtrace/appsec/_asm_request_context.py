@@ -585,10 +585,15 @@ def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: 
                 rc_products=rc_products,
             ),
         )
+        headers_case_sensitive = core.get_item("headers_case_sensitive")
+        if headers_case_sensitive is None:
+            event = getattr(getattr(core, "current"), "event", None)
+            headers_case_sensitive = getattr(event, "headers_case_sensitive", False)
+
         asm_request_context_set(
             core.get_item("remote_addr"),
             core.get_item("headers"),
-            core.get_item("headers_case_sensitive"),
+            headers_case_sensitive,
             core.get_item("block_request_callable"),
         )
 
