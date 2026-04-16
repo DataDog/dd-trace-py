@@ -49,6 +49,8 @@ class HttpClientTracingSubscriber(TracingSubscriber):
                 query=event.query,
                 request_headers=event.request_headers,
                 response_headers=event.response_headers,
+                server_address=event.server_address,
+                retries_remain=event.retries_remain,
             )
         except Exception:
             log.debug("%s: error adding tags", event.integration_config.integration_name, exc_info=True)
