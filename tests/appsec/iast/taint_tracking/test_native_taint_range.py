@@ -5,6 +5,7 @@ from multiprocessing.pool import ThreadPool
 import random
 import sys
 from time import sleep
+import uuid
 
 import pytest
 
@@ -428,7 +429,9 @@ def test_shift_taint_ranges(source, vulnerability_type):
 
 
 def test_are_all_text_all_ranges():
-    _start_iast_context_and_oce()
+    if _get_iast_context_id() is None:
+        _start_iast_context_and_oce()
+
     _RANGE1 = TaintRange(0, 2, _SOURCE1)
     _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abc123"
@@ -441,10 +444,11 @@ def test_are_all_text_all_ranges():
     range4 = TaintRange(4, 5, source4)
     assert _num_objects_tainted_in_request() == 0
 
+    unique_str = "abc1234_" + str(uuid.uuid4())
     a_1 = taint_pyobject(
-        "abc1234_unique",
+        unique_str,
         source_name="test_num_objects_tainted",
-        source_value="abc1234_unique",
+        source_value=unique_str,
         source_origin=OriginType.PARAMETER,
     )
     assert is_pyobject_tainted(a_1)
