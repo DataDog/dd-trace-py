@@ -46,6 +46,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
             return model_name
     return None
 
+
 _GENERIC_LLM_TYPE_PARTS = {"chat", "llm"}
 
 
