@@ -1,12 +1,9 @@
-import sys
 from types import CodeType
 
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
-
-
-PY = sys.version_info[:2]
+from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
 # -----------------------------------------------------------------------------

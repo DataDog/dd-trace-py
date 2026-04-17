@@ -13,6 +13,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
@@ -78,9 +79,9 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 16):
+if PY >= (3, 16):
     raise NotImplementedError("Python >= 3.16 is not supported yet")
-elif sys.version_info >= (3, 13):
+elif PY >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context_enter}
@@ -126,7 +127,7 @@ elif sys.version_info >= (3, 13):
         """
     )
 
-elif sys.version_info >= (3, 12):
+elif PY >= (3, 12):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -174,7 +175,7 @@ elif sys.version_info >= (3, 12):
     )
 
 
-elif sys.version_info >= (3, 11):
+elif PY >= (3, 11):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -225,7 +226,7 @@ elif sys.version_info >= (3, 11):
         """
     )
 
-elif sys.version_info >= (3, 10):
+elif PY >= (3, 10):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -256,7 +257,7 @@ elif sys.version_info >= (3, 10):
         """
     )
 
-elif sys.version_info >= (3, 9):
+elif PY >= (3, 9):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -574,7 +575,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Check that we have actual bytecode wrapping. The presence of the
             # __dd_context_wrapped__ attribute is not enough, as this could be
             # copied over from an object state cloning.
-            if sys.version_info >= (3, 11):
+            if PY >= (3, 11):
                 return f.__dd_context_wrapped__.__enter__ in get_function_code(f).co_consts  # type: ignore
             else:
                 return f.__dd_context_wrapped__ in get_function_code(f).co_consts  # type: ignore
@@ -587,7 +588,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-    if sys.version_info >= (3, 11):
+    if PY >= (3, 11):
 
         def wrap(self) -> None:
             f = self.__wrapped__
@@ -599,13 +600,13 @@ class _UniversalWrappingContext(BaseWrappingContext):
             try:
                 bc = Bytecode.from_code(code := get_function_code(f))
             except IndexError:
-                if sys.version_info >= (3, 15):
+                if PY >= (3, 15):
                     import logging as _logging
 
                     _logging.getLogger(__name__).debug(
                         "context wrapping skipped for %r: bytecode library does not support Python %d.%d yet",
                         f,
-                        *sys.version_info[:2],
+                        *PY[:2],
                     )
                     return
                 raise
@@ -617,7 +618,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 try:
                     if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                    elif PY >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
                         return_code = CONTEXT_RETURN_CONST.bind(
                             {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
                         )
@@ -674,7 +675,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             # Compute modified code before committing side-effects so we can bail cleanly.
             # AIDEV-TODO: drop version guard when bytecode supports CLEANUP_THROW (3.15).
-            if sys.version_info >= (3, 15):
+            if PY >= (3, 15):
                 # bytecode 0.17.0 can't compute stack depth through CLEANUP_THROW;
                 # fall back to an explicit estimate only when needed.
                 try:
@@ -755,7 +756,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 try:
                     if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                    elif PY >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
                         return_code = CONTEXT_RETURN_CONST
                     else:
                         return_code = None
@@ -803,7 +804,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             # Search for the GEN_START instruction, which needs to stay on top.
             i = 0
-            if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
+            if PY >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
                 for i, instr in enumerate(bc, 1):
                     try:
                         if instr.name == "GEN_START":
