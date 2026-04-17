@@ -2687,7 +2687,7 @@ class LLMObs(Service):
         if not cls._app_key:
             raise ValueError("DD_APP_KEY must be set to use LLMObs.get_spans().")
 
-        ml_app = ml_app or config._llmobs_ml_app or None
+        ml_app = resolve_ml_app(ml_app)
 
         optional_filters = (
             ("trace_id", trace_id),
