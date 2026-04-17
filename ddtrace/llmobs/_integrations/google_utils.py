@@ -8,6 +8,8 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -64,7 +66,7 @@ def extract_provider_and_model_name(
         model_path = _get_attr(instance, model_name_attr, "")
 
     if not model_path or not isinstance(model_path, str):
-        return "custom", "custom"
+        return UNKNOWN_MODEL_PROVIDER, UNKNOWN_MODEL_NAME
 
     model_name = model_path.split("/")[-1] if "/" in model_path else model_path
 
@@ -72,7 +74,7 @@ def extract_provider_and_model_name(
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-    return "custom", model_name if model_name else "custom"
+    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else UNKNOWN_MODEL_NAME
 
 
 def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
