@@ -120,9 +120,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
-            args, kwargs, 0, "message", optional=True
+        raw_call = (
+            get_argument_value(args, kwargs, 0, "call", optional=True)
+            or get_argument_value(args, kwargs, 0, "message", optional=True)
+            or get_argument_value(args, kwargs, 0, "validated", optional=True)
         )
+        # unwrap ValidatedToolCall into tool_instance and tool_call for newer versions of Pydantic AI
+        if raw_call is not None and hasattr(raw_call, "args_valid"):
+            if tool_instance is None:
+                tool_instance = getattr(raw_call, "tool", None)
+            tool_call = getattr(raw_call, "call", raw_call)
+        else:
+            tool_call = raw_call
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         tool_id = ""
@@ -174,7 +183,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "model_settings"):
             manifest["model_settings"] = agent.model_settings
         if hasattr(agent, "_instructions"):
-            manifest["instructions"] = agent._instructions
+            instructions = agent._instructions
+            if isinstance(instructions, list):
+                instructions = (
+                    " ".join(instructions) if instructions and all(isinstance(i, str) for i in instructions) else None
+                )
+            manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
         manifest["tools"] = self._get_agent_tools(agent)

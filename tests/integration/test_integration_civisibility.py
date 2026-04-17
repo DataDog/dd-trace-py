@@ -1,6 +1,6 @@
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.ci_visibility import CIVisibility
@@ -16,6 +16,31 @@ from tests.utils import override_env
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_from_outer_session(monkeypatch):
+    """Strip DD_* env vars and suspend CIVisibility so each test starts with a clean slate.
+
+    When the outer pytest session runs with --ddtrace in CI, DD_API_KEY and other DD_* vars
+    are present in the process environment. Tests asserting on specific env conditions (e.g.
+    missing API key) must not see those vars. Each test sets its own DD_* vars explicitly via
+    override_env(), so stripping them all here is safe.
+
+    The CIVisibility suspension is belt-and-suspenders for the old plugin path where a
+    pre-existing singleton makes enable() return early.
+    """
+    for key in list(os.environ):
+        if key.startswith(("DD_", "_CI_DD_")):
+            monkeypatch.delenv(key, raising=False)
+
+    suspended = CIVisibility._suspend()
+    try:
+        yield
+    finally:
+        if CIVisibility.enabled:
+            CIVisibility.disable()
+        CIVisibility._resume(suspended)
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -77,8 +102,7 @@ def test_civisibility_intake_with_apikey():
 @pytest.mark.subprocess()
 def test_civisibility_intake_payloads():
     import gzip
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
     from ddtrace.internal.ci_visibility.recorder import CIVisibilityWriter
