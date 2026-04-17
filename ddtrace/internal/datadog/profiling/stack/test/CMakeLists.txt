@@ -66,6 +66,14 @@ function(dd_wrapper_add_test name)
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
                                                           # sanitizer-built executables during build
 
+    # Echion headers (vm.h, tasks.h) require PL_DARWIN or PL_LINUX to define proc_ref_t and copy_type. These are set
+    # PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets, so we replicate the logic here.
+    if(APPLE)
+        target_compile_definitions(${name} PRIVATE PL_DARWIN)
+    else()
+        target_compile_definitions(${name} PRIVATE PL_LINUX)
+    endif()
+
     # This is supplemental artifact so make sure to install it in the right place
     if(INPLACE_LIB_INSTALL_DIR)
         set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
