@@ -55,6 +55,8 @@ try:
 except ImportError:
     _HAS_PLUGIN_API = False
 
+from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
+from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
@@ -196,7 +198,10 @@ class AIGuardStrandsIntegration:
 
         Skips tool output messages (already processed in AfterToolCall).
         On block: always raises ``AIGuardAbortError``.
+        Sets ``_ai_guard_active`` so provider-level integrations (e.g. OpenAI)
+        skip their own evaluation while Strands owns the lifecycle.
         """
+        self._ai_guard_token = set_aiguard_context_active()
         try:
             logger.debug("AIGuard event: %s", event)
             messages = event.agent.messages
@@ -209,6 +214,7 @@ class AIGuardStrandsIntegration:
                 result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
                 logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError:
+            reset_aiguard_context_active(self._ai_guard_token)
             raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
@@ -219,6 +225,7 @@ class AIGuardStrandsIntegration:
         Only analyzes assistant text content (tool calls are analyzed
         individually in BeforeToolCall). On block: always raises
         ``AIGuardAbortError``.
+        Resets ``_ai_guard_active`` set in ``_on_before_model_call_base``.
         """
         try:
             logger.debug("AIGuard event: %s", event)
@@ -244,6 +251,9 @@ class AIGuardStrandsIntegration:
             raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
+        finally:
+            if hasattr(self, "_ai_guard_token"):
+                reset_aiguard_context_active(self._ai_guard_token)
 
     def _build_tool_call_messages(self, event: _BeforeToolCallEvent | _AfterToolCallEvent) -> tuple[list[Message], str]:
         """Build AI Guard messages for a tool call event.
