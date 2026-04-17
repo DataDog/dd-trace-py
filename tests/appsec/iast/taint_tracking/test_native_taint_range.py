@@ -428,6 +428,7 @@ def test_shift_taint_ranges(source, vulnerability_type):
 
 
 def test_are_all_text_all_ranges():
+    _start_iast_context_and_oce()
     _RANGE1 = TaintRange(0, 2, _SOURCE1)
     _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abc123"
@@ -441,9 +442,9 @@ def test_are_all_text_all_ranges():
     assert _num_objects_tainted_in_request() == 0
 
     a_1 = taint_pyobject(
-        "abc1234",
+        "abc1234_unique",
         source_name="test_num_objects_tainted",
-        source_value="abc1234",
+        source_value="abc1234_unique",
         source_origin=OriginType.PARAMETER,
     )
     assert is_pyobject_tainted(a_1)
