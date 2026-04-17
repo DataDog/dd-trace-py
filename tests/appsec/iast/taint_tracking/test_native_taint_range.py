@@ -429,9 +429,6 @@ def test_shift_taint_ranges(source, vulnerability_type):
 
 
 def test_are_all_text_all_ranges():
-    if _get_iast_context_id() is None:
-        _start_iast_context_and_oce()
-
     _RANGE1 = TaintRange(0, 2, _SOURCE1)
     _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abc123"
