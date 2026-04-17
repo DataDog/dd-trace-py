@@ -471,3 +471,9 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
     ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
     ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"
