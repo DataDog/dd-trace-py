@@ -2687,9 +2687,6 @@ class LLMObs(Service):
         if not cls._app_key:
             raise ValueError("DD_APP_KEY must be set to use LLMObs.get_spans().")
 
-        if span_kind is not None and span_kind not in EXPORT_API_VALID_SPAN_KINDS:
-            raise ValueError("span_kind must be one of: {}.".format(", ".join(sorted(EXPORT_API_VALID_SPAN_KINDS))))
-
         ml_app = ml_app or config._llmobs_ml_app or None
 
         optional_filters = (

@@ -121,9 +121,6 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 
-# For get_spans (Export API)
-EXPORT_API_VALID_SPAN_KINDS = frozenset({"agent", "workflow", "llm", "tool", "task", "embedding", "retrieval"})
-
 
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""
