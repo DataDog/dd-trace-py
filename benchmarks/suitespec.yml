@@ -376,3 +376,15 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  telemetry_dependencies:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - ddtrace/internal/telemetry/dependency*.py
+      - ddtrace/appsec/sca/*
+      - benchmarks/telemetry_dependencies/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'

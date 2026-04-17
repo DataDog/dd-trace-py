@@ -132,7 +132,7 @@ venv = Venv(
         Venv(
             name="meta-testing",
             pys=["3.10"],
-            command="pytest {cmdargs} --no-ddtrace tests/meta",
+            command="pytest {cmdargs} tests/meta",
             env={
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
@@ -475,7 +475,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -497,7 +497,7 @@ venv = Venv(
             name="integration-civisibility",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -555,6 +555,37 @@ venv = Venv(
                 "DD_PROFILING_LOCK_ENABLED": "0",  # This patches the lock class
                 "DD_REMOTE_CONFIGURATION_ENABLED": "1",
             },
+        ),
+        Venv(
+            name="crashtracker",
+            env={
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
+            command="pytest -v {cmdargs} tests/crashtracker/",
+            pkgs={
+                "pytest-randomly": latest,
+                "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
+                "pytest-asyncio": "~=0.23.7",
+                "setuptools": "<82",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    env={
+                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                    },
+                    pkgs={
+                        "zope-event": "==5.0",
+                        "zope-interface": "==7.2",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="internal",
@@ -1999,6 +2030,11 @@ venv = Venv(
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
+                # Disable coverage report upload for this suite: these tests exercise the
+                # coverage upload functionality themselves, so having the plugin also run
+                # coverage upload concurrently causes interference (the plugin's global
+                # coverage.py instance gets stopped by the tests, corrupting state).
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "false",
             },
             venvs=[
                 Venv(
@@ -2032,7 +2068,7 @@ venv = Venv(
         ),
         Venv(
             name="unittest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
+            command="pytest {cmdargs} tests/contrib/unittest/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2048,7 +2084,7 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
+            command="pytest {cmdargs} tests/contrib/asynctest/",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -2069,7 +2105,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest_bdd",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
@@ -2104,7 +2140,7 @@ venv = Venv(
         Venv(
             name="pytest_benchmark",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2125,7 +2161,7 @@ venv = Venv(
         Venv(
             name="pytest:flaky",
             pys=select_pys(),
-            command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            command="pytest {cmdargs} --no-cov -p no:flaky tests/contrib/pytest_flaky/",
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
@@ -3240,10 +3276,23 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
+                        "pydantic-ai": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pydantic-ai": ["==1.63.0"],
                     },
                 ),
             ],
@@ -3324,7 +3373,7 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "boto3": latest,
@@ -3840,7 +3889,7 @@ venv = Venv(
                 "selenium": "~=4.0",
                 "webdriver-manager": latest,
             },
-            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
             },
@@ -3862,6 +3911,7 @@ venv = Venv(
             " tests/appsec/integrations/flask_tests/test_iast_flask.py"
             " tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
+                "requests": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
                 "sqlalchemy": latest,
@@ -3906,7 +3956,7 @@ venv = Venv(
             " --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py"
             " --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
-                "requests": latest,
+                "requests": "==2.31.0",
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
@@ -4521,6 +4571,15 @@ venv = Venv(
                     pkgs={
                         "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="sca",
+            command="pytest {cmdargs} tests/appsec/sca/",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
                 ),
             ],
         ),

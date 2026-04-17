@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AI Guard response objects now include a dict field `tag_probs` with the probabilities for each tag.
+
