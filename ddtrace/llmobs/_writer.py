@@ -942,7 +942,7 @@ class LLMObsAPIClient:
         _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
         self._base_url: str = _override_url or "https://api.{}".format(_site)
 
-    def get_spans(self, base_params: dict, tag_suffix: str) -> list[dict]:
+    def get_spans(self, base_params: dict) -> list[dict]:
         headers = {
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
@@ -954,7 +954,7 @@ class LLMObsAPIClient:
             params = dict(base_params)
             if cursor:
                 params["page[cursor]"] = cursor
-            path = "/api/v2/llm-obs/v1/spans/events?{}{}".format(urllib.parse.urlencode(params), tag_suffix)
+            path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
             conn = get_connection(self._base_url, timeout=self.TIMEOUT)
             try:

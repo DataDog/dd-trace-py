@@ -2717,11 +2717,10 @@ class LLMObs(Service):
             if val is not None:
                 base_params["filter[{}]".format(key)] = val
 
-        tag_suffix = "".join(
-            "&filter[tag][{}]={}".format(urllib.parse.quote(k), urllib.parse.quote(v)) for k, v in (tags or {}).items()
-        )
+        for k, v in (tags or {}).items():
+            base_params["filter[tag][{}]".format(k)] = v
 
-        return cls._instance._api_client.get_spans(base_params, tag_suffix)
+        return cls._instance._api_client.get_spans(base_params)
 
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
