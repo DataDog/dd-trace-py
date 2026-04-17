@@ -126,15 +126,30 @@ _FALLBACK_AST = ast.parse(
 
 
 def _inject_fallback(tree: ast.Module) -> None:
-    """Insert a no-op __taint_mark__ definition at the top of the module.
+    """Insert a no-op __taint_mark__ definition after __future__ imports and docstrings.
 
     This ensures cached .pyc files work in subprocesses (e.g. unittest)
     that don't load the pytest plugin / set builtins.__taint_mark__.
     """
     import copy
 
-    for i, node in enumerate(copy.deepcopy(_FALLBACK_AST)):
-        tree.body.insert(i, node)
+    # Find insertion point: after __future__ imports and module docstring
+    insert_at = 0
+    for i, node in enumerate(tree.body):
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            insert_at = i + 1
+        elif (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+            and i == 0
+        ):
+            insert_at = i + 1
+        else:
+            break
+
+    for j, node in enumerate(copy.deepcopy(_FALLBACK_AST)):
+        tree.body.insert(insert_at + j, node)
 
 
 def _fix_locations(tree: ast.AST) -> None:
