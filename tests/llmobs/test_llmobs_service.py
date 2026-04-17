@@ -2341,6 +2341,7 @@ def test_get_spans_no_filter_raises(llmobs):
 
 def test_get_spans_missing_api_key_raises(llmobs):
     import ddtrace
+
     original = ddtrace.config._dd_api_key
     try:
         ddtrace.config._dd_api_key = ""
