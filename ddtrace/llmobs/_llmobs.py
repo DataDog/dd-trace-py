@@ -2681,12 +2681,6 @@ class LLMObs(Service):
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        if not config._dd_api_key:
-            raise ValueError("DD_API_KEY must be set to use LLMObs.get_spans().")
-
-        if not cls._app_key:
-            raise ValueError("DD_APP_KEY must be set to use LLMObs.get_spans().")
-
         ml_app = resolve_ml_app(ml_app)
 
         optional_filters = (

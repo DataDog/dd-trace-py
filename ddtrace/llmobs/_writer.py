@@ -943,6 +943,10 @@ class LLMObsAPIClient:
         self._base_url: str = _override_url or "https://api.{}".format(_site)
 
     def get_spans(self, base_params: dict) -> list[dict]:
+        if not self._api_key:
+            raise ValueError("API key not set")
+        if not self._app_key:
+            raise ValueError("App key not set")
         headers = {
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
