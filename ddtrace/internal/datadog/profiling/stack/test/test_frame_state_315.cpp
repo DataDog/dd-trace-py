@@ -17,15 +17,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-// Stub for echion's remote-memory copy callback. Always fails — we have no live
-// Python process to read from, and all tests only need to exercise the state-check
-// logic that fires before any copy_type call (or verify safe nullptr-on-copy-failure).
-extern "C" int
-echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /*len*/, void* /*buf*/)
-{
-    return -1;
-}
-
 #if PY_VERSION_HEX >= 0x030e0000
 #include <cstddef>
 #include <internal/pycore_frame.h>
@@ -37,6 +28,16 @@ echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /
 #include <echion/cpython/tasks.h>
 #include <echion/echion_sampler.h>
 #include <echion/vm.h>
+
+// Stub for echion's remote-memory copy callback. Always fails — we have no live
+// Python process to read from, and all tests only need to exercise the state-check
+// logic that fires before any copy_type call (or verify safe nullptr-on-copy-failure).
+// Must appear after echion/vm.h so that proc_ref_t is declared.
+extern "C" int
+echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /*len*/, void* /*buf*/)
+{
+    return -1;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Compile-time enum value assertions (3.15+ only)

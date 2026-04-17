@@ -28,6 +28,9 @@
 #include <internal/pycore_frame.h>
 #endif
 
+// echion/vm.h defines proc_ref_t, which the stub below requires.
+#include <echion/vm.h>
+
 // Stub: echion's remote-memory callback is referenced at link time via vm.h.
 // Always returns failure — no live process attached in unit tests.
 extern "C" int
