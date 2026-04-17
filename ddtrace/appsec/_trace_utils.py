@@ -360,13 +360,13 @@ def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Op
     :param userid: the ID of the user as registered by `set_user`
     :param mode: the mode of the login event ("sdk" by default, "auto" to simulate auto instrumentation)
     """
+    if not asm_config._asm_enabled:
+        if mode != LOGIN_EVENTS_MODE.AUTO:
+            log.warning("should_block_user call requires ASM to be enabled")
+        return
     if mode == LOGIN_EVENTS_MODE.AUTO:
         mode = asm_config._user_event_mode
-    if not asm_config._asm_enabled:
-        log.warning("should_block_user call requires ASM to be enabled")
-        return
     if mode == LOGIN_EVENTS_MODE.DISABLED:
-        log.debug("should_block_user skipped: user instrumentation mode is disabled")
         return
     entry_span = _asm_request_context.get_entry_span()
     if entry_span:
