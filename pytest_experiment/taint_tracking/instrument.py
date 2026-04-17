@@ -119,6 +119,24 @@ class TaintTransformer(ast.NodeTransformer):
         return node
 
 
+_FALLBACK_AST = ast.parse(
+    "import builtins as __taint_builtins__\n"
+    "__taint_mark__ = getattr(__taint_builtins__, '__taint_mark__', lambda _: None)\n"
+).body
+
+
+def _inject_fallback(tree: ast.Module) -> None:
+    """Insert a no-op __taint_mark__ definition at the top of the module.
+
+    This ensures cached .pyc files work in subprocesses (e.g. unittest)
+    that don't load the pytest plugin / set builtins.__taint_mark__.
+    """
+    import copy
+
+    for i, node in enumerate(copy.deepcopy(_FALLBACK_AST)):
+        tree.body.insert(i, node)
+
+
 def _fix_locations(tree: ast.AST) -> None:
     """Ensure all AST nodes have valid, monotonically non-decreasing line numbers.
 
@@ -183,6 +201,11 @@ def _patched_compile(source, filename, mode, *args, **kwargs):
             else:
                 return _original_compile(source, filename, mode, *args, **kwargs)
             tree = _transformer.visit(tree)
+            # Inject a safe fallback at module top so cached .pyc files
+            # work even in subprocesses that don't load the plugin:
+            #   if not callable(globals().get("__taint_mark__")):
+            #       def __taint_mark__(_): pass
+            _inject_fallback(tree)
             _fix_locations(tree)
             return _original_compile(tree, filename, mode, *args, **kwargs)
         except SyntaxError:
