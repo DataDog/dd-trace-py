@@ -61,7 +61,8 @@
           "parent_id": 2,
           "meta": {
             "_dd.p.tid": "6981be9a00000000",
-            "component": "aiohttp"
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 1502250,
           "start": 1770110618955986217
@@ -97,7 +98,8 @@
           "parent_id": 3,
           "meta": {
             "_dd.p.tid": "6981be9a00000000",
-            "component": "aiohttp"
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 512333,
           "start": 1770110619114727676
@@ -133,7 +135,8 @@
           "parent_id": 4,
           "meta": {
             "_dd.p.tid": "6981be9a00000000",
-            "component": "aiohttp"
+            "component": "aiohttp",
+            "span.kind": "client"
           },
           "duration": 455375,
           "start": 1770110620213090801
