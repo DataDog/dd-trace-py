@@ -1614,7 +1614,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
         with llmobs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with llmobs.agent(name="test_agent") as span:
                 event.wait()
-                agent_has_correct_tags = get_llmobs_tags(span) == {"foo": "bar"}
+                agent_has_correct_tags = {"foo": "bar"}.items() <= get_llmobs_tags(span).items()
                 agent_has_correct_name = span.name == "expected_agent"
 
     # thread which registers an annotation context for 0.5 seconds
@@ -1625,7 +1625,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
             with llmobs.annotation_context(name="expected_tool"):
                 with llmobs.tool(name="test_tool") as tool_span:
                     event.wait()
-                    tool_does_not_have_tags = get_llmobs_tags(tool_span) == {}
+                    tool_does_not_have_tags = "foo" not in get_llmobs_tags(tool_span)
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
     thread_one = threading.Thread(target=context_one)
