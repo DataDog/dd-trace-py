@@ -2334,9 +2334,54 @@ def test_get_spans_paginates(mock_get_connection, llmobs):
     assert mock_get_connection.call_count == 2
 
 
-def test_get_spans_no_filter_raises(llmobs):
-    with pytest.raises(ValueError, match="At least one of"):
-        llmobs.get_spans()
+def test_get_spans_no_filter_raises(llmobs_no_ml_app):
+    import ddtrace
+
+    llmobs_no_ml_app._app_key = "test-app-key"
+    original = ddtrace.config._dd_api_key
+    try:
+        ddtrace.config._dd_api_key = "<not-a-real-key>"
+        with pytest.raises(ValueError, match="At least one filter"):
+            llmobs_no_ml_app.get_spans()
+    finally:
+        ddtrace.config._dd_api_key = original
+
+
+def test_get_spans_env_ml_app_satisfies_filter(mock_get_connection, llmobs):
+    """DD_LLMOBS_ML_APP (via config._llmobs_ml_app) should satisfy the filter guard."""
+    llmobs._app_key = "test-app-key"
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs.get_spans()
+    _, call_path, _, _ = mock_conn.request.call_args[0]
+    assert "filter%5Bml_app%5D=unnamed-ml-app" in call_path or "filter[ml_app]=unnamed-ml-app" in call_path
+
+
+def test_get_spans_span_kind_alone_satisfies_filter(mock_get_connection, llmobs_no_ml_app):
+    llmobs_no_ml_app._app_key = "test-app-key"
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs_no_ml_app.get_spans(span_kind="llm")
+    _, call_path, _, _ = mock_conn.request.call_args[0]
+    assert "filter%5Bspan_kind%5D=llm" in call_path or "filter[span_kind]=llm" in call_path
+    assert "filter[ml_app]" not in call_path and "filter%5Bml_app%5D" not in call_path
+
+
+def test_get_spans_span_name_alone_satisfies_filter(mock_get_connection, llmobs_no_ml_app):
+    llmobs_no_ml_app._app_key = "test-app-key"
+    page = {"data": [], "meta": {"page": {}}}
+    _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs_no_ml_app.get_spans(span_name="my_span")
+
+
+def test_get_spans_does_not_fall_back_to_service_name(mock_get_connection, llmobs_no_ml_app):
+    """Read path must not silently scope to service name / 'unnamed-ml-app' default."""
+    llmobs_no_ml_app._app_key = "test-app-key"
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs_no_ml_app.get_spans(trace_id="t1")
+    _, call_path, _, _ = mock_conn.request.call_args[0]
+    assert "filter[ml_app]" not in call_path and "filter%5Bml_app%5D" not in call_path
 
 
 def test_get_spans_missing_api_key_raises(llmobs):

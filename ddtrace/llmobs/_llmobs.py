@@ -2659,15 +2659,18 @@ class LLMObs(Service):
         """
         Retrieves LLM span events from the Datadog platform API.
 
-        :param str trace_id: Filter spans by trace ID. At least one of ``trace_id``, ``span_id``,
-                              ``query``, ``tags``, or ``ml_app`` must be provided.
+        At least one of ``trace_id``, ``span_id``, ``query``, ``tags``, ``span_kind``,
+        ``span_name``, or ``ml_app`` must be provided (``ml_app`` may come from the
+        ``DD_LLMOBS_ML_APP`` environment variable).
+
+        :param str trace_id: Filter spans by trace ID.
         :param str span_id: Filter to a specific span by ID.
         :param str query: Filter spans using EVP query syntax.
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
                                ``tool``, ``task``, ``embedding``, ``retrieval``.
         :param str span_name: Filter by span name.
-        :param str ml_app: Filter by ML application name. Defaults to the configured
-                            ``DD_LLMOBS_ML_APP`` (same resolution as ``submit_evaluation``).
+        :param str ml_app: Filter by ML application name. Defaults to ``DD_LLMOBS_ML_APP``
+                            if set; otherwise the query is not scoped to an ml_app.
         :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
         :param str from_date: Start of the time range. Accepts ISO 8601, date math
                                (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
@@ -2677,15 +2680,12 @@ class LLMObs(Service):
         :param bool include_attachments: If ``True`` (default), span input/output content larger
                                           than 25KB is fetched from blob storage and inlined into
                                           the response. If ``False``, truncated values are returned.
-        :param int limit: Maximum number of spans to fetch per page (1–5000). Default: 100.
+        :param int limit: Maximum number of spans to fetch per page (1–5000). Default: 10.
         :returns: A flat list of span attribute dicts. Each dict contains fields such as
                   ``span_id``, ``trace_id``, ``name``, ``span_kind``, ``start_ns``, ``duration``,
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        if not any((trace_id, span_id, query, tags, ml_app)):
-            raise ValueError("At least one of `trace_id`, `span_id`, `query`, `tags`, or `ml_app` must be provided.")
-
         if not config._dd_api_key:
             raise ValueError("DD_API_KEY must be set to use LLMObs.get_spans().")
 
@@ -2695,7 +2695,16 @@ class LLMObs(Service):
         if span_kind is not None and span_kind not in cls._VALID_SPAN_KINDS:
             raise ValueError("span_kind must be one of: {}.".format(", ".join(sorted(cls._VALID_SPAN_KINDS))))
 
-        ml_app = resolve_ml_app(ml_app)
+        # Resolve ml_app from explicit arg or DD_LLMOBS_ML_APP. Intentionally skip the
+        # service-name / "unnamed-ml-app" fallbacks used by write paths — silently scoping
+        # a read query to an ml_app the user never chose hides results.
+        ml_app = ml_app or config._llmobs_ml_app or None
+
+        if not any((trace_id, span_id, query, tags, span_kind, span_name, ml_app)):
+            raise ValueError(
+                "At least one filter must be provided: `trace_id`, `span_id`, `query`, `tags`, "
+                "`span_kind`, `span_name`, or `ml_app` (or set the `DD_LLMOBS_ML_APP` env var)."
+            )
 
         optional_filters = (
             ("trace_id", trace_id),
