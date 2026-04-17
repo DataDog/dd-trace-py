@@ -2660,7 +2660,7 @@ class LLMObs(Service):
         Retrieves LLM span events from the Datadog platform API.
 
         :param str trace_id: Filter spans by trace ID. At least one of ``trace_id``, ``span_id``,
-                              or ``query`` must be provided.
+                              ``query``, ``tags``, or ``ml_app`` must be provided.
         :param str span_id: Filter to a specific span by ID.
         :param str query: Filter spans using EVP query syntax.
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
@@ -2683,8 +2683,8 @@ class LLMObs(Service):
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        if not any((trace_id, span_id, query)):
-            raise ValueError("At least one of `trace_id`, `span_id`, or `query` must be provided.")
+        if not any((trace_id, span_id, query, tags, ml_app)):
+            raise ValueError("At least one of `trace_id`, `span_id`, `query`, `tags`, or `ml_app` must be provided.")
 
         if not config._dd_api_key:
             raise ValueError("DD_API_KEY must be set to use LLMObs.get_spans().")
