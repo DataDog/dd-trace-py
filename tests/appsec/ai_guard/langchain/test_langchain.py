@@ -22,6 +22,7 @@ import pytest
 from ddtrace.appsec._ai_guard._langchain import _convert_messages
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 
 
 class ToolTrackingHandler(BaseCallbackHandler):
@@ -91,6 +92,36 @@ async def test_openai_chat_async_block(mock_execute_request, langchain_openai, o
         await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
     mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_openai_chat_sync_block_config_disabled(mock_execute_request, langchain_openai, openai_url, decision):
+    """When _ai_guard_block=False (DD_AI_GUARD_BLOCK=false), DENY/ABORT should NOT raise AIGuardAbortError
+    even when the server response has is_blocking_enabled=True.
+    """
+    mock_execute_request.return_value = mock_evaluate_response(decision, block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+        # Should NOT raise because local config passes Options(block=False) which overrides server response
+        chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_openai_chat_async_block_config_disabled(mock_execute_request, langchain_openai, openai_url, decision):
+    """When _ai_guard_block=False (DD_AI_GUARD_BLOCK=false), DENY/ABORT should NOT raise AIGuardAbortError
+    even when the server response has is_blocking_enabled=True.
+    """
+    mock_execute_request.return_value = mock_evaluate_response(decision, block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+        await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        mock_execute_request.assert_called_once()
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")

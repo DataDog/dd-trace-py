@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CI visibility: This fix resolves issues where CI provider metadata could omit pull request base branch and head commit details or report incorrect pull request values for some providers.
