@@ -43,7 +43,7 @@ log = get_logger(__name__)
 config._add(
     "aws_durable_execution_sdk_python",
     dict(
-        _default_service="aws.durable_functions",
+        _default_service="aws.durable_execution",
         distributed_tracing_enabled=True,
     ),
 )
@@ -178,10 +178,10 @@ def _traced_durable_execution(func, instance, args, kwargs):
         event = TracingEvent.create(
             component=config.aws_durable_execution_sdk_python.integration_name,
             integration_config=config.aws_durable_execution_sdk_python,
-            operation_name="aws.durable_functions.execute",
+            operation_name="aws.durable_execution.execute",
             span_type="serverless",
             span_kind="server",
-            resource="aws.durable_functions.execute",
+            resource="aws.durable_execution.execute",
             service=_get_service(),
             tags=tags,
             distributed_context=distributed_context,
@@ -266,7 +266,7 @@ def _traced_step(func, instance, args, kwargs):
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws.durable_functions.step",
+        operation_name="aws.durable_execution.step",
         span_type="worker",
         span_kind="internal",
         resource=step_name or "step",
@@ -322,7 +322,7 @@ def _traced_invoke(func, instance, args, kwargs):
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws.durable_functions.invoke",
+        operation_name="aws.durable_execution.invoke",
         span_type="serverless",
         span_kind="client",
         resource=invoke_name or function_name or "invoke",
@@ -405,13 +405,13 @@ def _make_traced_internal(span_name, default_resource):
     return _traced
 
 
-_traced_wait = _make_traced_internal("aws.durable_functions.wait", "wait")
-_traced_wait_for_condition = _make_traced_internal("aws.durable_functions.wait_for_condition", "wait_for_condition")
-_traced_wait_for_callback = _make_traced_internal("aws.durable_functions.wait_for_callback", "wait_for_callback")
-_traced_create_callback = _make_traced_internal("aws.durable_functions.create_callback", "create_callback")
-_traced_map = _make_traced_internal("aws.durable_functions.map", "map")
-_traced_parallel = _make_traced_internal("aws.durable_functions.parallel", "parallel")
-_traced_run_in_child_context = _make_traced_internal("aws.durable_functions.child_context", "child_context")
+_traced_wait = _make_traced_internal("aws.durable_execution.wait", "wait")
+_traced_wait_for_condition = _make_traced_internal("aws.durable_execution.wait_for_condition", "wait_for_condition")
+_traced_wait_for_callback = _make_traced_internal("aws.durable_execution.wait_for_callback", "wait_for_callback")
+_traced_create_callback = _make_traced_internal("aws.durable_execution.create_callback", "create_callback")
+_traced_map = _make_traced_internal("aws.durable_execution.map", "map")
+_traced_parallel = _make_traced_internal("aws.durable_execution.parallel", "parallel")
+_traced_run_in_child_context = _make_traced_internal("aws.durable_execution.child_context", "child_context")
 
 
 # ---------------------------------------------------------------------------
