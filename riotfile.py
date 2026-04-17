@@ -3896,6 +3896,7 @@ venv = Venv(
             " tests/appsec/integrations/flask_tests/test_iast_flask.py"
             " tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
+                "requests": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
                 "sqlalchemy": latest,
@@ -3940,7 +3941,7 @@ venv = Venv(
             " --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py"
             " --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py",
             pkgs={
-                "requests": latest,
+                "requests": "==2.31.0",
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
@@ -4555,6 +4556,15 @@ venv = Venv(
                     pkgs={
                         "litellm[proxy]": "==1.82.6",  # upgrade to latest when we feel safe about litellm
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="sca",
+            command="pytest {cmdargs} tests/appsec/sca/",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
                 ),
             ],
         ),
