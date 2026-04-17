@@ -384,6 +384,34 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+import_time_analysis:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pip install uv
+    - cd ..
+    # Keep copies of PR scripts so they survive the git checkout main below
+    - cp dd-trace-py/scripts/import-analysis/import_analysis.py import_analysis.py
+    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
+    # Collect PR samples
+    - pip install dd-trace-py/
+    # We collect 1000 samples so that the Central Limit Theorem guarantees
+    # normality of the sample mean, which makes a simple z-test valid.
+    - for i in $(seq 1 1000); do python -X importtime -c "import ddtrace.auto" 2> "import-pr-$i.txt"; done
+    - pip uninstall -y ddtrace
+    # Collect base samples
+    - cd dd-trace-py && git checkout main && cd ..
+    - pip install dd-trace-py/
+    - for i in $(seq 1 1000); do python -X importtime -c "import ddtrace.auto" 2> "import-base-$i.txt"; done
+    - |
+      set +e
+      uv run --script import_analysis.py compare > import_report.txt
+      COMPARE_EXIT=$?
+      set -e
+    - cat import_report.txt
+    - if [ $COMPARE_EXIT -ne 0 ]; then ./post-pr-comment.sh "Import time analysis" import_report.txt; fi
+    - exit $COMPARE_EXIT
 
 package-oci:
   needs:
