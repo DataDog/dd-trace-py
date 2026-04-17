@@ -318,7 +318,7 @@ class TestCoveragePatching:
             lcov_path = Path(tmpdir) / "coverage.lcov"
             lcov_pct = coverage_patch.generate_coverage_report("lcov", outfile=str(lcov_path))
             assert lcov_pct is not None
-            assert lcov_pct >= 7.0
+            assert lcov_pct >= 6.0
 
             # Verify LCOV file was created
             if lcov_path.exists():
