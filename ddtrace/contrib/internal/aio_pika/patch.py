@@ -76,16 +76,19 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
     if message.headers is None:
         message.headers = {}
 
-    exchange_name = getattr(instance, "name", "")
+    exchange_name = getattr(instance, "name", "") or ""
+    routing_key = args[1] if len(args) > 1 else kwargs.get("routing_key", "") or ""
+    # For the default exchange (empty name), the routing key is the destination queue.
+    destination = exchange_name or routing_key
     conn_tags, conn_metrics = _extract_conn_tags(instance)
     # Pass the real message headers dict by reference — the subscriber injects
     # trace context directly into it, so no write-back is needed.
     event = MessagingPublishEvent(
         messaging_system=_MESSAGING_SYSTEM,
-        destination=exchange_name,
+        destination=destination,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        resource=exchange_name,
+        resource=destination,
         headers=message.headers,
         body=getattr(message, "body", b"") or b"",
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
@@ -105,13 +108,16 @@ async def traced_consumer(
     Signature: consumer(callback, msg, *, no_ack) -> Any
     """
     msg = args[1] if len(args) > 1 else kwargs.get("msg")
-    exchange_name = ""
+    destination = ""
     decoded_headers: dict[str, str] = {}
     body = b""
 
     if msg is not None:
         exchange_name = getattr(msg, "exchange", "") or ""
+        routing_key = getattr(msg, "routing_key", "") or ""
+        destination = exchange_name or routing_key
         body = getattr(msg, "body", b"") or b""
+
         try:
             raw = msg.header.properties.headers
             if raw:
@@ -121,10 +127,10 @@ async def traced_consumer(
 
     event = MessagingConsumeEvent(
         messaging_system=_MESSAGING_SYSTEM,
-        destination=exchange_name,
+        destination=destination,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        resource=exchange_name,
+        resource=destination,
         headers=decoded_headers,
         body=body,
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
@@ -183,12 +189,14 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
         func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Any:
         exchange_name = getattr(instance, "exchange", "") or ""
+        routing_key = getattr(instance, "routing_key", "") or ""
+        destination = exchange_name or routing_key
         event = MessagingActionEvent(
             messaging_system=_MESSAGING_SYSTEM,
-            destination=exchange_name,
+            destination=destination,
             component=_INTEGRATION_NAME,
             integration_config=config.aio_pika,
-            resource=exchange_name,
+            resource=destination,
             operation=operation,
         )
 
