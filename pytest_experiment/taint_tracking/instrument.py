@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 import ast
-import importlib.abc
-import importlib.machinery
-import importlib.util
+import builtins
 import os
-import sys
-import types
 
 from . import taint
 
@@ -51,7 +47,14 @@ class TaintTransformer(ast.NodeTransformer):
                 keywords=[],
             )
         )
-        return ast.copy_location(call, node)
+        ast.copy_location(call, node)
+        ast.copy_location(call.value, node)
+        # Ensure end_lineno matches lineno for injected single-line nodes
+        for n in ast.walk(call):
+            if hasattr(n, "lineno"):
+                setattr(n, "end_lineno", getattr(n, "end_lineno", None) or n.lineno)
+                setattr(n, "end_col_offset", getattr(n, "end_col_offset", None) or getattr(n, "col_offset", 0))
+        return call
 
     def _taint_calls_for_target(self, target: ast.AST, node: ast.AST) -> list[ast.Expr]:
         """Generate taint calls for an assignment target."""
@@ -94,9 +97,6 @@ class TaintTransformer(ast.NodeTransformer):
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> ast.expr:
         self.generic_visit(node)
-        # Walrus := can't be replaced with a statement list, so we wrap:
-        # (x := expr) → (x := expr, __taint_mark__(x))[0]
-        # This evaluates both but returns the original value.
         taint_call = ast.Call(
             func=ast.Name(id=TAINT_MARK_NAME, ctx=ast.Load()),
             args=[ast.Name(id=node.target.id, ctx=ast.Load())],
@@ -119,80 +119,99 @@ class TaintTransformer(ast.NodeTransformer):
         return node
 
 
-class TaintFinder(importlib.abc.MetaPathFinder):
-    def __init__(self, test_paths: list[str]) -> None:
-        self._test_paths = [os.path.abspath(p) for p in test_paths]
-        self._rewriting: set[str] = set()
+def _fix_locations(tree: ast.AST) -> None:
+    """Ensure all AST nodes have valid, monotonically non-decreasing line numbers.
 
-    def _should_rewrite(self, fullname: str, path: str) -> bool:
-        if path is None or not path.endswith(".py"):
-            return False
-        abspath = os.path.abspath(path)
-        if _is_internal(abspath):
-            return False
-        return any(abspath.startswith(tp) for tp in self._test_paths)
+    CPython 3.12+ rejects ASTs where a child has a smaller line number than
+    a preceding sibling. After our transformer inserts new nodes with
+    copy_location, the ordering can break -- especially when we transform an
+    AST that pytest's assertion rewriter already modified.
+    """
+    ast.fix_missing_locations(tree)
+    for node in ast.walk(tree):
+        for field in ("body", "orelse", "finalbody", "handlers"):
+            stmts = getattr(node, field, None)
+            if not isinstance(stmts, list):
+                continue
+            prev_line = 0
+            for stmt in stmts:
+                for child in ast.walk(stmt):
+                    if hasattr(child, "lineno"):
+                        if child.lineno < prev_line:
+                            child.lineno = prev_line
+                        end_lineno = getattr(child, "end_lineno", None)
+                        if end_lineno is None or end_lineno < child.lineno:
+                            setattr(child, "end_lineno", child.lineno)
+                        if hasattr(child, "col_offset") and hasattr(child, "end_col_offset"):
+                            end_col = getattr(child, "end_col_offset", None)
+                            if (
+                                end_col is not None
+                                and end_col < child.col_offset
+                                and child.lineno == getattr(child, "end_lineno", None)
+                            ):
+                                setattr(child, "end_col_offset", child.col_offset)
+                if hasattr(stmt, "lineno"):
+                    prev_line = max(prev_line, getattr(stmt, "end_lineno", None) or stmt.lineno)
 
-    def find_spec(self, fullname, path, target=None) -> importlib.machinery.ModuleSpec | None:
-        if fullname in self._rewriting:
-            return None
 
-        self._rewriting.add(fullname)
+_original_compile = None
+_test_paths: list[str] = []
+_transformer = TaintTransformer()
+_compiling = False
+
+
+def _should_rewrite(filename: str) -> bool:
+    if not isinstance(filename, str) or not filename.endswith(".py"):
+        return False
+    resolved = os.path.realpath(filename)
+    if _is_internal(resolved):
+        return False
+    return any(resolved.startswith(tp) for tp in _test_paths)
+
+
+def _patched_compile(source, filename, mode, *args, **kwargs):
+    global _compiling
+    if not _compiling and mode == "exec" and _should_rewrite(filename):
+        _compiling = True
         try:
-            spec = importlib.util.find_spec(fullname)
-        except (ModuleNotFoundError, ValueError):
-            return None
+            if isinstance(source, (str, bytes)):
+                if isinstance(source, bytes):
+                    source = source.decode("utf-8")
+                tree = ast.parse(source, filename=filename)
+            elif isinstance(source, ast.AST):
+                tree = source
+            else:
+                return _original_compile(source, filename, mode, *args, **kwargs)
+            tree = _transformer.visit(tree)
+            _fix_locations(tree)
+            return _original_compile(tree, filename, mode, *args, **kwargs)
+        except SyntaxError:
+            return _original_compile(source, filename, mode, *args, **kwargs)
         finally:
-            self._rewriting.discard(fullname)
-
-        if spec is None or spec.origin is None:
-            return None
-
-        if not self._should_rewrite(fullname, spec.origin):
-            return None
-
-        spec.loader = TaintLoader(spec.origin)
-        return spec
-
-
-class TaintLoader(importlib.abc.Loader):
-    def __init__(self, origin: str) -> None:
-        self._origin = origin
-
-    def create_module(self, spec):
-        return None
-
-    def exec_module(self, module: types.ModuleType) -> None:
-        with open(self._origin, "rb") as f:
-            source = f.read()
-        tree = ast.parse(source, filename=self._origin)
-        tree = TaintTransformer().visit(tree)
-        ast.fix_missing_locations(tree)
-        try:
-            from _pytest.assertion.rewrite import rewrite_asserts
-
-            rewrite_asserts(tree, source)
-        except ImportError:
-            pass
-        code = compile(tree, self._origin, "exec")
-        module.__dict__[TAINT_MARK_NAME] = taint_mark
-        exec(code, module.__dict__)  # nosec B102
-
-
-_finder: TaintFinder | None = None
+            _compiling = False
+    return _original_compile(source, filename, mode, *args, **kwargs)
 
 
 def install(test_paths: list[str] | None = None) -> None:
-    global _finder
-    if _finder is not None:
+    global _original_compile, _test_paths
+    if _original_compile is not None:
         return
     if test_paths is None:
         test_paths = [os.getcwd()]
-    _finder = TaintFinder(test_paths)
-    sys.meta_path.insert(0, _finder)
+    _test_paths = [os.path.realpath(p) for p in test_paths]
+
+    # Make taint_mark available as a builtin — accessible from any module
+    setattr(builtins, TAINT_MARK_NAME, taint_mark)
+
+    # Patch compile to transform AST transparently
+    _original_compile = builtins.compile
+    builtins.compile = _patched_compile
 
 
 def uninstall() -> None:
-    global _finder
-    if _finder is not None:
-        sys.meta_path.remove(_finder)
-        _finder = None
+    global _original_compile
+    if _original_compile is not None:
+        builtins.compile = _original_compile
+        _original_compile = None
+    if hasattr(builtins, TAINT_MARK_NAME):
+        delattr(builtins, TAINT_MARK_NAME)

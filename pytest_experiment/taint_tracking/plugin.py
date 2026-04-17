@@ -20,6 +20,10 @@ def pytest_configure(config: pytest.Config) -> None:
     instrument.install(test_paths=[rootdir])
 
 
+def pytest_report_header() -> str:
+    return "taint-tracking: active"
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item: pytest.Item):
     taint.set_current_test(item.nodeid)
