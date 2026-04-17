@@ -6,16 +6,16 @@ executions, steps, invocations, and other operations.
 Traced operations
 ~~~~~~~~~~~~~~~~~
 
-- ``aws.durable_functions.execute`` — the ``@durable_execution`` decorator
-- ``aws.durable_functions.step`` — ``DurableContext.step()``
-- ``aws.durable_functions.invoke`` — ``DurableContext.invoke()``
-- ``aws.durable_functions.wait`` — ``DurableContext.wait()``
-- ``aws.durable_functions.wait_for_condition`` — ``DurableContext.wait_for_condition()``
-- ``aws.durable_functions.wait_for_callback`` — ``DurableContext.wait_for_callback()``
-- ``aws.durable_functions.create_callback`` — ``DurableContext.create_callback()``
-- ``aws.durable_functions.map`` — ``DurableContext.map()``
-- ``aws.durable_functions.parallel`` — ``DurableContext.parallel()``
-- ``aws.durable_functions.child_context`` — ``DurableContext.run_in_child_context()``
+- ``aws.durable_execution.execute`` — the ``@durable_execution`` decorator
+- ``aws.durable_execution.step`` — ``DurableContext.step()``
+- ``aws.durable_execution.invoke`` — ``DurableContext.invoke()``
+- ``aws.durable_execution.wait`` — ``DurableContext.wait()``
+- ``aws.durable_execution.wait_for_condition`` — ``DurableContext.wait_for_condition()``
+- ``aws.durable_execution.wait_for_callback`` — ``DurableContext.wait_for_callback()``
+- ``aws.durable_execution.create_callback`` — ``DurableContext.create_callback()``
+- ``aws.durable_execution.map`` — ``DurableContext.map()``
+- ``aws.durable_execution.parallel`` — ``DurableContext.parallel()``
+- ``aws.durable_execution.child_context`` — ``DurableContext.run_in_child_context()``
 
 All traces submitted from this integration are tagged by:
 
@@ -55,7 +55,7 @@ Configuration
    3. ``DD_SERVICE`` environment variable
    4. Config default
 
-   Default: ``"aws.durable_functions"``
+   Default: ``"aws.durable_execution"``
 
 .. py:data:: ddtrace.config.aws_durable_execution_sdk_python["distributed_tracing_enabled"]
 
