@@ -2654,7 +2654,7 @@ class LLMObs(Service):
         to_date: str = "now",
         sort: str = "timestamp",
         include_attachments: bool = True,
-        limit: int = 100,
+        limit: int = 10,
     ) -> list[dict]:
         """
         Retrieves LLM span events from the Datadog platform API.
@@ -2693,9 +2693,7 @@ class LLMObs(Service):
             raise ValueError("DD_APP_KEY must be set to use LLMObs.get_spans().")
 
         if span_kind is not None and span_kind not in cls._VALID_SPAN_KINDS:
-            raise ValueError(
-                "span_kind must be one of: {}.".format(", ".join(sorted(cls._VALID_SPAN_KINDS)))
-            )
+            raise ValueError("span_kind must be one of: {}.".format(", ".join(sorted(cls._VALID_SPAN_KINDS))))
 
         ml_app = resolve_ml_app(ml_app)
 
@@ -2720,8 +2718,7 @@ class LLMObs(Service):
                 base_params["filter[{}]".format(key)] = val
 
         tag_suffix = "".join(
-            "&filter[tag][{}]={}".format(urllib.parse.quote(k), urllib.parse.quote(v))
-            for k, v in (tags or {}).items()
+            "&filter[tag][{}]={}".format(urllib.parse.quote(k), urllib.parse.quote(v)) for k, v in (tags or {}).items()
         )
 
         return cls._instance._api_client.get_spans(base_params, tag_suffix)
