@@ -11,7 +11,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68f8d7df00000000",
+      "_dd.p.tid": "69e27a3300000000",
+      "_dd.svc_src": "grpc_server",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpskjcpbby,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "grpc_server",
       "grpc.method.kind": "unary",
       "grpc.method.name": "Export",
@@ -20,16 +22,16 @@
       "grpc.method.service": "LogsService",
       "language": "python",
       "rpc.service": "opentelemetry.proto.collector.logs.v1.LogsService",
-      "runtime-id": "f889b527dbdc40afa921bb54a08f8c90",
+      "runtime-id": "8a8e282d640d45f380baa176b38f4348",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 32526
+      "_sampling_priority_v1": 1.0,
+      "process_id": 35060.0
     },
-    "duration": 31000,
-    "start": 1761138655401326000
+    "duration": 145708,
+    "start": 1776450099918571385
   }]]
