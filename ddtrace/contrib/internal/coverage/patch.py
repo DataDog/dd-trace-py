@@ -241,16 +241,25 @@ def set_coverage_instance(cov_instance: Any) -> None:
 
 def reset_coverage_state() -> None:
     """
-    Reset all coverage state, including any externally-running Coverage instance
-    tracked by Coverage.current().
+    Reset all coverage state.
     """
     global _coverage_instance, _cached_coverage_percentage
     _coverage_instance = None
     _cached_coverage_percentage = None
-
-    _clear_coverage_current()
-
     log.debug("Reset coverage state")
+
+
+def reset_all_coverage_state() -> None:
+    """Reset all coverage state, including coverage.py's own ``Coverage.current()`` singleton.
+
+    This is more aggressive than :func:`reset_coverage_state` — it also drains
+    the ``Coverage._instances`` stack so that ``Coverage.current()`` returns
+    ``None``.  Use this only for **test isolation**, not in production code
+    paths where an external coverage session (e.g. pytest-cov) may still be
+    active.
+    """
+    reset_coverage_state()
+    _clear_coverage_current()
 
 
 def _clear_coverage_current() -> None:
