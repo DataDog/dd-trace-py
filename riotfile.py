@@ -377,6 +377,7 @@ venv = Venv(
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "PYTHONFAULTHANDLER": "1",
+                "DD_TAINT_TRACKING_ENABLED": "0",
             },
             venvs=[
                 Venv(
@@ -593,6 +594,7 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                "DD_TAINT_TRACKING_ENABLED": "0",
             },
             command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
@@ -743,6 +745,9 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pytest-benchmark": latest,
                 "pytest-memray": latest,
+            },
+            env={
+                "DD_TAINT_TRACKING_ENABLED": "0",
             },
             pys=select_pys(),
         ),

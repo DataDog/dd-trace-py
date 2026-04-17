@@ -5,6 +5,8 @@ Automatically active when loaded via conftest.py pytest_plugins.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from . import instrument
@@ -12,27 +14,36 @@ from . import taint
 from .instrument import _is_internal
 
 
+_enabled = os.environ.get("DD_TAINT_TRACKING_ENABLED", "1") not in ("0", "false", "no")
 _last_leak_report: list[tuple[str, str]] | None = None
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    if not _enabled:
+        return
     rootdir = str(config.rootpath)
     instrument.install(test_paths=[rootdir])
 
 
 def pytest_report_header() -> str:
+    if not _enabled:
+        return "taint-tracking: disabled"
     return "taint-tracking: active"
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item: pytest.Item):
-    taint.set_current_test(item.nodeid)
+    if _enabled:
+        taint.set_current_test(item.nodeid)
     yield
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item: pytest.Item):
     global _last_leak_report
+    if not _enabled:
+        yield
+        return
     taint.set_current_test(item.nodeid)
 
     outcome = yield
