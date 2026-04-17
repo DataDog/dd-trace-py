@@ -646,7 +646,10 @@ def test_llmobs_google_genai_chat_model(langchain_google_genai, llmobs_events, t
     if langchain_google_genai is None:
         pytest.skip("langchain-google-genai not installed")
 
-    from google.genai import types
+    try:
+        from google.genai import types
+    except ImportError:
+        pytest.skip("google-genai SDK not installed (langchain-google-genai 2.x uses legacy SDK)")
 
     mock_response = types.GenerateContentResponse(
         candidates=[
