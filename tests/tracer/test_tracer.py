@@ -1018,6 +1018,20 @@ def test_detect_agentless_env_with_lambda():
     )
 
 
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func"))
+def test_service_name_defaults_to_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "my-lambda-func"
+
+
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func", DD_SERVICE="override-svc"))
+def test_dd_service_takes_precedence_over_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "override-svc"
+
+
 def test_tracer_set_runtime_tags():
     with global_tracer.start_span("foobar") as span:
         pass
