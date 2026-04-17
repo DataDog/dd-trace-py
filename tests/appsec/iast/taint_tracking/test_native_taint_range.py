@@ -5,7 +5,6 @@ from multiprocessing.pool import ThreadPool
 import random
 import sys
 from time import sleep
-import uuid
 
 import pytest
 
@@ -441,11 +440,10 @@ def test_are_all_text_all_ranges():
     range4 = TaintRange(4, 5, source4)
     assert _num_objects_tainted_in_request() == 0
 
-    unique_str = "abc1234_" + str(uuid.uuid4())
     a_1 = taint_pyobject(
-        unique_str,
+        "abc1234",
         source_name="test_num_objects_tainted",
-        source_value=unique_str,
+        source_value="abc1234",
         source_origin=OriginType.PARAMETER,
     )
     assert is_pyobject_tainted(a_1)
@@ -572,7 +570,8 @@ def reset_contexts_loop():
 async def async_context_loop(task_id: int):
     await asyncio.sleep(0.03)
     a_1 = "abc123"
-    assert _get_iast_context_id() >= 0
+    context_id = _get_iast_context_id()
+    assert context_id is not None and context_id >= 0
     for i in range(25):
         a_1 = taint_pyobject(
             a_1,
