@@ -713,6 +713,44 @@ class TestTrackerNameNormalization:
         assert result == []
         assert len(already_imported) == 1
 
+    def test_update_imported_dependencies_swallows_per_module_exception(self):
+        """One bad module must not abort the whole batch or propagate to sys.excepthook."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
+
+        def fake_lookup(module_name):
+            if module_name == "broken":
+                raise RuntimeError("importlib.metadata partially torn down")
+            return ("requests", "2.28.0")
+
+        already_imported: dict = {}
+        with patch(
+            "ddtrace.internal.telemetry.dependency_tracker.get_module_distribution_versions",
+            side_effect=fake_lookup,
+        ):
+            result = update_imported_dependencies(already_imported, ["broken", "requests"])
+
+        assert len(result) == 1
+        assert result[0]["name"] == "requests"
+        assert "requests" in already_imported
+
+    def test_update_imported_dependencies_swallows_tracer_config_failure(self):
+        """If reading tracer_config fails (e.g. during shutdown), return [] without raising."""
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
+
+        class BrokenConfig:
+            @property
+            def _sca_enabled(self):
+                raise RuntimeError("config module torn down")
+
+        with patch("ddtrace.internal.settings._config.config", BrokenConfig()):
+            result = update_imported_dependencies({}, ["requests"])
+
+        assert result == []
+
     def test_collect_report_marks_sent_with_normalized_lookup(self):
         """collect_report should find entries by normalized key when marking as sent."""
         from unittest.mock import patch

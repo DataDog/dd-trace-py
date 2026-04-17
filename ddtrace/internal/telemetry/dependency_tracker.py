@@ -217,24 +217,30 @@ def update_imported_dependencies(
     NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
     DependencyTracker instead.
+
+    Defensive: on interpreter shutdown or partial teardown, ``importlib.metadata``
+    and ``sys.path`` resolution can fail.  Any exception is swallowed so the
+    telemetry path never propagates to ``sys.excepthook``.
     """
     from ddtrace.internal.settings._config import config as tracer_config
 
     deps: list[dict] = []
     for module_name in new_modules:
-        dists = get_module_distribution_versions(module_name)
-        if not dists:
-            continue
+        try:
+            dists = get_module_distribution_versions(module_name)
+            if not dists:
+                continue
 
-        name, version = dists
-        key = _normalize_dep_name(name)
-        if key == "ddtrace":
-            continue
-        if key in already_imported:
-            continue
+            name, version = dists
+            key = _normalize_dep_name(name)
+            if key == "ddtrace" or key in already_imported:
+                continue
 
-        metadata: Optional[list] = [] if tracer_config._sca_enabled else None
-        entry = DependencyEntry(name=name, version=version, metadata=metadata)
-        already_imported[key] = entry
-        deps.append(entry.to_telemetry_dict())
+            metadata: Optional[list] = [] if tracer_config._sca_enabled else None
+            entry = DependencyEntry(name=name, version=version, metadata=metadata)
+            already_imported[key] = entry
+            deps.append(entry.to_telemetry_dict())
+        except Exception:
+            log.debug("update_imported_dependencies: failed for %r", module_name, exc_info=True)
+            continue
     return deps
