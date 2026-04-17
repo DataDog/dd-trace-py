@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    AAP: This adds Application Security support for FastAPI and Starlette applications using
+    mounted sub-applications (via ``app.mount()``). WAF evaluation, path parameter extraction,
+    API endpoint discovery, and ``http.route`` reporting now correctly account for mount prefixes
+    in sub-application routing.
