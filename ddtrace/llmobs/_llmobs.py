@@ -2659,10 +2659,6 @@ class LLMObs(Service):
         """
         Retrieves LLM span events from the Datadog platform API.
 
-        At least one of ``trace_id``, ``span_id``, ``query``, ``tags``, ``span_kind``,
-        ``span_name``, or ``ml_app`` must be provided (``ml_app`` may come from the
-        ``DD_LLMOBS_ML_APP`` environment variable).
-
         :param str trace_id: Filter spans by trace ID.
         :param str span_id: Filter to a specific span by ID.
         :param str query: Filter spans using EVP query syntax.
@@ -2695,16 +2691,7 @@ class LLMObs(Service):
         if span_kind is not None and span_kind not in cls._VALID_SPAN_KINDS:
             raise ValueError("span_kind must be one of: {}.".format(", ".join(sorted(cls._VALID_SPAN_KINDS))))
 
-        # Resolve ml_app from explicit arg or DD_LLMOBS_ML_APP. Intentionally skip the
-        # service-name / "unnamed-ml-app" fallbacks used by write paths — silently scoping
-        # a read query to an ml_app the user never chose hides results.
         ml_app = ml_app or config._llmobs_ml_app or None
-
-        if not any((trace_id, span_id, query, tags, span_kind, span_name, ml_app)):
-            raise ValueError(
-                "At least one filter must be provided: `trace_id`, `span_id`, `query`, `tags`, "
-                "`span_kind`, `span_name`, or `ml_app` (or set the `DD_LLMOBS_ML_APP` env var)."
-            )
 
         optional_filters = (
             ("trace_id", trace_id),
