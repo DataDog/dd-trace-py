@@ -60,14 +60,14 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """
     event = ctx.event
 
-    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
+    activate_distributed_headers = event.activate_distributed_headers
     integration_config = event.integration_config
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx.get_item("distributed_headers"),
-            override=ctx.get_item("distributed_headers_config_override"),
+            request_headers=getattr(event, "request_headers", None),
+            override=getattr(event, "distributed_headers_config_override", None),
         )
 
     span_kwargs: dict[str, Any] = {
