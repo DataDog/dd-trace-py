@@ -642,6 +642,48 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
+def test_llmobs_google_genai_chat_model(langchain_google_genai, llmobs_events, tracer, test_spans):
+    if langchain_google_genai is None:
+        pytest.skip("langchain-google-genai not installed")
+
+    from google.genai import types
+
+    mock_response = types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=10, candidates_token_count=12, total_token_count=22
+        ),
+    )
+
+    with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
+        chat = langchain_google_genai.ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            temperature=0,
+            max_output_tokens=15,
+        )
+        chat.invoke("When do you use 'whom' instead of 'who'?")
+
+    span = test_spans.pop_traces()[0][0]
+    # Verify the fix: provider should be "google-generativeai" (not "chat"),
+    # and model name should be "gemini-2.5-flash" (not "models/gemini-2.5-flash").
+    assert span.get_tag("langchain.request.provider") == "google-generative-ai"
+    assert span.get_tag("langchain.request.model") == "gemini-2.5-flash"
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
+        span,
+        input_role="user",
+        mock_token_metrics=True,
+        metadata={"temperature": 0.0},
+    )
+
+
 def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_documents(["hello world", "goodbye world"])
