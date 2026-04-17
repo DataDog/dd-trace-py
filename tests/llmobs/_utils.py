@@ -332,6 +332,7 @@ def _llmobs_base_span_event(
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
+    expected_tags = sorted(expected_tags)
     if parent_id is None:
         llmobs_parent = _get_nearest_llmobs_ancestor(span)
         parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID

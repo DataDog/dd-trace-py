@@ -242,7 +242,12 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
         span.name = handoff_tool_name
-        _annotate_llmobs_span_data(span, input_value=oai_span.from_agent or "", output_value=oai_span.to_agent or "")
+        _annotate_llmobs_span_data(
+            span,
+            name=handoff_tool_name,
+            input_value=oai_span.from_agent or "",
+            output_value=oai_span.to_agent or "",
+        )
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span),

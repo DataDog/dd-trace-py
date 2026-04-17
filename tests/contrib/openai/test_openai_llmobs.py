@@ -81,6 +81,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_non_llm_span_event(
                 span,
                 "workflow",
+                name="OpenAI.createCompletion",
                 input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
                 output_value=safe_json(
                     [
@@ -148,6 +149,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createCompletion",
                 model_name=model,
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
@@ -182,6 +184,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_non_llm_span_event(
                 span,
                 "workflow",
+                name="OpenAI.createCompletion",
                 input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
                 output_value=safe_json(
                     [
@@ -237,6 +240,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="AzureOpenAI.createCompletion",
                 model_name=resp.model,
                 model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
@@ -273,6 +277,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="AzureOpenAI.createCompletion",
                 model_name=resp.model,
                 model_provider="azure_openai",
                 input_messages=[{"content": prompt}],
@@ -298,6 +303,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createCompletion",
                 model_name=model,
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
@@ -323,6 +329,7 @@ class TestLLMObsOpenaiV1:
             _expected_llmobs_non_llm_span_event(
                 span,
                 "workflow",
+                name="OpenAI.createChatCompletion",
                 input_value=safe_json(input_messages, ensure_ascii=False),
                 output_value=safe_json(
                     [
@@ -370,6 +377,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -406,6 +414,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
@@ -460,6 +469,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
@@ -495,6 +505,7 @@ class TestLLMObsOpenaiV1:
         expected_event = _expected_llmobs_non_llm_span_event(
             span,
             "workflow",
+            name="OpenAI.createChatCompletion",
             input_value=safe_json(input_messages, ensure_ascii=False),
             output_value=safe_json(
                 [
@@ -556,6 +567,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="AzureOpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="azure_openai",
                 input_messages=input_messages,
@@ -612,6 +624,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="AzureOpenAI.createChatCompletion",
                 model_name="gpt-4o-mini-2024-07-18",
                 model_provider="azure_openai",
                 input_messages=input_messages,
@@ -647,6 +660,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="AzureOpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="azure_openai",
                 input_messages=input_messages,
@@ -690,6 +704,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -719,6 +734,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -752,6 +768,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -795,6 +812,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
@@ -825,6 +843,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
@@ -883,6 +902,7 @@ class TestLLMObsOpenaiV1:
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span1,
+                        name="OpenAI.createChatCompletion",
                         model_name=first_resp.model,
                         model_provider="openai",
                         input_messages=[{"content": chat_completion_input_description, "role": "user"}],
@@ -928,6 +948,7 @@ class TestLLMObsOpenaiV1:
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span2,
+                        name="OpenAI.createChatCompletion",
                         model_name=second_resp.model,
                         model_provider="openai",
                         input_messages=[
@@ -1024,6 +1045,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": "Use the math_exp tool to add four plus four."}],
@@ -1116,6 +1138,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"content": "Use the math_exp tool to add four plus four.", "role": "user"}],
@@ -1173,6 +1196,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
@@ -1204,6 +1228,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createCompletion",
                 model_name=model,
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
@@ -1232,6 +1257,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -1273,6 +1299,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span1,
+                        name="OpenAI.createChatCompletion",
                         model_name=resp1.model,
                         model_provider="openai",
                         input_messages=base_messages
@@ -1292,6 +1319,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span2,
+                        name="OpenAI.createChatCompletion",
                         model_name=resp2.model,
                         model_provider="openai",
                         input_messages=base_messages
@@ -1320,6 +1348,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createEmbedding",
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
@@ -1340,6 +1369,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createEmbedding",
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
@@ -1360,6 +1390,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createEmbedding",
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
@@ -1382,6 +1413,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createEmbedding",
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
@@ -1411,6 +1443,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createEmbedding",
                 span_kind="embedding",
                 model_name=resp.model,
                 model_provider="openai",
@@ -1457,6 +1490,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"content": "Hello world"}],
@@ -1514,6 +1548,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span1,
+                        name="OpenAI.createChatCompletion",
                         model_name=resp_model,
                         model_provider="openai",
                         input_messages=input_messages
@@ -1538,6 +1573,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span2,
+                        name="OpenAI.createChatCompletion",
                         model_name=resp_model,
                         model_provider="openai",
                         input_messages=input_messages
@@ -1585,6 +1621,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createChatCompletion",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -1614,6 +1651,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -1658,6 +1696,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"content": input_messages, "role": "user"}],
@@ -1705,6 +1744,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[
@@ -1753,6 +1793,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
@@ -1816,6 +1857,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
@@ -1873,6 +1915,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=model,
                 model_provider="openai",
                 input_messages=[{"content": input_messages, "role": "user"}],
@@ -1902,6 +1945,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=input_messages,
@@ -1959,6 +2003,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span1,
+                        name="OpenAI.createResponse",
                         model_name=resp1.model,
                         model_provider="openai",
                         input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
@@ -1985,6 +2030,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span2,
+                        name="OpenAI.createResponse",
                         model_name=resp2.model,
                         model_provider="openai",
                         input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
@@ -2049,6 +2095,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span1,
+                        name="OpenAI.createResponse",
                         model_name=resp_model,
                         model_provider="openai",
                         input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
@@ -2075,6 +2122,7 @@ MUL: "*"
                 mock.call(
                     _expected_llmobs_llm_span_event(
                         span2,
+                        name="OpenAI.createResponse",
                         model_name=resp_model,
                         model_provider="openai",
                         input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
@@ -2185,6 +2233,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.parseChatCompletion",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[
@@ -2230,6 +2279,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.parseResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[
@@ -2298,6 +2348,7 @@ MUL: "*"
         assert mock_llmobs_writer.enqueue.call_args_list[0][0][0] == _expected_llmobs_non_llm_span_event(
             tool_span,
             "tool",
+            name="MCP Client Tool Call: dice_roll",
             input_value=safe_json(
                 {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
                 ensure_ascii=False,
@@ -2310,6 +2361,7 @@ MUL: "*"
 
         assert mock_llmobs_writer.enqueue.call_args_list[1][0][0] == _expected_llmobs_llm_span_event(
             response_span,
+            name="OpenAI.createResponse",
             model_name="gpt-5-2025-08-07",
             model_provider="openai",
             input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
@@ -2616,6 +2668,7 @@ MUL: "*"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
+                name="OpenAI.createResponse",
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=input_messages,
