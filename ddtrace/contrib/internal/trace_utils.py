@@ -11,6 +11,7 @@ from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
@@ -542,7 +543,7 @@ def set_http_meta(
 def activate_distributed_headers(
     tracer: "Tracer",
     int_config: Optional["IntegrationConfig"] = None,
-    request_headers: Optional[dict[str, str]] = None,
+    request_headers: Optional[MutableMapping[str, str]] = None,
     override: Optional[bool] = None,
 ) -> None:
     """
