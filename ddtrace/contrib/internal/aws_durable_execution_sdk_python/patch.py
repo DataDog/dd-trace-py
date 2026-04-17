@@ -1,16 +1,29 @@
 """
 Instrumentation for the aws-durable-execution-sdk-python library.
 
-Wraps three targets:
+Wraps the following targets:
   - ``durable_execution`` decorator (workflow execution spans)
   - ``DurableContext.step`` (step execution spans)
   - ``DurableContext.invoke`` (cross-function invocation spans)
+  - ``DurableContext.wait`` (wait spans)
+  - ``DurableContext.wait_for_condition`` (wait-for-condition spans)
+  - ``DurableContext.wait_for_callback`` (wait-for-callback spans)
+  - ``DurableContext.create_callback`` (create-callback spans)
+  - ``DurableContext.map`` (map spans)
+  - ``DurableContext.parallel`` (parallel spans)
+  - ``DurableContext.run_in_child_context`` (child-context spans)
+
+Also patches the SDK's internal ThreadPoolExecutor to propagate trace
+context into worker threads used by map/parallel operations.
 
 AIDEV-NOTE: SuspendExecution is a BaseException used for control flow.
 It must NOT mark spans as errored. All wrappers explicitly handle it.
 """
+import contextvars
 import functools
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import aws_durable_execution_sdk_python
 
@@ -30,7 +43,7 @@ log = get_logger(__name__)
 config._add(
     "aws_durable_execution_sdk_python",
     dict(
-        _default_service="aws_durable_execution_sdk_python",
+        _default_service="aws.durable_functions",
         distributed_tracing_enabled=True,
     ),
 )
@@ -44,6 +57,63 @@ def _supported_versions() -> dict[str, str]:
     return {"aws_durable_execution_sdk_python": ">=1.4.0"}
 
 
+# ---------------------------------------------------------------------------
+# Service-name helper
+# ---------------------------------------------------------------------------
+
+def _get_service():
+    """Return the service name for all durable-function spans.
+
+    Checks ``DD_DURABLE_EXECUTION_SERVICE`` first (short alias shared with
+    the Node.js integration), then falls back to the standard dd-trace-py
+    resolution chain (``DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE`` →
+    ``DD_SERVICE`` → config default).
+    """
+    custom = os.environ.get("DD_DURABLE_EXECUTION_SERVICE")
+    if custom:
+        return custom
+    return int_service(None, config.aws_durable_execution_sdk_python)
+
+
+# ---------------------------------------------------------------------------
+# TracedThreadPoolExecutor — trace-context propagation for map/parallel
+# ---------------------------------------------------------------------------
+
+_OriginalThreadPoolExecutor = ThreadPoolExecutor
+
+
+class TracedThreadPoolExecutor(ThreadPoolExecutor):
+    """ThreadPoolExecutor that propagates trace context to worker threads.
+
+    Captures context at init time as a fallback for re-submissions from
+    background threads (e.g., SDK's TimerScheduler retries) that have no
+    trace context.  At submit time, if the current thread has an active
+    trace context it is used; otherwise the init-time context is used.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._init_ctx = contextvars.copy_context()
+
+    def submit(self, fn, /, *args, **kwargs):
+        from ddtrace import tracer
+
+        active = tracer.context_provider.active()
+        if active is not None:
+            ctx = contextvars.copy_context()
+        else:
+            # Create a fresh copy — Context.run() is not reentrant so we
+            # cannot share self._init_ctx across concurrent threads.
+            ctx = self._init_ctx.run(contextvars.copy_context)
+
+        def _wrapped(*a, **kw):
+            return ctx.run(fn, *a, **kw)
+
+        return super().submit(_wrapped, *args, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Wrapper: durable_execution decorator
 # ---------------------------------------------------------------------------
 # AIDEV-NOTE: durable_execution is a decorator. Wrapping it intercepts the
 # decoration call.  We replace the user function with a traced version so
@@ -69,12 +139,9 @@ def _traced_durable_execution(func, instance, args, kwargs):
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
         """Traced wrapper around the user's workflow function."""
-        # Lazy import to avoid errors when the SDK is not installed
         from aws_durable_execution_sdk_python.exceptions import SuspendExecution
 
         # AIDEV-NOTE: The user function signature is (input_event, durable_context).
-        # We extract them safely from *args/**kwargs for metadata extraction,
-        # keeping the wrapper resilient to future SDK signature changes.
         input_event = inner_args[0] if inner_args else inner_kwargs.get("input_event")
         durable_context = inner_args[1] if len(inner_args) > 1 else inner_kwargs.get("durable_context")
 
@@ -90,14 +157,13 @@ def _traced_durable_execution(func, instance, args, kwargs):
             if durable_context:
                 status_enum = getattr(durable_context.state, "_replay_status", None)
                 if status_enum is not None:
-                    tags["aws.durable_execution.replay_status"] = status_enum.name  # "NEW" or "REPLAY"
+                    tags["aws.durable_execution.replay_status"] = status_enum.name
         except Exception:
             pass
 
         # --- Extract distributed tracing context from input_event ---
         # AIDEV-NOTE: When a durable execution is invoked via DurableContext.invoke(),
         # the caller injects trace context into the payload dict under a "_datadog" key.
-        # We extract it here to link this execution span to the caller's trace.
         distributed_context = None
         if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
             if isinstance(input_event, dict) and "_datadog" in input_event:
@@ -112,11 +178,11 @@ def _traced_durable_execution(func, instance, args, kwargs):
         event = TracingEvent.create(
             component=config.aws_durable_execution_sdk_python.integration_name,
             integration_config=config.aws_durable_execution_sdk_python,
-            operation_name="aws_durable_execution.execution",
+            operation_name="aws.durable_functions.execute",
             span_type="serverless",
             span_kind="server",
-            resource="aws_durable_execution.execution",
-            service=int_service(None, config.aws_durable_execution_sdk_python),
+            resource="aws.durable_functions.execute",
+            service=_get_service(),
             tags=tags,
             distributed_context=distributed_context,
             use_active_context=distributed_context is None,
@@ -139,6 +205,10 @@ def _traced_durable_execution(func, instance, args, kwargs):
     new_args = (traced_user_func,) + args[1:]
     return func(*new_args, **kwargs)
 
+
+# ---------------------------------------------------------------------------
+# Wrapper: DurableContext.step
+# ---------------------------------------------------------------------------
 
 def _try_tag_replayed(span, step_func, step_executed):
     """Tag a step span with whether it was replayed from checkpoint.
@@ -166,7 +236,6 @@ def _traced_step(func, instance, args, kwargs):
     # --- Extract step name ---
     step_func = args[0] if args else None
     name_kwarg = kwargs.get("name")
-    # Mirror the SDK's _resolve_step_name logic with __name__ fallback
     step_name = (
         name_kwarg
         or getattr(step_func, "_original_name", None)
@@ -176,8 +245,7 @@ def _traced_step(func, instance, args, kwargs):
     # --- Wrap step function to detect replay vs fresh execution ---
     # AIDEV-NOTE: When the SDK replays a step from checkpoint, it returns the cached
     # result without calling the step function.  By wrapping the function and tracking
-    # whether it was invoked, we accurately determine if the step was replayed without
-    # relying on private SDK internals (e.g. operation_id or step_counter).
+    # whether it was invoked, we accurately determine if the step was replayed.
     _step_executed = [False]
     if callable(step_func):
         _original_step_func = step_func
@@ -198,11 +266,11 @@ def _traced_step(func, instance, args, kwargs):
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws_durable_execution.step",
+        operation_name="aws.durable_functions.step",
         span_type="worker",
         span_kind="internal",
         resource=step_name or "step",
-        service=int_service(None, config.aws_durable_execution_sdk_python),
+        service=_get_service(),
         tags=tags,
     )
 
@@ -210,7 +278,6 @@ def _traced_step(func, instance, args, kwargs):
         try:
             result = func(*args, **kwargs)
         except SuspendExecution:
-            # AIDEV-NOTE: SuspendExecution is control flow, not an error.
             _try_tag_replayed(ctx.span, step_func, _step_executed)
             ctx.dispatch_ended_event()
             raise
@@ -223,6 +290,10 @@ def _traced_step(func, instance, args, kwargs):
         return result
 
 
+# ---------------------------------------------------------------------------
+# Wrapper: DurableContext.invoke
+# ---------------------------------------------------------------------------
+
 def _traced_invoke(func, instance, args, kwargs):
     """Wrapper for DurableContext.invoke().
 
@@ -234,7 +305,6 @@ def _traced_invoke(func, instance, args, kwargs):
     # --- Extract invoke parameters ---
     # invoke(function_name, payload, name=None, config=None)
     function_name = kwargs.get("function_name") or (args[0] if args else None)
-    # payload is args[1] if positional
     invoke_name = kwargs.get("name")
 
     # --- Build tags ---
@@ -252,11 +322,11 @@ def _traced_invoke(func, instance, args, kwargs):
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws_durable_execution.invoke",
+        operation_name="aws.durable_functions.invoke",
         span_type="serverless",
         span_kind="client",
         resource=invoke_name or function_name or "invoke",
-        service=int_service(None, config.aws_durable_execution_sdk_python),
+        service=_get_service(),
         tags=tags,
     )
 
@@ -264,8 +334,7 @@ def _traced_invoke(func, instance, args, kwargs):
         # --- Inject distributed tracing context into payload ---
         # AIDEV-NOTE: When the payload is a dict, we inject trace context under a
         # "_datadog" key so the downstream @durable_execution handler can extract it
-        # and link its execution span to this invoke span's trace.  We shallow-copy
-        # the dict to avoid mutating the caller's original payload.
+        # and link its execution span to this invoke span's trace.
         if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
             try:
                 payload = kwargs.get("payload") or (args[1] if len(args) > 1 else None)
@@ -294,6 +363,69 @@ def _traced_invoke(func, instance, args, kwargs):
         return result
 
 
+# ---------------------------------------------------------------------------
+# Factory for simple internal operations (wait, callback, map, etc.)
+# ---------------------------------------------------------------------------
+
+def _make_traced_internal(span_name, default_resource):
+    """Create a wrapper for an internal durable operation.
+
+    All internal operations follow the same tracing pattern: extract an
+    optional ``name`` kwarg for the resource, create an internal span,
+    handle SuspendExecution as non-error control flow, and propagate
+    real exceptions with error tags.
+    """
+    def _traced(func, instance, args, kwargs):
+        from aws_durable_execution_sdk_python.exceptions import SuspendExecution
+
+        name = kwargs.get("name")
+
+        event = TracingEvent.create(
+            component=config.aws_durable_execution_sdk_python.integration_name,
+            integration_config=config.aws_durable_execution_sdk_python,
+            operation_name=span_name,
+            span_type="worker",
+            span_kind="internal",
+            resource=name or default_resource,
+            service=_get_service(),
+        )
+
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            try:
+                result = func(*args, **kwargs)
+            except SuspendExecution:
+                ctx.dispatch_ended_event()
+                raise
+            except BaseException:
+                ctx.dispatch_ended_event(*sys.exc_info())
+                raise
+            ctx.dispatch_ended_event()
+            return result
+
+    return _traced
+
+
+_traced_wait = _make_traced_internal("aws.durable_functions.wait", "wait")
+_traced_wait_for_condition = _make_traced_internal("aws.durable_functions.wait_for_condition", "wait_for_condition")
+_traced_wait_for_callback = _make_traced_internal("aws.durable_functions.wait_for_callback", "wait_for_callback")
+_traced_create_callback = _make_traced_internal("aws.durable_functions.create_callback", "create_callback")
+_traced_map = _make_traced_internal("aws.durable_functions.map", "map")
+_traced_parallel = _make_traced_internal("aws.durable_functions.parallel", "parallel")
+_traced_run_in_child_context = _make_traced_internal("aws.durable_functions.child_context", "child_context")
+
+
+# ---------------------------------------------------------------------------
+# patch / unpatch
+# ---------------------------------------------------------------------------
+
+def _try_wrap(module_path, target, wrapper, label):
+    """Wrap *target* in *module_path*, logging gracefully on failure."""
+    try:
+        wrap(module_path, target, wrapper)
+    except (ImportError, AttributeError):
+        log.debug("Could not wrap %s (may not exist in this SDK version)", label)
+
+
 def patch():
     """Instrument the aws-durable-execution-sdk-python library."""
     if getattr(aws_durable_execution_sdk_python, "_datadog_patch", False):
@@ -301,15 +433,57 @@ def patch():
 
     aws_durable_execution_sdk_python._datadog_patch = True
 
+    # --- durable_execution decorator ---
     # AIDEV-NOTE: durable_execution is re-exported from the top-level __init__
     # via ``from .execution import durable_execution``. That creates a separate
-    # name binding, so we must wrap in BOTH modules so that imports from either
-    # path get the instrumented version.
+    # name binding, so we must wrap in BOTH modules.
     wrap("aws_durable_execution_sdk_python.execution", "durable_execution", _traced_durable_execution)
     wrap("aws_durable_execution_sdk_python", "durable_execution", _traced_durable_execution)
 
+    # --- DurableContext methods (always present) ---
     wrap("aws_durable_execution_sdk_python.context", "DurableContext.step", _traced_step)
     wrap("aws_durable_execution_sdk_python.context", "DurableContext.invoke", _traced_invoke)
+
+    # --- DurableContext methods (may not exist in older SDK versions) ---
+    _try_wrap("aws_durable_execution_sdk_python.context", "DurableContext.wait", _traced_wait, "DurableContext.wait")
+    _try_wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait_for_condition",
+        _traced_wait_for_condition,
+        "DurableContext.wait_for_condition",
+    )
+    _try_wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait_for_callback",
+        _traced_wait_for_callback,
+        "DurableContext.wait_for_callback",
+    )
+    _try_wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.create_callback",
+        _traced_create_callback,
+        "DurableContext.create_callback",
+    )
+    _try_wrap("aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_map, "DurableContext.map")
+    _try_wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.parallel",
+        _traced_parallel,
+        "DurableContext.parallel",
+    )
+    _try_wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.run_in_child_context",
+        _traced_run_in_child_context,
+        "DurableContext.run_in_child_context",
+    )
+
+    # --- ThreadPoolExecutor patching for map/parallel trace propagation ---
+    try:
+        import aws_durable_execution_sdk_python.concurrency.executor as executor_module
+        executor_module.ThreadPoolExecutor = TracedThreadPoolExecutor
+    except (ImportError, AttributeError):
+        log.debug("Could not patch ThreadPoolExecutor (concurrency module may not exist)")
 
 
 def unpatch():
@@ -326,3 +500,24 @@ def unpatch():
     unwrap(aws_durable_execution_sdk_python, "durable_execution")
     unwrap(DurableContext, "step")
     unwrap(DurableContext, "invoke")
+
+    # Unwrap optional methods — only if they were wrapped (i.e. have __wrapped__)
+    for method_name in (
+        "wait",
+        "wait_for_condition",
+        "wait_for_callback",
+        "create_callback",
+        "map",
+        "parallel",
+        "run_in_child_context",
+    ):
+        method = getattr(DurableContext, method_name, None)
+        if method is not None and hasattr(method, "__wrapped__"):
+            unwrap(DurableContext, method_name)
+
+    # Restore original ThreadPoolExecutor
+    try:
+        import aws_durable_execution_sdk_python.concurrency.executor as executor_module
+        executor_module.ThreadPoolExecutor = _OriginalThreadPoolExecutor
+    except (ImportError, AttributeError):
+        pass
