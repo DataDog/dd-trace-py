@@ -16,7 +16,10 @@ import pytest
 
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
-pytest_plugins = ("pytester",)
+pytest_plugins = (
+    "pytester",
+    "pytest_experiment.taint_tracking.plugin",
+)
 
 PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 
