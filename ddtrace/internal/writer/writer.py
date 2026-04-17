@@ -1004,16 +1004,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def stop(self, timeout: Optional[float] = None) -> None:
-        try:
-            super().stop(timeout)
-        except ServiceStatusError:
-            # Writer was never started, but the native exporter may have
-            # background tasks (telemetry, health metrics) running on the
-            # SharedRuntime that need to be shut down.
-            self._shutdown_exporter()
-            raise
-
     def _stop_service(
         self,
         timeout: Optional[float] = None,
