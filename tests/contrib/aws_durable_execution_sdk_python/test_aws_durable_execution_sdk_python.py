@@ -3,9 +3,9 @@ APM span tests for the aws_durable_execution_sdk_python integration.
 
 Tests verify that the integration produces correct spans with proper names,
 types, tags, and parent-child relationships for:
-  1. durable_execution — top-level workflow execution span
-  2. DurableContext.step — individual step execution spans
-  3. DurableContext.invoke — cross-function invocation spans
+  1. durable_execution — top-level workflow execution span (aws.durable_functions.execute)
+  2. DurableContext.step — individual step execution spans (aws.durable_functions.step)
+  3. DurableContext.invoke — cross-function invocation spans (aws.durable_functions.invoke)
 
 These tests use a mock DurableServiceClient to simulate the checkpoint/state
 management that normally runs against the real AWS Lambda Durable Execution API.
@@ -328,14 +328,14 @@ class TestWorkflowExecution:
         assert len(spans) >= 2
 
         # Find the workflow execution span (root span)
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1, "Expected exactly one workflow execution span"
         workflow_span = workflow_spans[0]
 
         # Verify span structure
-        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.service == "aws.durable_functions"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws_durable_execution.execution"
+        assert workflow_span.resource == "aws.durable_functions.execute"
         assert workflow_span.error == 0
 
         # Verify span tags
@@ -344,7 +344,7 @@ class TestWorkflowExecution:
         assert workflow_span.get_tag("aws.durable_execution.arn") == DURABLE_EXECUTION_ARN
 
         # The workflow span should be the parent of step spans
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         for step_span in step_spans:
             assert step_span.parent_id == workflow_span.span_id, (
                 "Step span should be a child of the workflow execution span"
@@ -370,7 +370,7 @@ class TestWorkflowExecution:
         assert sdk_output["Status"] == "FAILED"
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
@@ -400,7 +400,7 @@ class TestWorkflowExecution:
         replay_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
@@ -445,14 +445,14 @@ class TestStepExecution:
         assert inner["totals"]["total"] == 107.95
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         assert len(step_spans) == 2, "Expected exactly 2 step spans"
 
         # Verify first step span
         validate_spans = [s for s in step_spans if s.get_tag("aws.durable_execution.step.name") == "validate-order"]
         assert len(validate_spans) == 1, "Expected one 'validate-order' step span"
         validate_span = validate_spans[0]
-        assert validate_span.service == "aws_durable_execution_sdk_python"
+        assert validate_span.service == "aws.durable_functions"
         assert validate_span.span_type == "worker"
         assert validate_span.resource == "validate-order"
         assert validate_span.error == 0
@@ -464,7 +464,7 @@ class TestStepExecution:
         totals_spans = [s for s in step_spans if s.get_tag("aws.durable_execution.step.name") == "calculate-totals"]
         assert len(totals_spans) == 1, "Expected one 'calculate-totals' step span"
         totals_span = totals_spans[0]
-        assert totals_span.service == "aws_durable_execution_sdk_python"
+        assert totals_span.service == "aws.durable_functions"
         assert totals_span.span_type == "worker"
         assert totals_span.resource == "calculate-totals"
         assert totals_span.error == 0
@@ -505,7 +505,7 @@ class TestStepExecution:
         )
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
 
         # The failing step should have a span with correct metadata
         failing_spans = [
@@ -516,7 +516,7 @@ class TestStepExecution:
         failing_span = failing_spans[0]
 
         # Verify span structure and tags are correct
-        assert failing_span.service == "aws_durable_execution_sdk_python"
+        assert failing_span.service == "aws.durable_functions"
         assert failing_span.span_type == "worker"
         assert failing_span.resource == "failing-step"
         assert failing_span.get_tag("component") == "aws_durable_execution_sdk_python"
@@ -550,12 +550,12 @@ class TestStepExecution:
         assert inner["computed"] == 42
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         assert len(step_spans) == 1
         step_span = step_spans[0]
 
         # Verify full span structure
-        assert step_span.service == "aws_durable_execution_sdk_python"
+        assert step_span.service == "aws.durable_functions"
         assert step_span.span_type == "worker"
         assert step_span.resource == "compute"
         assert step_span.error == 0
@@ -591,12 +591,12 @@ class TestStepExecution:
         assert inner["valid"] is True
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         assert len(step_spans) == 1
         step_span = step_spans[0]
 
         # Verify full span structure
-        assert step_span.service == "aws_durable_execution_sdk_python"
+        assert step_span.service == "aws.durable_functions"
         assert step_span.span_type == "worker"
         assert step_span.resource == "validate"
         assert step_span.error == 0
@@ -631,7 +631,7 @@ class TestStepExecution:
         unnamed_step_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         assert len(step_spans) >= 1, "Expected at least one step span"
 
         # When no explicit name is given, the step name should be derived from the function's __name__
@@ -680,12 +680,12 @@ class TestInvokeExecution:
         result = invoke_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1, "Expected exactly one invoke span"
         invoke_span = invoke_spans[0]
 
         # Verify span structure
-        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.service == "aws.durable_functions"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.error == 0
@@ -722,8 +722,8 @@ class TestInvokeExecution:
         nested_invoke_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
 
         assert len(workflow_spans) == 1
         assert len(invoke_spans) == 1
@@ -746,10 +746,10 @@ class TestFullWorkflowTrace:
         """A workflow with steps and invoke produces a proper parent-child span tree.
 
         Expected trace structure:
-          aws_durable_execution.execution (root)
-            |- aws_durable_execution.step (validate-order)
-            |- aws_durable_execution.step (calculate-totals)
-            |- aws_durable_execution.invoke (process-payment)
+          aws.durable_functions.execute (root)
+            |- aws.durable_functions.step (validate-order)
+            |- aws.durable_functions.step (calculate-totals)
+            |- aws.durable_functions.invoke (process-payment)
         """
         from aws_durable_execution_sdk_python import DurableContext, durable_execution
         from aws_durable_execution_sdk_python.types import StepContext
@@ -795,9 +795,9 @@ class TestFullWorkflowTrace:
         assert len(spans) == 4, "Expected 4 spans: 1 execution + 2 steps + 1 invoke, got {}".format(len(spans))
 
         # Categorize spans
-        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        execution_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
 
         assert len(execution_spans) == 1
         assert len(step_spans) == 2
@@ -844,7 +844,7 @@ class TestFullWorkflowTrace:
 
         spans = tracer.pop()
         assert len(spans) == 1, "A no-op workflow should produce exactly 1 execution span"
-        assert spans[0].name == "aws_durable_execution.execution"
+        assert spans[0].name == "aws.durable_functions.execute"
         assert spans[0].error == 0
 
 
@@ -886,7 +886,7 @@ class TestSuspendExecutionHandling:
 
         spans = tracer.pop()
         # The workflow span should exist
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) >= 1
 
         # AIDEV-NOTE: SuspendExecution is control flow, not an error. The integration
@@ -957,7 +957,7 @@ class TestConfiguration:
 
         spans = tracer.pop()
         # Should get exactly 1 execution span, not duplicated by double patching
-        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        execution_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(execution_spans) == 1, "Double patching should not produce duplicate spans"
 
 
@@ -1031,14 +1031,14 @@ class TestContextPropagation:
         assert inner["received"] is True
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify full span structure
-        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.service == "aws.durable_functions"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws_durable_execution.execution"
+        assert workflow_span.resource == "aws.durable_functions.execute"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
         assert workflow_span.error == 0
@@ -1083,12 +1083,12 @@ class TestContextPropagation:
             no_extract_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify span is still well-formed
-        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.service == "aws.durable_functions"
         assert workflow_span.span_type == "serverless"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
 
@@ -1118,14 +1118,14 @@ class TestContextPropagation:
         assert inner["status"] == "ok"
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify full span structure
-        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.service == "aws.durable_functions"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws_durable_execution.execution"
+        assert workflow_span.resource == "aws.durable_functions.execute"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
         assert workflow_span.error == 0
@@ -1211,12 +1211,12 @@ class TestContextPropagation:
             sdk_output = inject_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify invoke span structure
-        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.service == "aws.durable_functions"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
@@ -1225,7 +1225,7 @@ class TestContextPropagation:
         assert invoke_span.error == 0
 
         # Verify all spans share the upstream trace_id (proves context was extracted)
-        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        execution_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(execution_spans) == 1
         assert execution_spans[0].trace_id == upstream_trace_id
         assert execution_spans[0].parent_id == upstream_span_id
@@ -1264,12 +1264,12 @@ class TestContextPropagation:
             disabled_inject_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify span exists and is well-formed
-        assert workflow_span.service == "aws_durable_execution_sdk_python"
+        assert workflow_span.service == "aws.durable_functions"
         assert workflow_span.span_type == "serverless"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
@@ -1302,12 +1302,12 @@ class TestContextPropagation:
             pass  # Original SDK method fails with mock instance; we verify span behavior
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify span is still created correctly despite non-dict payload
-        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.service == "aws.durable_functions"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
@@ -1421,9 +1421,9 @@ class TestContextPropagation:
         spans = tracer.pop()
 
         # Verify we got the expected span types
-        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        execution_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
 
         assert len(execution_spans) == 1
         assert len(step_spans) == 2
@@ -1493,12 +1493,12 @@ class TestPeerService:
         sdk_output = peer_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify full invoke span structure
-        assert invoke_span.service == "aws_durable_execution_sdk_python"
+        assert invoke_span.service == "aws.durable_functions"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
@@ -1541,7 +1541,7 @@ class TestPeerService:
         out_host_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
@@ -1569,7 +1569,7 @@ class TestPeerService:
         simple_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        execution_spans = [s for s in spans if s.name == "aws_durable_execution.execution"]
+        execution_spans = [s for s in spans if s.name == "aws.durable_functions.execute"]
         assert len(execution_spans) == 1
         execution_span = execution_spans[0]
 
@@ -1601,7 +1601,7 @@ class TestPeerService:
             pass
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws_durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable_functions.step"]
         assert len(step_spans) >= 1
         step_span = step_spans[0]
 
@@ -1634,7 +1634,7 @@ class TestPeerService:
             pass  # Original SDK method fails with mock instance
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
@@ -1678,7 +1678,7 @@ class TestPeerService:
         peer_test_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws_durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable_functions.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
