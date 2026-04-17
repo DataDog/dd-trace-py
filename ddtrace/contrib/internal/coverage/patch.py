@@ -241,12 +241,52 @@ def set_coverage_instance(cov_instance: Any) -> None:
 
 def reset_coverage_state() -> None:
     """
-    Reset all coverage state.
+    Reset all coverage state, including any externally-running Coverage instance
+    tracked by Coverage.current().
     """
     global _coverage_instance, _cached_coverage_percentage
     _coverage_instance = None
     _cached_coverage_percentage = None
+
+    _clear_coverage_current()
+
     log.debug("Reset coverage state")
+
+
+def _clear_coverage_current() -> None:
+    """Clear the coverage.py library's own 'current' instance reference.
+
+    This prevents ``Coverage.current()`` from returning a stale instance that
+    leaked from a previous test run.  ``Coverage.current()`` (added in
+    coverage.py 5.0) returns the top of an internal ``Coverage._instances``
+    stack.  Instances are pushed by ``start()`` and popped by ``stop()``.
+    """
+    if Coverage is None:
+        return
+
+    if not hasattr(Coverage, "current"):
+        return  # coverage.py < 5.0, no current() concept
+
+    # Pop all stacked instances via the public stop() API.
+    try:
+        while Coverage.current() is not None:
+            try:
+                Coverage.current().stop()
+            except Exception:
+                # stop() failed — break out to avoid an infinite loop and
+                # fall through to the private-attribute fallback below.
+                break
+    except Exception:
+        log.debug("Failed to clear coverage current instances via stop()", exc_info=True)
+
+    # If stop() didn't fully clear the stack (e.g. an instance's stop() raises),
+    # clear the private storage directly as a last resort.
+    if hasattr(Coverage, "_instances"):
+        try:
+            if Coverage.current() is not None:
+                Coverage._instances.clear()
+        except Exception:
+            log.debug("Failed to clear Coverage._instances", exc_info=True)
 
 
 def clear_coverage_instance() -> None:
