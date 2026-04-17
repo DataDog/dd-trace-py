@@ -1,7 +1,21 @@
 """
 The AWS Durable Execution SDK integration instruments the
 ``aws-durable-execution-sdk-python`` library to trace durable workflow
-executions, step executions, and cross-function invocations.
+executions, steps, invocations, and other operations.
+
+Traced operations
+~~~~~~~~~~~~~~~~~
+
+- ``aws.durable_functions.execute`` — the ``@durable_execution`` decorator
+- ``aws.durable_functions.step`` — ``DurableContext.step()``
+- ``aws.durable_functions.invoke`` — ``DurableContext.invoke()``
+- ``aws.durable_functions.wait`` — ``DurableContext.wait()``
+- ``aws.durable_functions.wait_for_condition`` — ``DurableContext.wait_for_condition()``
+- ``aws.durable_functions.wait_for_callback`` — ``DurableContext.wait_for_callback()``
+- ``aws.durable_functions.create_callback`` — ``DurableContext.create_callback()``
+- ``aws.durable_functions.map`` — ``DurableContext.map()``
+- ``aws.durable_functions.parallel`` — ``DurableContext.parallel()``
+- ``aws.durable_functions.child_context`` — ``DurableContext.run_in_child_context()``
 
 All traces submitted from this integration are tagged by:
 
@@ -34,10 +48,14 @@ Configuration
 
    The service name reported by default for AWS Durable Execution SDK requests.
 
-   Alternatively, set this option with the ``DD_SERVICE`` or
-   ``DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE`` environment variable.
+   The service name can be set via (in order of precedence):
 
-   Default: ``"aws_durable_execution_sdk_python"``
+   1. ``DD_DURABLE_EXECUTION_SERVICE`` environment variable (shared with Node.js)
+   2. ``DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE`` environment variable
+   3. ``DD_SERVICE`` environment variable
+   4. Config default
+
+   Default: ``"aws.durable_functions"``
 
 .. py:data:: ddtrace.config.aws_durable_execution_sdk_python["distributed_tracing_enabled"]
 
