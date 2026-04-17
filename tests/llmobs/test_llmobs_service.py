@@ -2332,7 +2332,7 @@ def test_get_spans_paginates(mock_get_connection, llmobs):
     assert result[0]["span_id"] == "s1"
     assert result[1]["span_id"] == "s2"
     assert mock_get_connection.call_count == 2
-    
+
 
 class TestBuildSpanEventFromMetaStructE2E:
     def test_llm_span_with_messages(self, llmobs, llmobs_events):
