@@ -6,11 +6,17 @@ from __future__ import annotations
 import dataclasses
 from enum import Enum
 import logging
+import time
 import typing as t
 
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
 
 
@@ -73,10 +79,20 @@ class TelemetryAPI:
         return cls._instance
 
     def with_request_metric_names(
-        self, count: str, duration: str, response_bytes: t.Optional[str], error: str
+        self,
+        count: str,
+        duration: str,
+        response_bytes: t.Optional[str],
+        error: str,
+        request_bytes: t.Optional[str] = None,
     ) -> TelemetryAPIRequestMetrics:
         return TelemetryAPIRequestMetrics(
-            telemetry_api=self, count=count, duration=duration, response_bytes=response_bytes, error=error
+            telemetry_api=self,
+            count=count,
+            duration=duration,
+            response_bytes=response_bytes,
+            error=error,
+            request_bytes=request_bytes,
         )
 
     def finish(self) -> None:
@@ -291,6 +307,66 @@ class TelemetryAPI:
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
 
 
+class PayloadFileTelemetryAPI(TelemetryAPI):
+    """TelemetryAPI variant that writes accumulated metrics to a JSON payload file.
+
+    Used in payload-files mode (Bazel).  Metrics are accumulated during the
+    session and flushed to ``payloads/telemetry/`` on ``finish()``.  The
+    underlying ``telemetry_writer`` is still called so that ddtrace's own
+    telemetry pipeline can attempt delivery (it will silently fail inside the
+    sandbox, which is fine).
+    """
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+        self._accumulated_metrics: list[dict[str, t.Any]] = []
+
+    def finish(self) -> None:
+        if self._accumulated_metrics:
+            from ddtrace.internal.settings._telemetry import config as telemetry_config
+
+            generate_metrics_event = {
+                "request_type": TELEMETRY_EVENT_TYPE.METRICS.value,
+                "payload": {
+                    "namespace": TELEMETRY_NAMESPACE.CIVISIBILITY.value,
+                    "series": self._accumulated_metrics,
+                },
+            }
+            batch_payload = {
+                "api_version": "v2",
+                "tracer_time": int(time.time()),
+                "runtime_id": get_runtime_id(),
+                "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
+                "application": get_application(
+                    telemetry_config.SERVICE, telemetry_config.VERSION, telemetry_config.ENV
+                ),
+                "host": get_host_info(),
+                "payload": [generate_metrics_event],
+            }
+            write_payload_file(
+                output_dir=self._output_dir,
+                payload=batch_payload,
+                kind="telemetry",
+            )
+            log.debug("Wrote %d telemetry metrics to payload file", len(self._accumulated_metrics))
+        super().finish()
+
+    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
+        super().add_count_metric(metric_name, value, tags)
+        self._accumulated_metrics.append(
+            {"type": "count", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
+        )
+
+    def add_distribution_metric(
+        self, metric_name: str, value: float, tags: t.Optional[dict[str, t.Any]] = None
+    ) -> None:
+        super().add_distribution_metric(metric_name, value, tags)
+        self._accumulated_metrics.append(
+            {"type": "distribution", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
+        )
+
+
 @dataclasses.dataclass
 class TelemetryAPIRequestMetrics:
     telemetry_api: TelemetryAPI
@@ -298,9 +374,15 @@ class TelemetryAPIRequestMetrics:
     duration: str
     response_bytes: t.Optional[str]
     error: str
+    request_bytes: t.Optional[str] = None
 
     def record_request(
-        self, seconds: float, response_bytes: t.Optional[int], compressed_response: bool, error: t.Optional[ErrorType]
+        self,
+        seconds: float,
+        response_bytes: t.Optional[int],
+        compressed_response: bool,
+        error: t.Optional[ErrorType],
+        request_bytes: t.Optional[int] = None,
     ) -> None:
         self.telemetry_api.add_count_metric(self.count, 1)
         self.telemetry_api.add_distribution_metric(self.duration, seconds)
@@ -309,6 +391,8 @@ class TelemetryAPIRequestMetrics:
             # means we don't want to record it.
             response_tags = {"rs_compressed": compressed_response}
             self.telemetry_api.add_distribution_metric(self.response_bytes, response_bytes, response_tags)
+        if request_bytes is not None and self.request_bytes is not None:
+            self.telemetry_api.add_distribution_metric(self.request_bytes, request_bytes)
 
         if error is not None:
             self.record_error(error)

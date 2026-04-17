@@ -9,7 +9,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
@@ -175,10 +175,9 @@ def traced_produce(func, instance, args, kwargs):
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
     with tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        maybe_set_service_source_tag(span, config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
@@ -253,12 +252,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         ctx = Propagator.extract(dict(first_message.headers()))
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
         child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
         activate=True,
     ) as span:
-        maybe_set_service_source_tag(span, config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns
         cluster_id = None

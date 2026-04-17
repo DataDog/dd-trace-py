@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "69de7abd00000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "70ff513e149c4275a000e61227618926"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "_sampling_priority_v1": 1.0,
+      "process_id": 42232.0
     },
-    "duration": 110788667,
-    "start": 1700080043282924092
+    "duration": 123015042,
+    "start": 1776188093143197721
   },
      {
        "name": "ddtrace-top-level",
@@ -32,8 +34,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 110661292,
-       "start": 1700080043283026467
+       "meta": {
+         "_dd.svc_src": "tests.opentelemetry"
+       },
+       "duration": 122735583,
+       "start": 1776188093143345513
      },
         {
           "name": "ddtrace-child",
@@ -44,8 +49,11 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 41143250,
-          "start": 1700080043303321550
+          "meta": {
+            "_dd.svc_src": "tests.opentelemetry"
+          },
+          "duration": 45640500,
+          "start": 1776188093164583513
         },
         {
           "name": "internal",
@@ -56,8 +64,11 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 49070375,
-          "start": 1700080043344572342
+          "meta": {
+            "_dd.svc_src": "tests.opentelemetry"
+          },
+          "duration": 55503500,
+          "start": 1776188093210385721
         },
            {
              "name": "ddtrace-grandchild",
@@ -68,8 +79,11 @@
              "parent_id": 4,
              "type": "",
              "error": 0,
-             "duration": 25307375,
-             "start": 1700080043368281717
+             "meta": {
+               "_dd.svc_src": "tests.opentelemetry"
+             },
+             "duration": 30398958,
+             "start": 1776188093235241555
            },
               {
                 "name": "internal",
@@ -80,6 +94,9 @@
                 "parent_id": 5,
                 "type": "",
                 "error": 0,
-                "duration": 25177958,
-                "start": 1700080043368341134
+                "meta": {
+                  "_dd.svc_src": "tests.opentelemetry"
+                },
+                "duration": 26074625,
+                "start": 1776188093235476221
               }]]

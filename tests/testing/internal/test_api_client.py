@@ -1578,6 +1578,38 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["ci.pipeline.id"] == "123456"
         assert event_data["ci.workspace_path"] == "/workspace"
 
+    def test_upload_coverage_report_with_pr_number_tag(self, mock_telemetry: Mock) -> None:
+        """Test coverage report upload preserves pr.* tags."""
+
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                "pr.number": "42",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+        api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        files = mock_connector.post_files.call_args[1]["files"]
+        event_file = files[1]
+        event_data = json.loads(event_file.data.decode("utf-8"))
+
+        assert event_data["pr.number"] == "42"
+
     def test_upload_coverage_report_empty_report(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         """Test uploading an empty coverage report."""
         mock_connector = Mock()

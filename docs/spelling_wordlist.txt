@@ -45,6 +45,7 @@ backoff
 backport
 backported
 backporting
+Bazel
 bdd
 bikeshedding
 Blowfish
@@ -283,6 +284,7 @@ repo
 resolvers
 respawn
 riotfile
+rlocation
 RLock
 rowcount
 rq
@@ -381,3 +383,6 @@ jitter
 durations
 numer
 denom
+mtime
+mtimes
+txt

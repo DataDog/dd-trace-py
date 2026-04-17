@@ -196,20 +196,109 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Perform the sample
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us);
+        // Reset per-cycle asyncio task accumulator before iterating sampled threads
+        echion->reset_asyncio_task_count();
+
+        // When max_threads_per_sample is set, we collect all threads first, then apply
+        // reservoir sampling (Algorithm R) to select a uniform random subset, and only
+        // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
+        if (max_threads_per_sample == 0) {
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                    auto success = thread.sample(*echion, tstate, wall_time_us);
+                    if (success) {
+                        Sample::profile_borrow().stats().increment_sample_count();
+                    }
+                });
+            });
+        } else {
+            thread_candidates.clear();
+
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
+                    thread_candidates.push_back(*tstate);
+                });
+            });
+
+            // Algorithm R: if we have more threads than the cap, select a uniform random subset.
+            // Selected threads are placed in [0, sample_count). Overflow threads remain in
+            // [sample_count, size) as fallbacks in case a selected thread was unregistered
+            // between collection and sampling.
+            // We use Algorithm R rather than the asymptotically faster Algorithm L because we
+            // already traverse all threads unconditionally above (the CPython thread list is a
+            // linked list, so discovery always costs O(n)). Algorithm L's advantage is skipping
+            // elements to reduce random-number generation, but that only pays off when iteration
+            // itself is expensive — it isn't here. Algorithm R is simpler and sufficient.
+            size_t sample_count = thread_candidates.size();
+            if (sample_count > max_threads_per_sample) {
+                for (size_t i = max_threads_per_sample; i < sample_count; i++) {
+                    std::uniform_int_distribution<size_t> dist(0, i);
+                    size_t j = dist(rng);
+                    if (j < max_threads_per_sample) {
+                        std::swap(thread_candidates[j], thread_candidates[i]);
+                    }
+                }
+                sample_count = max_threads_per_sample;
+            }
+
+            // Apply inverse-probability weighting: each sampled thread represents n/k threads,
+            // so scale wall_time_us up to preserve correct absolute wall-time totals.
+            // Note: If a thread disappears between snapshot collection and sampling, fewer than
+            // sample_count threads are actually sampled. The weight per sample is pre-computed
+            // so the total reported wall time can be slightly under the true value under high
+            // thread churn. This is a rare edge case.
+            const size_t n_total = thread_candidates.size();
+            const microsecond_t effective_wall_time_us =
+              (sample_count < n_total)
+                ? wall_time_us * static_cast<microsecond_t>(n_total) / static_cast<microsecond_t>(sample_count)
+                : wall_time_us;
+
+            size_t fallback_idx = sample_count;
+            for (size_t i = 0; i < sample_count; i++) {
+                // The lock is acquired per iteration rather than for the whole loop so that new
+                // threads can register (which also needs this lock) between stack unwinds. Holding
+                // it for the entire loop would block thread registration for the full sampling cycle.
+                const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+
+                // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
+                // here by thread_id. Under extreme thread churn a pthread_t could theoretically
+                // be reused between snapshot collection and this lookup (old thread exits, new
+                // thread registers with same ID), causing the new ThreadInfo to be paired with
+                // the old tstate. This window is a few microseconds and pthread_t reuse within
+                // it is unlikely.
+                auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+                if (it == echion->thread_info_map().end()) {
+                    // Thread was unregistered; try to fill from overflow
+                    for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
+                        auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                        if (fb_it != echion->thread_info_map().end()) {
+                            thread_candidates[i] = thread_candidates[fallback_idx];
+                            it = fb_it;
+                            // Advance so this candidate isn't reused on the next fallback search
+                            fallback_idx++;
+                            break;
+                        }
+                    }
+                    if (it == echion->thread_info_map().end()) {
+                        continue;
+                    }
+                }
+                auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
-            });
-        });
+            }
+        }
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
         Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
         Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
+        Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
+        {
+            const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+            Sample::profile_borrow().stats().set_greenlet_count(echion->greenlet_info_map().size());
+        }
 
         // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
         auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
@@ -351,15 +440,6 @@ stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
     stack_postfork_cleanup();
-
-    // The fork handler is registered at library load time to make sure it
-    // is registered before dd_wrapper's.
-    // The rationale is that both stack and dd_wrapper have post-fork hooks;
-    // and stack needs dd_wrapper's hooks to have completed as it needs the
-    // Profile object to have been reset and be ready for use, and post-fork
-    // hooks are executed in LIFO order.
-    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
-    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
@@ -368,6 +448,14 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
+
+    // ProfilerState::start registers
+    // dd_wrapper's pthread_atfork handler before Sampler::start is called,
+    // so the POSIX FIFO child-handler ordering guarantees dd_wrapper's
+    // postfork_child runs first — rebuilding the Profiles Dictionary before the
+    // sampling thread restarts and calls intern_string.
+    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void

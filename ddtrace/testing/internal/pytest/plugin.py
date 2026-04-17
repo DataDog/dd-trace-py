@@ -26,6 +26,7 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -332,8 +333,10 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        # If coverage report upload is enabled, generate and upload the report
-        if self.manager.settings.coverage_report_upload_enabled:
+        # If coverage report upload is enabled, generate and upload the report.
+        # NOTE: Skip in payload-files mode (Bazel): coverage data is already
+        # written as JSON files by TestCoverageWriter; network upload is not possible.
+        if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
                 return self.manager.upload_coverage_report(
@@ -374,7 +377,7 @@ class TestOptPlugin:
 
         if self._logs_writer is not None:
             self._logs_writer.signal_finish()
-            self._logs_writer.wait_finish()
+            self._logs_writer.wait_finish(timeout=30.0)
             self._logs_writer = None
 
         self.manager.finish()
@@ -863,7 +866,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         if test.is_disabled() and not test.is_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
         elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # AIDEV-NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
+            # NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
             # neither disabled nor quarantined run normally and must not get report mangling or a user property.
             if test.is_attempt_to_fix():
                 item.user_properties += [("dd_disabled_attempt_to_fix", True)]
@@ -1089,7 +1092,7 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    # AIDEV-NOTE: Coverage collection decision tree:
+    # NOTE: Coverage collection decision tree:
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
     # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
@@ -1170,7 +1173,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
         # Start coverage.py ourselves for report generation

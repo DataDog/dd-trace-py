@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where applications started with ``python -m <module>`` could report ``entrypoint.name`` as ``-m`` in process tags.
