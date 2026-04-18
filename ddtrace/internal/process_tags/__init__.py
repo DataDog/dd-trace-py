@@ -162,4 +162,4 @@ def __getattr__(name: str) -> Any:
             return process_tags  # type: ignore
         elif name == "process_tags_list":
             return process_tags_list  # type: ignore
-    return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
