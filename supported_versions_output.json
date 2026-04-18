@@ -411,7 +411,7 @@
         "dependency": "langchain-core",
         "integration": "langchain",
         "minimum_tracer_supported": "0.1.53",
-        "max_tracer_supported": "0.3.76",
+        "max_tracer_supported": "1.3.0",
         "auto-instrumented": true
     },
     {
@@ -579,7 +579,7 @@
     {
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
-        "minimum_tracer_supported": "0.3.0",
+        "minimum_tracer_supported": "0.8.1",
         "max_tracer_supported": "1.63.0",
         "pinned": "true",
         "auto-instrumented": true
