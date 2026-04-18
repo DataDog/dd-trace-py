@@ -4,8 +4,6 @@ features:
     profiling: The Continuous Profiler now supports Python 3.15 (GIL-enabled builds),
     including the native stack profiler (Echion), lock profiler, memory profiler, and asyncio task tracking.
 
-    Known limitations on Python 3.15: uwsgi wall-time sampling and asyncio short-task
-    frame capture are not yet fully verified and are currently marked as expected failures
-    pending investigation.
-
-    Free-threaded (``--disable-gil``) Python 3.15 builds are not yet validated.
+    Not supported in this release:
+    - uwsgi wall-time sampling
+    - free-threading (``--disable-gil``)
