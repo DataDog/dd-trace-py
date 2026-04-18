@@ -1,13 +1,6 @@
-import sys
-
 import pytest
 
 
-@pytest.mark.xfail(
-    sys.version_info >= (3, 15),
-    reason="asyncio task frame capture (short_task) not yet verified on Python 3.15; under investigation",
-    strict=False,
-)
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_run_frames_captured",
