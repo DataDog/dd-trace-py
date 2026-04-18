@@ -533,7 +533,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 0.3.76
+      max: 1.3.0
 
 - integration_name: langgraph
   is_external_package: true
@@ -734,7 +734,7 @@ integrations:
   - pydantic-ai-slim
   tested_versions_by_dependency:
     pydantic-ai-slim:
-      min: 0.3.0
+      min: 0.8.1
       max: 1.63.0
 
 - integration_name: pylibmc
