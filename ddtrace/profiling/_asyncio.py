@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
+import types
 from types import ModuleType
 import typing
 
@@ -20,6 +21,10 @@ from ddtrace.internal.wrapping import wrap
 
 log = get_logger(__name__)
 
+# True for every Python version we have explicitly validated (< 3.16).
+# Used to decide whether a missing asyncio internal is a hard bug (raise) or
+# a graceful degradation (warn + continue) for future, unvalidated versions.
+_ON_KNOWN_VERSION: bool = sys.hexversion < 0x03100000  # < 3.16
 
 ASYNCIO_IMPORTED: bool = False
 
@@ -42,15 +47,13 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
     # AIDEV-NOTE: _scheduled_tasks, _eager_tasks, and _all_tasks are asyncio internals.
     # They are confirmed present through Python 3.15. On known versions (<=3.15) a missing
     # attribute is a real bug; on unknown future versions (>=3.16) degrade gracefully.
-    _on_known_version = sys.hexversion < 0x03100000  # < 3.16
-
     if sys.hexversion >= 0x030C0000:
         if not hasattr(asyncio_tasks, "_scheduled_tasks"):
-            if _on_known_version:
+            if _ON_KNOWN_VERSION:
                 raise RuntimeError(
-                    "ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
-                    "Python %s. asyncio task tracking will not work. "
-                    "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                    f"ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
+                    f"Python {sys.version}. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues"
                 )
             else:
                 log.warning(
@@ -59,15 +62,15 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
                     sys.version,
                 )
                 return
-        scheduled_tasks = getattr(asyncio_tasks, "_scheduled_tasks").data
-        eager_tasks = getattr(asyncio_tasks, "_eager_tasks", None)
+        scheduled_tasks: typing.Any = getattr(asyncio_tasks, "_scheduled_tasks").data
+        eager_tasks: typing.Any = getattr(asyncio_tasks, "_eager_tasks", None)
     else:
         if not hasattr(asyncio_tasks, "_all_tasks"):
-            if _on_known_version:
+            if _ON_KNOWN_VERSION:
                 raise RuntimeError(
-                    "ddtrace profiler: asyncio.tasks._all_tasks not found on "
-                    "Python %s. asyncio task tracking will not work. "
-                    "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                    f"ddtrace profiler: asyncio.tasks._all_tasks not found on "
+                    f"Python {sys.version}. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues"
                 )
             else:
                 log.warning(
@@ -132,7 +135,8 @@ def _(asyncio: ModuleType) -> None:
     # and scheduled for removal in 3.16. When porting to 3.16, this block needs to be
     # replaced — the policy hook won't exist. Use asyncio.run(loop_factory=...) instead.
     # See docs/contributing-profiling-new-cpython.rst for migration guidance.
-    events_module = sys.modules["asyncio.events"]
+    events_module: ModuleType = sys.modules["asyncio.events"]
+    policy_class: typing.Optional[type]
     if sys.hexversion >= 0x030E0000:
         # Python 3.14+: Use _BaseDefaultEventLoopPolicy
         policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
@@ -161,8 +165,6 @@ def _(asyncio: ModuleType) -> None:
         # in 3.16. When porting to 3.16, revisit this whole block — _GatheringFuture and
         # _wait may also be gone. Replace with asyncio.run(loop_factory=...) pattern.
         # See docs/contributing-profiling-new-cpython.rst.
-        _on_known_version = sys.hexversion < 0x03100000  # < 3.16
-
         if hasattr(sys.modules["asyncio"].tasks, "_GatheringFuture"):
 
             @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
@@ -184,11 +186,11 @@ def _(asyncio: ModuleType) -> None:
                 for child in children:
                     stack.link_tasks(parent, child)
 
-        elif _on_known_version:
+        elif _ON_KNOWN_VERSION:
             raise RuntimeError(
-                "ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python %s. "
+                f"ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python {sys.version}. "
                 "asyncio.gather() task-parent linking will not work. "
-                "Please report this at https://github.com/DataDog/dd-trace-py/issues" % sys.version
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues"
             )
         else:
             log.warning(
@@ -220,7 +222,7 @@ def _(asyncio: ModuleType) -> None:
                     stack.link_tasks(parent, future)
                 return result
 
-        elif _on_known_version:
+        elif _ON_KNOWN_VERSION:
             raise RuntimeError(
                 f"ddtrace profiler: asyncio.tasks._wait not found on Python {sys.version}. "
                 "asyncio.wait() task-parent linking will not work. "
@@ -288,9 +290,9 @@ def _(asyncio: ModuleType) -> None:
 
         # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
         if sys.hexversion >= 0x030B0000:  # Python 3.11+
-            taskgroups_module = sys.modules.get("asyncio.taskgroups")
+            taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
-                taskgroup_class = getattr(taskgroups_module, "TaskGroup", None)
+                taskgroup_class: typing.Optional[type] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
                     @partial(wrap, taskgroup_class.create_task)
@@ -351,7 +353,7 @@ def _(uvloop: ModuleType) -> None:
     init_stack: bool = config.stack.enabled and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
-    new_event_loop_func = getattr(uvloop, "new_event_loop", None)
+    new_event_loop_func: typing.Optional[types.FunctionType] = getattr(uvloop, "new_event_loop", None)
     if new_event_loop_func is not None:
 
         @partial(wrap, new_event_loop_func)
@@ -360,9 +362,9 @@ def _(uvloop: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> "asyncio.AbstractEventLoop":
-            loop = f(*args, **kwargs)
+            loop: "asyncio.AbstractEventLoop" = f(*args, **kwargs)
             if init_stack:
-                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
                 stack.set_uvloop_mode(thread_id, True)
 
                 stack.track_asyncio_loop(thread_id, loop)
@@ -372,14 +374,14 @@ def _(uvloop: ModuleType) -> None:
             return loop
 
     # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
-    policy_class = getattr(uvloop, "EventLoopPolicy", None)
-    if policy_class is not None and hasattr(policy_class, "set_event_loop"):
+    uvloop_policy_class: typing.Optional[type] = getattr(uvloop, "EventLoopPolicy", None)
+    if uvloop_policy_class is not None and hasattr(uvloop_policy_class, "set_event_loop"):
 
-        @partial(wrap, policy_class.set_event_loop)
+        @partial(wrap, uvloop_policy_class.set_event_loop)
         def _(
             f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
         ) -> typing.Any:
-            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
             if init_stack:
                 stack.set_uvloop_mode(thread_id, True)
 
