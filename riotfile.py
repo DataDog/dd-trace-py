@@ -3673,6 +3673,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # Exercises the profiler while a FastAPI app serves requests via starlette's TestClient.
+                    # Covers the profiler + ASGI combination on every supported Python (>=3.11 for fastapi latest),
+                    # including 3.15, which none of the synthetic `profile` scenarios exercise.
+                    name="profile-asgi",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_asgi.py",  # noqa: E501
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "fastapi": latest,
+                        "httpx": latest,
+                        "protobuf": latest,
+                    },
+                ),
+                Venv(
                     pys="3.9",
                     pkgs={"uwsgi": latest},
                     venvs=[
