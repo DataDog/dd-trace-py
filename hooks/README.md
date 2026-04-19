@@ -29,7 +29,7 @@ Individual pre-commit hooks (run in numeric order):
 | `04-run-clang-format` | Formats staged C/C++ files with clang-format |
 | `05-run-bandit` | Security-scans staged production Python files |
 | `06-check-cython-stubs` | Validates Cython stub files |
-| `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
+| `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) in-place and re-stages them |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
 
