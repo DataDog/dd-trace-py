@@ -381,7 +381,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.135.3
+      max: 0.136.0
 
 - integration_name: flask
   is_external_package: true
@@ -734,7 +734,7 @@ integrations:
   - pydantic-ai-slim
   tested_versions_by_dependency:
     pydantic-ai-slim:
-      min: 0.3.0
+      min: 0.8.1
       max: 1.63.0
 
 - integration_name: pylibmc
