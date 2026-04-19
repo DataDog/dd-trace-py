@@ -37,7 +37,13 @@ endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ../include)
+    # Replicate the include dirs that ${EXTENSION_NAME} sets PRIVATE (so they don't propagate to test targets): stack's
+    # own headers, the profiling root (for "dd_wrapper/include/sample.hpp"), Python, echion, and the libdatadog
+    # Rust-generated headers (NATIVE_HEADERS_DIR, set by the parent CMakeLists).
+    target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+                                               "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+    target_include_directories(${name} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../echion"
+                                                      "${NATIVE_HEADERS_DIR}")
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -86,5 +92,9 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
-dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+# test_frame_state_315 tests Python 3.15 frame internals and relies on cpython/tasks.h code paths that require a
+# concrete PyFrameObject definition only available with Python 3.14+ internal headers.
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
+    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+endif()
 dd_wrapper_add_test(test_cpython_layout_contracts test_cpython_layout_contracts.cpp)
