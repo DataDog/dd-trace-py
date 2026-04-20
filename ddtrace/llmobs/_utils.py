@@ -506,9 +506,13 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if cost_tags is not None:
             llmobs_span_data.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
-            llmobs_span_data[LLMOBS_STRUCT.COST_TAGS].extend(
-                cost_tag for cost_tag in cost_tags if cost_tag not in llmobs_span_data[LLMOBS_STRUCT.COST_TAGS]
-            )
+            # Track seen keys explicitly so we preserve insertion order without relying on mutation-during-iteration.
+            existing_cost_tags = llmobs_span_data[LLMOBS_STRUCT.COST_TAGS]
+            existing_cost_tags_set = set(existing_cost_tags)
+            for cost_tag in cost_tags:
+                if cost_tag not in existing_cost_tags_set:
+                    existing_cost_tags.append(cost_tag)
+                    existing_cost_tags_set.add(cost_tag)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
