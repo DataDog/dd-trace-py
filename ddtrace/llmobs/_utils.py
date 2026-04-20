@@ -478,7 +478,6 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
-        llmobs_span_data.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
 
         if name is not None:
@@ -506,6 +505,7 @@ def _annotate_llmobs_span_data(
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if cost_tags is not None:
+            llmobs_span_data.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
             llmobs_span_data[LLMOBS_STRUCT.COST_TAGS].extend(
                 cost_tag for cost_tag in cost_tags if cost_tag not in llmobs_span_data[LLMOBS_STRUCT.COST_TAGS]
             )
