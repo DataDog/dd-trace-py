@@ -98,7 +98,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         span = self.current_llm_span
         self.current_llm_span = None
 
-        if self._accumulated_input_messages is None:
+        if self.integration.llmobs_enabled and self._accumulated_input_messages is None:
             self._accumulated_input_messages = self.integration.extract_llm_input_messages(
                 self.request_args, self.request_kwargs, self.primary_span
             )
@@ -114,7 +114,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span.set_exc_info(type(exception), exception, exception.__traceback__)
         span.finish()
 
-        if chunk is not None:
+        if chunk is not None and self.integration.llmobs_enabled:
             content = getattr(chunk, "content", []) or []
             if isinstance(content, list):
                 self._accumulated_input_messages.extend(self.integration.parse_content_blocks("assistant", content))
@@ -164,12 +164,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         # After all tool results in a UserMessage are processed, append the tool results
         # to the growing context and open the next LLM span.
         if chunk_type == "UserMessage" and not self._active_tool_spans:
-            if self._accumulated_input_messages is None:
-                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                    self.request_args, self.request_kwargs, self.primary_span
-                )
-            user_content = getattr(chunk, "content", []) or []
-            self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
+            if self.integration.llmobs_enabled:
+                if self._accumulated_input_messages is None:
+                    self._accumulated_input_messages = self.integration.extract_llm_input_messages(
+                        self.request_args, self.request_kwargs, self.primary_span
+                    )
+                user_content = getattr(chunk, "content", []) or []
+                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
             self._create_llm_span()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
