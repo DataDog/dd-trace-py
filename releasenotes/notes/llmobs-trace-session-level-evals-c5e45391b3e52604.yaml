@@ -1,0 +1,10 @@
+features:
+  - |
+    LLM Observability: Adds an ``eval_scope`` parameter to ``LLMObs.submit_evaluation()``
+    (one of ``"span"`` (default) or ``"trace"``). Use ``eval_scope="trace"`` to associate
+    an evaluation with an entire trace by passing the root span context.
+  - |
+    LLM Observability: Adds ``LLMObs.get_spans()`` to retrieve span events from the
+    Datadog platform API (``GET /api/v2/llm-obs/v1/spans/events``). Supports filtering by
+    trace ID, span ID, span kind, span name, ML app, tags, and time range. Results are
+    auto-paginated. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
