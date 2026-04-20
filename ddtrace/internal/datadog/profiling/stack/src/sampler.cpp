@@ -448,6 +448,13 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
+
+    // ProfilerState::start registers
+    // dd_wrapper's pthread_atfork handler before Sampler::start is called,
+    // so the POSIX FIFO child-handler ordering guarantees dd_wrapper's
+    // postfork_child runs first — rebuilding the Profiles Dictionary before the
+    // sampling thread restarts and calls intern_string.
+    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
     pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 

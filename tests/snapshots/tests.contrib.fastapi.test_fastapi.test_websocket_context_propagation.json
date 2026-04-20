@@ -11,19 +11,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.fastapi",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a9ddf700000000",
+      "_dd.p.tid": "69de530f00000000",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74"
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0
+      "process_id": 84943.0
     },
-    "duration": 424750,
-    "start": 1772740087243595337
+    "duration": 1109459,
+    "start": 1776177935040548970
   }],
 [
   {
@@ -40,6 +41,7 @@
       "_dd.origin": "rum",
       "_dd.p.dm": "-0",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "baggage.account.id": "456",
       "baggage.session.id": "789",
       "baggage.user.id": "123",
@@ -48,17 +50,17 @@
       "http.url": "ws://testserver/ws",
       "http.useragent": "testclient",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74",
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0
+      "process_id": 84943.0
     },
-    "duration": 2282334,
-    "start": 1772740087241941587
+    "duration": 1632375,
+    "start": 1776177935040246762
   },
      {
        "name": "websocket.send",
@@ -73,8 +75,9 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.origin": "rum",
          "_dd.p.dm": "-0",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000001\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000001\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "baggage.account.id": "456",
          "baggage.session.id": "789",
          "baggage.user.id": "123",
@@ -89,10 +92,10 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1.0,
          "websocket.message.frames": 1.0,
-         "websocket.message.length": 26.0
+         "websocket.message.length": 27.0
        },
-       "duration": 197459,
-       "start": 1772740087244523837
+       "duration": 166584,
+       "start": 1776177935042035220
      }],
 [
   {
@@ -110,15 +113,16 @@
       "_dd.dm.service": "fastapi",
       "_dd.origin": "rum",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a9ddf700000000",
-      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd15b1a5678bb8dde43f00000001\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "69de530f00000000",
+      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd1521c2c9bf332248b000000001\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "baggage.account.id": "456",
       "baggage.session.id": "789",
       "baggage.user.id": "123",
       "component": "fastapi",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74",
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20",
       "span.kind": "consumer",
       "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
@@ -128,12 +132,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0,
+      "process_id": 84943.0,
       "websocket.message.frames": 1.0,
       "websocket.message.length": 9.0
     },
-    "duration": 1113250,
-    "start": 1772740087244961379
+    "duration": 515875,
+    "start": 1776177935042353554
   },
      {
        "name": "websocket.send",
@@ -146,9 +150,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.p.tid": "69a9ddf700000000",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000002\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.p.tid": "69de530f00000000",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000002\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "component": "fastapi",
          "language": "python",
          "network.client.ip": "testclient",
@@ -162,8 +167,8 @@
          "websocket.message.frames": 1.0,
          "websocket.message.length": 6.0
        },
-       "duration": 169000,
-       "start": 1772740087246285587
+       "duration": 117041,
+       "start": 1776177935043040304
      }],
 [
   {
@@ -181,15 +186,16 @@
       "_dd.dm.service": "fastapi",
       "_dd.origin": "rum",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a9ddf700000000",
-      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd15b1a5678bb8dde43f00000002\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "69de530f00000000",
+      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd1521c2c9bf332248b000000002\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "baggage.account.id": "456",
       "baggage.session.id": "789",
       "baggage.user.id": "123",
       "component": "fastapi",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74",
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20",
       "span.kind": "consumer",
       "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
@@ -199,12 +205,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0,
+      "process_id": 84943.0,
       "websocket.message.frames": 1.0,
       "websocket.message.length": 9.0
     },
-    "duration": 711042,
-    "start": 1772740087246723837
+    "duration": 1138583,
+    "start": 1776177935043283429
   },
      {
        "name": "websocket.send",
@@ -217,9 +223,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.p.tid": "69a9ddf700000000",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000003\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.p.tid": "69de530f00000000",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000003\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "component": "fastapi",
          "language": "python",
          "network.client.ip": "testclient",
@@ -233,8 +240,8 @@
          "websocket.message.frames": 1.0,
          "websocket.message.length": 6.0
        },
-       "duration": 154875,
-       "start": 1772740087247641212
+       "duration": 105083,
+       "start": 1776177935044552804
      }],
 [
   {
@@ -252,15 +259,16 @@
       "_dd.dm.service": "fastapi",
       "_dd.origin": "rum",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a9ddf700000000",
-      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd15b1a5678bb8dde43f00000003\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "69de530f00000000",
+      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd1521c2c9bf332248b000000003\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "baggage.account.id": "456",
       "baggage.session.id": "789",
       "baggage.user.id": "123",
       "component": "fastapi",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74",
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20",
       "span.kind": "consumer",
       "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
@@ -270,12 +278,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0,
+      "process_id": 84943.0,
       "websocket.message.frames": 1.0,
       "websocket.message.length": 9.0
     },
-    "duration": 711291,
-    "start": 1772740087248025921
+    "duration": 2284833,
+    "start": 1776177935044773637
   },
      {
        "name": "websocket.send",
@@ -288,9 +296,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.p.tid": "69a9ddf700000000",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000004\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.p.tid": "69de530f00000000",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000004\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "component": "fastapi",
          "language": "python",
          "network.client.ip": "testclient",
@@ -304,8 +313,8 @@
          "websocket.message.frames": 1.0,
          "websocket.message.length": 6.0
        },
-       "duration": 155042,
-       "start": 1772740087248928462
+       "duration": 96583,
+       "start": 1776177935047180762
      }],
 [
   {
@@ -323,15 +332,16 @@
       "_dd.dm.service": "fastapi",
       "_dd.origin": "rum",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a9ddf700000000",
-      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd15b1a5678bb8dde43f00000004\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "69de530f00000000",
+      "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.UPSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.UPSTREAM\", \"ptr.hash\": \"C000000000000000000000000075bcd1521c2c9bf332248b000000004\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
       "_dd.svc_src": "fastapi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "baggage.account.id": "456",
       "baggage.session.id": "789",
       "baggage.user.id": "123",
       "component": "fastapi",
       "language": "python",
-      "runtime-id": "f1d94a08231e471e9d7acbd38be9ed74",
+      "runtime-id": "dadd78cb1d684e1e85f172be729d1a20",
       "span.kind": "consumer",
       "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
@@ -341,12 +351,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0,
+      "process_id": 84943.0,
       "websocket.message.frames": 1.0,
       "websocket.message.length": 7.0
     },
-    "duration": 695250,
-    "start": 1772740087249316337
+    "duration": 365625,
+    "start": 1776177935047400762
   },
      {
        "name": "websocket.send",
@@ -359,9 +369,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.p.tid": "69a9ddf700000000",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000005\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.p.tid": "69de530f00000000",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000005\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "component": "fastapi",
          "language": "python",
          "network.client.ip": "testclient",
@@ -375,8 +386,8 @@
          "websocket.message.frames": 1.0,
          "websocket.message.length": 3.0
        },
-       "duration": 148583,
-       "start": 1772740087250200921
+       "duration": 230875,
+       "start": 1776177935047964012
      },
      {
        "name": "websocket.close",
@@ -391,9 +402,10 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.origin": "rum",
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "69a9ddf700000000",
-         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"b1a5678bb8dde43f\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd15b1a5678bb8dde43f00000006\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
+         "_dd.p.tid": "69de530f00000000",
+         "_dd.span_links": "[{\"trace_id\": \"000000000000000000000000075bcd15\", \"span_id\": \"21c2c9bf332248b0\", \"attributes\": {\"dd.kind\": \"span-pointer\", \"link.name\": \"_SpanPointerDirectionName.DOWNSTREAM\", \"ptr.kind\": \"websocket\", \"ptr.dir\": \"_SpanPointerDirection.DOWNSTREAM\", \"ptr.hash\": \"S000000000000000000000000075bcd1521c2c9bf332248b000000006\"}, \"tracestate\": \"dd=s:1;o:rum;t.dm:-0\", \"flags\": 1}]",
          "_dd.svc_src": "fastapi",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
          "baggage.account.id": "456",
          "baggage.session.id": "789",
          "baggage.user.id": "123",
@@ -408,6 +420,6 @@
          "_sampling_priority_v1": 1.0,
          "websocket.close.code": 1000.0
        },
-       "duration": 166792,
-       "start": 1772740087250602004
+       "duration": 107167,
+       "start": 1776177935048376845
      }]]

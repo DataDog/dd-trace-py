@@ -11,6 +11,7 @@ PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
