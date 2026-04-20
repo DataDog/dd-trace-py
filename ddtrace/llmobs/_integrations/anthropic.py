@@ -100,7 +100,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics,
             span_kind,
             model_name=model_name,
-            model_provider="anthropic",
+            model_provider=self._get_model_provider(),
             llmobs_enabled=self.llmobs_enabled,
         )
 

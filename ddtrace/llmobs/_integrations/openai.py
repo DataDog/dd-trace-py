@@ -171,9 +171,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = "openai"
+        model_provider = UNKNOWN_MODEL_PROVIDER
         if self._is_provider(span, "azure"):
             model_provider = "azure_openai"
+        elif self._is_provider(span, "openai"):
+            model_provider = "openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
         self._apply_shadow_metrics(
