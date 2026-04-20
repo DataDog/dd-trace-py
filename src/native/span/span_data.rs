@@ -470,6 +470,7 @@ impl SpanData {
             None => PyDict::new(py),
             Some(dict) => dict.bind(py).clone(),
         }
+    }
     // --- Span links ---
 
     /// Add a span link to native storage from raw fields (avoids constructing a PyO3 SpanLink).
