@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    remote config: Removes noisy warning log that was being emitted when an unsupported agent config payload was received.

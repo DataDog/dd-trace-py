@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import Any
 from typing import Optional
 from typing import TypedDict
 from typing import cast
@@ -110,7 +111,7 @@ def override_env(env, replace_os_env=False):
 
 
 @contextlib.contextmanager
-def override_global_config(values):
+def override_global_config(values: dict[str, Any]):
     """
     Temporarily override an global configuration::
 
@@ -173,6 +174,7 @@ def override_global_config(values):
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
         "_model_lab_enabled",
+        "_trace_wrap_span_name_include_class",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -891,7 +893,7 @@ class TestSpan(Span):
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
+        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -905,7 +907,7 @@ class TestSpan(Span):
         :param event_idx: id of the span event
         :type event_idx: integer
         """
-        span_event_attrs = self._events[event_idx].attributes
+        span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
             assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
             assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(

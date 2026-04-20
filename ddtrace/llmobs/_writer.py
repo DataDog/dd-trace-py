@@ -106,6 +106,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: list[str]
     assessment: str
     reasoning: str
+    eval_scope: str
+    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -926,6 +928,55 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "reasoning": attributes.get("reasoning"),
             "status": attributes.get("status"),
         }
+
+
+class LLMObsAPIClient:
+    """Synchronous HTTP client for read operations against the LLMObs platform API."""
+
+    TIMEOUT = 30.0
+
+    def __init__(self, api_key: str = "", app_key: str = "", site: str = "", override_url: str = "") -> None:
+        self._api_key: str = api_key or config._dd_api_key
+        self._app_key: str = app_key
+        _site: str = site or config._dd_site
+        _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
+        self._base_url: str = _override_url or "https://api.{}".format(_site)
+
+    def get_spans(self, base_params: dict) -> list[dict]:
+        if not self._api_key:
+            raise ValueError("API key not set")
+        if not self._app_key:
+            raise ValueError("App key not set")
+        headers = {
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+            "Accept": "application/vnd.api+json",
+        }
+        spans: list[dict] = []
+        cursor = None
+        while True:
+            params = dict(base_params)
+            if cursor:
+                params["page[cursor]"] = cursor
+            path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
+            logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
+            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+            try:
+                conn.request("GET", path, b"", headers)
+                resp = conn.getresponse()
+                response = Response.from_http_response(resp)
+            finally:
+                conn.close()
+            if response.status != 200:
+                raise ValueError(
+                    "LLMObs.get_spans() request failed with status {}: {}".format(response.status, response.body)
+                )
+            body = response.get_json() or {}
+            spans.extend(item.get("attributes", {}) for item in body.get("data", []))
+            cursor = ((body.get("meta") or {}).get("page") or {}).get("after")
+            if not cursor:
+                break
+        return spans
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

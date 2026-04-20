@@ -13,6 +13,7 @@ from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -186,7 +187,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
                         ],
                     )
                 )
-                client.evaluate(messages, Options(block=True))
+                client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
             except AIGuardAbortError:
                 raise
             except Exception:
@@ -233,7 +234,7 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages):
     # only call evaluator when the last message is an actual user prompt
     if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
         try:
-            client.evaluate(_convert_messages(messages), Options(block=True))
+            client.evaluate(_convert_messages(messages), Options(block=ai_guard_config._ai_guard_block))
         except AIGuardAbortError as e:
             return e
         except Exception:

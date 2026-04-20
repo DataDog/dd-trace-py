@@ -382,6 +382,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
     assessment=None,
     reasoning=None,
+    eval_scope="span",
 ):
     eval_metric_event = {
         "join_on": {},
@@ -391,6 +392,7 @@ def _expected_llmobs_eval_metric_event(
             "ddtrace.version:{}".format(ddtrace.__version__),
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
+        "eval_scope": eval_scope,
     }
     if tag_key is not None and tag_value is not None:
         eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
@@ -732,6 +734,7 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
         metric_type="score",
         label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+        eval_scope="span",
     )
 
 
