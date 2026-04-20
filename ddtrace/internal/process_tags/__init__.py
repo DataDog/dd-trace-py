@@ -162,7 +162,4 @@ def __getattr__(name: str) -> Any:
             return process_tags
         return process_tags_list
 
-    try:
-        return globals()[name]
-    except KeyError as e:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from e
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from e
