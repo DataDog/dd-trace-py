@@ -89,6 +89,11 @@ def test_compute_process_tag_excluded_values(excluded_value):
     assert result is None
 
 
+def test_module_getattr_raises_attribute_error_for_unknown_process_tags_name():
+    with pytest.raises(AttributeError):
+        getattr(process_tags, "process_tags_unknown")
+
+
 @pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="sys.orig_argv is not available on Python 3.9")
 def test_get_entrypoint_name_module_mode_uses_orig_argv_when_sys_argv_is_incomplete():
     with patch("sys.argv", ["-m"]), patch("sys.orig_argv", ["python", "-m", "myapp"]):
