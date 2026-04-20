@@ -24,83 +24,6 @@ def pytest_configure():
         init_ai_guard()
 
 
-def _fake_chat_response_json():
-    return {
-        "id": "chatcmpl-test123",
-        "object": "chat.completion",
-        "created": 1700000000,
-        "model": "gpt-3.5-turbo",
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": "Hello! How can I help you?",
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
-    }
-
-
-def _fake_stream_chunks():
-    chunks = [
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"role": "assistant"}}]},
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"content": "Hi"}}]},
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {}, "finish_reason": "stop"}]},
-    ]
-    lines = []
-    for chunk in chunks:
-        lines.append(b"data: " + json.dumps(chunk).encode() + b"\n\n")
-    lines.append(b"data: [DONE]\n\n")
-    return b"".join(lines)
-
-
-class _MockTransport(httpx.BaseTransport):
-    def handle_request(self, request):
-        is_stream = False
-        try:
-            body = json.loads(request.content)
-            is_stream = body.get("stream", False)
-        except Exception:
-            pass
-
-        if is_stream:
-            return httpx.Response(
-                status_code=200,
-                headers={"content-type": "text/event-stream"},
-                stream=httpx.ByteStream(_fake_stream_chunks()),
-            )
-        return httpx.Response(
-            status_code=200,
-            headers={"content-type": "application/json"},
-            json=_fake_chat_response_json(),
-        )
-
-
-class _MockAsyncTransport(httpx.AsyncBaseTransport):
-    async def handle_async_request(self, request):
-        is_stream = False
-        try:
-            body = json.loads(request.content)
-            is_stream = body.get("stream", False)
-        except Exception:
-            pass
-
-        if is_stream:
-            return httpx.Response(
-                status_code=200,
-                headers={"content-type": "text/event-stream"},
-                stream=httpx.ByteStream(_fake_stream_chunks()),
-            )
-        return httpx.Response(
-            status_code=200,
-            headers={"content-type": "application/json"},
-            json=_fake_chat_response_json(),
-        )
-
-
 @pytest.fixture
 def openai_sdk():
     with override_env(
@@ -116,16 +39,83 @@ def openai_sdk():
 
 
 @pytest.fixture
-def openai_client(openai_sdk):
+def openai_url() -> str:
+    """
+    Use the request recording endpoint of the testagent to capture requests to OpenAI.
+
+    The request body determines which cassette is replayed (see
+    ``ddapm_test_agent.vcr_proxy._generate_cassette_name``). In CI the
+    ``ai_guard_openai`` suitespec entry sets the testagent's
+    ``VCR_CASSETTES_DIRECTORY`` to ``${CI_PROJECT_DIR}/tests/appsec/_cassettes``
+    so cassettes under ``tests/appsec/_cassettes/openai/`` are used. Locally
+    the shared ``docker-compose`` testagent still mounts
+    ``tests/llmobs/llmobs_cassettes`` so a duplicate of each ai_guard cassette
+    is kept in both locations — update both when regenerating.
+    """
+    return "http://localhost:9126/vcr/openai"
+
+
+@pytest.fixture
+def openai_client(openai_sdk, openai_url):
+    return openai_sdk.OpenAI(api_key="<not-a-real-key>", base_url=openai_url)
+
+
+@pytest.fixture
+def async_openai_client(openai_sdk, openai_url):
+    return openai_sdk.AsyncOpenAI(api_key="<not-a-real-key>", base_url=openai_url)
+
+
+# ---------------------------------------------------------------------------
+# Streaming fixtures — mock httpx transport
+#
+# The ddtrace openai patch injects ``stream_options={"include_usage": True}``
+# into the request kwargs for streaming chat completions (see
+# ``_endpoint_hooks._ChatCompletionHook._record_request``). No 200-response
+# cassette in the testagent VCR carries this field, so streaming tests use a
+# lightweight httpx transport instead to validate the AI Guard dispatch path.
+# ---------------------------------------------------------------------------
+
+
+def _fake_stream_chunks() -> bytes:
+    chunks = [
+        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"role": "assistant"}}]},
+        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"content": "Hi"}}]},
+        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {}, "finish_reason": "stop"}]},
+    ]
+    lines = [b"data: " + json.dumps(chunk).encode() + b"\n\n" for chunk in chunks]
+    lines.append(b"data: [DONE]\n\n")
+    return b"".join(lines)
+
+
+def _fake_stream_response() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        stream=httpx.ByteStream(_fake_stream_chunks()),
+    )
+
+
+class _StreamMockTransport(httpx.BaseTransport):
+    def handle_request(self, request):
+        return _fake_stream_response()
+
+
+class _AsyncStreamMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request):
+        return _fake_stream_response()
+
+
+@pytest.fixture
+def openai_client_stream(openai_sdk):
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
-        http_client=httpx.Client(transport=_MockTransport()),
+        http_client=httpx.Client(transport=_StreamMockTransport()),
     )
 
 
 @pytest.fixture
-def async_openai_client(openai_sdk):
+def async_openai_client_stream(openai_sdk):
     return openai_sdk.AsyncOpenAI(
         api_key="<not-a-real-key>",
-        http_client=httpx.AsyncClient(transport=_MockAsyncTransport()),
+        http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
     )
