@@ -188,8 +188,8 @@ variables:
     echo "${role_resp}"
     role=$(echo "${role_resp}" | sed '/^HTTP_STATUS:/d')
     creds_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
-    echo "credentials response status line:"
-    echo "${creds_resp}" | tail -1
+    echo "credentials response:"
+    echo "${creds_resp}"
     creds=$(echo "${creds_resp}" | sed '/^HTTP_STATUS:/d')
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
