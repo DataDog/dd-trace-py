@@ -209,13 +209,10 @@ class TelemetryDependencies(Scenario):
 
         Only supports first/idle phases since CVE/SCA features don't exist.
         """
-        from ddtrace.internal.telemetry.dependency import DependencyEntry as DE
-
         n = self.num_deps
         phase = self.phase
 
         if phase == "first":
-            # Simulate discovering N new modules
             module_names = ["mod-%d" % i for i in range(n)]
 
             def fake_get_dist(module_name):
@@ -235,11 +232,9 @@ class TelemetryDependencies(Scenario):
             return total
         else:
             # idle / cve_registration / sca_hits all reduce to "nothing to do"
-            # on main since there's no re-report logic
-            already_imported = {}
-            for i in range(n):
-                name = "package-%d" % i
-                already_imported[name] = DE(name=name, version="%d.0.0" % i, metadata=None)
+            # on main since there's no re-report logic. On the old API,
+            # `already_imported` maps name -> version string.
+            already_imported = {"package-%d" % i: "%d.0.0" % i for i in range(n)}
 
             def fake_get_dist(module_name):
                 return None

@@ -908,7 +908,7 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span._set_attribute(db.ROWCOUNT, rowcount)
 
 
-def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, args, instance, query):
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
