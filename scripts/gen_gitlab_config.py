@@ -414,6 +414,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
 def _filter_benchmarks_slos_file(classnames: list) -> None:
     in_scenario_to_keep = True
     new_contents = []
+    kept_scenarios = 0
     contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
 
     for line in contents.split("\n")[1:]:
@@ -422,12 +423,22 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
             class_on_line = match.group(1)
             if class_on_line in classnames:
                 in_scenario_to_keep = True
+                kept_scenarios += 1
             else:
                 in_scenario_to_keep = False
         if line.strip().startswith("#"):
             in_scenario_to_keep = False
         if in_scenario_to_keep:
             new_contents.append(line)
+
+    # AIDEV-NOTE: when no scenarios survive filtering (selected suite has no
+    # thresholds in the template), emit `scenarios: []` so bp-runner still
+    # parses the file instead of failing with "'scenarios' is not a list".
+    if kept_scenarios == 0:
+        new_contents = [
+            line.replace("scenarios:", "scenarios: []") if line.rstrip().endswith("scenarios:") else line
+            for line in new_contents
+        ]
 
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
