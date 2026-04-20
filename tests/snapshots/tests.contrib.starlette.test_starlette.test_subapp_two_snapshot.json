@@ -11,8 +11,9 @@
     "meta": {
       "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699da01700000000",
+      "_dd.p.tid": "69de488f00000000",
       "_dd.svc_src": "starlette",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.starlette",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/sub-app-two/hello/{name}",
@@ -21,17 +22,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda",
+      "runtime-id": "9eac92ecb9a14bb6b604bc96c8646a58",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 92038.0
+      "process_id": 67497.0
     },
-    "duration": 1062125,
-    "start": 1771937815537616222
+    "duration": 761167,
+    "start": 1776175247785487004
   },
      {
        "name": "starlette.request",
@@ -53,6 +54,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 502125,
-       "start": 1771937815538215180
+       "duration": 349208,
+       "start": 1776175247785926671
      }]]

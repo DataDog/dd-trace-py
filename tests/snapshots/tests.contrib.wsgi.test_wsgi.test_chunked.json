@@ -11,25 +11,26 @@
     "meta": {
       "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699da0ab00000000",
+      "_dd.p.tid": "69de9ea200000000",
       "_dd.svc_src": "wsgi",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.wsgi",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/chunked",
       "language": "python",
-      "runtime-id": "b1b4dcdd742343c6a6a8810413d77edb",
+      "runtime-id": "1fb067689cc34dbfacb0169765b85ebe",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 92714.0
+      "process_id": 78847.0
     },
-    "duration": 3251000,
-    "start": 1771937963197826137
+    "duration": 1786959,
+    "start": 1776197282840627885
   },
      {
        "name": "wsgi.application",
@@ -42,10 +43,11 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
-       "duration": 47417,
-       "start": 1771937963197973929
+       "duration": 43250,
+       "start": 1776197282840806885
      },
         {
           "name": "wsgi.start_response",
@@ -62,8 +64,8 @@
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 81500,
-          "start": 1771937963198189512
+          "duration": 45834,
+          "start": 1776197282840983510
         },
      {
        "name": "wsgi.response",
@@ -76,9 +78,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
+         "_dd.svc_src": "wsgi",
          "component": "wsgi",
          "result_class": "generator"
        },
-       "duration": 2999334,
-       "start": 1771937963198058012
+       "duration": 1524792,
+       "start": 1776197282840879677
      }]]
