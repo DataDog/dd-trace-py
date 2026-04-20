@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    internal: ``PeriodicThread.join(timeout)`` now honors the timeout when
+    passed positionally. Previously, only the keyword form
+    (``join(timeout=...)``) respected the value; positional calls silently fell
+    through to an infinite wait. This affected
+    ``PeriodicService.join(timeout=...)`` and ``Timer.join(timeout=...)``,
+    whose wrappers forward positionally — callers expecting a bounded wait
+    would instead block until the underlying thread exited on its own.
