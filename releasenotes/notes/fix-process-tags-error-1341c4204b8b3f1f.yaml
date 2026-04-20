@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where reading unknown attributes from ``ddtrace.internal.process_tags`` caused a ``KeyError`` instead of raising an ``AttributeError``.
