@@ -417,7 +417,7 @@ import_time_analysis:
     # normality of the sample mean, which makes a simple z-test valid.
     - for i in $(seq 1 1000); do python -X importtime -c "import ddtrace.auto" 2> "import-pr-$i.txt"; done
     - pip uninstall -y ddtrace
-    # Download the base wheel from the pipeline that ran on the PR's base commit
+    # Download the base wheel from S3 for the PR's base commit
     - cd "$CI_PROJECT_DIR"
     - scripts/fetch_base_artifact.sh -o "$CI_PROJECT_DIR/base-artifacts"
     - BASE_WHEEL=$(find "$CI_PROJECT_DIR/base-artifacts/pywheels" -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)

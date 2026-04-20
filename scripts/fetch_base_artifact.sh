@@ -3,6 +3,11 @@
 # given branch.  Designed for use in CI jobs that need to compare PR changes
 # against the base branch without recompiling.
 #
+# TODO: Ideally we would resolve the merge-base SHA and find the pipeline
+# that ran on that specific commit, but the GitLab pipelines API is not
+# accessible with CI_JOB_TOKEN.  Since CI runs on every commit to main the
+# latest artifact is a close approximation.
+#
 # Usage:
 #   fetch_base_artifact.sh [options] -o <output-dir>
 #
@@ -62,15 +67,9 @@ for var in CI_JOB_TOKEN CI_API_V4_URL CI_PROJECT_ID; do
 done
 
 FULL_JOB_NAME="${JOB_NAME}: [${ARCH}, ${PYTHON_TAG}, ${IMAGE_TAG}]"
-# URL-encode the job name (spaces → %20, brackets, commas)
 ENCODED_JOB_NAME=$(python -c "import urllib.parse; print(urllib.parse.quote('${FULL_JOB_NAME}'))")
 
 # --- download artifacts -------------------------------------------------------
-# TODO: This fetches the artifact from the latest successful job on the base
-# branch, not the exact PR base commit.  Ideally we would resolve the
-# merge-base SHA and find the pipeline that ran on that specific commit, but
-# the GitLab pipelines API is not accessible with CI_JOB_TOKEN.  Since CI runs
-# on every commit to main the latest artifact is a close approximation.
 ARTIFACT_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/artifacts/${REF}/download?job=${ENCODED_JOB_NAME}"
 
 echo "==> Downloading artifacts for '${FULL_JOB_NAME}' from ref '${REF}'..."

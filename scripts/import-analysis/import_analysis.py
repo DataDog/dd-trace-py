@@ -172,7 +172,9 @@ class Measure:
 def z_test(x: Measure, y: Measure) -> float:
     se = (x.std**2 / x.size + y.std**2 / y.size) ** 0.5
     if se == 0:
-        return 0.0
+        if x.mean == y.mean:
+            return 0.0
+        return float("inf") if x.mean > y.mean else float("-inf")
     return (x.mean - y.mean) / se
 
 
