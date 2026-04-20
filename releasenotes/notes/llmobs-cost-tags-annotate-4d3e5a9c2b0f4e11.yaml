@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: Adds an optional ``cost_tags`` argument to ``LLMObs.annotate()`` and ``LLMObs.annotation_context()`` 
+    that designates a subset of the span's custom tags to propagate to LLM cost and token metrics.
