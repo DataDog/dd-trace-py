@@ -789,14 +789,20 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_metrics
         cdef uint64_t span_id = span.span_id
         cdef dict _meta_struct
+        cdef list span_links_list
+        cdef list span_events_list
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
-        has_span_events = <bint> (len(span._events) > 0)
+        has_span_events = <bint> span._has_events()
+        if has_span_events:
+            span_events_list = span._get_events()
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
-        has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> span._has_meta_structs()
+        has_links = <bint> span._has_links()
+        if has_links:
+            span_links_list = span._get_links()
         has_meta = <bint> (
             len(span._meta) > 0
             or dd_origin is not NULL
@@ -888,7 +894,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"span_links", 10)
                 if ret != 0:
                     return ret
-                ret = self._pack_links(span._links)
+                ret = self._pack_links(span_links_list)
                 if ret != 0:
                     return ret
 
@@ -896,7 +902,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"span_events", 11)
                 if ret != 0:
                     return ret
-                ret = self._pack_span_events(span._events)
+                ret = self._pack_span_events(span_events_list)
                 if ret != 0:
                     return ret
 
@@ -907,7 +913,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
-                    span_events = json_dumps([dict(event) for event in span._events])
+                    span_events = json_dumps([dict(event) for event in span_events_list])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events, span_id)
                 if ret != 0:
                     return ret
@@ -1064,6 +1070,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
         cdef list meta, metrics
+        cdef list span_links_list
+        cdef list span_events_list
         cdef uint64_t span_id = span.span_id
 
         ret = msgpack_pack_array(&self.pk, 12)
@@ -1111,12 +1119,14 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
 
         span_links = ""
-        if span._links:
-            span_links = json_dumps([link.to_dict() for link in span._links])
+        if span._has_links():
+            span_links_list = span._get_links()
+            span_links = json_dumps([link.to_dict() for link in span_links_list])
 
         span_events = ""
-        if span._events:
-            span_events = json_dumps([dict(event) for event in span._events])
+        if span._has_events():
+            span_events_list = span._get_events()
+            span_events = json_dumps([dict(event) for event in span_events_list])
 
         # Filter meta to only str/bytes values
         meta = []

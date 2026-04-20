@@ -195,6 +195,7 @@ class SessionManagerMockBuilder:
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
             mock_client.get_skippable_tests.return_value = (self._skippable_items, None)
+            mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
             with (
@@ -426,6 +427,8 @@ class APIClientMockBuilder:
 
         # Always add upload_coverage_report method that returns True (mocked success)
         mock_client.upload_coverage_report = Mock(return_value=True)
+
+        mock_client.configuration_errors = {}
 
         return mock_client
 
