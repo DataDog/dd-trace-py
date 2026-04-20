@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: '00 04 * * 2-6'
 
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
 jobs:
   should-run:
     runs-on: ubuntu-latest
@@ -421,7 +426,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     permissions:
       contents: read
@@ -453,7 +458,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     permissions:
       contents: read
@@ -466,12 +471,6 @@ jobs:
   tracer-release:
     if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
-    secrets:
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
-      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
-    permissions:
-      contents: read
-      packages: write
     with:
       library: python
       ref: main
@@ -501,7 +500,7 @@ jobs:
           needs.serverless-system-tests.result == 'failure' ||
           needs.serverless-system-tests.result == 'cancelled' ||
           needs.integration-frameworks-system-tests.result == 'failure' ||
-          needs.integration-frameworks-system-tests.result == 'cancelled'|| 
+          needs.integration-frameworks-system-tests.result == 'cancelled'||
           needs.tracer-release.result == 'failure' ||
           needs.tracer-release.result == 'cancelled'
         run: exit 1
