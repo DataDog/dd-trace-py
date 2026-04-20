@@ -457,7 +457,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        self._export_directly_to_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -495,21 +495,17 @@ class LLMObs(Service):
             self._do_annotations(span)
 
     def _on_span_finish(self, span: Span) -> None:
-        if self.enabled and span.span_type == SpanTypes.LLM:
-            self._submit_llmobs_span(span)
-            telemetry.record_span_created(span)
-            if self._export_llmobs:
-                span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
+        if not self.enabled or span.span_type != SpanTypes.LLM:
+            return
+        telemetry.record_span_created(span)
 
-    def _submit_llmobs_span(self, span: Span) -> None:
-        """Generate and submit an LLMObs span event to be sent to LLMObs."""
+        span_kind = get_llmobs_span_kind(span)
+        if span_kind == "llm":
+            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
+
         span_event = None
         try:
             span_event = self._llmobs_span_event(span)
-            if span_event is None:
-                return
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -517,9 +513,19 @@ class LLMObs(Service):
                 exc_info=True,
             )
         finally:
-            span_kind = get_llmobs_span_kind(span)
-            if span_event and span_kind == "llm" and self._evaluator_runner:
+            if span_event and self._evaluator_runner and span_kind == "llm":
                 self._evaluator_runner.enqueue(span_event, span)
+
+        if self._export_directly_to_llmobs and span_event:
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._llmobs_span_writer.enqueue(span_event)
+            span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
+            return
+
+        self._finalize_llmobs_span_data(span)
+
+    def _finalize_llmobs_span_data(self, span: Span) -> None:
+        pass
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -565,9 +571,6 @@ class LLMObs(Service):
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
-
-        if span_kind == "llm":
-            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
         llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
         user_processed_span = self._apply_user_span_processor(span, llmobs_span)
@@ -623,19 +626,6 @@ class LLMObs(Service):
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
-
-        for baggage_key, tag_key in (
-            (EXPERIMENT_ID_KEY, "experiment_id"),
-            (EXPERIMENT_RUN_ID_KEY, "run_id"),
-            (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
-            (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
-            (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
-            (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
-            (EXPERIMENT_NAME_KEY, "experiment_name"),
-        ):
-            val = span.context.get_baggage_item(baggage_key)
-            if val and tag_key not in tags:
-                tags[tag_key] = val
 
         return sorted("{}:{}".format(k, v) for k, v in tags.items())
 
@@ -1899,6 +1889,18 @@ class LLMObs(Service):
         }
         if session_id:
             initial_tags["session_id"] = session_id
+        for baggage_key, tag_key in (
+            (EXPERIMENT_ID_KEY, "experiment_id"),
+            (EXPERIMENT_RUN_ID_KEY, "run_id"),
+            (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
+            (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
+            (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
+            (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
+            (EXPERIMENT_NAME_KEY, "experiment_name"),
+        ):
+            val = span.context.get_baggage_item(baggage_key)
+            if val:
+                initial_tags[tag_key] = val
 
         _annotate_llmobs_span_data(
             span,
@@ -2200,25 +2202,25 @@ class LLMObs(Service):
         # set experiment_id in baggage if provided
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
-
+            _annotate_llmobs_span_data(span, tags={"experiment_id": experiment_id})
         if run_id:
             span.context.set_baggage_item(EXPERIMENT_RUN_ID_KEY, run_id)
-
+            _annotate_llmobs_span_data(span, tags={"run_id": run_id})
         if run_iteration is not None:
             span.context.set_baggage_item(EXPERIMENT_RUN_ITERATION_KEY, run_iteration)
-
+            _annotate_llmobs_span_data(span, tags={"run_iteration": run_iteration})
         if dataset_name:
             span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
-
+            _annotate_llmobs_span_data(span, tags={"dataset_name": dataset_name})
         if project_id:
             span.context.set_baggage_item(EXPERIMENT_PROJECT_ID_KEY, project_id)
-
+            _annotate_llmobs_span_data(span, tags={"project_id": project_id})
         if project_name:
             span.context.set_baggage_item(EXPERIMENT_PROJECT_NAME_KEY, project_name)
-
+            _annotate_llmobs_span_data(span, tags={"project_name": project_name})
         if experiment_name:
             span.context.set_baggage_item(EXPERIMENT_NAME_KEY, experiment_name)
-
+            _annotate_llmobs_span_data(span, tags={"experiment_name": experiment_name})
         return span
 
     @classmethod
