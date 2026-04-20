@@ -323,9 +323,7 @@ async def test_chat_async_block_config_disabled(mock_execute_request, async_open
 def test_chat_streaming_sync_allow(mock_execute_request, openai_client_stream):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    stream = openai_client_stream.chat.completions.create(
-        model=CHAT_MODEL, messages=_user_messages(), stream=True
-    )
+    stream = openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
     for _ in stream:
         pass
 
