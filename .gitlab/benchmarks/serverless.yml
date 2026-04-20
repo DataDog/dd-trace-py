@@ -5,7 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: dd-trace-py-pinned-ref
+    branch: v1.0.0
     strategy: depend
   needs:
     - job: "upload serverless"
