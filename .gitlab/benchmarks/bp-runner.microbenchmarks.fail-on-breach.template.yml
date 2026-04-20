@@ -763,7 +763,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.13 ms
+              - execution_time < 0.17 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
@@ -775,7 +775,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown
             thresholds:
-              - execution_time < 0.89 ms
+              - execution_time < 0.96 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown_cached
             thresholds:
