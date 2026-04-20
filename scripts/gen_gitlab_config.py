@@ -432,10 +432,7 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
             new_contents.append(line)
 
     if kept_scenarios == 0:
-        new_contents = [
-            line.replace("scenarios:", "scenarios: []") if line.rstrip().endswith("scenarios:") else line
-            for line in new_contents
-        ]
+        new_contents[-1] = "scenarios: []"
 
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
