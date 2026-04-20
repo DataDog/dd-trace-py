@@ -63,7 +63,7 @@ def test_push_subscription_creates_inferred_span(pubsub_push_client, test_spans)
         assert resp.status_code == 200
 
     receive_span = test_spans.find_span(name="gcp.pubsub.receive")
-    assert not receive_span._links, "No span links should be created when propagation_as_span_links is False"
+    assert not receive_span._get_links(), "No span links should be created when propagation_as_span_links is False"
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
@@ -83,8 +83,8 @@ def test_push_subscription_propagation_as_span_links(pubsub_push_client, test_sp
             assert resp.status_code == 200
 
     receive_span = test_spans.find_span(name="gcp.pubsub.receive")
-    assert len(receive_span._links) == 1
-    link = receive_span._links[0]
+    assert len(receive_span._get_links()) == 1
+    link = receive_span._get_links()[0]
     assert link.trace_id == parent_span.trace_id
     assert link.span_id == parent_span.span_id
 
