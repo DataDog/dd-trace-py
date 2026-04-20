@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d AS base
 
-# Keep this version in sync with the one we acually use in benchmarking-platform
+# Keep this version in sync with the one we actually use in benchmarking-platform
 # https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
 ARG PYTHON_VERSION=3.9.15
 ARG PYENV_VERSION=2.5.5
