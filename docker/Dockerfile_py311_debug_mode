@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG C.UTF-8
@@ -68,7 +68,9 @@ RUN python3.11d --version && python3.11d -m pip --version
 RUN python3.11d -c "import sys;sys.gettotalrefcount()"
 
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+# TODO: Pin to a specific rustup-init version with SHA256 verification.
+# See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 ENV PATH="/root/.cargo/bin:$PATH"
 
 RUN python3.11d -m pip install --break-system-packages setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
