@@ -1578,7 +1578,9 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
-                          metrics. Keys must already exist on the merged span tag set.
+                          metrics. Keys must already exist on the merged span tag set. Since annotation contexts
+                          are applied at span start, `cost_tags` should reference tags provided in the same context
+                          or already present on the span when it starts.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
