@@ -5,8 +5,8 @@ use libdd_data_pipeline::trace_exporter::{
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
-use exceptions::TraceExporterErrorPy;
 use crate::span::SpanData;
+use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
 ///

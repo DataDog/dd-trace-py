@@ -4,6 +4,7 @@ from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar
 from typing import Union
 
@@ -168,6 +169,10 @@ class TraceExporter:
         Initialize a TraceExporter.
         """
         ...
+    def send_trace_chunks(self, trace_chunks: Sequence[Sequence[SpanData]]) -> str:
+        """
+        Send a list of trace chunks to the Agent
+        """
     def send(self, data: bytes) -> str:
         """
         Send a trace payload to the Agent.
