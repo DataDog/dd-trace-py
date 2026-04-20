@@ -298,21 +298,23 @@ class TestPayloadFileTelemetryAPI:
 
         events = _collect_events(telemetry_dir)
 
+        # generate-metrics uses points: [[timestamp, value], ...]
         metrics_series = [
             s
             for e in events
             if e["request_type"] == "generate-metrics" and e["payload"]["namespace"] == "civisibility"
             for s in e["payload"]["series"]
         ]
-        assert any(s["metric"] == "test_metric" and s["value"] == 1 for s in metrics_series)
+        assert any(s["metric"] == "test_metric" and s["points"][0][1] == 1 for s in metrics_series)
 
+        # distributions uses points: [value, ...]
         dist_series = [
             s
             for e in events
             if e["request_type"] == "distributions" and e["payload"]["namespace"] == "civisibility"
             for s in e["payload"]["series"]
         ]
-        assert any(s["metric"] == "test_dist" and s["value"] == 42.5 for s in dist_series)
+        assert any(s["metric"] == "test_dist" and s["points"][0] == 42.5 for s in dist_series)
 
     def test_online_telemetry_api_does_not_write_files(self, tmp_path):
         from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
