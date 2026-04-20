@@ -279,6 +279,16 @@ Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t l
     }
 }
 
+// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
+// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
+// The indicator is added at most once, even if export_sample() is called multiple times
+// (guarded by has_dropped_frames_indicator).
+void
+Datadog::Sample::incr_dropped_frames(size_t count)
+{
+    dropped_frames += count;
+}
+
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
