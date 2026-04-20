@@ -339,7 +339,7 @@ jobs:
 
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
         with:
           datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
