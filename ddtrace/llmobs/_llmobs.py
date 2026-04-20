@@ -1566,6 +1566,7 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[dict[str, Any]] = None,
+        cost_tags: Optional[list[str]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
@@ -1576,6 +1577,8 @@ class LLMObs(Service):
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
+                          metrics. Keys must already exist on the merged span tag set.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
@@ -1627,6 +1630,7 @@ class LLMObs(Service):
                         ctx_id,
                         {
                             "tags": tags,
+                            "cost_tags": cost_tags,
                             "prompt": prompt,
                             "_name": name,
                             "_linked_spans": _linked_spans,

@@ -1442,6 +1442,13 @@ def test_annotation_context_can_update_session_id(llmobs):
             assert get_llmobs_session_id(span) == "1234567890"
 
 
+def test_annotation_context_modifies_cost_tags(llmobs):
+    with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
+        with llmobs.agent(name="test_agent") as span:
+            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert get_llmobs_cost_tags(span) == ["team", "feature"]
+
+
 def test_annotation_context_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
@@ -1685,6 +1692,13 @@ async def test_annotation_context_async_modifies_span_tags(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
             assert get_llmobs_tags(span) == {"foo": "bar"}
+
+
+async def test_annotation_context_async_modifies_cost_tags(llmobs):
+    async with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
+        with llmobs.agent(name="test_agent") as span:
+            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert get_llmobs_cost_tags(span) == ["team", "feature"]
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):
