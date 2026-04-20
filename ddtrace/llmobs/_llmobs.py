@@ -1568,8 +1568,8 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
-        _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         cost_tags: Optional[list[str]] = None,
+        _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
