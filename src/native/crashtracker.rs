@@ -12,8 +12,8 @@ use pyo3::prelude::*;
 
 mod crashtracker_runtime_stacks;
 use crashtracker_runtime_stacks::{
-    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-    native_runtime_stack_string_callback,
+    get_cached_dump_traceback_fn, init_dump_traceback_fn, init_frame_get_back_fn,
+    native_runtime_stack_frame_callback, native_runtime_stack_string_callback,
 };
 
 pub trait RustWrapper {
@@ -249,6 +249,7 @@ pub fn crashtracker_init<'py>(
         {
             unsafe {
                 init_dump_traceback_fn();
+                init_frame_get_back_fn();
             }
             let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
             if dump_fn_available {
