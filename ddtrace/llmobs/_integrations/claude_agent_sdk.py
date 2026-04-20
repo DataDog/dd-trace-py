@@ -39,6 +39,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     ) -> None:
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
+        elif operation == "step":
+            self._llmobs_set_step_tags(span, response, kwargs)
         elif operation == "llm":
             self._llmobs_set_llm_tags(span, response, kwargs)
         else:
@@ -70,6 +72,33 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="llm",
+            model_name=model,
+            model_provider="anthropic",
+            input_messages=input_messages or None,
+            output_messages=output_messages or [Message(content="")],
+            metrics=metrics or None,
+        )
+
+    def _llmobs_set_step_tags(
+        self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None
+    ) -> None:
+        model = (_get_attr(response, "model", "") or "") if response is not None else ""
+        output_messages: list[Message] = []
+        metrics: dict[str, int] = {}
+        if response is not None:
+            content = _get_attr(response, "content", []) or []
+            output_messages = self.parse_content_blocks("assistant", content)
+            if _get_attr(response, "usage", None):
+                metrics = self._extract_usage(response)
+            error = _get_attr(response, "error", None)
+            if error:
+                span.error = 1
+                span.set_tag(ERROR_TYPE, error)
+                span.set_tag(ERROR_MSG, error)
+        input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
+        _annotate_llmobs_span_data(
+            span,
+            kind="step",
             model_name=model,
             model_provider="anthropic",
             input_messages=input_messages or None,
