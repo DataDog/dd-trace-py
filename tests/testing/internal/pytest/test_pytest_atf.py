@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import typing as t
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -25,7 +24,7 @@ class TestAttemptToFix:
         )
 
         test_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_fixed")
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {test_ref}
+        known_tests: set[TestRef] = {test_ref}
         test_properties = {test_ref: TestProperties(attempt_to_fix=True)}
 
         with (
@@ -79,7 +78,7 @@ class TestAttemptToFix:
         )
 
         test_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "TestNotFixed::test_broken")
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {test_ref}
+        known_tests: set[TestRef] = {test_ref}
         test_properties = {test_ref: TestProperties(attempt_to_fix=True)}
 
         with (
@@ -118,7 +117,7 @@ class TestAttemptToFix:
         )
 
         test_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_always_fails")
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {test_ref}
+        known_tests: set[TestRef] = {test_ref}
         test_properties = {test_ref: TestProperties(attempt_to_fix=True)}
 
         with (
@@ -142,3 +141,6 @@ class TestAttemptToFix:
 
         assert test_events[0]["content"]["meta"].get("test.status") == "fail"
         assert test_events[0]["content"]["meta"].get("test.is_retry") is None
+        # Final ATF tags must still be set even without retries
+        assert test_events[0]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "false"
+        assert test_events[0]["content"]["meta"].get("test.has_failed_all_retries") == "true"
