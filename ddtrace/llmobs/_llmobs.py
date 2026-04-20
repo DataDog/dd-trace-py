@@ -661,7 +661,7 @@ class LLMObs(Service):
         cost_tags = get_llmobs_cost_tags(span)
         if not cost_tags:
             return None
-        return [cost_tag for cost_tag in cost_tags if isinstance(cost_tag, str)]
+        return cost_tags
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
