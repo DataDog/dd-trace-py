@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pytest
 
@@ -71,8 +72,6 @@ def test_getitem_raises_keyerror_when_missing(monkeypatch):
 
 
 def test_setitem_writes_to_os_environ(monkeypatch):
-    import os
-
     monkeypatch.delenv("DD_AGENT_HOST", raising=False)
     dd_environ["DD_AGENT_HOST"] = "set-via-dd-environ"
     try:
@@ -82,8 +81,6 @@ def test_setitem_writes_to_os_environ(monkeypatch):
 
 
 def test_delitem_removes_from_os_environ(monkeypatch):
-    import os
-
     monkeypatch.setenv("DD_AGENT_HOST", "x")
     del dd_environ["DD_AGENT_HOST"]
     assert "DD_AGENT_HOST" not in os.environ
@@ -108,15 +105,11 @@ def test_contains_warns_on_unregistered_key(caplog, monkeypatch):
 
 
 def test_len_and_iter_match_os_environ():
-    import os
-
     assert len(dd_environ) == len(os.environ)
     assert set(dd_environ) == set(os.environ)
 
 
 def test_copy_returns_plain_dict():
-    import os
-
     snapshot = dd_environ.copy()
     assert isinstance(snapshot, dict)
     assert snapshot == dict(os.environ)
