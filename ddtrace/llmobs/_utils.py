@@ -466,6 +466,7 @@ def _annotate_llmobs_span_data(
 
     metadata, metrics, and tags are updated on any existing metadata/metrics/tags
     instead of being overwritten.
+    cost_tags must be pre-validated by the caller before being passed here.
     ml_app, session_id, and input_prompt involve being propagated to children spans
     so are additionally stored on span._store to ensure they are available at span finish time.
     """
