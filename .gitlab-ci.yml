@@ -43,6 +43,12 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
+    # Release-tag pipelines publish to PyPI, which rejects PEP 440 local
+    # version identifiers. DD_VERSION_NO_LOCAL=1 tells setup.py not to stamp
+    # rc wheels with the commit short-hash.
+    - if: !reference [.is_release]
+      variables:
+        DD_VERSION_NO_LOCAL: "1"
     - if: !reference [.is_main]
       auto_cancel:
         on_new_commit: none

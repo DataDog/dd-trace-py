@@ -1,0 +1,15 @@
+---
+upgrade:
+  - |
+    build: rc wheels and sdists built from a commit that is on (or has been
+    merged to) ``origin/main`` now have the short commit hash appended as a
+    PEP 440 local version segment (for example ``4.8.0rc4+g1a2b3c4``). The
+    local segment does not affect version precedence, so installs and
+    upgrades behave the same as before, but it makes it possible to
+    identify the exact commit a pre-release build was produced from.
+    Builds from topic branches, builds from release-branch checkouts, and
+    builds of non-rc versions (including alpha, beta, and dev pre-releases)
+    are not stamped. Windows wheels are also not stamped and ship with the
+    plain rc version string. Set ``DD_VERSION_NO_LOCAL=1`` to skip the
+    stamp; this is required when uploading to PyPI, which rejects local
+    version identifiers.
