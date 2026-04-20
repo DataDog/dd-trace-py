@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import builtins
 import os
+import sys
 
 from . import taint
 
@@ -11,7 +12,8 @@ _SKIP_TYPES = (int, float, str, bool, bytes, type(None), type)
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
-TAINT_MARK_NAME = "__taint_mark__"
+# Private attribute on sys — no builtins or module globals pollution
+_SYS_ATTR = "_taint_mark"
 
 
 def _is_internal(filename: str) -> bool:
@@ -38,18 +40,42 @@ def _target_to_load(target: ast.AST) -> ast.expr | None:
     return None
 
 
+def _make_taint_call_node(expr: ast.expr) -> ast.Call:
+    """Build AST for: getattr(__import__('sys'), '_taint_mark', lambda _: None)(expr)
+
+    Fully self-contained — no injected names in builtins or module globals.
+    """
+    noop = ast.Lambda(
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[ast.arg(arg="_")],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
+        body=ast.Constant(value=None),
+    )
+    lookup = ast.Call(
+        func=ast.Name(id="getattr", ctx=ast.Load()),
+        args=[
+            ast.Call(
+                func=ast.Name(id="__import__", ctx=ast.Load()),
+                args=[ast.Constant(value="sys")],
+                keywords=[],
+            ),
+            ast.Constant(value=_SYS_ATTR),
+            noop,
+        ],
+        keywords=[],
+    )
+    return ast.Call(func=lookup, args=[expr], keywords=[])
+
+
 class TaintTransformer(ast.NodeTransformer):
     def _make_taint_call(self, expr: ast.expr, node: ast.AST) -> ast.Expr:
-        call = ast.Expr(
-            value=ast.Call(
-                func=ast.Name(id=TAINT_MARK_NAME, ctx=ast.Load()),
-                args=[expr],
-                keywords=[],
-            )
-        )
+        call = ast.Expr(value=_make_taint_call_node(expr))
         ast.copy_location(call, node)
         ast.copy_location(call.value, node)
-        # Ensure end_lineno matches lineno for injected single-line nodes
         for n in ast.walk(call):
             if hasattr(n, "lineno"):
                 setattr(n, "end_lineno", getattr(n, "end_lineno", None) or n.lineno)
@@ -97,11 +123,7 @@ class TaintTransformer(ast.NodeTransformer):
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> ast.expr:
         self.generic_visit(node)
-        taint_call = ast.Call(
-            func=ast.Name(id=TAINT_MARK_NAME, ctx=ast.Load()),
-            args=[ast.Name(id=node.target.id, ctx=ast.Load())],
-            keywords=[],
-        )
+        taint_call = _make_taint_call_node(ast.Name(id=node.target.id, ctx=ast.Load()))
         wrapper = ast.Subscript(
             value=ast.Tuple(elts=[node, taint_call], ctx=ast.Load()),
             slice=ast.Constant(value=0),
@@ -117,39 +139,6 @@ class TaintTransformer(ast.NodeTransformer):
                 taint_calls.extend(self._taint_calls_for_target(item.optional_vars, node))
         node.body = taint_calls + node.body
         return node
-
-
-_FALLBACK_AST = ast.parse(
-    "import builtins as __taint_builtins__\n"
-    "__taint_mark__ = getattr(__taint_builtins__, '__taint_mark__', lambda _: None)\n"
-).body
-
-
-def _inject_fallback(tree: ast.Module) -> None:
-    """Insert a no-op __taint_mark__ definition after __future__ imports and docstrings.
-
-    This ensures cached .pyc files work in subprocesses (e.g. unittest)
-    that don't load the pytest plugin / set builtins.__taint_mark__.
-    """
-    import copy
-
-    # Find insertion point: after __future__ imports and module docstring
-    insert_at = 0
-    for i, node in enumerate(tree.body):
-        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
-            insert_at = i + 1
-        elif (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-            and i == 0
-        ):
-            insert_at = i + 1
-        else:
-            break
-
-    for j, node in enumerate(copy.deepcopy(_FALLBACK_AST)):
-        tree.body.insert(insert_at + j, node)
 
 
 def _fix_locations(tree: ast.AST) -> None:
@@ -172,8 +161,8 @@ def _fix_locations(tree: ast.AST) -> None:
                     if hasattr(child, "lineno"):
                         if child.lineno < prev_line:
                             child.lineno = prev_line
-                        end_lineno = getattr(child, "end_lineno", None)
-                        if end_lineno is None or end_lineno < child.lineno:
+                        end_ln = getattr(child, "end_lineno", None)
+                        if end_ln is None or end_ln < child.lineno:
                             setattr(child, "end_lineno", child.lineno)
                         if hasattr(child, "col_offset") and hasattr(child, "end_col_offset"):
                             end_col = getattr(child, "end_col_offset", None)
@@ -216,11 +205,6 @@ def _patched_compile(source, filename, mode, *args, **kwargs):
             else:
                 return _original_compile(source, filename, mode, *args, **kwargs)
             tree = _transformer.visit(tree)
-            # Inject a safe fallback at module top so cached .pyc files
-            # work even in subprocesses that don't load the plugin:
-            #   if not callable(globals().get("__taint_mark__")):
-            #       def __taint_mark__(_): pass
-            _inject_fallback(tree)
             _fix_locations(tree)
             return _original_compile(tree, filename, mode, *args, **kwargs)
         except SyntaxError:
@@ -238,8 +222,8 @@ def install(test_paths: list[str] | None = None) -> None:
         test_paths = [os.getcwd()]
     _test_paths = [os.path.realpath(p) for p in test_paths]
 
-    # Make taint_mark available as a builtin — accessible from any module
-    setattr(builtins, TAINT_MARK_NAME, taint_mark)
+    # Store taint_mark on sys — private attribute, no builtins/globals pollution
+    sys._taint_mark = taint_mark  # type: ignore[attr-defined]
 
     # Patch compile to transform AST transparently
     _original_compile = builtins.compile
@@ -251,5 +235,5 @@ def uninstall() -> None:
     if _original_compile is not None:
         builtins.compile = _original_compile
         _original_compile = None
-    if hasattr(builtins, TAINT_MARK_NAME):
-        delattr(builtins, TAINT_MARK_NAME)
+    if hasattr(sys, _SYS_ATTR):
+        delattr(sys, _SYS_ATTR)

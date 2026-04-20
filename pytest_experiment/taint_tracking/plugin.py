@@ -1,8 +1,3 @@
-"""Pytest plugin for taint-based test isolation checking.
-
-Automatically active when loaded via conftest.py pytest_plugins.
-"""
-
 from __future__ import annotations
 
 import os
@@ -102,6 +97,7 @@ def _check_value(
     if depth >= _MAX_SCAN_DEPTH:
         return
 
+    # Traverse into containers and object attributes
     if isinstance(obj, dict):
         for k, v in obj.items():
             _check_value(v, f"{path}[{k!r}]", current_nodeid, seen_ids, leaked, depth + 1)
@@ -127,7 +123,7 @@ def _scan_traceback(tb, current_nodeid: str) -> list[tuple[str, str]]:
             tb = tb.tb_next
             continue
         for varname, value in frame.f_locals.items():
-            if varname.startswith("@") or varname == instrument.TAINT_MARK_NAME:
+            if varname.startswith("@"):
                 continue
             _check_value(value, varname, current_nodeid, seen_ids, leaked, 0)
         tb = tb.tb_next
