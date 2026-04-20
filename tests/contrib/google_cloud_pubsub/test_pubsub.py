@@ -112,8 +112,8 @@ def test_subscribe_propagation_as_span_links_enabled(publisher, topic_path, subs
 
     send_span = test_spans.find_span(name="gcp.pubsub.send")
     receive_span = test_spans.find_span(name="gcp.pubsub.receive")
-    assert len(receive_span._links) == 1
-    link = receive_span._links[0]
+    assert len(receive_span._get_links()) == 1
+    link = receive_span._get_links()[0]
     assert link.trace_id == send_span.trace_id
     assert link.span_id == send_span.span_id
 
@@ -161,4 +161,4 @@ def test_subscribe_propagation_disabled(publisher, topic_path, subscriber, subsc
             future.result(timeout=5)
 
     receive_span = test_spans.find_span(name="gcp.pubsub.receive")
-    assert len(receive_span._links) == 0, "Receive span should have no span links when propagation is disabled"
+    assert len(receive_span._get_links()) == 0, "Receive span should have no span links when propagation is disabled"
