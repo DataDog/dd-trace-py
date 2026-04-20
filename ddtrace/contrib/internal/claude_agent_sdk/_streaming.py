@@ -1,5 +1,6 @@
 import inspect
 from typing import Any
+from typing import Optional
 
 import wrapt
 
@@ -9,6 +10,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import Message
 
 
 log = get_logger(__name__)
@@ -77,7 +79,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
         self.current_llm_span = None
-        self._accumulated_input_messages: list | None = None
+        self._accumulated_input_messages: Optional[list[Message]] = None
         # Open the first LLM span immediately so its duration includes
         # the time waiting for the first AssistantMessage.
         self._create_llm_span()
