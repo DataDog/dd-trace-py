@@ -2,23 +2,42 @@
 
 set -e
 
-CMD=$*
-
-if [ -z "$CMD" ]
-then
-    CMD=bash
-fi
-
 BUILD_FLAG=""
 if [ "${1:-}" = "--build" ]; then
     BUILD_FLAG="--build"
     shift
 fi
+
+if [ "$#" -eq 0 ]; then
+    CMD=bash
+else
+    CMD=$(printf '%q ' "$@")
+    CMD="${CMD% }"
+fi
 # Ensure cache directories exist and are writable by the current user
 # These are mounted into the Docker container at /home/bits/.cache
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CACHE_DIR="$PROJECT_ROOT/.cache"
+# Default to the main repo's .cache so all worktrees share the same sccache/pip/cython cache.
+# git rev-parse --git-common-dir returns the shared .git dir (same for all worktrees).
+# Sharing sccache is safe because the container always mounts the repo at /home/bits/project,
+# so source paths in cache keys are identical across worktrees (no SCCACHE_BASEDIRS needed).
+# Concurrent builds with different content are also safe: sccache keys include a hash of the
+# preprocessed source, so divergent files produce separate cache entries, never stale hits.
+# NOTE: If building outside the container (without ddtest/run-tests), source paths differ
+# across worktrees. Set SCCACHE_BASEDIRS to the repo root to normalize paths in cache keys.
+# Users can override with DD_TEST_CACHE_DIR for a fully custom location.
+GIT_COMMON_DIR="$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir)"
+# git-common-dir returns a relative path in normal repos (.git) but absolute in worktrees
+case "$GIT_COMMON_DIR" in
+    /*) MAIN_REPO_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)" ;;
+    *)  MAIN_REPO_ROOT="$(cd "$PROJECT_ROOT/$GIT_COMMON_DIR/.." && pwd)" ;;
+esac
+CACHE_DIR="${DD_TEST_CACHE_DIR:-$MAIN_REPO_ROOT/.cache}"
+# Canonicalize to absolute path so Docker Compose doesn't treat relative names as named volumes
+mkdir -p "$CACHE_DIR" 2>/dev/null || true
+CACHE_DIR="$(cd "$CACHE_DIR" && pwd)"
+export DD_TEST_CACHE_DIR="$CACHE_DIR"
 
 # Create cache directories if they don't exist
 mkdir -p "$CACHE_DIR/pip" "$CACHE_DIR/cython" "$CACHE_DIR/sccache" 2>/dev/null || true
@@ -36,6 +55,14 @@ fi
 
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
+
+# Generate a per-run compose project name from the project root path so that
+# concurrent runs in different worktrees get isolated compose projects.
+if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
+    PATH_HASH=$(echo -n "$PROJECT_ROOT" | shasum 2>/dev/null || sha1sum 2>/dev/null || md5 -q 2>/dev/null || echo "$PROJECT_ROOT")
+    PATH_HASH=$(echo "$PATH_HASH" | head -c 8)
+    export COMPOSE_PROJECT_NAME="ddtracepy-${PATH_HASH}"
+fi
 
 COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
 if command -v nvidia-smi >/dev/null 2>&1; then

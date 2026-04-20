@@ -4,6 +4,7 @@ from celery import current_app
 from celery import registry
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -16,6 +17,7 @@ from ddtrace.contrib.internal.celery.utils import retrieve_span
 from ddtrace.contrib.internal.celery.utils import retrieve_span_context
 from ddtrace.contrib.internal.celery.utils import retrieve_task_id
 from ddtrace.contrib.internal.celery.utils import set_tags_from_context
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
@@ -52,16 +54,16 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
-    span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    span = tracer.trace(c.WORKER_ROOT_SPAN, resource=task.name, span_type=SpanTypes.WORKER)
+    set_service_and_source(span, service, config.celery, default_service_key="_default_service_worker")
 
     # set span.kind to the type of request being performed
-    span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
 
     # set component tag equal to name of integration
-    span._set_tag_str(COMPONENT, config.celery.integration_name)
+    span._set_attribute(COMPONENT, config.celery.integration_name)
 
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -80,11 +82,14 @@ def trace_postrun(*args, **kwargs):
     # retrieve and finish the Span
     span = retrieve_span(task, task_id)
     if span is None:
-        log.warning("no existing span found for task_id=%s", task_id)
+        # This can happen when Task.replace() is used — the original task's
+        # postrun signal fires but the span has already been detached because
+        # the task was replaced mid-execution. This is expected, not an error.
+        log.debug("no existing span found for task_id=%s", task_id)
         return
     else:
         # request context tags
-        span._set_tag_str(c.TASK_TAG_KEY, c.TASK_RUN)
+        span._set_attribute(c.TASK_TAG_KEY, c.TASK_RUN)
         set_tags_from_context(span, kwargs)
         set_tags_from_context(span, task.request.__dict__)
         span.finish()
@@ -102,12 +107,17 @@ def trace_before_publish(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
     # changes in Celery
     if task is None or task_id is None:
-        log.debug("unable to extract the Task and the task_id. This version of Celery may not be supported.")
-        return
-
-    # propagate the `Span` in the current task Context
-    pin = Pin.get_from(task) or Pin.get_from(task.app)
-    if pin is None:
+        active = tracer.current_trace_context()
+        if active:
+            # If a trace is active, inject the distributed headers into the kwargs
+            # This is useful for cases where the task is not attached to a span, but
+            # there is a trace active (e.g. a web request span).
+            _inject_distributed_headers(active, kwargs)
+        log.debug(
+            "Task was not found in the local registry. Unable to create producer span. Task name: {}, ID: {}",
+            task_name,
+            task_id,
+        )
         return
 
     # If Task A calls Task B, and Task A excepts, then Task B may have no parent when apply is called.
@@ -120,20 +130,20 @@ def trace_before_publish(*args, **kwargs):
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
-    span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    span = tracer.trace(c.PRODUCER_ROOT_SPAN, resource=task_name)
+    set_service_and_source(span, service, config.celery, default_service_key="_default_service_producer")
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)
 
-    span._set_tag_str(COMPONENT, config.celery.integration_name)
+    span._set_attribute(COMPONENT, config.celery.integration_name)
 
     # set span.kind to the type of request being performed
-    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-    span._set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
-    span._set_tag_str("celery.id", task_id)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
+    span._set_attribute("celery.id", task_id)
     set_tags_from_context(span, kwargs)
     if kwargs.get("headers") is not None:
         # required to extract hostname from origin header on `celery>=4.0`
@@ -143,10 +153,13 @@ def trace_before_publish(*args, **kwargs):
     # API call to the backend for the properties so we should rely
     # only on the given `Context`
     attach_span(task, task_id, span, is_publish=True)
+    _inject_distributed_headers(span.context, kwargs)
 
+
+def _inject_distributed_headers(context: Context, kwargs: dict):
     if config.celery["distributed_tracing"]:
         trace_headers = {}
-        propagator.inject(span.context, trace_headers)
+        propagator.inject(context, trace_headers)
 
         kwargs.setdefault("headers", {})
 
@@ -189,10 +202,10 @@ def trace_after_publish(*args, **kwargs):
             host = parsed_url.hostname
 
         if parsed_url.port:
-            span.set_metric(net.TARGET_PORT, parsed_url.port)
+            span._set_attribute(net.TARGET_PORT, parsed_url.port)
 
     if host:
-        span._set_tag_str(net.TARGET_HOST, host)
+        span._set_attribute(net.TARGET_HOST, host)
 
     span.finish()
     detach_span(task, task_id, is_publish=True)
@@ -255,4 +268,4 @@ def trace_retry(*args, **kwargs):
 
     # Add retry reason metadata to span
     # DEV: Use `str(reason)` instead of `reason.message` in case we get something that isn't an `Exception`
-    span._set_tag_str(c.TASK_RETRY_REASON_KEY, str(reason))
+    span._set_attribute(c.TASK_RETRY_REASON_KEY, str(reason))

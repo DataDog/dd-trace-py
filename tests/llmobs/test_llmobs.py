@@ -9,101 +9,96 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
 class TestMLApp:
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_defaults_to_env_var(self, tracer, llmobs_env, llmobs_events):
+    def test_tag_defaults_to_env_var(self, llmobs, tracer, llmobs_env, llmobs_events):
         """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
+        with llmobs.workflow("root_llm_span"):
+            pass
         assert "ml_app:<not-a-real-app-name>" in llmobs_events[0]["tags"]
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_overrides_env_var(self, tracer, llmobs_env, llmobs_events):
+    def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env, llmobs_events):
         """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-            llm_span._set_ctx_item(const.ML_APP, "test-ml-app")
+        with llmobs.workflow("root_llm_span", ml_app="test-ml-app"):
+            pass
         assert "ml_app:test-ml-app" in llmobs_events[0]["tags"]
 
-    def test_propagates_ignore_non_llmobs_spans(self, tracer, llmobs_events):
+    def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, llmobs_events):
         """
         Test that when ml_app is not set, we propagate from nearest LLMObs ancestor
         even if there are non-LLMObs spans in between.
         """
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-            llm_span._set_ctx_item(const.ML_APP, "test-ml-app")
+        with llmobs.workflow("root_llm_span", ml_app="test-ml-app"):
             with tracer.trace("child_span"):
-                with tracer.trace("llm_grandchild_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
-                    with tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
-                        great_grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
+                with llmobs.workflow("llm_grandchild_span"):
+                    with llmobs.workflow("great_grandchild_span"):
+                        pass
         assert len(llmobs_events) == 3
         for llmobs_event in llmobs_events:
             assert "ml_app:test-ml-app" in llmobs_event["tags"]
 
 
-def test_set_correct_parent_id(llmobs):
+def test_set_correct_parent_id(llmobs, tracer):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
-    with llmobs._instance.tracer.trace("root"):
+    with tracer.trace("root"):
         with llmobs.workflow("llm_span") as llm_span:
             pass
-    assert llm_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
+    assert get_llmobs_parent_id(llm_span) is None
     with llmobs.workflow("root_llm_span") as root_span:
-        assert root_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
-        with llmobs._instance.tracer.trace("child_span") as child_span:
-            assert child_span._get_ctx_item(PARENT_ID_KEY) is None
+        assert get_llmobs_parent_id(root_span) is None
+        with tracer.trace("child_span") as child_span:
+            assert get_llmobs_parent_id(child_span) is None
             with llmobs.task("llm_span") as grandchild_span:
-                assert grandchild_span._get_ctx_item(PARENT_ID_KEY) == str(root_span.span_id)
+                assert get_llmobs_parent_id(grandchild_span) == root_span.span_id
 
 
 class TestSessionId:
-    def test_propagate_from_ancestors(self, tracer):
+    def test_propagate_from_ancestors(self, llmobs, tracer, llmobs_events):
         """
         Test that session_id is propagated from the nearest LLMObs span in the span's ancestor tree
         if no session_id is not set on the span itself.
         """
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-            root_span._set_ctx_item(const.SESSION_ID, "test_session_id")
+        with llmobs.workflow("root_llm_span", session_id="test_session_id"):
             with tracer.trace("child_span"):
-                with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
+                with llmobs.task("llm_span"):
                     pass
-        assert _get_session_id(llm_span) == "test_session_id"
+        for llmobs_event in llmobs_events:
+            assert llmobs_event["session_id"] == "test_session_id"
 
-    def test_if_set_manually(self, tracer):
+    def test_if_set_manually(self, llmobs, tracer, llmobs_events):
         """Test that session_id is extracted from the span if it is already set manually."""
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-            root_span._set_ctx_item(const.SESSION_ID, "test_session_id")
+        with llmobs.workflow("root_llm_span", session_id="test_session_id"):
             with tracer.trace("child_span"):
-                with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
-                    llm_span._set_ctx_item(const.SESSION_ID, "test_different_session_id")
-        assert _get_session_id(llm_span) == "test_different_session_id"
+                with llmobs.task("llm_span", session_id="test_different_session_id"):
+                    pass
+        task_event, workflow_event = llmobs_events
+        assert task_event["name"] == "llm_span"
+        assert task_event["session_id"] == "test_different_session_id"
+        assert workflow_event["name"] == "root_llm_span"
+        assert workflow_event["session_id"] == "test_session_id"
 
-    def test_propagates_ignore_non_llmobs_spans(self, tracer, llmobs_events):
+    def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, llmobs_events):
         """
         Test that when session_id is not set, we propagate from nearest LLMObs ancestor
         even if there are non-LLMObs spans in between.
         """
-        with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-            llm_span._set_ctx_item(const.SESSION_ID, "session-123")
+        with llmobs.workflow("root_llm_span", session_id="session-123"):
             with tracer.trace("child_span"):
-                with tracer.trace("llm_grandchild_span", span_type=SpanTypes.LLM) as grandchild_span:
-                    grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
-                    with tracer.trace("great_grandchild_span", span_type=SpanTypes.LLM) as great_grandchild_span:
-                        great_grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
+                with llmobs.workflow("llm_grandchild_span"):
+                    with llmobs.workflow("great_grandchild_span"):
+                        pass
 
-        llm_event, grandchild_event, great_grandchild_event = llmobs_events
-        assert llm_event["session_id"] == "session-123"
-        assert grandchild_event["session_id"] == "session-123"
-        assert great_grandchild_event["session_id"] == "session-123"
+        for llmobs_event in llmobs_events:
+            assert llmobs_event["session_id"] == "session-123"
 
 
 class TestLLMIOProcessing:
@@ -124,8 +119,8 @@ class TestLLMIOProcessing:
 
         # Also test input output values are removed
         with llmobs.llm() as llm_span:
-            llm_span._set_ctx_item("_ml_obs.meta.input.value", "value")
-            llm_span._set_ctx_item("_ml_obs.meta.output.value", "value")
+            _annotate_llmobs_span_data(llm_span, input_value="value")
+            _annotate_llmobs_span_data(llm_span, output_value="value")
 
         assert llmobs_events[1]["meta"]["input"] == {"value": ""}
         assert llmobs_events[1]["meta"]["output"] == {"value": ""}
@@ -289,72 +284,63 @@ class TestLLMIOProcessing:
 def test_input_value_is_set(tracer, llmobs_events):
     """Test that input value is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.INPUT_VALUE, "value")
+        _annotate_llmobs_span_data(llm_span, kind="llm", input_value="value")
     assert llmobs_events[0]["meta"]["input"]["value"] == "value"
 
 
 def test_input_messages_are_set(tracer, llmobs_events):
     """Test that input messages are set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.INPUT_MESSAGES, [{"content": "message", "role": "user"}])
+        _annotate_llmobs_span_data(llm_span, kind="llm", input_messages=[{"content": "message", "role": "user"}])
     assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
 
 
 def test_output_messages_are_set(tracer, llmobs_events):
     """Test that output messages are set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.OUTPUT_MESSAGES, [{"content": "message", "role": "user"}])
+        _annotate_llmobs_span_data(llm_span, kind="llm", output_messages=[{"content": "message", "role": "user"}])
     assert llmobs_events[0]["meta"]["output"]["messages"] == [{"content": "message", "role": "user"}]
 
 
 def test_output_value_is_set(tracer, llmobs_events):
     """Test that output value is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.OUTPUT_VALUE, "value")
+        _annotate_llmobs_span_data(llm_span, kind="llm", output_value="value")
     assert llmobs_events[0]["meta"]["output"]["value"] == "value"
 
 
 def test_prompt_is_set(tracer, llmobs_events):
     """Test that prompt is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.INPUT_PROMPT, {"variables": {"var1": "var2"}})
+        _annotate_llmobs_span_data(llm_span, kind="llm", prompt={"variables": {"var1": "var2"}})
     assert llmobs_events[0]["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
 
 
 def test_prompt_is_not_set_for_non_llm_spans(tracer, llmobs_events):
     """Test that prompt is NOT set on the span event if the span is not an LLM span."""
     with tracer.trace("task_span", span_type=SpanTypes.LLM) as task_span:
-        task_span._set_ctx_item(const.SPAN_KIND, "task")
-        task_span._set_ctx_item(const.INPUT_VALUE, "ival")
-        task_span._set_ctx_item(const.INPUT_PROMPT, {"variables": {"var1": "var2"}})
+        _annotate_llmobs_span_data(task_span, kind="task", input_value="ival", prompt={"variables": {"var1": "var2"}})
     assert llmobs_events[0]["meta"]["input"].get("prompt") is None
 
 
 def test_metadata_is_set(tracer, llmobs_events):
     """Test that metadata is set on the span event if it is present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.METADATA, {"key": "value"})
+        _annotate_llmobs_span_data(llm_span, kind="llm", metadata={"key": "value"})
     assert llmobs_events[0]["meta"]["metadata"] == {"key": "value"}
 
 
 def test_metrics_are_set(tracer, llmobs_events):
     """Test that metadata is set on the span event if it is present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.METRICS, {"tokens": 100})
+        _annotate_llmobs_span_data(llm_span, kind="llm", metrics={"tokens": 100})
     assert llmobs_events[0]["metrics"] == {"tokens": 100}
 
 
 def test_langchain_span_name_is_set_to_class_name(tracer, llmobs_events):
     """Test span names for langchain auto-instrumented spans is set correctly."""
     with tracer.trace(const.LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
+        _annotate_llmobs_span_data(llm_span, kind="llm")
     assert llmobs_events[0]["name"] == "expected_name"
 
 
@@ -362,7 +348,7 @@ def test_error_is_set(tracer, llmobs_events):
     """Test that error is set on the span event if it is present on the span."""
     with pytest.raises(ValueError):
         with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span._set_ctx_item(const.SPAN_KIND, "llm")
+            _annotate_llmobs_span_data(llm_span, kind="llm")
             raise ValueError("error")
     span_event = llmobs_events[0]
     assert span_event["meta"]["error"]["message"] == "error"
@@ -373,8 +359,7 @@ def test_error_is_set(tracer, llmobs_events):
 def test_model_provider_defaults_to_custom(tracer, llmobs_events):
     """Test that model provider defaults to "custom" if not provided."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.MODEL_NAME, "model_name")
+        _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name")
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "custom"
@@ -383,8 +368,7 @@ def test_model_provider_defaults_to_custom(tracer, llmobs_events):
 def test_model_not_set_if_not_llm_kind_span(tracer, llmobs_events):
     """Test that model name and provider not set if non-LLM span."""
     with tracer.trace("root_workflow_span", span_type=SpanTypes.LLM) as span:
-        span._set_ctx_item(const.SPAN_KIND, "workflow")
-        span._set_ctx_item(const.MODEL_NAME, "model_name")
+        _annotate_llmobs_span_data(span, kind="workflow", model_name="model_name")
     span_event = llmobs_events[0]
     assert "model_name" not in span_event["meta"]
     assert "model_provider" not in span_event["meta"]
@@ -393,9 +377,7 @@ def test_model_not_set_if_not_llm_kind_span(tracer, llmobs_events):
 def test_model_and_provider_are_set(tracer, llmobs_events):
     """Test that model and provider are set on the span event if they are present on the LLM-kind span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.MODEL_NAME, "model_name")
-        llm_span._set_ctx_item(const.MODEL_PROVIDER, "model_provider")
+        _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name", model_provider="model_provider")
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "model_provider"
@@ -414,7 +396,7 @@ def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, moc
 def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
     """Test that we only generate LLMObs span events for LLM span types."""
     with tracer.trace("root_llm_span", service="tests.llmobs", span_type=SpanTypes.LLM) as root_span:
-        root_span._set_ctx_item(const.SPAN_KIND, "llm")
+        _annotate_llmobs_span_data(root_span, kind="llm")
         with tracer.trace("child_span"):
             pass
     assert len(llmobs_events) == 1
@@ -644,6 +626,78 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     # LLMObs trace IDs should be different from APM trace ID
     assert first_child_event["trace_id"] != first_child_event["_dd"]["apm_trace_id"]
     assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]
+
+
+def test_llmobs_trace_id_written_to_local_root_meta(llmobs, llmobs_events):
+    """Test that llmobs_trace_id is written to the local root span's tags for the backend processor."""
+    with llmobs._instance.tracer.trace("fastapi.request") as root:
+        with llmobs.workflow("chat-workflow") as wf:
+            wf_trace_id = get_llmobs_trace_id(wf)
+
+    # The local root (fastapi.request) should have llmobs_trace_id set as a tag
+    assert root.get_tag("llmobs_trace_id") is not None
+    # It should match the workflow span's llmobs_trace_id
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+    # llmobs_parent_id should be the workflow span's span_id
+    assert root.get_tag("llmobs_parent_id") == str(wf.span_id)
+
+
+def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_events):
+    """Test that non-LLM child spans share the local root that has llmobs_trace_id."""
+    with llmobs._instance.tracer.trace("fastapi.request") as root:
+        with llmobs.workflow("chat-workflow") as wf:
+            wf_trace_id = get_llmobs_trace_id(wf)
+            # Simulate OTel-bridged span (non-LLM, child of root)
+            child = llmobs._instance.tracer.start_span("gen_ai.chat", child_of=root, activate=False)
+            child._set_attribute("gen_ai.system", "aws.bedrock")
+            child.finish()
+
+    # Root should have llmobs_trace_id
+    assert root.get_tag("llmobs_trace_id") is not None
+    # The child span shares the same local root
+    assert child._local_root is root
+    # So the processor will find llmobs_trace_id on the root span in the same payload
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+
+
+def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_events):
+    """Test that sibling LLMObs workflows don't overwrite each other's trace ID on the local root."""
+    with llmobs._instance.tracer.trace("parent_non_llm") as root:
+        with llmobs.workflow("first_child") as first:
+            first_trace_id = get_llmobs_trace_id(first)
+        with llmobs.workflow("second_child") as second:
+            second_trace_id = get_llmobs_trace_id(second)
+
+    # The local root should have the first child's trace ID (first-wins)
+    assert root.get_tag("llmobs_trace_id") is not None
+    assert root.get_tag("llmobs_trace_id") == format_trace_id(first_trace_id)
+    # The two workflows should have different trace IDs
+    assert first_trace_id != second_trace_id
+
+
+def test_llmobs_submitted_tag_set_on_apm_span(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is set on the APM span when SDK submits an LLMObs event."""
+    with llmobs.workflow("my-workflow") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+
+
+def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is NOT set on regular APM spans."""
+    with llmobs._instance.tracer.trace("regular_span") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+
+
+def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
+    """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
+    with llmobs._instance.tracer.trace("regular_span") as span:
+        with llmobs._instance.tracer.trace("child_span"):
+            pass
+
+    assert not span._has_attribute("llmobs_trace_id")
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])

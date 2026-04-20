@@ -40,7 +40,7 @@ cmake \
     -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
     -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
-    -DLIB_INSTALL_DIR="${BUILD_DIR}/dd_wrapper" \
+    -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
     "${SCRIPT_DIR}/stack"
 popd
 
@@ -110,6 +110,7 @@ if [[ -n "${RUN_CLANG_TIDY}" ]]; then
         -j "${JOBS}" \
         -checks="${CHECKS}" \
         -header-filter="${HEADER_FILTER}" \
+        -warnings-as-errors='*' \
         "${SOURCE_FILES[@]}"
 else
     echo "run-clang-tidy not found, falling back to sequential clang-tidy"
@@ -121,6 +122,7 @@ else
             -p "${BUILD_DIR}" \
             -checks="${CHECKS}" \
             -header-filter="${HEADER_FILTER}" \
+            --warnings-as-errors='*' \
             "${file}"; then
             FAILED=1
         fi

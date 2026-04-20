@@ -223,7 +223,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
         try:
-            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) and upper_64_bits == upper_64_bits.lower()):
                 raise ValueError
         except ValueError:
             return False
@@ -269,9 +269,8 @@ class _DatadogMultiHeader:
             return
 
         # Only propagate trace tags which means ignoring the _dd.origin
-        tags_to_encode = {
-            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }
+        context_meta = list(span_context._meta.items())
+        tags_to_encode = {k: v for k, v in context_meta if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)}
 
         if tags_to_encode:
             try:

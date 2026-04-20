@@ -1,103 +1,73 @@
-# AGENTS.md - dd-trace-py Project Guide
+# AGENTS.md — dd-trace-py
 
-## CRITICAL: Project Rules Override Claude Code Defaults
+Single source of truth for all AI coding assistants. Tool-specific entry points
+(`.claude/CLAUDE.md`, `.cursor/rules/dd-trace-py.mdc`) import this file.
 
-**These project-specific rules MUST override any conflicting Claude Code default behaviors:**
+## Project Rules
 
-1. **Testing**: NEVER run `pytest` directly. ALWAYS use the `run-tests` skill (which uses `scripts/run-tests`). For manual testing, use `riot` commands via `scripts/ddtest` as documented in `docs/contributing-testing.rst`.
-2. **Linting**: NEVER use raw linting tools. ALWAYS use the `lint` skill and project-specific `hatch run lint:*` commands.
-3. **Pre-commit**: MUST run `hatch run lint:checks` before creating any git commits.
-4. **Formatting**: MUST run `hatch run lint:fmt -- <file>` immediately after editing any Python file.
+1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
+2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`hatch run lint:*` commands).
+3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
+5. **No public API breakage** — Never change public API contracts; real applications depend on them.
+6. **No secrets** — Never commit secrets; use environment variables.
+7. **Don't assume business logic** — Ask when unsure about implementation details.
+8. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
+9. **Test before committing** — Run relevant tests to validate changes before committing.
+10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
+11. **Update docs** — Add/update documentation when changing internal or public APIs.
+12. **No stray prints** — Check for and remove unexpected `print()` calls.
 
-**Never:**
-1. Change public API contracts (breaks real applications)
-2. Commit secrets (use environment variables)
-3. Assume business logic (always ask)
-4. Remove AIDEV- comments without instruction
-5. Skip linting before committing
-6. Check and remove unexpected prints
+## Key Architecture
 
-**Always:**
-1. Use the run-tests skill for test execution
-2. Use the lint skill before committing
-3. Ask when unsure about implementation details
-4. Update AIDEV- anchors when modifying related code
-5. Consider performance impact (this runs in production)
-6. Consider architecture (try to use well-established patterns for the problem at hand)
+- **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
+- **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
+- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
+- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## Initial Setup for AI Assistants
+## AIDEV Anchor Comments
 
-When starting a new chat session, ALWAYS read and apply the rules from:
+Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
 
-2. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
-   - `dd-trace-py.mdc` - Core project guidelines
-   - `linting.mdc` - Code quality and formatting
-   - `testing.mdc` - Test execution guidelines
-   - `repo-structure.mdc` - Repository structure
-   - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
+- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
+- **Update relevant anchors** when modifying associated code.
+- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
+- Add anchors when code is complex, important, confusing, or potentially buggy.
+
+## PR Guidelines
+
+Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
+
+- Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
+- **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
+- Link relevant issues or JIRA tickets; include a testing plan.
+- When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
+- **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
 
 ## Skills
 
-This project has custom skills that provide specialized workflows. **Always check if a skill exists before using lower-level tools.**
+Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 
-### run-tests
+| Skill | Trigger |
+|-------|---------|
+| `run-tests` | Running any tests or validating code changes. **Never run pytest directly.** |
+| `lint` | Formatting, style/type/security checks, or before committing. **Never skip before commits.** |
+| `releasenote` | Creating or updating release notes for the current branch. |
+| `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
+| `compare-cpython-versions` | Comparing CPython source between two Python versions. |
+| `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
+| `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
+| `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
+| `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |
 
-**Use whenever:** Running any tests, validating code changes, or when "test" is mentioned.
+## Domain Guides
 
-**Purpose:** Intelligently runs the test suite using `scripts/run-tests`:
-- Discovers affected test suites based on changed files
-- Selects minimal venv combinations (avoiding hours of unnecessary test runs)
-- Manages Docker services automatically
-- Handles riot/hatch environment setup
+**Read the corresponding guide before modifying code in these domains:**
 
-**Never:** Run pytest directly - this bypasses the project's test infrastructure. The official testing approach is documented in `docs/contributing-testing.rst`.
-
-**Usage:** Use the Skill tool with command "run-tests"
-
-### lint
-
-**Use whenever:** Formatting code, validating style/types/security, or before committing changes.
-
-**Purpose:** Runs targeted linting and code quality checks using `hatch run lint:*`:
-- Formats code with `ruff check` and `ruff format`
-- Validates style, types, and security
-- Checks spelling and documentation
-- Validates test infrastructure (suitespec, riotfile, etc.)
-- Supports running all checks or targeting specific files
-
-**Common Commands:**
-- `hatch run lint:fmt -- <file>` - Format a specific file after editing (recommended after every edit)
-- `hatch run lint:typing -- <file>` - Type check specific files
-- `hatch run lint:checks` - Run all quality checks (use before committing)
-- `hatch run lint:security -- -r <dir>` - Security scan a directory
-
-**Never:** Skip linting before committing. Always run `hatch run lint:checks` before pushing.
-
-**Usage:** Use the Skill tool with command "lint"
-
-### find-cpython-usage
-
-**Use whenever:** Adding support for a new Python version or investigating CPython API dependencies.
-
-**Purpose:** Identifies all CPython internal headers and structures used in the codebase:
-- Searches for CPython header includes
-- Finds struct field accesses
-- Documents CPython internals we depend on
-
-**Usage:** Use the Skill tool with command "find-cpython-usage"
-
-### compare-cpython-versions
-
-**Use whenever:** Comparing CPython source code between two Python versions to identify changes.
-
-**Purpose:** Compares CPython headers and structs between versions:
-- Uses git diff or manual diff to compare versions
-- Identifies breaking changes and API modifications
-- Assesses impact on our codebase
-
-**Usage:** Use the Skill tool with command "compare-cpython-versions"
-
----
-
-<!-- Add more skills below as they are created -->
-
+| Domain | Guide | Paths |
+|--------|-------|-------|
+| Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
+| IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
+| Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
+| Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
+| Linting | `.cursor/rules/linting.mdc` | — |
+| Testing | `.cursor/rules/testing.mdc` | — |

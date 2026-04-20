@@ -20,8 +20,18 @@ def test_otel_start_span_record_exception(oteltracer):
     # Avoid mocking time_ns when Span is created. This is a workaround to resolve a rate limit bug.
     raised_span = oteltracer.start_span("test-raised-exception")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        # Ensures that the exception is recorded with the consistent timestamp for snapshot testing
-        with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=1716560261227739000):
+        # Mock _add_event (Python-level) to inject a static timestamp when none is provided.
+        # wall_clock_ns() is in Rust and cannot be reached via mock.patch on Time.time_ns.
+        from ddtrace._trace.span import Span as DDSpan
+
+        _original_add_event = DDSpan._add_event
+
+        def _add_event_with_fixed_ts(self, name, attributes=None, timestamp=None):
+            if timestamp is None:
+                timestamp = 1716560261227739000
+            return _original_add_event(self, name, attributes, timestamp)
+
+        with mock.patch.object(DDSpan, "_add_event", _add_event_with_fixed_ts):
             with raised_span:
                 raised_span.record_exception(ValueError("Invalid Operation 1"))
                 raise Exception("Sorry Otel Span, I failed you")

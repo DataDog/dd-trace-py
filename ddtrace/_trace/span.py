@@ -5,6 +5,7 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Mapping
 from typing import Optional
 from typing import Text
 from typing import Union
@@ -13,7 +14,6 @@ from typing import cast
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
@@ -35,7 +35,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -44,48 +43,10 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import generate_128bit_trace_id
-from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.native._native import SpanEventData
+from ddtrace.internal.native._native import SpanEvent
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
-
-
-class SpanEvent(SpanEventData):
-    __slots__ = ["name", "attributes", "time_unix_nano"]
-
-    def __init__(
-        self,
-        name: str,
-        attributes: Optional[dict[str, _AttributeValueType]] = None,
-        time_unix_nano: Optional[int] = None,
-    ):
-        super().__init__(name, attributes, time_unix_nano)
-        self.name: str = name
-        if time_unix_nano is None:
-            time_unix_nano = Time.time_ns()
-        self.time_unix_nano: int = time_unix_nano
-        self.attributes: dict = attributes if attributes else {}
-
-    def __dict__(self):
-        d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
-        if self.attributes:
-            d["attributes"] = self.attributes
-        return d
-
-    def __repr__(self):
-        """
-        Stringify and return value.
-        Attribute value can be either str, bool, int, float, or a list of these.
-        """
-        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
-
-    def __iter__(self):
-        yield "name", self.name
-        yield "time_unix_nano", self.time_unix_nano
-        if self.attributes:
-            yield "attributes", self.attributes
 
 
 log = get_logger(__name__)
@@ -101,10 +62,12 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return f"{large_int:032x}"[:16]
 
 
+_INT_TYPES = frozenset([net.TARGET_PORT])
+
+
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "trace_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -158,37 +121,24 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-
-        if not (trace_id is None or isinstance(trace_id, int)):
-            if config._raise:
-                raise TypeError("trace_id must be an integer")
-            return
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-
-        self._meta: dict[str, str] = {}
-        self._metrics: dict[str, NumericType] = {}
+        self._meta: dict[str, str] = {}  # ast-grep-ignore: span-meta-access
+        self._metrics: dict[str, NumericType] = {}  # ast-grep-ignore: span-metrics-access
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
-        if trace_id is not None:
-            self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
-        else:
-            self.trace_id: int = rand64bits()  # type: ignore[no-redef]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
+        # PERF: cache trace_id/span_id to avoid repeated Rust property calls
+        _trace_id = self.trace_id
+        _span_id = self.span_id
         self.context: Context = (
-            context.copy(self.trace_id, self.span_id)
+            context.copy(_trace_id, _span_id)
             if context
-            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+            else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
         )
 
-        self._links: list[Union[SpanLink, _SpanPointer]] = []
+        self._links: list[SpanLink] = []
         if links:
             for new_link in links:
                 self._set_link_or_append_pointer(new_link)
@@ -203,9 +153,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         with self.context:
             for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])
+                self._meta.setdefault(tag, self.context._meta[tag])  # ast-grep-ignore: span-meta-access
             for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])
+                self._metrics.setdefault(metric, self.context._metrics[metric])  # ast-grep-ignore: span-metrics-access
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -227,10 +177,6 @@ class Span(SpanData):
         if not self._store:
             return None
         return self._store.get(key)
-
-    @property
-    def _trace_id_64bits(self) -> int:
-        return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
@@ -258,8 +204,8 @@ class Span(SpanData):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:
-                    del self._local_root._metrics[key]
+                if self._local_root._has_attribute(key):
+                    self._local_root._remove_attribute(key)
 
     def _set_sampling_decision_maker(
         self,
@@ -270,15 +216,7 @@ class Span(SpanData):
         return value
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
-        """Set a tag key/value pair on the span.
-
-        Keys must be strings, values must be ``str``-able.
-
-        :param key: Key to use for the tag
-        :type key: str
-        :param value: Value to assign for the tag
-        :type value: ``str``-able value
-        """
+        """Set a tag key/value pair on the span."""
         # Special case, force `http.status_code` as a string
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
@@ -290,8 +228,7 @@ class Span(SpanData):
 
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        INT_TYPES = (net.TARGET_PORT,)
-        if key in INT_TYPES and not val_is_an_int:
+        if key in _INT_TYPES and not val_is_an_int:
             try:
                 value = int(value)  # type: ignore
                 val_is_an_int = True
@@ -300,12 +237,12 @@ class Span(SpanData):
 
         # Set integers that are less than equal to 2^53 as metrics
         if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
             return
 
         # All floats should be set as a metric
         elif isinstance(value, float):
-            self.set_metric(key, value)
+            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
             return
 
         elif key == MANUAL_KEEP_KEY:
@@ -325,13 +262,13 @@ class Span(SpanData):
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self.set_metric(key, value)  # type: ignore  # ast-grep-ignore: span-set-metric
             return
 
         try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -346,25 +283,83 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def _set_tag_str(self, key: str, value: str) -> None:
-        """Set a value for a tag. Values are coerced to unicode in Python 2 and
-        str in Python 3, with decoding errors in conversion being replaced with
-        U+FFFD.
-        """
-        try:
-            self._meta[key] = ensure_text(value, errors="replace")
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None:
+        """Set a tag key/value pair on the span. Values must be either strings or numbers."""
+        # DEV: `http.status_code` must be stored in `meta` as a string for
+        #   metrics calculated in the trace agent
+        if key == http.STATUS_CODE:
+            value = str(value)
+        if isinstance(value, str):
+            self._meta[key] = value  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+        elif isinstance(value, (int, float)):
+            if math.isnan(value) or math.isinf(value):
+                log.debug("ignoring not real attribute %s:%s", key, value)
+                return
+            self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
+            if key in self._meta:  # ast-grep-ignore: span-meta-access
+                del self._meta[key]  # ast-grep-ignore: span-meta-access
+        elif isinstance(value, bytes):
+            self._meta[key] = value.decode("utf-8", errors="replace")  # ast-grep-ignore: span-meta-access
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+        else:
+            try:
+                self._meta[key] = str(value)  # ast-grep-ignore: span-meta-access
+            except Exception:
+                if config._raise:
+                    raise
+                log.warning("Failed to convert attribute '%s' to str, ignoring it", key, exc_info=True)
+                return
+            if key in self._metrics:  # ast-grep-ignore: span-metrics-access
+                del self._metrics[key]  # ast-grep-ignore: span-metrics-access
+
+    def _has_attribute(self, key: str) -> bool:
+        """Return whether the given attribute exists."""
+        return key in self._meta or key in self._metrics  # ast-grep-ignore: span-meta-access,span-metrics-access
+
+    def _remove_attribute(self, key: str) -> None:
+        """Remove the given attribute if it exists."""
+        self._meta.pop(key, None)  # ast-grep-ignore: span-meta-access
+        self._metrics.pop(key, None)  # ast-grep-ignore: span-metrics-access
+
+    def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]:
+        """Return the given attribute or None if it doesn't exist."""
+        if key in self._meta:  # ast-grep-ignore: span-meta-access
+            return self._meta[key]  # ast-grep-ignore: span-meta-access
+        elif key in self._metrics:  # ast-grep-ignore: span-metrics-access
+            return self._metrics[key]  # ast-grep-ignore: span-metrics-access
+        else:
+            return None
+
+    def _get_str_attribute(self, key: str) -> Optional[str]:
+        """Return the string attribute for the given key, or None if it doesn't exist."""
+        return self._meta.get(key)  # ast-grep-ignore: span-meta-access
+
+    def _get_numeric_attribute(self, key: str) -> Optional[NumericType]:
+        """Return the numeric attribute for the given key, or None if it doesn't exist."""
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
+
+    def _get_attributes(self) -> Mapping[str, Union[str, NumericType]]:
+        """Return all attributes (both string and numeric) as a single mapping."""
+        return {**self._meta, **self._metrics}  # ast-grep-ignore: span-meta-access,span-metrics-access
+
+    def _get_str_attributes(self) -> Mapping[str, str]:
+        """Return all string attributes."""
+        return self._meta  # ast-grep-ignore: span-meta-access
+
+    def _get_numeric_attributes(self) -> Mapping[str, NumericType]:
+        """Return all numeric attributes."""
+        return self._metrics  # ast-grep-ignore: span-metrics-access
 
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
-        return self._meta.get(key, None)
+        return self._meta.get(key, None)  # ast-grep-ignore: span-meta-access
 
     def get_tags(self) -> dict[str, str]:
         """Return all tags."""
-        return self._meta.copy()
+        return self._meta.copy()  # ast-grep-ignore: span-meta-access
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -400,9 +395,9 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
-        self._metrics[key] = value
+        if key in self._meta:  # ast-grep-ignore: span-meta-access
+            del self._meta[key]  # ast-grep-ignore: span-meta-access
+        self._metrics[key] = value  # ast-grep-ignore: span-metrics-access
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -410,11 +405,11 @@ class Span(SpanData):
         """
         if metrics:
             for k, v in metrics.items():
-                self.set_metric(k, v)
+                self.set_metric(k, v)  # ast-grep-ignore: span-set-metric
 
     def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
-        return self._metrics.get(key)
+        return self._metrics.get(key)  # ast-grep-ignore: span-metrics-access
 
     def _add_event(
         self, name: str, attributes: Optional[dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
@@ -427,7 +422,7 @@ class Span(SpanData):
 
     def get_metrics(self) -> dict[str, NumericType]:
         """Return all metrics."""
-        return self._metrics.copy()
+        return self._metrics.copy()  # ast-grep-ignore: span-metrics-access
 
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
@@ -443,7 +438,7 @@ class Span(SpanData):
             if limit is None:
                 limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._meta[ERROR_STACK] = tb
+            self._meta[ERROR_STACK] = tb  # ast-grep-ignore: span-meta-access
 
     def _get_traceback(
         self,
@@ -512,18 +507,18 @@ class Span(SpanData):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._meta[ERROR_TYPE] = exc_type_str
+        self._meta[ERROR_TYPE] = exc_type_str  # ast-grep-ignore: span-meta-access
 
         try:
-            self._meta[ERROR_MSG] = str(exc_val)
+            self._meta[ERROR_MSG] = str(exc_val)  # ast-grep-ignore: span-meta-access
         except Exception:
             # An exception can occur if a custom Exception overrides __str__
             # If this happens str(exc_val) won't work, so best we can do is print the class name
             # Otherwise, don't try to set an error message
             if exc_val and hasattr(exc_val, "__class__"):
-                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+                self._meta[ERROR_MSG] = exc_val.__class__.__name__  # ast-grep-ignore: span-meta-access
 
-        self._meta[ERROR_STACK] = tb
+        self._meta[ERROR_STACK] = tb  # ast-grep-ignore: span-meta-access
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
@@ -676,7 +671,7 @@ class Span(SpanData):
         # This is a Private API for now.
 
         self._set_link_or_append_pointer(
-            _SpanPointer(
+            SpanLink._SpanPointer(
                 pointer_kind=pointer_kind,
                 pointer_direction=pointer_direction,
                 pointer_hash=pointer_hash,
@@ -684,7 +679,7 @@ class Span(SpanData):
             )
         )
 
-    def _set_link_or_append_pointer(self, link: Union[SpanLink, _SpanPointer]) -> None:
+    def _set_link_or_append_pointer(self, link: SpanLink) -> None:
         if link.kind == SpanLinkKind.SPAN_POINTER.value:
             self._links.append(link)
             return
@@ -749,8 +744,8 @@ class Span(SpanData):
             f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
-            f"tags={self._meta}, "
-            f"metrics={self._metrics}, "
+            f"tags={self._meta}, "  # ast-grep-ignore: span-meta-access
+            f"metrics={self._metrics}, "  # ast-grep-ignore: span-metrics-access
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self.context}, "

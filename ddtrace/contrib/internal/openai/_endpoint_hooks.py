@@ -48,8 +48,8 @@ class _EndpointHook:
         endpoint = self.ENDPOINT_NAME
         if endpoint is None:
             endpoint = "%s" % getattr(instance, "OBJECT_NAME", "")
-        span._set_tag_str("openai.request.endpoint", "/%s/%s" % (API_VERSION, endpoint))
-        span._set_tag_str("openai.request.method", self.HTTP_METHOD_TYPE)
+        span._set_attribute("openai.request.endpoint", "/%s/%s" % (API_VERSION, endpoint))
+        span._set_attribute("openai.request.method", self.HTTP_METHOD_TYPE)
 
         if self._request_arg_params and len(self._request_arg_params) > 1:
             for idx, arg in enumerate(self._request_arg_params):
@@ -58,18 +58,18 @@ class _EndpointHook:
                 if arg is None or args[idx] is None:
                     continue
                 if arg in self._base_level_tag_args:
-                    span._set_tag_str("openai.%s" % arg, str(args[idx]))
+                    span._set_attribute("openai.%s" % arg, str(args[idx]))
         for kw_attr in self._request_kwarg_params:
             if kw_attr not in kwargs:
                 continue
 
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
-                    span._set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
+                    span._set_attribute("openai.request.%s.%s" % (kw_attr, k), str(v))
             elif (kw_attr == "engine" or kw_attr == "model") and kwargs[
                 kw_attr
             ] is not None:  # Azure OpenAI requires using "engine" instead of "model"
-                span._set_tag_str("openai.request.model", str(kwargs[kw_attr]))
+                span._set_attribute("openai.request.model", str(kwargs[kw_attr]))
 
     def handle_request(self, pin, integration, instance, span, args, kwargs):
         self._record_request(pin, integration, instance, span, args, kwargs)
@@ -84,7 +84,7 @@ class _EndpointHook:
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         for resp_attr in self._response_attrs:
             if hasattr(resp, resp_attr):
-                span._set_tag_str("openai.response.%s" % resp_attr, str(getattr(resp, resp_attr, "")))
+                span._set_attribute("openai.response.%s" % resp_attr, str(getattr(resp, resp_attr, "")))
         return resp
 
 
@@ -197,8 +197,30 @@ class _ChatCompletionHook(_BaseCompletionHook):
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createChatCompletion"
 
+    @staticmethod
+    def _materialize_message_content(kwargs):
+        """Materialize any iterable message content fields to lists before the OpenAI SDK
+        consumes them, so that our post-call tag extraction can still read the content.
+        """
+        for message in kwargs.get("messages", []):
+            content = _get_attr(message, "content", None)
+            if content is None or isinstance(content, (str, list)):
+                continue
+            try:
+                materialized = list(content)
+            except (TypeError, StopIteration):
+                continue
+            if isinstance(message, dict):
+                message["content"] = materialized
+            else:
+                try:
+                    message.content = materialized
+                except (AttributeError, TypeError):
+                    pass
+
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
+        self._materialize_message_content(kwargs)
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             stream_options = kwargs.get("stream_options", {})
             if not isinstance(stream_options, dict):
@@ -266,7 +288,7 @@ class _ListHook(_EndpointHook):
         if not resp:
             return
         if hasattr(resp, "data"):
-            span.set_metric("openai.response.count", len(resp.data or []))
+            span._set_attribute("openai.response.count", len(resp.data or []))
         return resp
 
 
@@ -319,16 +341,16 @@ class _RetrieveHook(_EndpointHook):
         if endpoint.endswith("/models"):
             span.resource = "retrieveModel"
             if len(args) >= 1:
-                span._set_tag_str("openai.request.model", args[0])
+                span._set_attribute("openai.request.model", args[0])
             else:
-                span._set_tag_str("openai.request.model", kwargs.get("model", kwargs.get("id", "")))
+                span._set_attribute("openai.request.model", kwargs.get("model", kwargs.get("id", "")))
         elif endpoint.endswith("/files"):
             span.resource = "retrieveFile"
             if len(args) >= 1:
-                span._set_tag_str("openai.request.file_id", args[0])
+                span._set_attribute("openai.request.file_id", args[0])
             else:
-                span._set_tag_str("openai.request.file_id", kwargs.get("file_id", kwargs.get("id", "")))
-        span._set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
+                span._set_attribute("openai.request.file_id", kwargs.get("file_id", kwargs.get("id", "")))
+        span._set_attribute("openai.request.endpoint", "%s/*" % endpoint)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -368,16 +390,16 @@ class _DeleteHook(_EndpointHook):
         if endpoint.endswith("/models"):
             span.resource = "deleteModel"
             if len(args) >= 1:
-                span._set_tag_str("openai.request.model", args[0])
+                span._set_attribute("openai.request.model", args[0])
             else:
-                span._set_tag_str("openai.request.model", kwargs.get("model", kwargs.get("sid", "")))
+                span._set_attribute("openai.request.model", kwargs.get("model", kwargs.get("sid", "")))
         elif endpoint.endswith("/files"):
             span.resource = "deleteFile"
             if len(args) >= 1:
-                span._set_tag_str("openai.request.file_id", args[0])
+                span._set_attribute("openai.request.file_id", args[0])
             else:
-                span._set_tag_str("openai.request.file_id", kwargs.get("file_id", kwargs.get("sid", "")))
-        span._set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
+                span._set_attribute("openai.request.file_id", kwargs.get("file_id", kwargs.get("sid", "")))
+        span._set_attribute("openai.request.endpoint", "%s/*" % endpoint)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -385,12 +407,12 @@ class _DeleteHook(_EndpointHook):
             return
         if hasattr(resp, "data"):
             if resp._headers.get("openai-organization"):
-                span._set_tag_str("openai.organization.name", resp._headers.get("openai-organization"))
-            span._set_tag_str("openai.response.id", resp.data.get("id", ""))
-            span._set_tag_str("openai.response.deleted", str(resp.data.get("deleted", "")))
+                span._set_attribute("openai.organization.name", resp._headers.get("openai-organization"))
+            span._set_attribute("openai.response.id", resp.data.get("id", ""))
+            span._set_attribute("openai.response.deleted", str(resp.data.get("deleted", "")))
         else:
-            span._set_tag_str("openai.response.id", str(resp.id))
-            span._set_tag_str("openai.response.deleted", str(resp.deleted))
+            span._set_attribute("openai.response.id", str(resp.id))
+            span._set_attribute("openai.response.deleted", str(resp.deleted))
         return resp
 
 
@@ -417,7 +439,7 @@ class _ImageHook(_EndpointHook):
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        span._set_tag_str("openai.request.model", "dall-e")
+        span._set_attribute("openai.request.model", "dall-e")
 
 
 class _ImageCreateHook(_ImageHook):
@@ -485,9 +507,9 @@ class _FileCreateHook(_BaseFileHook):
         super()._record_request(pin, integration, instance, span, args, kwargs)
         fp = args[0] if len(args) >= 1 else kwargs.get("file", "")
         if fp and hasattr(fp, "name"):
-            span._set_tag_str("openai.request.filename", fp.name.split("/")[-1])
+            span._set_attribute("openai.request.filename", fp.name.split("/")[-1])
         else:
-            span._set_tag_str("openai.request.filename", "")
+            span._set_attribute("openai.request.filename", "")
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -502,16 +524,16 @@ class _FileDownloadHook(_BaseFileHook):
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        span._set_tag_str("openai.request.file_id", args[0] if len(args) >= 1 else kwargs.get("file_id", ""))
+        span._set_attribute("openai.request.file_id", args[0] if len(args) >= 1 else kwargs.get("file_id", ""))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
             return
         if isinstance(resp, bytes) or isinstance(resp, str):
-            span.set_metric("openai.response.total_bytes", len(resp))
+            span._set_attribute("openai.response.total_bytes", len(resp))
         else:
-            span.set_metric("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
+            span._set_attribute("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
 
 
@@ -549,7 +571,7 @@ class _ResponseHook(_BaseCompletionHook):
 
     def _create_mcp_tool_span(self, item, integration, pin):
         """Creates and submits a tool span to LLMObs to represent a server-side MCP tool call."""
-        with integration.trace(pin, "client_tool_call", submit_to_llmobs=True, kind="tool") as span:
+        with integration.trace("client_tool_call", submit_to_llmobs=True, kind="tool") as span:
             tool_id = str(_get_attr(item, "id", ""))
             tool_name = str(_get_attr(item, "name", ""))
             raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)

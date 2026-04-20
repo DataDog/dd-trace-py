@@ -20,7 +20,6 @@ components:
     - tests/test_module/*
     - .gitlab-ci.yml
     - .gitlab/*
-    - tests/suitespec.yml
   $setup:
     - setup.py
     - setup.cfg
@@ -29,8 +28,15 @@ components:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
+  crashtracker:
+    - ddtrace/internal/core/crashtracking.py
+    - ddtrace/internal/settings/crashtracker.py
+    - ddtrace/internal/native/_native.pyi
+    - src/native/crashtracker.rs
+    - src/native/crashtracker/*
+    - tests/crashtracker/*
   ci:
-    - ddtrace/ext/ci.py
+    - ddtrace/ext/ci/*
   codeowners:
     - ddtrace/internal/codeowners.py
   core:
@@ -62,6 +68,7 @@ components:
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/process_tags/__init__.py
     - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
@@ -131,7 +138,6 @@ components:
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
     - ddtrace/internal/processor/__init__.py
-    - ddtrace/internal/processor/stats.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -142,13 +148,18 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  crashtracker:
+    venvs_per_job: 6
+    paths:
+      - '@crashtracker'
+      - '@core'
+    snapshot: true
   conftest:
     parallelism: 1
     paths:
       - 'conftest.py'
       - '**/conftest.py'
     pattern: meta-testing
-    runner: riot
     snapshot: false
   ddtracerun:
     parallelism: 3
@@ -158,9 +169,17 @@ suites:
       - '@core'
       - tests/commands/*
       - tests/ddtrace_run.py
-    runner: riot
     services:
       - redis
+  detect_global_locks:
+    venvs_per_job: 1
+    paths:
+      - 'ddtrace/*'
+      - 'setup.py'
+      - 'setup.cfg'
+      - 'pyproject.toml'
+      - 'src/native/*'
+      - 'scripts/global-lock-detection.py'
   integration_agent:
     parallelism: 2
     paths:
@@ -172,9 +191,8 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
-    runner: riot
   integration_testagent:
-    parallelism: 3
+    venvs_per_job: 3
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -184,16 +202,14 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
-    runner: riot
     snapshot: true
   integration_registry:
     parallelism: 1
     paths:
       - '@contrib'
-      - ddtrace/contrib/integration_registry/*
-    runner: riot
+      - scripts/integration_registry/*
   internal:
-    venvs_per_job: 3
+    venvs_per_job: 2
     paths:
       - '@core'
       - '@remoteconfig'
@@ -205,7 +221,6 @@ suites:
       - tests/submod/*
       - tests/cache/*
       - tests/snapshots/tests.internal.*
-    runner: riot
     snapshot: true
   lib_injection:
     paths:
@@ -215,7 +230,6 @@ suites:
       - '@contrib'
       - '@lib_injection'
     parallelism: 2
-    runner: riot
     pattern: ^lib_injection$
   runtime:
     paths:
@@ -224,7 +238,6 @@ suites:
       - '@runtime'
       - '@vendor'
       - tests/runtime/*
-    runner: riot
     skip: true
   openfeature:
     parallelism: 1
@@ -232,7 +245,6 @@ suites:
       - '@openfeature'
       - '@remoteconfig'
       - '@core'
-    runner: riot
     pattern: ^openfeature$
   telemetry:
     parallelism: 1
@@ -247,7 +259,6 @@ suites:
       - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
-    runner: riot
     snapshot: true
   tracer:
     env:
@@ -268,11 +279,9 @@ suites:
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
-    runner: riot
     venvs_per_job: 1
   vendor:
     parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*
-    runner: riot

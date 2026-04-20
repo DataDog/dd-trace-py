@@ -457,7 +457,7 @@ def test_module_watchdog_pkg_resources_support():
 
         p.resource_listdir("namespace_test.ns_module", ".")
     except Exception as e:
-        pytest.fail("Using pkg_resources raised exception", e)
+        assert False, f"Using pkg_resources raised exception: {e}"
 
 
 @pytest.mark.subprocess(
@@ -555,6 +555,9 @@ def test_public_modules_in_ddtrace_contrib():
         if "internal" in relative_dir.parts:
             # ignore modules in ddtrace/contrib/internal
             continue
+        if "_events" in relative_dir.parts:
+            # ignore modules in ddtrace/contrib/events
+            continue
 
         for file_name in file_names:
             if file_name.endswith(".py"):
@@ -573,9 +576,6 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
-        "ddtrace.contrib.integration_registry.__init__",
-        "ddtrace.contrib.integration_registry.mappings",
-        "ddtrace.contrib.integration_registry.utils",
         "ddtrace.contrib.aiohttp",
         "ddtrace.contrib.dbapi_async",
         "ddtrace.contrib.wsgi",

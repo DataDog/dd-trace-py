@@ -1,6 +1,4 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
-
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
 if(DEFINED ENV{CIBUILDWHEEL} OR DEFINED ENV{CIBW_BUILD})
@@ -35,27 +33,8 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
-    message("==============================================================")
-    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("=====================================")
-    message("WARNING: Debug mode: not using abseil")
-    message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
-else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    FetchContent_Declare(
-        absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
-        TIMEOUT 180
-        INACTIVITY_TIMEOUT 120 DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-    FetchContent_MakeAvailable(absl)
-endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../../cmake")
+include(AbseilDep)
 
 include_directories(".")
 

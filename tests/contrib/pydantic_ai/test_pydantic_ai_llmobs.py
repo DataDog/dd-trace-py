@@ -202,7 +202,7 @@ class TestLLMObsPydanticAI:
             input_value="Hello, world!",
             output_value=output,
             metadata=expected_agent_metadata(),
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai", "integration": "pydantic_ai"},
             error="builtins.Exception",
             error_message="test error",
             error_stack=mock.ANY,
@@ -250,6 +250,66 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_agent_span_event(
             span, result.output, tools=expected_calculate_square_tool() + expected_foo_tool()
         )
+
+    async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            result = await agent.run(message_history=message_history)
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, input_value="Hello from history!")
+
+    async def test_agent_run_stream_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history for run_stream."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream(message_history=message_history) as result:
+                async for chunk in result.stream(debounce_by=None):
+                    output = chunk
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output, input_value="Hello from history!")
+
+    async def test_agent_iter_with_message_history(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that INPUT_VALUE is set from message_history for iter."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.iter(message_history=message_history) as agent_run:
+                async for _ in agent_run:
+                    pass
+                output = agent_run.result.output
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output, input_value="Hello from history!")
+
+    async def test_agent_run_with_user_prompt_and_message_history(
+        self, pydantic_ai, request_vcr, llmobs_events, test_spans
+    ):
+        """Test that user_prompt takes precedence over message_history."""
+        from pydantic_ai.messages import ModelRequest
+        from pydantic_ai.messages import UserPromptPart
+
+        message_history = [ModelRequest(parts=[UserPromptPart(content="Hello from history!")])]
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            result = await agent.run("Hello, world!", message_history=message_history)
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, input_value="Hello, world!")
 
 
 class TestLLMObsPydanticAISpanLinks:

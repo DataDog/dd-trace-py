@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix avoids potential ``JSONDecodeError`` when parsing tool call arguments
+    from streamed Anthropic response message chunks.

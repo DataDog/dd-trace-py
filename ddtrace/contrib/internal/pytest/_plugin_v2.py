@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import typing as t
 
@@ -10,6 +9,7 @@ from ddtrace import config as dd_config
 from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
@@ -41,11 +41,11 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
-from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
 from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
 from ddtrace.contrib.internal.pytest._xdist import XdistHooks
 from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
 from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
+from ddtrace.contrib.internal.pytest._xdist import is_xdist_worker_env
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -67,6 +67,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -101,7 +102,6 @@ if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
-
 
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -193,7 +193,7 @@ def _is_coverage_report_upload_enabled() -> bool:
         log.debug("Unable to check if coverage report upload is enabled from settings", exc_info=True)
 
     # Allow environment variable to override (same pattern as V3)
-    if asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+    if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
         coverage_report_upload_enabled = True
 
     return coverage_report_upload_enabled
@@ -207,7 +207,7 @@ def _handle_test_management(item, test_id):
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+    if is_quarantined and asbool(env.get("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
         is_disabled = True
 
@@ -329,7 +329,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     take_over_logger_stream_handler()
 
     # Log early initialization details
-    is_worker = PYTEST_XDIST_WORKER_VALUE is not None
+    is_worker = is_xdist_worker_env()
     process_type = "WORKER" if is_worker else "MAIN"
     log.debug("EARLY_INIT: %s process starting pytest_load_initial_conftests_pre_yield", process_type)
 
@@ -399,7 +399,7 @@ def _handle_coverage_patch_early(config):
     pytest_cov_enabled = _is_pytest_cov_enabled(config)
 
     # Check environment variable (API settings not available yet)
-    env_coverage_upload = asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
+    env_coverage_upload = asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
 
     # Patch if pytest-cov is enabled OR env var suggests we might need coverage
     if not (pytest_cov_enabled or env_coverage_upload):
@@ -422,9 +422,20 @@ def _handle_coverage_patch_early(config):
 
 
 def pytest_configure(config: pytest_Config) -> None:
-    global skip_pytest_runtest_protocol
+    global skip_pytest_runtest_protocol, skipped_suites
 
-    if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+    # AIDEV-NOTE: Reset per-session module-level state for every new main-process
+    # session. This is necessary when inline_run() calls pytest.main() inside an
+    # outer xdist worker: the module is already imported, so module-level
+    # initialisations don't re-run. Without this reset, skipped_suites accumulates
+    # entries from previous sessions and skip_pytest_runtest_protocol may stay True.
+    # The hasattr(config, "workerinput") check identifies the main process of the
+    # *current* session (not the outer-run process).
+    if not hasattr(config, "workerinput"):
+        skipped_suites = set()
+        skip_pytest_runtest_protocol = False
+
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
@@ -464,8 +475,15 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
-                    # Main process
+                if not hasattr(config, "workerinput"):
+                    # Main process: reset per-session xdist ITR skip counter.
+                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
+                    # When inline_run() is called inside an outer xdist worker, the constant is
+                    # "gw0" for the entire process lifetime, so the reset would never fire and
+                    # pytest.global_worker_itr_results would accumulate across inline_run calls.
+                    # hasattr(config, "workerinput") is the correct check: it is True only for
+                    # worker configs of the *current* session, not for outer-run workers.
                     pytest.global_worker_itr_results = 0
 
         else:
@@ -485,6 +503,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
+    # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
+    reset_coverage_state()
+
     if not is_test_visibility_enabled():
         return
 

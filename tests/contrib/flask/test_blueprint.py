@@ -9,22 +9,18 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
     def test_patch(self):
         """
         When we patch Flask
-            Then ``flask.Blueprint.register`` is patched
-            Then ``flask.Blueprint.add_url_rule`` is patched
+            Then ``flask.Blueprint.before_request`` is patched
         """
         # DEV: We call `patch` in `setUp`
-        self.assert_is_wrapped(flask.Blueprint.register)
-        self.assert_is_wrapped(flask.Blueprint.add_url_rule)
+        self.assert_is_wrapped(flask.Blueprint.before_request)
 
     def test_unpatch(self):
         """
         When we unpatch Flask
-            Then ``flask.Blueprint.register`` is not patched
-            Then ``flask.Blueprint.add_url_rule`` is not patched
+            Then ``flask.Blueprint.before_request`` is not patched
         """
         unpatch()
-        self.assert_is_not_wrapped(flask.Blueprint.register)
-        self.assert_is_not_wrapped(flask.Blueprint.add_url_rule)
+        self.assert_is_not_wrapped(flask.Blueprint.before_request)
 
     def test_blueprint_request(self):
         """
@@ -50,4 +46,6 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertNotEqual(span.parent_id, 0)
-        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask"})
+        self.assertEqual(
+            span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask", "_dd.svc_src": "m"}
+        )

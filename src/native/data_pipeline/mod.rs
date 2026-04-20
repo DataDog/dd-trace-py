@@ -71,6 +71,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_process_tags(process_tags);
+        Ok(slf.into())
+    }
+
     fn set_tracer_version(mut slf: PyRefMut<'_, Self>, version: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_tracer_version(version);
         Ok(slf.into())
@@ -161,6 +166,24 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder.
     ///
     /// The builder shouldn't be reused
@@ -194,7 +217,7 @@ impl TraceExporterPy {
     ///
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
-    fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
+    fn send(&self, py: Python<'_>, data: PyBackedBytes) -> PyResult<String> {
         py.detach(move || {
             match self
                 .inner
@@ -202,7 +225,7 @@ impl TraceExporterPy {
                 .ok_or(PyValueError::new_err(
                     "TraceExporter has already been consumed",
                 ))?
-                .send(&data, trace_count)
+                .send(&data)
             {
                 Ok(res) => match res {
                     AgentResponse::Changed { body } => Ok(body),

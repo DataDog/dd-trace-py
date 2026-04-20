@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 import tempfile
 from typing import Optional
 
@@ -20,6 +21,8 @@ from ddtrace.trace import tracer
 
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
+
 if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
 else:
@@ -210,7 +213,7 @@ def redirect(request, route: str, port: int):
             )
         else:
             request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
-        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+        with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
             payload = {"payload": f.read().decode(errors="ignore")}
     except Exception as e:
         import traceback
@@ -261,7 +264,12 @@ def redirect_httpx(request, route: str, port: int):
     try:
         with httpx.Client() as client:
             response = client.request(
-                method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                method,
+                full_url,
+                content=body,
+                headers=headers,
+                timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                follow_redirects=True,
             )
             payload = {"payload": response.text}
     except Exception as e:
@@ -292,7 +300,12 @@ def redirect_httpx_async(request, route: str, port: int):
         async def _request():
             async with httpx.AsyncClient() as client:
                 return await client.request(
-                    method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                    method,
+                    full_url,
+                    content=body,
+                    headers=headers,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    follow_redirects=True,
                 )
 
         response = asyncio.run(_request())
@@ -376,6 +389,18 @@ def login_user_sdk(request):
 
 
 @csrf_exempt
+def exception_group_block(request):
+    """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+    if sys.version_info < (3, 11) or request.GET.get("block") != "true":
+        return HttpResponse("ok", status=200)
+
+    from ddtrace.appsec._utils import Block_config
+    from ddtrace.internal._exceptions import BlockingException
+
+    raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
+
+
+@csrf_exempt
 def new_service(request, service_name: str):
     ddtrace.config.django.service = service_name
     with tracer.start_span("span_with_new_service", service=service_name):
@@ -431,6 +456,7 @@ if django.VERSION >= (2, 0, 0):
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
         path("login_sdk", login_user_sdk, name="login_sdk"),
+        path("exception-group-block", exception_group_block, name="exception_group_block"),
     ]
 else:
     urlpatterns += [
@@ -450,4 +476,5 @@ else:
         ),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
+        path("exception-group-block", exception_group_block, name="exception_group_block"),
     ]

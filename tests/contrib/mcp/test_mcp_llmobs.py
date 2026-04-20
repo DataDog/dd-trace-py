@@ -62,19 +62,22 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
     assert client_events[0] == _expected_llmobs_non_llm_span_event(
         client_span,
         span_kind="tool",
-        input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
+        input_value=json.dumps({"operation": "add", "a": 20, "b": 22}, sort_keys=True),
         output_value=json.dumps(
             {
                 "content": [{"type": "text", "annotations": {}, "meta": {}, "text": '{\n  "result": 42\n}'}],
                 "isError": False,
-            }
+            },
+            sort_keys=True,
         ),
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
-            "mcp_server_name": "TestServer",
+            "integration": "mcp",
             "mcp_tool_kind": "client",
+            "mcp_server_name": "TestServer",
         },
+        name="MCP Client Tool Call: calculator",
     )
 
     expected_params = {
@@ -84,6 +87,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         "arguments": {"operation": "add", "a": 20, "b": 22},
     }
 
+    assert server_events[0]["parent_id"] == client_events[0]["span_id"]
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
@@ -93,7 +97,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
                 "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
-            }
+            },
+            sort_keys=True,
         ),
         output_value=json.dumps(
             {
@@ -101,15 +106,19 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
                 "content": [{"type": "text", "text": '{\n  "result": 42\n}', "annotations": None, "meta": None}],
                 "structuredContent": None,
                 "isError": False,
-            }
+            },
+            sort_keys=True,
         ),
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "tools/call",
             "mcp_tool": "calculator",
             "mcp_tool_kind": "server",
         },
+        name="calculator",
+        parent_id=mock.ANY,
     )
 
     # asserting the remaining spans
@@ -120,15 +129,21 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_server_name": "TestServer",
             "mcp_server_version": importlib.metadata.version("mcp"),
             "mcp_server_title": None,
         },
+        name="MCP Client Session",
         metadata=mock.ANY,
     )
 
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+        all_spans[1],
+        span_kind="task",
+        output_value=mock.ANY,
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
+        name="MCP Client Initialize",
     )
 
     # server initialize
@@ -140,10 +155,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "initialize",
             "client_name": "mcp",
             "client_version": "mcp_0.1.0",
         },
+        name="mcp.initialize",
     )
 
     # tools/list call
@@ -152,7 +169,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         span_kind="task",
         input_value=mock.ANY,
         output_value=mock.ANY,
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
+        name="MCP Client list Tools",
     )
 
 
@@ -176,7 +194,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
     assert server_span.error
 
     # assert the error client span manually
-    assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"})
+    assert client_events[0]["meta"]["input"]["value"] == json.dumps({"param": "value"}, sort_keys=True)
     assert client_events[0]["meta"]["output"]["value"] == json.dumps(
         {
             "content": [
@@ -188,7 +206,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 }
             ],
             "isError": True,
-        }
+        },
+        sort_keys=True,
     )
     assert client_events[0]["meta"]["error"]["message"] == "Error executing tool failing_tool: Tool execution failed"
     assert client_events[0]["status"] == "error"
@@ -201,6 +220,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
         "arguments": {"param": "value"},
     }
 
+    assert server_events[0]["parent_id"] == client_events[0]["span_id"]
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
@@ -210,7 +230,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
-            }
+            },
+            sort_keys=True,
         ),
         output_value=json.dumps(
             {
@@ -225,11 +246,13 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
                 ],
                 "structuredContent": None,
                 "isError": True,
-            }
+            },
+            sort_keys=True,
         ),
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "tools/call",
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
@@ -237,6 +260,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
         error="ToolError",
         error_message="tool resulted in an error",
         error_stack="",
+        name="failing_tool",
+        parent_id=mock.ANY,
     )
 
 
@@ -262,6 +287,7 @@ def test_server_initialization_span_created(mcp_setup, test_spans, llmobs_events
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "initialize",
             "client_name": "test-client",
             "client_version": "test-client_1.2.3",
@@ -435,3 +461,52 @@ def test_intent_capture_disabled_by_default(mcp_setup, test_spans, llmobs_events
 
     # Verify telemetry property is NOT injected when intent capture is disabled
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
+
+
+def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
+    """Regression: llmobs_set_tags must run AFTER await func(), not before.
+
+    Before the fix, llmobs_set_tags ran synchronously before ``await func(*args, **kwargs)``.
+    This widened the race window in which the MCP session's ``_receive_loop`` could exit and
+    close ``_write_stream``, causing ``anyio.ClosedResourceError`` instead of a clean
+    cancellation (see TASK_MCP_CLOSED_RESOURCE_ERROR.md).
+
+    The fix wraps ``await func(...)`` in a try/finally so that llmobs_set_tags is called
+    AFTER the response is sent.  This test verifies:
+    1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
+    2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
+    """
+    import anyio
+
+    from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
+
+    call_order = []
+
+    async def mock_func_raises_closed_resource(*args, **kwargs):
+        call_order.append("func")
+        raise anyio.ClosedResourceError()
+
+    mock_instance = mock.MagicMock()
+    mock_instance._dd_span = mock.MagicMock()
+
+    original_llmobs_set_tags = mcp_setup._datadog_integration.llmobs_set_tags
+
+    def tracking_llmobs_set_tags(*args, **kwargs):
+        call_order.append("llmobs_set_tags")
+
+    mcp_setup._datadog_integration.llmobs_set_tags = tracking_llmobs_set_tags
+
+    async def run():
+        try:
+            await traced_request_responder_respond(
+                mock_func_raises_closed_resource, mock_instance, (mock.MagicMock(),), {}
+            )
+        except anyio.ClosedResourceError:
+            pass
+
+    asyncio.run(run())
+    mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
+
+    assert call_order == ["func", "llmobs_set_tags"], (
+        f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
+    )

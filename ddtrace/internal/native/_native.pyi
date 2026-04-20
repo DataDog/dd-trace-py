@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Any
+from typing import Iterator
 from typing import Literal
+from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 
@@ -74,8 +76,9 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
-        endpoint: Optional[str],
-        unix_socket_path: Optional[str],
+        endpoint: Optional[str] = None,
+        unix_socket_path: Optional[str] = None,
+        test_token: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -162,11 +165,10 @@ class TraceExporter:
         Initialize a TraceExporter.
         """
         ...
-    def send(self, data: bytes, trace_count: int) -> str:
+    def send(self, data: bytes) -> str:
         """
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
-        :param trace_count: The number of traces in the data payload.
         """
         ...
     def shutdown(self, timeout_ns: int) -> None:
@@ -256,6 +258,12 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
+        """
+        Set the process tags to be included in the stats payload.
+        :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
+        """
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -338,6 +346,27 @@ class TraceExporterBuilder:
     def enable_health_metrics(self) -> TraceExporterBuilder:
         """
         Enable health metrics in the TraceExporter
+        """
+        ...
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
         """
         ...
     def build(self) -> TraceExporter:
@@ -511,6 +540,31 @@ class ffe:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
 
+class native_flare:
+    class ListeningError(Exception): ...
+    class LockError(Exception): ...
+    class ParsingError(Exception): ...
+    class SendError(Exception): ...
+    class ZipError(Exception): ...
+
+    class FlareAction:
+        def __repr__(self) -> str: ...
+        def is_send(self) -> bool: ...
+        def is_set(self) -> bool: ...
+        def is_unset(self) -> bool: ...
+        @property
+        def level(self) -> Optional[str]: ...
+        @property
+        def case_id(self) -> Optional[str]: ...
+        @staticmethod
+        def none_action() -> native_flare.FlareAction: ...
+
+    class TracerFlareManager:
+        def __init__(self, agent_url: str) -> None: ...
+        def handle_remote_config_data(self, data: Any, product: str) -> native_flare.FlareAction: ...
+        def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
+        def set_current_log_level(self, level: str) -> None: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -520,6 +574,8 @@ class SpanData:
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
     span_id: int
+    trace_id: int
+    _trace_id_64bits: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
@@ -531,7 +587,7 @@ class SpanData:
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,  # placeholder for Span.__init__
+        trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
@@ -542,20 +598,67 @@ class SpanData:
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
-class SpanEventData:
-    def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
+class SpanEvent:
+    name: str
+    time_unix_nano: int
+    attributes: dict[str, Any]
+    def __init__(
+        self, name: str, attributes: Optional[Mapping[str, Any]] = None, time_unix_nano: Optional[int] = None
+    ): ...
+    def __repr__(self) -> str: ...
+    def __iter__(self) -> Iterator[tuple[str, Any]]: ...
+    def __reduce__(self) -> tuple: ...
 
-class SpanLinkData:
+class SpanLink:
+    SPAN_POINTER_KIND: str
+    trace_id: int
+    span_id: int
+    tracestate: Optional[str]
+    flags: Optional[int]
+    attributes: dict[str, Any]
+    _dropped_attributes: int
+
     def __init__(
         self,
         trace_id: int,
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
         _dropped_attributes: int = 0,
-    ): ...
+        _skip_validation: bool = False,
+    ) -> None: ...
+    @property
+    def name(self) -> Any: ...
+    @property
+    def kind(self) -> Optional[Any]: ...
+    def to_dict(self) -> dict[str, Any]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __reduce__(self) -> tuple: ...
+    @classmethod
+    def _SpanPointer(
+        cls,
+        pointer_kind: str,
+        pointer_direction: Any,
+        pointer_hash: str,
+        extra_attributes: Optional[dict[str, Any]] = None,
+    ) -> "SpanLink": ...
 
+def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
+def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+
+class config:
+    """Native config module for tracer configuration managed in Rust."""
+
+    @staticmethod
+    def get_128_bit_trace_id_enabled() -> bool:
+        """Return whether 128-bit trace ID generation is enabled."""
+        ...
+    @staticmethod
+    def set_128_bit_trace_id_enabled(val: bool) -> None:
+        """Set whether 128-bit trace ID generation is enabled."""
+        ...

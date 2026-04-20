@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Iterable
 
@@ -20,6 +19,7 @@ from ddtrace._trace.pin import Pin
 # project
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -28,20 +28,19 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
-
 config._add(
     "pymemcache",
     {
-        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+        "command_enabled": asbool(env.get("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
     },
 )
-
 
 # keep a reference to the original unpatched clients
 _Client = Client
@@ -309,18 +308,17 @@ def _trace(func, p, method_name, *args, **kwargs):
     """
     with tracer.trace(
         schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
-        service=p.service,
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
-        span._set_tag_str(COMPONENT, config.pymemcache.integration_name)
-        span._set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
+        set_service_and_source(span, p.service, config.pymemcache)
+        span._set_attribute(COMPONENT, config.pymemcache.integration_name)
+        span._set_attribute(db.SYSTEM, memcachedx.DBMS_NAME)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         # try to set relevant tags, catch any exceptions so we don't mess
         # with the application
@@ -329,7 +327,7 @@ def _trace(func, p, method_name, *args, **kwargs):
             if config.pymemcache.command_enabled:
                 vals = _get_query_string(args)
                 query = "{}{}{}".format(method_name, " " if vals else "", vals)
-                span._set_tag_str(memcachedx.QUERY, query)
+                span._set_attribute(memcachedx.QUERY, query)
         except Exception:
             log.debug("Error setting relevant pymemcache tags")
 
@@ -339,15 +337,15 @@ def _trace(func, p, method_name, *args, **kwargs):
             if method_name == "get_many" or method_name == "gets_many":
                 # gets_many returns a map of key -> (value, cas), else an empty dict if no matches
                 # get many returns a map with values, else an empty map if no matches
-                span.set_metric(
+                span._set_attribute(
                     db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
                 )
             elif method_name == "get":
                 # get returns key or None
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
                 # gets returns a tuple of (None, None) if key not found, else tuple of (key, index)
-                span.set_metric(db.ROWCOUNT, 1 if result[0] else 0)
+                span._set_attribute(db.ROWCOUNT, 1 if result[0] else 0)
             return result
         except (
             MemcacheClientError,

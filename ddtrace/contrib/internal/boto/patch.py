@@ -1,5 +1,4 @@
 import inspect
-import os
 
 from boto import __version__
 import boto.connection
@@ -10,6 +9,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
@@ -18,6 +18,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
@@ -40,11 +41,10 @@ AWS_AUTH_ARGS_NAME = (
 AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
 AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 
-
 config._add(
     "boto",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 
@@ -90,16 +90,15 @@ def patched_query_request(original_func, instance, args, kwargs):
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         operation_name = None
         if args:
@@ -135,8 +134,8 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.STATUS_CODE, result.status)
+        span._set_attribute(http.METHOD, result._method)
 
         return result
 
@@ -171,11 +170,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())
@@ -204,13 +202,13 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, result.status)
-        span._set_tag_str(http.METHOD, result._method)
+        span._set_attribute(http.STATUS_CODE, result.status)
+        span._set_attribute(http.METHOD, result._method)
 
-        span._set_tag_str(COMPONENT, config.boto.integration_name)
+        span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         return result
 

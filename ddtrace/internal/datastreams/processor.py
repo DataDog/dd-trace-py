@@ -3,7 +3,6 @@ import base64
 from collections import defaultdict
 from functools import partial
 import gzip
-import os
 import struct
 import threading
 import time
@@ -16,6 +15,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -50,7 +50,6 @@ This powers the data streams monitoring product. More details about the product 
 https://docs.datadoghq.com/data_streams/
 """
 
-
 log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
@@ -78,8 +77,10 @@ class PathwayStats(object):
         self.payload_size = DDSketch()
 
 
-PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
-ConsumerPartitionKey = NamedTuple("ConsumerPartitionKey", [("group", str), ("topic", str), ("partition", int)])
+PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int), ("cluster_id", str)])
+ConsumerPartitionKey = NamedTuple(
+    "ConsumerPartitionKey", [("group", str), ("topic", str), ("partition", int), ("cluster_id", str)]
+)
 Bucket = NamedTuple(
     "Bucket",
     [
@@ -101,8 +102,9 @@ class DataStreamsProcessor(PeriodicService):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
+        self._enabled: bool = True
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
@@ -123,7 +125,6 @@ class DataStreamsProcessor(PeriodicService):
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
-        self._enabled = True
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
@@ -174,18 +175,18 @@ class DataStreamsProcessor(PeriodicService):
             stats.payload_size.add(payload_size)
             self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
-    def track_kafka_produce(self, topic, partition, offset, now_sec):
+    def track_kafka_produce(self, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = PartitionKey(topic, partition)
+        key = PartitionKey(topic, partition, cluster_id)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(
                 offset, self._buckets[bucket_time_ns].latest_produce_offsets[key]
             )
 
-    def track_kafka_commit(self, group, topic, partition, offset, now_sec):
+    def track_kafka_commit(self, group, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = ConsumerPartitionKey(group, topic, partition)
+        key = ConsumerPartitionKey(group, topic, partition, cluster_id)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(
@@ -213,28 +214,24 @@ class DataStreamsProcessor(PeriodicService):
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
-                backlogs.append(
-                    {
-                        "Tags": [
-                            "type:kafka_commit",
-                            "consumer_group:" + consumer_key.group,
-                            "topic:" + consumer_key.topic,
-                            "partition:" + str(consumer_key.partition),
-                        ],
-                        "Value": offset,
-                    }
-                )
+                commit_tags = [
+                    "type:kafka_commit",
+                    "consumer_group:" + consumer_key.group,
+                    "topic:" + consumer_key.topic,
+                    "partition:" + str(consumer_key.partition),
+                ]
+                if consumer_key.cluster_id:
+                    commit_tags.append("kafka_cluster_id:" + consumer_key.cluster_id)
+                backlogs.append({"Tags": commit_tags, "Value": offset})
             for producer_key, offset in bucket.latest_produce_offsets.items():
-                backlogs.append(
-                    {
-                        "Tags": [
-                            "type:kafka_produce",
-                            "topic:" + producer_key.topic,
-                            "partition:" + str(producer_key.partition),
-                        ],
-                        "Value": offset,
-                    }
-                )
+                produce_tags = [
+                    "type:kafka_produce",
+                    "topic:" + producer_key.topic,
+                    "partition:" + str(producer_key.partition),
+                ]
+                if producer_key.cluster_id:
+                    produce_tags.append("kafka_cluster_id:" + producer_key.cluster_id)
+                backlogs.append({"Tags": produce_tags, "Value": offset})
             serialized_buckets.append(
                 {
                     "Start": bucket_time_ns,
@@ -473,7 +470,7 @@ class DataStreamsCtx:
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
-            span._set_tag_str("pathway.hash", str(hash_value))
+            span._set_attribute("pathway.hash", str(hash_value))
         edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
         pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value

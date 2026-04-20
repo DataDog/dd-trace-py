@@ -1,11 +1,11 @@
 import enum
 import json
-import os
 import typing as t
 
 from envier import En
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -30,20 +30,23 @@ def post_preload():
     if _config.enabled:
         from ddtrace._monkey import _patch_all
 
-        modules_to_patch = os.getenv("DD_PATCH_MODULES")
+        modules_to_patch = env.get("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         _patch_all(**modules_to_bool)
 
 
+def enabled():
+    return _config.enabled
+
+
 def start():
-    if _config.enabled:
-        from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings._config import config
 
-        if config._trace_methods:
-            from ddtrace.internal.tracemethods import _install_trace_methods
+    if config._trace_methods:
+        from ddtrace.internal.tracemethods import _install_trace_methods
 
-            _install_trace_methods(config._trace_methods)
+        _install_trace_methods(config._trace_methods)
 
 
 def restart(join=False):
@@ -60,11 +63,12 @@ def stop(join=False):
         tracer.shutdown()
 
 
-def at_exit(join=False):
+def skip_exit():
     # at_exit hooks are currently registered when the tracer is created. This is
     # required to support non-global tracers (ex: CiVisibility and the Dummy Tracers used in tests).
-    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer._init__(....) to the product protocol,
-    pass
+    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer.__init__(....) to the product protocol,
+    # at which point this can be removed.
+    return True
 
 
 class APMCapabilities(enum.IntFlag):

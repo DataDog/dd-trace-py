@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6838afb700000000",
+      "_dd.p.tid": "69a5ee7500000000",
       "aas.function.name": "http_get_root",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +19,17 @@
       "http.url": "http://0.0.0.0:7071/api/httpgetroot",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "35612f2f758343f1bc0945e786a656d2",
+      "runtime-id": "a61f9ebe0c4242fb80af0faa1d9e4069",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 86777
+      "_sampling_priority_v1": 1.0,
+      "process_id": 38127.0
     },
-    "duration": 218274542,
-    "start": 1748545463427692960
+    "duration": 113403750,
+    "start": 1772482165446939547
   },
      {
        "name": "requests.request",
@@ -41,6 +41,7 @@
        "type": "http",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "requests",
          "component": "requests",
          "http.method": "GET",
          "http.status_code": "200",
@@ -50,11 +51,11 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
        },
-       "duration": 214625625,
-       "start": 1748545463431095002
+       "duration": 109826292,
+       "start": 1772482165450292380
      }],
 [
   {
@@ -67,7 +68,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6838afb700000000",
+      "_dd.p.tid": "69a5ee7500000000",
       "aas.function.name": "http_get_child",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -77,15 +78,15 @@
       "http.url": "http://localhost:7071/api/httpgetchild",
       "http.useragent": "python-requests/x.xx.x",
       "language": "python",
-      "runtime-id": "35612f2f758343f1bc0945e786a656d2",
+      "runtime-id": "a61f9ebe0c4242fb80af0faa1d9e4069",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 86777
+      "_sampling_priority_v1": 1.0,
+      "process_id": 38127.0
     },
-    "duration": 147083,
-    "start": 1748545463457107919
+    "duration": 170000,
+    "start": 1772482165468827922
   }]]

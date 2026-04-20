@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66a6956800000000",
+      "_dd.p.tid": "69de7ac900000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "0da930484bcf4b488bfd7bb9cfd9c4b6"
+      "runtime-id": "e5e166a5bc7d419f8a5ff481d80669d4"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7703
+      "_sampling_priority_v1": 1.0,
+      "process_id": 43019.0
     },
-    "duration": 17414000,
-    "start": 1700083163139832175
+    "duration": 6713334,
+    "start": 1776188105580299921
   },
      {
        "name": "flask.request",
@@ -35,8 +37,10 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "66a6956800000000",
-         "_dd.parent_id": "4f4e94b0f4d57229",
+         "_dd.p.tid": "69de7ac900000000",
+         "_dd.parent_id": "5a91cdb5971efa2a",
+         "_dd.svc_src": "flask",
+         "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
          "component": "flask",
          "flask.endpoint": "otel",
          "flask.url_rule": "/otel",
@@ -47,20 +51,20 @@
          "http.url": "http://0.0.0.0:8010/otel",
          "http.useragent": "python-requests/2.28.1",
          "language": "python",
-         "runtime-id": "a29fc1c052394690a557d5d7a5207798",
+         "runtime-id": "add2bd29518c42f7b4cad81e46220009",
          "span.kind": "server",
-         "traceparent": "00-655535db000000001e5a01526309382a-a6d82d11c8b9f104-01",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "traceparent": "00-69de7ac9000000009772118a97a254d7-5a91cdb5971efa2a-01",
+         "tracestate": "dd=p:5a91cdb5971efa2a;s:1;t.dm:-0"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 31660
+         "_sampling_priority_v1": 1.0,
+         "process_id": 43190.0
        },
-       "duration": 4600000,
-       "start": 1722193256335520000
+       "duration": 5118417,
+       "start": 1776188105581585046
      },
         {
           "name": "flask.application",
@@ -73,12 +77,13 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask",
             "flask.endpoint": "otel",
             "flask.url_rule": "/otel"
           },
-          "duration": 4219000,
-          "start": 1722193256335701000
+          "duration": 4804458,
+          "start": 1776188105581729713
         },
            {
              "name": "flask.try_trigger_before_first_request_functions",
@@ -91,10 +96,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 12000,
-             "start": 1722193256335827000
+             "duration": 12958,
+             "start": 1776188105581802880
            },
            {
              "name": "flask.preprocess_request",
@@ -107,10 +113,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 13000,
-             "start": 1722193256335911000
+             "duration": 11625,
+             "start": 1776188105581845296
            },
            {
              "name": "flask.dispatch_request",
@@ -123,10 +130,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 3646000,
-             "start": 1722193256335970000
+             "duration": 4501625,
+             "start": 1776188105581873421
            },
               {
                 "name": "tests.opentelemetry.flask_app.otel",
@@ -139,10 +147,11 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.svc_src": "m",
                   "component": "flask"
                 },
-                "duration": 3585000,
-                "start": 1722193256336021000
+                "duration": 4474500,
+                "start": 1776188105581894296
               },
                  {
                    "name": "internal",
@@ -154,10 +163,11 @@
                    "type": "",
                    "error": 0,
                    "meta": {
-                     "_dd.base_service": ""
+                     "_dd.base_service": "",
+                     "_dd.svc_src": "m"
                    },
-                   "duration": 36000,
-                   "start": 1722193256339552000
+                   "duration": 41875,
+                   "start": 1776188105586311046
                  },
            {
              "name": "flask.process_response",
@@ -170,10 +180,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 17000,
-             "start": 1722193256339703000
+             "duration": 16333,
+             "start": 1776188105586414963
            },
            {
              "name": "flask.do_teardown_request",
@@ -186,10 +197,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 14000,
-             "start": 1722193256339831000
+             "duration": 12792,
+             "start": 1776188105586485588
            },
            {
              "name": "flask.do_teardown_appcontext",
@@ -202,10 +214,11 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.svc_src": "m",
                "component": "flask"
              },
-             "duration": 10000,
-             "start": 1722193256339897000
+             "duration": 9416,
+             "start": 1776188105586515880
            },
         {
           "name": "flask.response",
@@ -218,8 +231,9 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
-          "duration": 183000,
-          "start": 1722193256339931000
+          "duration": 157083,
+          "start": 1776188105586540088
         }]]

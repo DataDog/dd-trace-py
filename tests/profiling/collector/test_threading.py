@@ -11,9 +11,9 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
+from unittest import mock  # type: ignore[import-untyped]
 import uuid
 
-import mock
 import pytest
 
 from ddtrace import ext
@@ -29,6 +29,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -413,8 +414,8 @@ def test_rlock_gevent_tasks() -> None:
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
+    from unittest import mock
 
-    import mock
     import pytest
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -591,19 +592,98 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("Unexpected frame in stack: 'fubar'"))
+        lock._update_name = mock.Mock(  # type: ignore[attr-defined]
+            side_effect=AssertionError("Unexpected frame in stack: 'fubar'")
+        )
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise RuntimeError
-        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))
+        lock._update_name = mock.Mock(side_effect=RuntimeError("Some profiling error"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
 
         # Patch _update_name to raise Exception
-        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
+        lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
+
+
+def test_flush_sample_uses_push_monotonic_ns() -> None:
+    """Verify _flush_sample always uses push_monotonic_ns on all platforms.
+
+    The clock mismatch between Python's time.monotonic_ns() and the C++ offset
+    computation is fixed at the C++ layer (sample.cpp uses mach_absolute_time() on
+    macOS to match Python's clock source), so no platform-specific workaround is
+    needed here.
+    """
+    import threading
+    import time
+
+    import mock
+
+    import ddtrace.profiling.collector._lock as _lock_module
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_push_monotonic_ns")
+
+    mock_handle: mock.MagicMock = mock.MagicMock()
+
+    before: int = time.monotonic_ns()
+    with (
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
+        ThreadingLockCollector(capture_pct=100),
+    ):
+        mock_ddup.SampleHandle.return_value = mock_handle
+
+        lock: threading.Lock = threading.Lock()
+        lock.acquire()
+        lock.release()
+    after: int = time.monotonic_ns()
+
+    assert not mock_handle.push_absolute_ns.called, "push_absolute_ns should not be called"
+    assert mock_handle.push_monotonic_ns.called, "push_monotonic_ns should be called"
+    for call in mock_handle.push_monotonic_ns.call_args_list:
+        ts: int = call[0][0]
+        assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
+        assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"
+
+
+def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
+    """Verify _flush_sample never passes 0 to push_monotonic_ns.
+
+    push_monotonic_ns returns False and skips the sample when given 0.
+    time.monotonic_ns() returns ns since boot, so 0 is only possible at
+    the exact instant of boot — never in practice, but guard it anyway.
+    """
+    import threading
+
+    import mock
+
+    import ddtrace.profiling.collector._lock as _lock_module
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_zero_guard")
+
+    mock_handle: mock.MagicMock = mock.MagicMock()
+
+    with (
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
+        mock.patch.object(_lock_module, "time") as mock_time,
+        ThreadingLockCollector(capture_pct=100),
+    ):
+        mock_ddup.SampleHandle.return_value = mock_handle
+        mock_time.monotonic_ns.return_value = 0
+
+        lock: threading.Lock = threading.Lock()
+        lock.acquire()
+        lock.release()
+
+    for call in mock_handle.push_monotonic_ns.call_args_list:
+        ts: int = call[0][0]
+        assert ts == 0, f"Expected 0 to be passed through to push_monotonic_ns (guard is in C++), got {ts}"
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
@@ -626,7 +706,7 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
         bsem.release()
 
         # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
+        wrapped_bsem = bsem.__wrapped__  # type: ignore[attr-defined]
         assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
         assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
@@ -692,6 +772,16 @@ class LockCollectorTestBase:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
 
 class TestGenericLockProfiling(LockCollectorTestBase):
@@ -813,8 +903,8 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
             found_callsite_sample = False
             for sample_idx, sample in enumerate(samples):
-                # Stack export allows one extra frame plus an omitted-frames marker.
-                assert len(sample.location_id) <= config.max_frames + 2, (
+                # Stack export allows one extra frame for the omitted-frames marker.
+                assert len(sample.location_id) <= config.max_frames + 1, (
                     f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
                 )
 
@@ -1173,6 +1263,61 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 ],
             )
 
+    def test_find_name_slots_object(self) -> None:
+        """Regression: _find_name resolves lock names on __slots__-based objects.
+
+        Objects with __slots__ have no __dict__, so the slots inspection path
+        in _find_name must be used. Previously, the TypeError from vars() was
+        caught and the name resolution was skipped entirely.
+        """
+
+        class SlottedHolder:
+            __slots__ = ("my_lock",)
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = SlottedHolder(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", (
+                    f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
+                )
+
+    def test_crashing_descriptor_does_not_crash(self) -> None:
+        """Regression: _find_name must not crash when an object has a descriptor that raises.
+
+        Ray's get_actor_name descriptor crashes when accessed from a non-actor
+        worker context. The old dir()+getattr() approach would invoke it and
+        crash. The fix uses __dict__ to avoid invoking class-level descriptors.
+        """
+
+        class CrashingDescriptor:
+            def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
+                raise RuntimeError("Simulated Ray descriptor crash")
+
+        class HolderWithCrashingDescriptor:
+            dangerous_attr = CrashingDescriptor()
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = HolderWithCrashingDescriptor(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                # Must not raise, even though accessing dangerous_attr crashes
+                found_name = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
+
     def test_private_lock(self) -> None:
         # Store reference to class for later qualname access
         foo_class: Optional[type] = None
@@ -1324,11 +1469,11 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             foo_func = foo
             test_bar_class = TestBar
 
-            _test_global_bar_instance = TestBar(self.lock_class)
+            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
             # Use the locks
             foo()
-            _test_global_bar_instance.bar()
+            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1473,7 +1618,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         with self.collector_class(capture_pct=100):
             lock: LockTypeInst = self.lock_class()
             with pytest.raises(AttributeError):
-                _ = lock.this_attribute_does_not_exist  # type: ignore[attr-defined]
+                _ = lock.this_attribute_does_not_exist  # type: ignore[union-attr]
 
     def test_lock_slots_enforced(self) -> None:
         """Test that __slots__ is defined on _ProfiledLock for memory efficiency."""
@@ -1548,6 +1693,39 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
         )
 
+    def test_failed_acquire_produces_no_sample(self) -> None:
+        """Test that a failed non-blocking acquire produces no acquire/release samples.
+
+        When acquire(blocking=False) returns False (lock unavailable), acquired_time
+        must NOT be set. Setting it would produce a spurious acquire sample and corrupt
+        the hold-time of the thread that actually holds the lock.
+        """
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            profiled = cast(_ProfiledLock, lock)
+            acquired_time_after_success = profiled.acquired_time
+            assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
+
+            result = lock.acquire(blocking=False)
+            assert result is False, "Non-blocking acquire on held lock must return False"
+            assert profiled.acquired_time == acquired_time_after_success, (
+                "acquired_time must not change after a failed acquire"
+            )
+
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        assert len(acquire_samples) == 1, (
+            f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
+        )
+        assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.
@@ -1563,6 +1741,15 @@ class TestThreadingLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Lock]:
         return threading.Lock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_lock(self) -> None:
+        """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when Lock is a factory function (Python < 3.14)
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates Lock-specific attributes."""
@@ -1597,6 +1784,15 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.RLock]:
         return threading.RLock
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+    def test_pep604_skips_for_rlock(self) -> None:
+        """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
+        with self.collector_class(capture_pct=100):
+            try:
+                assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+            except pytest.skip.Exception:
+                pass  # Expected when RLock is a factory function
 
     def test_lock_getattr(self) -> None:
         """Test that __getattr__ delegates RLock-specific attributes."""
@@ -1642,7 +1838,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
+            class CustomLock(self.lock_class):  # type: ignore[name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -1748,13 +1944,17 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
 
             # Create a semaphore-like lock - it should NOT be internal
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
             # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
+            assert not sem.is_internal, (  # type: ignore[union-attr]
+                f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
+            )
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = sem._cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+            internal_lock: LockTypeInst = (
+                sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
+            )
             assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
             assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
                 "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
@@ -1769,7 +1969,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         Note: We use capture_pct=0 because we only care about behavior, not profile output.
         """
         with self.collector_class(capture_pct=0):
-            sem: LockTypeInst = self.lock_class(1)
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
 
             # Test that blocking acquire succeeds
             result1 = sem.acquire(blocking=True)

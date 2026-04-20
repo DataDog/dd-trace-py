@@ -1,0 +1,10 @@
+id: os-environ-fix-getenv
+valid:
+  - env.get("DEBUG")
+  - env.get("DEBUG", "false")
+  - from ddtrace.internal.settings import env
+
+invalid:
+  - os.getenv("DEBUG")
+  - os.getenv("DEBUG", "false")
+  - value = os.getenv("KEY", "default")

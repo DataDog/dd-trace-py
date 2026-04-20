@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.36.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.43.0
     alias: testagent
     variables:
       LOG_LEVEL: ERROR
@@ -25,14 +25,16 @@
       DD_POOL_TRACE_CHECK_FAILURES: true
       DD_DISABLE_ERROR_RESPONSES: true
       ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
-      SNAPSHOT_IGNORED_ATTRS: span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url
+      SNAPSHOT_IGNORED_ATTRS: span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url,meta._dd.svc_src
       VCR_PROVIDER_MAP: azure_openai=https://llmobs-test-resource.openai.azure.com/
   mongo:
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
   redis:
-    name: registry.ddbuild.io/redis:7.0.7
+    name: registry.ddbuild.io/redis:7.4.6-gbi-jammy
     alias: redis
+    # Disable RDB persistence (no writable volume in CI)
+    command: ["--save", "", "--bind", "0.0.0.0"]
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
     alias: valkey
@@ -124,6 +126,13 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
+  azurecosmosemulator:
+    name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+    alias: azurecosmosemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      BLOB_SERVER: azurite
+      METADATA_SERVER: azurite
   azureeventhubsemulator:
     name: registry.ddbuild.io/images/mirror/azure-messaging/eventhubs-emulator:2.1.0
     alias: azureeventhubsemulator
@@ -144,6 +153,10 @@
     variables:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Localtestpass1!"
+  pubsub:
+    name: registry.ddbuild.io/images/mirror/google/cloud-sdk:557.0.0-emulators
+    alias: pubsub
+    command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port=0.0.0.0:8085"]
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite

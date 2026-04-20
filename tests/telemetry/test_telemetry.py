@@ -64,6 +64,25 @@ else:
     assert app_started[0]["runtime_id"] == runtime_id
 
 
+def test_enable_subprocess_exec_suppresses_app_events(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """A child process spawned via subprocess.run should not emit app-started or app-closing events."""
+    code = """
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
+"""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Only the parent should emit app-started and app-closing
+    assert len(test_agent_session.get_events("app-started")) == 1
+    assert len(test_agent_session.get_events("app-closing")) == 1
+
+
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """
     assert app-heartbeat events are also sent in forked processes since otherwise the dependency collection
@@ -381,3 +400,88 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
 
     assert sorted_configs[3]["value"] is True
     assert sorted_configs[3]["origin"] == "code"
+
+
+def test_session_id_headers_across_forks(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Verify session ID headers are correct across a parent -> child -> grandchild fork tree."""
+    code = """
+import os
+import sys
+
+pid1 = os.fork()
+if pid1 == 0:
+    pid2 = os.fork()
+    if pid2 == 0:
+        sys.exit(0)
+    else:
+        os.waitpid(pid2, 0)
+        sys.exit(0)
+else:
+    os.waitpid(pid1, 0)
+"""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # One representative request per process
+    seen = {}
+    for req in test_agent_session.get_requests(filter_heartbeats=False):
+        seen.setdefault(req["body"]["runtime_id"], req)
+    unique_requests = list(seen.values())
+
+    # DD-Session-ID always matches the runtime_id in the payload
+    for req in unique_requests:
+        assert req["headers"].get("DD-Session-ID") == req["body"]["runtime_id"]
+
+    # The root process has no DD-Root-Session-ID or DD-Parent-Session-ID
+    root_reqs = [r for r in unique_requests if "DD-Root-Session-ID" not in r["headers"]]
+    assert len(root_reqs) == 1
+    parent_id = root_reqs[0]["headers"]["DD-Session-ID"]
+    assert "DD-Parent-Session-ID" not in root_reqs[0]["headers"]
+
+    # All forked processes share DD-Root-Session-ID = parent's runtime_id
+    child_reqs = [r for r in unique_requests if "DD-Root-Session-ID" in r["headers"]]
+    assert len(child_reqs) == 2
+    for req in child_reqs:
+        assert req["headers"]["DD-Root-Session-ID"] == parent_id
+
+    # Lineage: child's parent is root; grandchild's parent is child
+    children_by_parent = {}
+    for req in child_reqs:
+        children_by_parent.setdefault(req["headers"]["DD-Parent-Session-ID"], []).append(
+            req["headers"]["DD-Session-ID"]
+        )
+
+    assert len(children_by_parent[parent_id]) == 1
+    child1_id = children_by_parent[parent_id][0]
+    assert len(children_by_parent[child1_id]) == 1
+
+
+@pytest.mark.parametrize("collect_dependencies", [True, False])
+def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
+    """Assert at least one extended heartbeat is sent when the extended heartbeat interval has elapsed."""
+
+    env = os.environ.copy()
+    env["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
+    env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=env)
+    assert status == 0, stderr
+    assert stderr == b""
+
+    extended_events = test_agent_session.get_events("app-extended-heartbeat")
+    assert len(extended_events) >= 1
+
+    assert extended_events[0]["payload"]["configuration"] is not None
+    configurations = test_agent_session.get_configurations()
+    assert configurations == extended_events[0]["payload"]["configuration"]
+
+    if collect_dependencies:
+        assert "dependencies" in extended_events[0]["payload"]
+        assert len(extended_events[0]["payload"]["dependencies"]) > 0, extended_events[0]["payload"]
+    else:
+        assert "dependencies" not in extended_events[0]["payload"]

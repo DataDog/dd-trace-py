@@ -28,21 +28,57 @@ class ProfilerStats
     // Number of entries in the echion StringTable
     std::optional<size_t> string_table_count;
 
+    // Number of ephemeral entries in the echion StringTable
+    std::optional<size_t> string_table_ephemeral_count;
+
+    // Whether fast_copy_memory (ECHION_USE_FAST_COPY_MEMORY) is enabled; unset until the sampler starts
+    std::optional<bool> fast_copy_memory_enabled;
+
+    // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
+    size_t copy_memory_error_count = 0;
+
+    // Number of currently tracked allocations in the heap tracker
+    std::optional<size_t> heap_tracker_size;
+
+    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
+    std::optional<size_t> asyncio_task_count;
+
+    // Number of greenlets currently tracked by the stack profiler
+    std::optional<size_t> greenlet_count;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
 
     void increment_sample_count(size_t k_sample_count = 1);
-    size_t get_sample_count();
+    size_t get_sample_count() const;
 
     void increment_sampling_event_count(size_t k_sampling_event_count = 1);
-    size_t get_sampling_event_count();
+    size_t get_sampling_event_count() const;
 
     void set_sampling_interval_us(size_t interval_us);
-    std::optional<size_t> get_sampling_interval_us();
+    std::optional<size_t> get_sampling_interval_us() const;
 
     void set_string_table_count(size_t count);
-    std::optional<size_t> get_string_table_count();
+    std::optional<size_t> get_string_table_count() const;
+
+    void set_string_table_ephemeral_count(size_t count);
+    std::optional<size_t> get_string_table_ephemeral_count() const;
+
+    void set_fast_copy_memory_enabled(bool enabled);
+    std::optional<bool> get_fast_copy_memory_enabled() const;
+
+    void add_copy_memory_error_count(size_t count);
+    size_t get_copy_memory_error_count() const;
+
+    void set_heap_tracker_size(size_t count);
+    std::optional<size_t> get_heap_tracker_size() const;
+
+    void set_asyncio_task_count(size_t count);
+    std::optional<size_t> get_asyncio_task_count() const;
+
+    void set_greenlet_count(size_t count);
+    std::optional<size_t> get_greenlet_count() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

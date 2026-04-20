@@ -1,0 +1,194 @@
+[[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createTopic projects/test-project/topics/test-topic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69cd106300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createTopic",
+      "runtime-id": "91d463ac53dd47df91b8db0dedeb1390",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 15225416,
+    "start": 1775046755157559719
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createSubscription projects/test-project/subscriptions/test-subscription",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69cd106300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createSubscription",
+      "runtime-id": "91d463ac53dd47df91b8db0dedeb1390",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 6527458,
+    "start": 1775046755175219552
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "deleteSubscription projects/test-project/subscriptions/test-subscription",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69cd106300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "deleteSubscription",
+      "runtime-id": "91d463ac53dd47df91b8db0dedeb1390",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 5464167,
+    "start": 1775046755275027427
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "deleteTopic projects/test-project/topics/test-topic",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69cd106300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "deleteTopic",
+      "runtime-id": "91d463ac53dd47df91b8db0dedeb1390",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 8778333,
+    "start": 1775046755281329302
+  }],
+[
+  {
+    "name": "gcp.pubsub.send",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-topic",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de79fb00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "messaging.destination.name": "test-topic",
+      "messaging.message_id": "14",
+      "messaging.operation": "send",
+      "messaging.system": "pubsub",
+      "runtime-id": "81d5f547d82b48beb7c771f8376ffe49",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 38691.0
+    },
+    "duration": 15275792,
+    "start": 1776187899561113923
+  }],
+[
+  {
+    "name": "gcp.pubsub.receive",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-subscription",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de79fb00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "messaging.destination.name": "test-subscription",
+      "messaging.message_id": "14",
+      "messaging.operation": "receive",
+      "messaging.system": "pubsub",
+      "runtime-id": "81d5f547d82b48beb7c771f8376ffe49",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 38691.0
+    },
+    "duration": 145458,
+    "start": 1776187899616193715
+  }]]

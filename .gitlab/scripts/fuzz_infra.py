@@ -1,246 +1,307 @@
 #!/usr/bin/env python3
 
-# This script enables "0 click onboarding" for new fuzzer in the dd-trace-py repository.
-# This means that any new fuzzer should be automatically detected and run in the internal
-# infrastructure with enrichments, reporting, triaging, auto fix etc...
-# Reports are submitted via Slack, with the channel defined by SLACK_CHANNEL
+# CI script for the fuzzing pipeline.
 #
-# Requirements:
+# Builds and pushes a single compiled Docker image (all fuzz binaries), then
+# creates a thin per-binary image for each target (just overrides FUZZ_TARGET).
+# This way the expensive compilation happens once and per-binary images are
+# trivial single-layer additions.
 #
-# This scripts assumes that:
-# - Each fuzz target is built in a separate build directory named `fuzz` and having a `build.sh` script that builds
-# the target.
-# - The build script appends the path to the built binary to a "MANIFEST_FILE", allowing the discovery of each fuzz
-# target by the script.
+# Expected environment variables (set by .gitlab/fuzz.yml):
+#   FUZZ_IMAGE          – registry path, e.g. registry.ddbuild.io/dd-trace-py-fuzz
+#   FUZZ_BASE_IMAGE     – pre-built base image ref, e.g. registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base
+#   PYTHON_VERSION      – e.g. "3.12" (must match a pyenv version in fuzz_base)
+#   CI_COMMIT_SHORT_SHA – short SHA from GitLab CI
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-import glob
+import json
 import os
 import subprocess
 import sys
+import tempfile
+import time
 
-import requests
 
-
-# TODO: replace me to dd-trace-py ops' slack channel once initial onboarding is done
-SLACK_CHANNEL = "fuzzing-ops"
+SLACK_CHANNEL = "profiling-python-ops"
 TEAM_NAME = "profiling-python"
 REPOSITORY_URL = "https://github.com/DataDog/dd-trace-py"
 PROJECT_NAME = "dd-trace-py"
-# We currently only support libfuzzer for this repository.
 FUZZ_TYPE = "libfuzzer"
-API_URL = "https://fuzzing-api.us1.ddbuild.io/api/v1"
-
-# Paths and constants for script execution
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-FUZZER_BINARY_BASE_PATH = "/tmp/fuzz/build"
-MANIFEST_FILE = os.path.join(FUZZER_BINARY_BASE_PATH, "fuzz_binaries.txt")
 MAX_PKG_NAME_LENGTH = 50
-VAULT_PATH = "vault"
+
+
+@dataclass(frozen=True)
+class Config:
+    fuzz_image: str
+    fuzz_base_image: str
+    python_version: str
+    commit_short_sha: str
+    git_sha: str
+
+    @classmethod
+    def from_env(cls) -> Config:
+        git_sha = run_command(["git", "rev-parse", "HEAD"]).stdout.strip()
+        git_sha = git_sha.decode("utf-8") if isinstance(git_sha, bytes) else git_sha
+        return cls(
+            fuzz_image=os.environ["FUZZ_IMAGE"],
+            fuzz_base_image=os.environ["FUZZ_BASE_IMAGE"],
+            python_version=os.environ["PYTHON_VERSION"],
+            commit_short_sha=os.environ["CI_COMMIT_SHORT_SHA"],
+            git_sha=git_sha,
+        )
+
+    @property
+    def py_version_compact(self) -> str:
+        return self.python_version.replace(".", "")
+
+    @property
+    def compiled_tag(self) -> str:
+        """Tag for the compiled base image (contains all binaries, no specific target)."""
+        return f"py{self.py_version_compact}-{self.commit_short_sha}-compiled"
+
+    @property
+    def compiled_image_ref(self) -> str:
+        return f"{self.fuzz_image}:{self.compiled_tag}"
+
+    def binary_tag(self, binary_name: str) -> str:
+        """Per-binary image tag, e.g. py310-abc1234-fuzz-echion-strings."""
+        safe_name = binary_name.replace("_", "-")
+        return f"py{self.py_version_compact}-{self.commit_short_sha}-{safe_name}"
+
+    def binary_image_ref(self, binary_name: str) -> str:
+        return f"{self.fuzz_image}:{self.binary_tag(binary_name)}"
 
 
 @dataclass(frozen=True)
 class FuzzBinary:
-    """Represents a built fuzz binary ready for upload."""
-
     pkgname: str
     binary_name: str
     binary_path: str
 
 
-def build_and_upload_fuzz(
-    team: str = TEAM_NAME,
-    slack_channel: str = SLACK_CHANNEL,
-    repository_url: str = REPOSITORY_URL,
-) -> None:
-    git_sha = os.popen("git rev-parse HEAD").read().strip()
+def get_package_name(binary_name: str, py_version_compact: str) -> str:
+    """Build a k8s-label-safe package name: dd-trace-py-py<ver>-<binary>.
 
-    # Step 1: Discover and run all build scripts
-    build_scripts = discover_build_scripts(REPO_ROOT)
-    if not build_scripts:
-        print(f"❌ No fuzz build scripts found under {REPO_ROOT}")
-        return
-
-    # Clear any previous manifest file
-    if os.path.exists(MANIFEST_FILE):
-        os.remove(MANIFEST_FILE)
-
-    for build_script in build_scripts:
-        run_build_script(build_script)
-
-    # Step 2: Read the manifest file to discover built binaries
-    binaries = read_manifest(MANIFEST_FILE)
-    if not binaries:
-        print(f"❌ No fuzz binaries found in manifest {MANIFEST_FILE}")
-        return
-
-    # Step 3: Upload and create a fuzzer for each binary
-    for binary in binaries:
-        upload_binary(binary, git_sha)
-        create_fuzzer(binary, git_sha, team, slack_channel, repository_url)
-
-    print("✅ Fuzzing infrastructure setup completed successfully!")
-
-
-def get_package_name(binary_name: str) -> str:
+    Underscores are replaced with hyphens and the result is truncated to
+    MAX_PKG_NAME_LENGTH characters.
     """
-    Generate a package name for the fuzzing platform from a binary name.
-    It's prefixed with the repository name so it's easier to filter.
-    The package name is limited by k8s labels format: must be < 63 chars, alphamumeric and hyphen.
+    prefix = f"{PROJECT_NAME}-py{py_version_compact}"
+    suffix = binary_name[: MAX_PKG_NAME_LENGTH - len(prefix) - 1].replace("_", "-")
+    return f"{prefix}-{suffix}"
+
+
+def run_command(cmd: list[str], capture_output: bool = True, inp: str | None = None):
+    """Run *cmd* and raise on non-zero exit."""
+    print(f"+ {' '.join(cmd)}")
+    if capture_output:
+        return subprocess.run(cmd, check=True, capture_output=True, text=True, input=inp)
+    return subprocess.run(cmd, check=True, text=True, input=inp)
+
+
+def get_fuzzydog_token() -> str:
+    """Obtain a FUZZYDOG_AUTH_TOKEN from vault.
+
+    The token is fetched via vault's OIDC identity endpoint. It is never
+    printed to avoid leaking credentials in CI logs.
     """
-    return PROJECT_NAME + "-" + binary_name[:MAX_PKG_NAME_LENGTH].replace("_", "-")
+    result = run_command(
+        ["vault", "read", "-field=token", "identity/oidc/token/security-fuzzing-platform"],
+    )
+    token = result.stdout.strip()
+    if not token:
+        raise RuntimeError("vault returned an empty FUZZYDOG_AUTH_TOKEN")
+
+    token = token.decode("utf-8") if isinstance(token, bytes) else token
+    return token
 
 
-def _is_executable(file_path: str) -> bool:
-    return os.path.isfile(file_path) and os.access(file_path, os.X_OK)
+def build_and_push_compiled_image(config: Config) -> str:
+    """Build the compiled base image (all fuzz binaries) and push it.
 
-
-def discover_build_scripts(repo_root: str) -> list[str]:
+    Returns the metadata file path for signing.
     """
-    Discover fuzz build scripts by looking for '**/fuzz/build.sh'
+    metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
+    run_command(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "--target",
+            "build",
+            "-f",
+            "docker/Dockerfile.fuzz",
+            "--build-arg",
+            f"FUZZ_BASE_IMAGE={config.fuzz_base_image}",
+            "--build-arg",
+            f"PYTHON_VERSION={config.python_version}",
+            "-t",
+            config.compiled_image_ref,
+            "--push",
+            "--metadata-file",
+            metadata_file,
+            ".",
+        ],
+        capture_output=False,
+    )
+    return metadata_file
 
-    This allows for "0 click onboarding" for new fuzz harnesses.
+
+def build_and_push_binary_image(config: Config, binary: FuzzBinary) -> str:
+    """Build a per-binary image on top of the compiled base.
+
+    Adds a thin layer that sets FUZZ_APP/FUZZ_BUILD_ID and symlinks the binary
+    so fuzzydog can find it at /fuzzer/builds/<git_sha>.
+    Returns the metadata file path for signing.
     """
-    build_scripts: list[str] = []
-    for build_script in glob.glob(os.path.join(repo_root, "**/fuzz/build.sh"), recursive=True):
-        print(f"Found build script: {build_script}")
-        build_scripts.append(build_script)
-    return build_scripts
+    metadata_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json").name
+    dockerfile_content = (
+        f"FROM {config.compiled_image_ref}\n"
+        f"ENV FUZZ_TARGET={binary.binary_name}\n"
+        f"ENV FUZZ_APP={binary.pkgname}\n"
+        f"ENV FUZZ_BUILD_ID={config.git_sha}\n"
+    )
+    run_command(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "-t",
+            config.binary_image_ref(binary.binary_name),
+            "--push",
+            "--metadata-file",
+            metadata_file,
+            "-",
+        ],
+        capture_output=False,
+        inp=dockerfile_content,
+    )
+    return metadata_file
 
 
-def run_build_script(build_script: str) -> None:
-    """Run a fuzz build script."""
-    fuzz_dir = os.path.dirname(build_script)
-    print(f"Building fuzz directory: {fuzz_dir}")
-
-    if not os.path.isfile(build_script):
-        raise FileNotFoundError(build_script)
-
-    try:
-        result = subprocess.run(
-            [build_script],
-            cwd=fuzz_dir,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Build script failed with exit code {e.returncode}")
-        print(f"Command: {e.cmd}")
-        if e.stdout:
-            print(f"stdout:\n{e.stdout}")
-        if e.stderr:
-            print(f"stderr:\n{e.stderr}")
-        raise
-
-    print(f"✅ Built fuzzers from {build_script}")
+def sign_image(image_ref: str, metadata_file: str) -> None:
+    """Sign the pushed image via ddsign."""
+    run_command(
+        ["ddsign", "sign", image_ref, "--docker-metadata-file", metadata_file],
+    )
 
 
-def read_manifest(manifest_path: str) -> list[FuzzBinary]:
+def replicate_image(image_ref: str, metadata_file: str) -> None:
+    """Replicate the signed image to us1.ddbuild.io."""
+    with open(metadata_file) as f:
+        metadata = json.load(f)
+    digest = metadata["containerimage.digest"]
+    image_with_digest = f"{image_ref}@{digest}"
+    run_command(
+        ["ddsign", "replicate", "--to", "us1.ddbuild.io", image_with_digest],
+    )
+
+
+def wait_for_replication() -> None:
+    """Wait for replication to complete (once, after all images are submitted)."""
+    # TODO: remove this fixed sleep once our backend infra has fixed retries on this failure.
+    # If it's not enough, the automatic scheduler will pick them up within 24 hours.
+    print("Waiting 30s for replication to complete...")
+    time.sleep(30)
+
+
+def extract_manifest(config: Config) -> list[FuzzBinary]:
+    """Extract the fuzz-binary manifest via a cached buildx export.
+
+    This also primes the Docker layer cache so the subsequent compiled-image
+    push reuses the same layers.
     """
-    Read the manifest file created by build scripts to discover built binaries.
-
-    Each build script appends its binary path(s) to this file.
-    """
+    output_dir = tempfile.mkdtemp()
+    run_command(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "--target",
+            "manifest",
+            "-f",
+            "docker/Dockerfile.fuzz",
+            "--build-arg",
+            f"FUZZ_BASE_IMAGE={config.fuzz_base_image}",
+            "--build-arg",
+            f"PYTHON_VERSION={config.python_version}",
+            "--output",
+            f"type=local,dest={output_dir}",
+            ".",
+        ],
+        capture_output=False,
+    )
+    manifest_file = os.path.join(output_dir, "fuzz_binaries.txt")
+    with open(manifest_file) as f:
+        content = f.read()
     binaries: list[FuzzBinary] = []
-
-    if not os.path.isfile(manifest_path):
-        print(f"⚠️ No manifest file found at {manifest_path}")
-        return binaries
-
-    with open(manifest_path) as f:
-        for line in f:
-            binary_path = line.strip()
-            if not binary_path:
-                continue
-            if not os.path.isfile(binary_path):
-                print(f"⚠️ Binary listed in manifest not found: {binary_path}")
-                continue
-            if not _is_executable(binary_path):
-                print(f"⚠️ Binary listed in manifest is not executable: {binary_path}")
-                continue
-
-            binary_name = os.path.basename(binary_path)
-            print(f"Found fuzz binary: {binary_path}")
-            binaries.append(
-                FuzzBinary(
-                    pkgname=get_package_name(binary_name),
-                    binary_name=binary_name,
-                    binary_path=binary_path,
-                )
-            )
-
+    for line in content.splitlines():
+        binary_path = line.strip()
+        if not binary_path:
+            continue
+        binary_name = os.path.basename(binary_path)
+        pkg_name = get_package_name(binary_name, config.py_version_compact)
+        binaries.append(FuzzBinary(pkgname=pkg_name, binary_name=binary_name, binary_path=binary_path))
     return binaries
 
 
-def create_fuzzer(binary: FuzzBinary, git_sha: str, team: str, slack_channel: str, repository_url: str) -> bool:
-    """Register a fuzzer with the fuzzing platform."""
-    print(f"Starting fuzzer for {binary.pkgname} ({binary.binary_name})...")
-    run_payload = {
-        "app": binary.pkgname,
-        "debug": False,
-        "version": git_sha,
-        "type": FUZZ_TYPE,
-        "binary": binary.binary_name,
-        "team": team,
-        "slack_channel": slack_channel,
-        "repository_url": repository_url,
-    }
-    try:
-        response = requests.post(
-            f"{API_URL}/apps/{binary.pkgname}/fuzzers", headers=get_headers(), json=run_payload, timeout=30
-        )
-        response.raise_for_status()
-        print(f"✅ Started fuzzer for {binary.pkgname} ({binary.binary_name})")
-        print(response.json())
-    except Exception as e:
-        print(f"❌ Failed to start fuzzer for {binary.pkgname} ({binary.binary_name}): {e}")
-        return True
-
-    return False
-
-
-def upload_binary(binary: FuzzBinary, git_sha: str) -> bool:
-    """Upload a fuzz binary to the fuzzing platform."""
-    try:
-        # Get presigned URL so we can use s3 uploading
-        print(f"Getting presigned URL for {binary.pkgname} ({binary.binary_name})...")
-        presigned_response = requests.post(
-            f"{API_URL}/apps/{binary.pkgname}/builds/{git_sha}/url", headers=get_headers(), timeout=30
+def start_fuzzers(config: Config, binaries: list[FuzzBinary]) -> None:
+    """Start every discovered fuzzer with the fuzzydog CLI."""
+    for binary in binaries:
+        print(f"Starting fuzzer: {binary.pkgname} ({binary.binary_name})")
+        run_command(
+            [
+                "fuzzydog",
+                "fuzzer",
+                "create",
+                binary.pkgname,
+                "--image",
+                config.binary_image_ref(binary.binary_name),
+                "--version",
+                config.git_sha,
+                "--type",
+                FUZZ_TYPE,
+                "--team",
+                TEAM_NAME,
+                "--slack-channel",
+                SLACK_CHANNEL,
+                "--repository-url",
+                REPOSITORY_URL,
+            ],
         )
 
-        presigned_response.raise_for_status()
-        presigned_url = presigned_response.json()["data"]["url"]
 
-        print(f"Uploading {binary.pkgname} ({binary.binary_name}) for {git_sha}...")
-        with open(binary.binary_path, "rb") as f:
-            upload_response = requests.put(presigned_url, data=f, timeout=300)
-            upload_response.raise_for_status()
-        print(f"✅ Uploaded {binary.binary_name}")
-    except Exception as e:
-        print(f"❌ Failed to upload binary for {binary.pkgname} ({binary.binary_name}): {e}")
-        return True
-    return False
+def main() -> None:
+    config = Config.from_env()
+    os.environ["FUZZYDOG_AUTH_TOKEN"] = get_fuzzydog_token()
+    print("FUZZYDOG_AUTH_TOKEN acquired from vault")
 
+    # 1. Extract the manifest (primes Docker build cache).
+    binaries = extract_manifest(config)
+    if not binaries:
+        print("No fuzz binaries found in manifest")
+        sys.exit(1)
 
-def get_headers():
-    auth_header = (
-        os.popen(f"{VAULT_PATH} read -field=token identity/oidc/token/security-fuzzing-platform").read().strip()
-    )
-    return {"Authorization": f"Bearer {auth_header}", "Content-Type": "application/json"}
+    # 2. Build and push the compiled base image (once, expensive).
+    print(f"\n=== Building compiled base image: {config.compiled_image_ref} ===")
+    build_and_push_compiled_image(config)
+
+    # 3. Build, sign, and replicate per-binary images (trivial — one ENV layer each).
+    for binary in binaries:
+        print(f"\n=== Building per-binary image for {binary.binary_name} ===")
+        image_ref = config.binary_image_ref(binary.binary_name)
+        metadata_file = build_and_push_binary_image(config, binary)
+        sign_image(image_ref, metadata_file)
+        replicate_image(image_ref, metadata_file)
+
+    # 4. Single wait for all replications to settle.
+    wait_for_replication()
+
+    # 5. Start all fuzzers (each pointing at its per-binary image).
+    start_fuzzers(config, binaries)
+    print(f"Started {len(binaries)} fuzzer(s)")
 
 
 if __name__ == "__main__":
-    print("🚀 Starting fuzzing infrastructure setup...")
-    try:
-        build_and_upload_fuzz()
-        print("✅ Fuzzing infrastructure setup completed successfully!")
-    except Exception as e:
-        print(f"❌ Failed to set up fuzzing infrastructure: {e}")
-        sys.exit(1)
+    main()

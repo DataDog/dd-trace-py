@@ -5,6 +5,39 @@ from ddtrace.internal import service
 from ddtrace.internal.settings.profiling import config
 
 
+class CaptureSampler:
+    """Determine the events that should be captured based on a sampling percentage.
+
+    At runtime, this is replaced by the Cython extension from ``_sampler.pyx``
+    when compiled extensions are available (the default). This pure-Python
+    definition serves as the fallback for ``DD_CYTHONIZE=0`` builds and as the
+    canonical type for static type checkers.
+    """
+
+    def __init__(self, capture_pct: float = 100.0) -> None:
+        if capture_pct < 0 or capture_pct > 100:
+            raise ValueError("Capture percentage should be between 0 and 100 included")
+        self.capture_pct: float = capture_pct
+        self._counter: float = 0.0
+
+    def __repr__(self) -> str:
+        return f"CaptureSampler(capture_pct={self.capture_pct})"
+
+    def capture(self) -> bool:
+        self._counter += self.capture_pct
+        if self._counter >= 100:
+            self._counter -= 100
+            return True
+        return False
+
+
+if not typing.TYPE_CHECKING:
+    try:
+        from ddtrace.profiling.collector._sampler import CaptureSampler  # noqa: F811
+    except ImportError:
+        pass
+
+
 class CollectorError(Exception):
     pass
 
@@ -22,29 +55,6 @@ class Collector(service.Service):
     @staticmethod
     def snapshot() -> None:
         """Take a snapshot of collected data, to be exported."""
-
-
-class CaptureSampler(object):
-    """Determine the events that should be captured based on a sampling percentage."""
-
-    def __init__(self, capture_pct: float = 100.0):
-        if capture_pct < 0 or capture_pct > 100:
-            raise ValueError("Capture percentage should be between 0 and 100 included")
-        self.capture_pct: float = capture_pct
-        self._counter: float = 0
-
-    def __repr__(self) -> str:
-        class_name = self.__class__.__name__
-        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
-        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
-        return f"{class_name}({attrs_str})"
-
-    def capture(self) -> bool:
-        self._counter += self.capture_pct
-        if self._counter >= 100:
-            self._counter -= 100
-            return True
-        return False
 
 
 class CaptureSamplerCollector(Collector):

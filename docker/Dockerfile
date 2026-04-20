@@ -27,6 +27,8 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
+      autoconf \
+      automake \
       build-essential \
       clang-format \
       gdb \
@@ -43,6 +45,7 @@ RUN apt-get update \
       libmemcached-dev \
       libncurses5-dev \
       libncursesw5-dev \
+      libtool \
       libpq-dev \
       libreadline-dev \
       libsasl2-dev \
@@ -93,7 +96,7 @@ ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
-    sh -s -- --default-toolchain stable -y
+    sh -s -- --profile minimal --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/

@@ -17,7 +17,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -39,17 +38,21 @@ def enable_appsec_rc() -> None:
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
 
     if _asm_feature_is_required():
-        remoteconfig_poller.register(
+        remoteconfig_poller.register_callback(
             PRODUCTS.ASM_FEATURES,
             _appsec_callback,
             capabilities=[_rc_capabilities()],
         )
+        remoteconfig_poller.enable_product(PRODUCTS.ASM_FEATURES)
 
     # Register other ASM products if AppSec is enabled
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
-        remoteconfig_poller.register(PRODUCTS.ASM_DATA, _appsec_callback)  # IP Blocking
-        remoteconfig_poller.register(PRODUCTS.ASM, _appsec_callback)  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.register(PRODUCTS.ASM_DD, _appsec_callback)  # DD Rules
+        remoteconfig_poller.register_callback(PRODUCTS.ASM_DATA, _appsec_callback)  # IP Blocking
+        remoteconfig_poller.enable_product(PRODUCTS.ASM_DATA)
+        remoteconfig_poller.register_callback(PRODUCTS.ASM, _appsec_callback)  # Exclusion Filters & Custom Rules
+        remoteconfig_poller.enable_product(PRODUCTS.ASM)
+        remoteconfig_poller.register_callback(PRODUCTS.ASM_DD, _appsec_callback)  # DD Rules
+        remoteconfig_poller.enable_product(PRODUCTS.ASM_DD)
 
     # ensure exploit prevention patches are loaded by one-click activation
     if asm_config._asm_enabled:
@@ -57,16 +60,15 @@ def enable_appsec_rc() -> None:
 
         load_common_appsec_modules()
 
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    if asm_config._asm_enabled:
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
     asm_config._rc_client_id = remoteconfig_poller._client.id
 
 
-def disable_appsec_rc():
-    # only used to avoid data leaks between tests
+def disable_appsec_rc() -> None:
     for product_name in APPSEC_PRODUCTS:
-        remoteconfig_poller.unregister(product_name)
-
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
+        remoteconfig_poller.unregister_callback(product_name)
+        remoteconfig_poller.disable_product(product_name)
 
 
 class AppSecCallback(RCCallback):
@@ -89,13 +91,19 @@ class AppSecCallback(RCCallback):
             if asm_config._asm_static_rule_file is None:
                 if result["asm"].get("enabled", False):
                     # Register additional ASM products with the same callback
-                    remoteconfig_poller.register(PRODUCTS.ASM_DATA, self)  # IP Blocking
-                    remoteconfig_poller.register(PRODUCTS.ASM, self)  # Exclusion Filters & Custom Rules
-                    remoteconfig_poller.register(PRODUCTS.ASM_DD, self)  # DD Rules
+                    remoteconfig_poller.register_callback(PRODUCTS.ASM_DATA, self)  # IP Blocking
+                    remoteconfig_poller.enable_product(PRODUCTS.ASM_DATA)
+                    remoteconfig_poller.register_callback(PRODUCTS.ASM, self)  # Exclusion Filters & Custom Rules
+                    remoteconfig_poller.enable_product(PRODUCTS.ASM)
+                    remoteconfig_poller.register_callback(PRODUCTS.ASM_DD, self)  # DD Rules
+                    remoteconfig_poller.enable_product(PRODUCTS.ASM_DD)
                 else:
-                    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-                    remoteconfig_poller.unregister(PRODUCTS.ASM)
-                    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM_DATA)
+                    remoteconfig_poller.disable_product(PRODUCTS.ASM_DATA)
+                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM)
+                    remoteconfig_poller.disable_product(PRODUCTS.ASM)
+                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM_DD)
+                    remoteconfig_poller.disable_product(PRODUCTS.ASM_DD)
         debug_info = (
             f"appsec._remoteconfiguration.deb::_appsec_callback::payload"
             f"{tuple(p.path for p in payloads)}[{os.getpid()}][P: {os.getppid()}]"
@@ -139,7 +147,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[
     return res
 
 
-def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}):
+def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}) -> None:
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -163,29 +171,18 @@ def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str
         asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"].get("mode", None)
 
 
-def disable_asm():
+def disable_asm() -> None:
     if asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._listeners import disable_appsec
 
-        AppSecSpanProcessor.disable()
-
-        asm_config._asm_enabled = False
-        if asm_config._api_security_active:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.disable()
-
-        tracer.configure(appsec_enabled=False)
+        disable_appsec(reconfigure_tracer=True)
+        if not asm_config._asm_enabled:
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
 
-def enable_asm():
+def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        asm_config._asm_enabled = True
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.enable()
-        load_appsec()
-        tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
+        if load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC):
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)

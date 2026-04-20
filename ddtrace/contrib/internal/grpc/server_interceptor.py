@@ -9,6 +9,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -18,11 +19,8 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import tracer
 
 
-def create_server_interceptor(pin):
+def create_server_interceptor():
     def interceptor_function(continuation, handler_call_details):
-        if not pin.enabled:
-            return continuation(handler_call_details)
-
         rpc_method_handler = continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
@@ -30,7 +28,7 @@ def create_server_interceptor(pin):
         # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
 
         if rpc_method_handler:
-            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+            return _TracedRpcMethodHandler(handler_call_details, rpc_method_handler)
 
         return rpc_method_handler
 
@@ -46,8 +44,8 @@ def _handle_server_exception(server_context, span):
             details = details.decode("utf-8", errors="ignore")
         else:
             details = str(details)
-        span._set_tag_str(ERROR_MSG, details)
-        span._set_tag_str(ERROR_TYPE, code)
+        span._set_attribute(ERROR_MSG, details)
+        span._set_attribute(ERROR_TYPE, code)
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
@@ -65,9 +63,8 @@ def _wrap_response_iterator(response_iterator, server_context, span):
 
 
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
-    def __init__(self, pin, handler_call_details, wrapped):
+    def __init__(self, handler_call_details, wrapped):
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
-        self._pin = pin
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
@@ -93,27 +90,23 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span = tracer.trace(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
+        set_service_and_source(span, trace_utils.int_service(None, config.grpc_server), config.grpc_server)
 
-        span._set_tag_str(COMPONENT, config.grpc_server.integration_name)
+        span._set_attribute(COMPONENT, config.grpc_server.integration_name)
 
         # set span.kind tag equal to type of span
-        span._set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
-        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+        span._set_attribute(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information
         server_context = args[1] if isinstance(args[1], grpc.ServicerContext) else None
-
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
 
         try:
             response_or_iterator = behavior(*args, **kwargs)

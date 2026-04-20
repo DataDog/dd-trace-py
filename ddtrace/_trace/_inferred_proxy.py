@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -55,9 +56,19 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
 supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
+    "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
 }
 
+# Span names for supported proxy systems (API Gateway, etc.).
 SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()}
+
+# Span names for push-based subscriptions (e.g., GCP Pub/Sub push).
+PUSH_SUBSCRIPTION_SPAN_NAMES = {"gcp.pubsub.receive"}
+
+# Span names for synthetically created inferred spans.
+# AppSec uses this to report security signals on the actual service span in addition to the inferred parent.
+# Trace handlers use this to propagate HTTP status codes and errors from child spans up to the inferred parent.
+INFERRED_SPAN_NAMES = SUPPORTED_PROXY_SPAN_NAMES | PUSH_SUBSCRIPTION_SPAN_NAMES
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
 # logic to extract http headers
@@ -74,6 +85,9 @@ POSSIBLE_PROXY_HEADER_REGION = _possible_header("x-dd-proxy-region")
 POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 
 HEADER_USERAGENT = _possible_header("user-agent")
+
+POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
+POSSIBLE_HEADER_PUBSUB_MESSAGE_ID = _possible_header("x-goog-pubsub-message-id")
 
 
 def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
@@ -116,41 +130,41 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
 
 
 def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, proxy_info: ProxyInfo) -> Span:
-    span._set_tag_str(COMPONENT, proxy_info.component)
-    span._set_tag_str("span.kind", SpanKind.SERVER)
+    span._set_attribute(COMPONENT, proxy_info.component)
+    span._set_attribute("span.kind", SpanKind.SERVER)
 
-    span._set_tag_str(http.URL, f"https://{proxy_context.domain_name or ''}{proxy_context.path or ''}")
+    span._set_attribute(http.URL, f"https://{proxy_context.domain_name or ''}{proxy_context.path or ''}")
 
     if proxy_context.method:
-        span._set_tag_str(http.METHOD, proxy_context.method)
+        span._set_attribute(http.METHOD, proxy_context.method)
 
     if proxy_context.resource_path:
-        span._set_tag_str(http.ROUTE, proxy_context.resource_path)
+        span._set_attribute(http.ROUTE, proxy_context.resource_path)
 
     if proxy_context.useragent:
-        span._set_tag_str(http.USER_AGENT, proxy_context.useragent)
+        span._set_attribute(http.USER_AGENT, proxy_context.useragent)
 
     if proxy_context.stage:
-        span._set_tag_str("stage", proxy_context.stage)
+        span._set_attribute("stage", proxy_context.stage)
 
     if proxy_context.account_id:
-        span._set_tag_str("account_id", proxy_context.account_id)
+        span._set_attribute("account_id", proxy_context.account_id)
 
     if proxy_context.api_id:
-        span._set_tag_str("apiid", proxy_context.api_id)
+        span._set_attribute("apiid", proxy_context.api_id)
 
     if proxy_context.region:
-        span._set_tag_str("region", proxy_context.region)
+        span._set_attribute("region", proxy_context.region)
 
     if proxy_context.user:
-        span._set_tag_str("aws_user", proxy_context.user)
+        span._set_attribute("aws_user", proxy_context.user)
 
     if proxy_info.resource_arn_builder:
         resource_arn = proxy_info.resource_arn_builder(proxy_context)
         if resource_arn:
-            span._set_tag_str("dd_resource_key", resource_arn)
+            span._set_attribute("dd_resource_key", resource_arn)
 
-    span.set_metric("_dd.inferred_span", 1)
+    span._set_attribute(_INFERRED_SPAN_KEY, 1)
     return span
 
 

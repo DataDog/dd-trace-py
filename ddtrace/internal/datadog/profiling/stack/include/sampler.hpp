@@ -1,13 +1,18 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <random>
+#include <vector>
 
 #include "constants.hpp"
 
 #include "echion/strings.h"
 #include "echion/timing.h"
+
+#include <Python.h>
 
 class EchionSampler;
 
@@ -46,10 +51,15 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
+    double target_overhead = g_target_overhead;
+    microsecond_t max_sampling_period_us = g_max_sampling_period_us;
+    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    std::minstd_rand rng{ std::random_device{}() };
+    std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
     void atfork_child();
-    friend void _stack_atfork_child();
+    friend void stack_atfork_child();
 
   public:
     // Singleton instance
@@ -79,6 +89,12 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_target_overhead(double value) { target_overhead = value; }
+    void set_max_sampling_period(microsecond_t max_interval_us)
+    {
+        max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
+    }
+    void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

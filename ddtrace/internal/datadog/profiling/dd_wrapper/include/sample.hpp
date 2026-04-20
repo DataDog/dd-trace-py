@@ -14,8 +14,12 @@
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
+struct _traceback;
+typedef struct _traceback PyTracebackObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
 
@@ -32,12 +36,13 @@ namespace internal {
 struct StringArena
 {
   private:
-    // Default size, in bytes, of each Chunk. The value is a power of 2 (nice to
-    // allocate) that is bigger than any actual sample string size seen over a
-    // random selection of a few hundred Python profiles at Datadog. So ideally
-    // we only need one chunk, which we can reuse between samples
-    static constexpr size_t KB = 1024;
-    static constexpr size_t DEFAULT_SIZE = 16 * KB;
+    // Default size, in bytes, of each Chunk. Frame strings (function names,
+    // filenames) are interned directly into libdatadog's ProfilesDictionary,
+    // so only label values (thread name, task name, trace type, lock name,
+    // etc.) are stored here. Typical total per sample is 20-150 bytes.
+    // 256 bytes covers the vast majority of samples; insert() allocates a
+    // new chunk for the rare overflow case, so correctness is preserved.
+    static constexpr size_t DEFAULT_SIZE = 256;
 
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
@@ -95,8 +100,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0;         // end of the event
-    bool reverse_locations = false; // whether to reverse locations when exporting/flushing
+    int64_t endtime_ns = 0; // end of the event
 
     // Backing memory for string copies
     internal::StringArena string_storage{};
@@ -107,7 +111,7 @@ class Sample
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
-    void clear_buffers();
+    void clear();
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
@@ -131,6 +135,7 @@ class Sample
     bool push_local_root_span_id(uint64_t local_root_span_id);
     bool push_trace_type(std::string_view trace_type);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
+    bool push_exception_message(std::string_view exception_message);
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);
     bool push_absolute_ns(int64_t timestamp_ns);
@@ -149,6 +154,11 @@ class Sample
                     int64_t line             // for ddog_prof_Location
     );
 
+    // Explicitly mark that one or more frames were dropped without attempting to push them.
+    // This is useful for callers that perform their own frame-limit checks and want to
+    // record dropped frames without going through push_frame().
+    void incr_dropped_frames(size_t count = 1);
+
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.
     // Ownership: this function does not take ownership of the initial `frame`
@@ -157,8 +167,14 @@ class Sample
     // released by this function.
     void push_pyframes(PyFrameObject* frame);
 
-    // Set whether to reverse locations when exporting/flushing
-    void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
+    // Push frames from a Python traceback chain to the sample.
+    // Walks tb -> tb_next (root->leaf) and pushes frames in leaf-to-root order,
+    // using tb_lineno for accurate exception site line numbers.
+    // Ownership: does not take ownership of `tb`; all code object references
+    // obtained via PyFrame_GetCode() are released internally.
+    // The GIL must be held when calling this function. Some of its operations,
+    // call Python APIs, such as PyFrame_GetCode()
+    void push_pytraceback(PyTracebackObject* tb);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

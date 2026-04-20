@@ -3,43 +3,12 @@
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
 
+#include <profiling_helpers/frame_accessors.h>
+#include <profiling_helpers/linetable_parser.h>
+
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
-#include <internal/pycore_code.h>
-#include <internal/pycore_frame.h>
-
-#if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_interpframe_structs.h>
-#include <internal/pycore_stackref.h>
-#endif // PY_VERSION_HEX >= 0x030e0000
 #endif // PY_VERSION_HEX >= 0x030b0000
-
-// ----------------------------------------------------------------------------
-#if PY_VERSION_HEX >= 0x030b0000
-static inline int
-_read_varint(unsigned char* table, ssize_t size, ssize_t* i)
-{
-    ssize_t guard = size - 1;
-    if (*i >= guard)
-        return 0;
-
-    int val = table[++*i] & 63;
-    int shift = 0;
-    while (table[*i] & 64 && *i < guard) {
-        shift += 6;
-        val |= (table[++*i] & 63) << shift;
-    }
-    return val;
-}
-
-// ----------------------------------------------------------------------------
-static inline int
-_read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
-{
-    int val = _read_varint(table, size, i);
-    return (val & 1) ? -(val >> 1) : (val >> 1);
-}
-#endif
 
 // ------------------------------------------------------------------------
 Result<Frame::Ptr>
@@ -50,11 +19,7 @@ Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
         return ErrorKind::FrameError;
     }
 
-#if PY_VERSION_HEX >= 0x030b0000
-    auto maybe_name = echion.string_table().key(code->co_qualname, StringTag::FuncName);
-#else
-    auto maybe_name = echion.string_table().key(code->co_name, StringTag::FuncName);
-#endif
+    auto maybe_name = echion.string_table().key(DataDog::get_code_name(code), StringTag::FuncName);
 
     if (!maybe_name) {
         return ErrorKind::FrameError;
@@ -71,136 +36,41 @@ Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
 
 // ----------------------------------------------------------------------------
 Result<void>
-Frame::infer_location(PyCodeObject* code_obj, int lasti)
+Frame::infer_location(PyCodeObject* code_obj, int instr_offset)
 {
-    unsigned int lineno = code_obj->co_firstlineno;
     Py_ssize_t len = 0;
 
-#if PY_VERSION_HEX >= 0x030b0000
+#if PY_VERSION_HEX >= 0x030a0000
     auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr) {
-        return ErrorKind::LocationError;
-    }
-
-    auto table_data = table.get();
-
-    for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
-        bc += (table[i] & 7) + 1;
-        int code = (table[i] >> 3) & 15;
-        unsigned char next_byte = 0;
-        switch (code) {
-            case 15:
-                break;
-
-            case 14: // Long form
-                lineno += _read_signed_varint(table_data, len, &i);
-
-                this->location.line = lineno;
-                this->location.line_end = lineno + _read_varint(table_data, len, &i);
-                this->location.column = _read_varint(table_data, len, &i);
-                this->location.column_end = _read_varint(table_data, len, &i);
-
-                break;
-
-            case 13: // No column data
-                lineno += _read_signed_varint(table_data, len, &i);
-
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = this->location.column_end = 0;
-
-                break;
-
-            case 12: // New lineno
-            case 11:
-            case 10:
-                if (i >= len - 2) {
-                    return ErrorKind::LocationError;
-                }
-
-                lineno += code - 10;
-
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + table[++i];
-                this->location.column_end = 1 + table[++i];
-
-                break;
-
-            default:
-                if (i >= len - 1) {
-                    return ErrorKind::LocationError;
-                }
-
-                next_byte = table[++i];
-
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + (code << 3) + ((next_byte >> 4) & 7);
-                this->location.column_end = this->location.column + (next_byte & 15);
-        }
-
-        if (bc > lasti)
-            break;
-    }
-
-#elif PY_VERSION_HEX >= 0x030a0000
-    auto table = pybytes_to_bytes_and_size(code_obj->co_linetable, &len);
-    if (table == nullptr) {
-        return ErrorKind::LocationError;
-    }
-
-    lasti <<= 1;
-    for (int i = 0, bc = 0; i < len; i++) {
-        int sdelta = table[i++];
-        if (sdelta == 0xff)
-            break;
-
-        bc += sdelta;
-
-        int ldelta = table[i];
-        if (ldelta == 0x80)
-            ldelta = 0;
-        else if (ldelta > 0x80)
-            lineno -= 0x100;
-
-        lineno += ldelta;
-        if (bc > lasti)
-            break;
-    }
-
 #else
     auto table = pybytes_to_bytes_and_size(code_obj->co_lnotab, &len);
+#endif
+
     if (table == nullptr) {
         return ErrorKind::LocationError;
     }
 
-    for (int i = 0, bc = 0; i < len; i++) {
-        bc += table[i++];
-        if (bc > lasti)
-            break;
-
-        if (table[i] >= 0x80)
-            lineno -= 0x100;
-
-        lineno += table[i];
-    }
-
-#endif
-
-    this->location.line = lineno;
-    this->location.line_end = lineno;
-    this->location.column = 0;
-    this->location.column_end = 0;
+    this->line = DataDog::parse_linetable(table.get(), len, instr_offset, code_obj->co_firstlineno);
 
     return Result<void>::ok();
 }
 
 // ------------------------------------------------------------------------
 Frame::Key
-Frame::key(PyCodeObject* code, int lasti)
+Frame::key(PyCodeObject* code, int lasti, int firstlineno)
 {
-    return ((static_cast<uintptr_t>(((reinterpret_cast<uintptr_t>(code)))) << 16) | lasti);
+    // Include co_firstlineno in the key to prevent ABA-problem cache collisions.
+    // Python's GC can free a PyCodeObject and allocate a new one at the same address. Without
+    // firstlineno, a cached <module> frame could be returned for an unrelated function frame.
+    // The original (code_addr << 16) | lasti formula also loses the top 16 bits of code_addr
+    // and collides when lasti > 0xFFFF; this hash avoids both issues.
+    uintptr_t h = reinterpret_cast<uintptr_t>(code);
+    // 2654435761 is the Knuth multiplicative hash constant: floor(2^32 / phi), where phi is the
+    // golden ratio. It spreads sequential integers across the full 32-bit range.
+    h ^= static_cast<uintptr_t>(static_cast<uint32_t>(lasti)) * 2654435761ULL;
+    // 40503 is floor(2^16 / phi), the 16-bit analogue of the Knuth constant above.
+    h ^= static_cast<uintptr_t>(static_cast<uint32_t>(firstlineno)) * 40503ULL;
+    return h;
 }
 
 // ------------------------------------------------------------------------
@@ -249,51 +119,43 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #endif // PY_VERSION_HEX >= 0x030c0000
 
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
-    // from the code object.
-#if PY_VERSION_HEX >= 0x030e0000
-    // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
-    // Profilers must clear the least significant bit to recover the PyObject* pointer.
-    PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    // from the code object, which is a remote address here.  Use offsetof
+    // arithmetic instead to avoid dereferencing it.
+#if PY_VERSION_HEX >= 0x030d0000
+    // DataDog::get_code_from_frame() handles both Python 3.13 (untagged
+    // f_executable) and 3.14+ (tagged _PyStackRef f_executable) transparently.
+    PyCodeObject* code_obj = DataDog::get_code_from_frame(frame_addr);
+    if (code_obj == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
+    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
+    // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
-    int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
-    int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    const int lasti = instr_offset - code_offset;
+    const int lasti =
+      static_cast<int>((frame_addr->instr_ptr - code_units) -
+                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
     auto maybe_frame = Frame::get(echion, code_obj, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
 
     auto& frame = maybe_frame->get();
-#elif PY_VERSION_HEX >= 0x030d0000
-    const int lasti =
-      (static_cast<int>(
-        (frame_addr->instr_ptr - 1 -
-         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
-      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
-    if (!maybe_frame) {
+#else
+    if (frame_addr->f_code == nullptr || frame_addr->prev_instr == nullptr) {
         return ErrorKind::FrameError;
     }
 
-    auto& frame = maybe_frame->get();
-#else
     const int lasti =
-      (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
-      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+      static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>(frame_addr->f_code)) -
+                       static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
     auto maybe_frame = Frame::get(echion, frame_addr->f_code, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
 
     auto& frame = maybe_frame->get();
-#endif // PY_VERSION_HEX >= 0x030e0000
-    if (&frame != &INVALID_FRAME) {
-#if PY_VERSION_HEX >= 0x030c0000
-        frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
-#else                                                                  // PY_VERSION_HEX < 0x030c0000
-        frame.is_entry = frame_addr->is_entry;
-#endif                                                                 // PY_VERSION_HEX >= 0x030c0000
-    }
+#endif // PY_VERSION_HEX >= 0x030d0000
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
 #else  // PY_VERSION_HEX < 0x030b0000
@@ -321,7 +183,22 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 Result<std::reference_wrapper<Frame>>
 Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 {
-    auto frame_key = Frame::key(code_addr, lasti);
+    // Read co_firstlineno before the cache lookup so it is part of the key.
+    // This prevents ABA-problem false hits: if Python frees a PyCodeObject and allocates
+    // a new one at the same address, co_firstlineno will differ and we get a cache miss
+    // (triggering a fresh read) instead of returning a stale frame (e.g. "<module>").
+    // We read only the single int field to keep the cost of cache hits low.
+    int firstlineno;
+    {
+        auto* firstlineno_addr =
+          reinterpret_cast<decltype(PyCodeObject::co_firstlineno)*>( // NOLINT(performance-no-int-to-ptr)
+            reinterpret_cast<uintptr_t>(code_addr) + offsetof(PyCodeObject, co_firstlineno));
+        if (copy_type(firstlineno_addr, firstlineno)) {
+            return std::ref(INVALID_FRAME);
+        }
+    }
+
+    auto frame_key = Frame::key(code_addr, lasti, firstlineno);
 
     auto maybe_frame = echion.frame_cache().lookup(frame_key);
     if (maybe_frame) {
@@ -340,6 +217,9 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 
     auto new_frame = std::move(*maybe_new_frame);
     new_frame->cache_key = frame_key;
+    new_frame->code_object = reinterpret_cast<uintptr_t>(code_addr);
+    new_frame->lasti = lasti;
+    new_frame->first_lineno = firstlineno;
     auto& f = *new_frame;
     echion.frame_cache().store(frame_key, std::move(new_frame));
     return std::ref(f);

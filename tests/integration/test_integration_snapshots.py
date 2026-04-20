@@ -25,8 +25,8 @@ def test_single_trace_single_span(tracer):
     s.set_tag("k", "v")
     # numeric tag
     s.set_tag("num", 1234)
-    s.set_metric("float_metric", 12.34)
-    s.set_metric("int_metric", 4321)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
     s.finish()
     tracer.flush()
 
@@ -62,15 +62,15 @@ def test_multiple_traces(tracer):
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
 
     with tracer.trace("operation2", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
     tracer.flush()
 
@@ -104,21 +104,13 @@ def test_filters():
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
-@pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
+@pytest.mark.subprocess()
 @snapshot(async_mode=False)
-def test_synchronous_writer(writer_class):
-    import os
-
-    from ddtrace.internal.writer import AgentWriter
+def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
 
-    if os.environ["writer_class"] == "AgentWriter":
-        writer_class = AgentWriter
-    elif os.environ["writer_class"] == "NativeWriter":
-        writer_class = NativeWriter
-
-    writer = writer_class(tracer._span_aggregator.writer.intake_url, sync_mode=True)
+    writer = NativeWriter(tracer._span_aggregator.writer.intake_url, sync_mode=True)
     tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
@@ -249,10 +241,10 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
         logger = logging.getLogger("ddtrace.internal._encoding")
         with mock.patch.object(logger, "warning") as log_warning:
             with tracer.trace("root") as root:
-                root._meta = meta
+                root._meta = meta  # ast-grep-ignore: span-meta-access
                 for _ in range(299):
                     with tracer.trace("child") as child:
-                        child._meta = meta
+                        child._meta = meta  # ast-grep-ignore: span-meta-access
 
             assert log_warning.call_count == 300
             log_warning.assert_called_with(
@@ -275,10 +267,10 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_war
         logger = logging.getLogger("ddtrace.internal._encoding")
         with mock.patch.object(logger, "warning") as log_warning:
             with tracer.trace("root") as root:
-                root._metrics = metrics
+                root._metrics = metrics  # ast-grep-ignore: span-metrics-access
                 for _ in range(299):
                     with tracer.trace("child") as child:
-                        child._metrics = metrics
+                        child._metrics = metrics  # ast-grep-ignore: span-metrics-access
 
             assert log_warning.call_count == expected_warning_count
             log_warning.assert_called_with(
@@ -296,7 +288,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span._set_attribute(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 
@@ -347,9 +339,9 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
     with override_global_config(dict(_trace_api=encoding)):
         s = tracer.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
-        s.set_metric("number1", 123)
-        s.set_metric("number2", 12.0)
-        s.set_metric("number3", "1")
+        s._set_attribute("number1", 123)
+        s._set_attribute("number2", 12.0)
+        s._set_attribute("number3", "1")
         s.finish()
 
 
@@ -394,13 +386,11 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
 
 @pytest.mark.parametrize("use_ddtrace_run", [True, False])
 @pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
-@pytest.mark.parametrize("writer_class", ["AgentWriter", "NativeWriter"])
 @pytest.mark.parametrize("api_version", ["v0.4", "v0.5"])
 @pytest.mark.parametrize("compute_stats", ["false", "true"])
 def test_signal_shutdown_flushes_traces(
     use_ddtrace_run,
     signum,
-    writer_class,
     api_version,
     compute_stats,
     tmpdir,
@@ -469,7 +459,6 @@ except KeyboardInterrupt:
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
                 "DD_TRACE_COMPUTE_STATS": compute_stats,
-                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
             }
         )
 

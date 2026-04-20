@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6838afae00000000",
+      "_dd.p.tid": "69a5ee6900000000",
       "aas.function.name": "http_get_root",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +19,17 @@
       "http.url": "http://0.0.0.0:7071/api/httpgetroot",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "b1b15a7ba91041b6a04c6a866fb7709f",
+      "runtime-id": "9e201ee5d42a461ba76d2d71b9bd10ee",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 85677
+      "_sampling_priority_v1": 1.0,
+      "process_id": 37514.0
     },
-    "duration": 158105084,
-    "start": 1748545454186185553
+    "duration": 103149625,
+    "start": 1772482153901778014
   },
      {
        "name": "requests.request",
@@ -41,6 +41,7 @@
        "type": "http",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "requests",
          "component": "requests",
          "http.method": "GET",
          "http.status_code": "200",
@@ -50,11 +51,11 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
        },
-       "duration": 154114042,
-       "start": 1748545454189937553
+       "duration": 99076834,
+       "start": 1772482153905629430
      },
         {
           "name": "azure.functions.invoke",
@@ -65,7 +66,7 @@
           "parent_id": 2,
           "type": "serverless",
           "meta": {
-            "_dd.p.tid": "6838afae00000000",
+            "_dd.p.tid": "69a5ee6900000000",
             "aas.function.name": "http_get_child",
             "aas.function.trigger": "Http",
             "component": "azure_functions",
@@ -74,13 +75,13 @@
             "http.status_code": "200",
             "http.url": "http://localhost:7071/api/httpgetchild",
             "http.useragent": "python-requests/x.xx.x",
-            "runtime-id": "b1b15a7ba91041b6a04c6a866fb7709f",
+            "runtime-id": "9e201ee5d42a461ba76d2d71b9bd10ee",
             "span.kind": "server"
           },
           "metrics": {
-            "_dd.top_level": 1,
-            "process_id": 85677
+            "_dd.top_level": 1.0,
+            "process_id": 37514.0
           },
-          "duration": 166083,
-          "start": 1748545454217156637
+          "duration": 151875,
+          "start": 1772482153924515555
         }]]

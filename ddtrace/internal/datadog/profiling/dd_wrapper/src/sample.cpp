@@ -12,9 +12,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <datadog/common.h>
 #include <datadog/profiling.h>
 #include <string_view>
+
+#include "clock.hpp"
 
 std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
@@ -140,10 +141,10 @@ void
 Datadog::Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(name, filename, address, line);
     } else {
-        ++dropped_frames;
+        incr_dropped_frames();
     }
 }
 
@@ -187,8 +188,8 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // Early exit optimization: once we've reached the frame limit, stop traversing
         // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
         // for frames that will be dropped anyway.
-        if (locations.size() > max_nframes) {
-            ++dropped_frames;
+        if (locations.size() >= max_nframes) {
+            incr_dropped_frames();
             if (!is_initial_frame) {
                 Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
             }
@@ -209,7 +210,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 
         if (code != nullptr) {
             // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
+#if defined(PY311_AND_LATER)
             PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
 #else
             PyObject* name_obj = code->co_name;
@@ -248,13 +249,87 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
     // Error state is automatically restored by error_restorer destructor
 }
 
+// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
+// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
+// The indicator is added at most once, even if export_sample() is called multiple times
+// (guarded by has_dropped_frames_indicator).
+void
+Datadog::Sample::incr_dropped_frames(size_t count)
+{
+    dropped_frames += count;
+}
+
+void
+Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
+{
+    /* Walk the Python traceback chain and push each frame to the sample.
+     * The chain goes from outermost (root) to innermost (leaf) via tb_next.
+     * We collect raw traceback pointers first, then extract frame info only
+     * for the frames we actually keep (up to max_nframes from the leaf end).
+     * Frames are pushed in leaf-to-root order to match the convention used
+     * by push_pyframes and the rest of the profiler.
+     * https://docs.python.org/3/reference/datamodel.html#traceback.tb_next */
+
+    PythonErrorRestorer error_restorer;
+
+    // First pass: collect raw traceback pointers root->leaf.
+    // These are borrowed references owned by the traceback chain, so no
+    // ref-counting is needed here.
+    std::vector<PyTracebackObject*> tb_nodes;
+
+    // Bias for bigger upfront allocations than multiple reallocations (Can revisit this with DOE)
+    tb_nodes.reserve(max_nframes);
+    for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
+        tb_nodes.push_back(tb);
+    }
+
+    // Second pass: iterate leaf->root (reverse), only extracting frame info
+    // for frames we will actually keep (up to max_nframes).
+    for (auto it = tb_nodes.rbegin(); it != tb_nodes.rend(); ++it) {
+        if (locations.size() >= max_nframes) {
+            dropped_frames += std::distance(it, tb_nodes.rend());
+            break;
+        }
+
+        PyTracebackObject* node = *it;
+
+        int lineno = node->tb_lineno;
+        if (lineno < 0) {
+            // In Python 3.12+, tb_lineno can be -1 (lazy). Resolve it through
+            // the Python property which calls PyCode_Addr2Line internally.
+            PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(node), "tb_lineno");
+            if (lineno_obj != nullptr) {
+                lineno = static_cast<int>(PyLong_AsLong(lineno_obj));
+                Py_DECREF(lineno_obj);
+                if (lineno < 0) {
+                    lineno = 0;
+                }
+            } else {
+                PyErr_Clear();
+                lineno = 0;
+            }
+        }
+
+        PyCodeObject* code = (node->tb_frame != nullptr) ? PyFrame_GetCode(node->tb_frame) : nullptr;
+        if (code != nullptr) {
+#if defined(PY311_AND_LATER)
+            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+            PyObject* name_obj = code->co_name;
+#endif
+            push_frame(unicode_to_string_view(name_obj), unicode_to_string_view(code->co_filename), 0, lineno);
+            Py_DECREF(code);
+        }
+    }
+}
+
 void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(function_id, address, line);
     } else {
-        ++dropped_frames;
+        incr_dropped_frames();
     }
 }
 
@@ -313,14 +388,14 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 }
 
 void
-Datadog::Sample::clear_buffers()
+Datadog::Sample::clear()
 {
     std::fill(values.begin(), values.end(), 0);
     labels.clear();
     locations.clear();
     dropped_frames = 0;
     has_dropped_frames_indicator = false;
-    reverse_locations = false;
+    endtime_ns = 0;
     string_storage.reset();
 }
 
@@ -331,7 +406,7 @@ Datadog::Sample::flush_sample()
     auto ret = export_sample();
 
     // Clear buffers after exporting
-    clear_buffers();
+    clear();
     return ret;
 }
 
@@ -344,11 +419,6 @@ Datadog::Sample::export_sample()
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
         has_dropped_frames_indicator = true;
-    }
-
-    if (reverse_locations) {
-        std::reverse(locations.begin(), locations.end());
-        reverse_locations = false; // Reset after reversing
     }
 
     const ddog_prof_Sample2 sample = {
@@ -567,6 +637,13 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 }
 
 bool
+Datadog::Sample::push_exception_message(std::string_view exception_message)
+{
+    push_label(ExportLabelKey::exception_message, exception_message);
+    return true;
+}
+
+bool
 Datadog::Sample::push_lock_name(std::string_view lock_name)
 {
     push_label(ExportLabelKey::lock_name, lock_name);
@@ -711,6 +788,10 @@ Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
 bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
+    if (_monotonic_ns == 0) {
+        return false;
+    }
+
     // Monotonic times have their epoch at the system start, so they need an
     // adjustment to the standard epoch
     // Just set a static for now and use a lambda to compute the offset once
@@ -719,14 +800,9 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
-        // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
-        // which clock is actually used in std::chrono
-        timespec ts{ 0, 0 };
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
-
+        // See clock.hpp for platform-specific details.
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
-        return epoch_ns - monotonic_ns;
+        return epoch_ns - Datadog::get_monotonic_ns();
     }();
 
     // If timeline is not enabled, then this is a no-op

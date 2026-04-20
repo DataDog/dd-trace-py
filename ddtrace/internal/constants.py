@@ -73,6 +73,7 @@ REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
 PROPAGATED_HASH = "_dd.propagated_hash"
+_SERVICE_SOURCE = "_dd.svc_src"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 CONTAINER_TAGS_HASH = "Datadog-Container-Tags-Hash"
@@ -127,6 +128,7 @@ class SamplingMechanism(object):
     DATA_JOBS_MONITORING = 10  # not used in ddtrace
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
+    AI_GUARD = 13
 
 
 SAMPLING_MECHANISM_TO_PRIORITIES = {
@@ -147,10 +149,3 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
-
-
-AI_GUARD_ENABLED = "DD_AI_GUARD_ENABLED"
-AI_GUARD_ENDPOINT = "DD_AI_GUARD_ENDPOINT"
-AI_GUARD_MAX_CONTENT_SIZE = "DD_AI_GUARD_MAX_CONTENT_SIZE"
-AI_GUARD_MAX_MESSAGES_LENGTH = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
-AI_GUARD_TIMEOUT = "DD_AI_GUARD_TIMEOUT"

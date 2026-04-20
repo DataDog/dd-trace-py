@@ -2,15 +2,23 @@
 components:
   appsec:
     - ddtrace/appsec/*
+    - '!ddtrace/appsec/ai_guard/*'
+    - '!ddtrace/appsec/_ai_guard/*'
+    - '!ddtrace/appsec/iast/*'
+    - '!ddtrace/appsec/_iast/*'
+    - '!ddtrace/appsec/sca/*'
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
+    - ddtrace/appsec/_iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   ai_guard:
     - ddtrace/appsec/ai_guard/*
+  sca:
+    - ddtrace/appsec/sca/*
 suites:
   appsec:
     parallelism: 4
@@ -19,12 +27,10 @@ suites:
       - '@core'
       - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/*
     pattern: appsec$
     retry: 2
-    runner: riot
     snapshot: true
   appsec_iast_default:
     venvs_per_job: 1
@@ -32,12 +38,10 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
     retry: 2
-    runner: riot
     timeout: 30m
   appsec_iast_memcheck:
     env:
@@ -47,13 +51,11 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: riot
     timeout: 30m
   appsec_iast_native:
     venvs_per_job: 1
@@ -61,24 +63,19 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: riot
   iast_aggregated_leak_testing:
-    parallelism: 3
+    venvs_per_job: 1
     paths:
       - '@appsec_iast'
-      - tests/appsec/iast_aggregated_memcheck/*
-    runner: hatch
-    timeout: 50m
+      - 'tests/appsec/iast_aggregated_memcheck/*'
   appsec_iast_packages:
     venvs_per_job: 1
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
-    runner: riot
     timeout: 50m
   iast_tdd_propagation:
     venvs_per_job: 1
@@ -86,12 +83,10 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
     retry: 2
-    runner: riot
     snapshot: true
   appsec_integrations_pygoat:
     parallelism: 3
@@ -105,7 +100,6 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: riot
     snapshot: true
   appsec_integrations_packages:
     env:
@@ -122,7 +116,6 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
-    runner: riot
     services:
       - postgres
       - mysql
@@ -134,7 +127,6 @@ suites:
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
     retry: 2
-    runner: riot
   appsec_integrations_langchain:
     venvs_per_job: 1
     paths:
@@ -147,8 +139,20 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
-    runner: riot
   appsec_integrations_flask:
+    pattern: appsec_integrations_flask$
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - tests/appsec/integrations/flask_tests/test_iast_flask.py
+      - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+    retry: 2
+    timeout: 15m
+  appsec_integrations_flask_testagent:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -159,7 +163,6 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
     retry: 2
-    runner: riot
     services:
       - testagent
     timeout: 40m
@@ -174,7 +177,6 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
     retry: 2
-    runner: riot
     services:
       - testagent
     timeout: 30m
@@ -189,10 +191,23 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
     retry: 2
-    runner: riot
     services:
       - testagent
-  appsec_threats_django:
+  appsec_threats_django_no_iast:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@django'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_django_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -207,8 +222,36 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: riot
-  appsec_threats_fastapi:
+  appsec_threats_django_rc:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@django'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_fastapi_no_iast:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@fastapi'
+      - '@starlette'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_fastapi_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -224,8 +267,36 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: riot
-  appsec_threats_flask:
+  appsec_threats_fastapi_rc:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@fastapi'
+      - '@starlette'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_flask_no_iast:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_flask_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -240,8 +311,35 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: riot
-  appsec_threats_tornado:
+  appsec_threats_flask_rc:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_tornado_no_iast:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_tornado_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -251,12 +349,25 @@ suites:
       - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
-      - '@flask'
+      - '@tornado'
       - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: riot
+  appsec_threats_tornado_rc:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@asgi'
+      - '@wsgi'
+      - '@tornado'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
   urllib:
     paths:
       - '@bootstrap'
@@ -265,7 +376,6 @@ suites:
       - '@tracing'
       - '@urllib'
       - tests/appsec/iast/taint_sinks/test_ssrf.py
-    runner: riot
     skip: true  # TODO: No environment available
   webbrowser:
     paths:
@@ -275,7 +385,6 @@ suites:
       - '@tracing'
       - '@webbrowser'
       - tests/appsec/iast/taint_sinks/test_ssrf.py
-    runner: riot
     skip: true  # TODO: No environment available
   ai_guard_api:
     paths:
@@ -285,7 +394,6 @@ suites:
       - '@ai_guard'
       - tests/appsec/ai_guard/api/*
     retry: 2
-    runner: riot
     venvs_per_job: 1
   ai_guard_langchain:
     paths:
@@ -295,7 +403,33 @@ suites:
       - '@ai_guard'
       - tests/appsec/ai_guard/langchain/*
     retry: 2
-    runner: riot
     services:
       - testagent
     venvs_per_job: 2
+  ai_guard_strands:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/strands_hooks/*
+    retry: 2
+    venvs_per_job: 1
+  ai_guard_litellm_guardrail:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/litellm_guardrail/*
+    retry: 2
+    venvs_per_job: 2
+  sca:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@sca'
+      - tests/appsec/sca/*
+    retry: 2
+    venvs_per_job: 1
