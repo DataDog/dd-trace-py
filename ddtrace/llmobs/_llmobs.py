@@ -127,6 +127,7 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
+from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -562,6 +563,7 @@ class LLMObs(Service):
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
+        cost_tags = self._llmobs_cost_tags(span)
         span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
@@ -590,6 +592,8 @@ class LLMObs(Service):
             llmobs_span_event["config"] = experiment_config
         if session_id:
             llmobs_span_event["session_id"] = session_id
+        if cost_tags:
+            llmobs_span_event["cost_tags"] = cost_tags
         if span_links:
             llmobs_span_event["span_links"] = span_links
 
@@ -651,6 +655,13 @@ class LLMObs(Service):
             tags["experiment_name"] = experiment_name
 
         return ["{}:{}".format(k, v) for k, v in tags.items()]
+
+    @staticmethod
+    def _llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+        cost_tags = get_llmobs_cost_tags(span)
+        if not cost_tags:
+            return None
+        return [cost_tag for cost_tag in cost_tags if isinstance(cost_tag, str)]
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -2213,6 +2224,7 @@ class LLMObs(Service):
         metadata: Optional[dict[str, Any]] = None,
         metrics: Optional[dict[str, Any]] = None,
         tags: Optional[dict[str, Any]] = None,
+        cost_tags: Optional[list[str]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
@@ -2263,6 +2275,8 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
+                          metrics. Keys must already exist on the merged span tag set.
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
@@ -2310,6 +2324,10 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
+            if cost_tags is not None:
+                validated_cost_tags = cls._validate_cost_tags(span, tags, cost_tags)
+                if validated_cost_tags:
+                    _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
@@ -2390,6 +2408,34 @@ class LLMObs(Service):
         except TypeError:
             return "Failed to parse output messages.", "invalid_io_messages"
         return None, None
+
+    @classmethod
+    def _validate_cost_tags(
+        cls, span: Span, tags: Optional[dict[str, Any]], cost_tags: Optional[Any]
+    ) -> Optional[list[str]]:
+        if cost_tags is None:
+            return None
+
+        if not isinstance(cost_tags, list):
+            log.warning("cost_tags must be a list of strings. Ignoring value.")
+            return None
+
+        merged_tags = dict(get_llmobs_tags(span) or {})
+        if tags:
+            merged_tags.update(tags)
+
+        validated_cost_tags = []
+        for cost_tag in cost_tags:
+            if not isinstance(cost_tag, str):
+                log.warning("cost_tags entries must be strings. Skipping entry %r.", cost_tag)
+                continue
+            if cost_tag not in merged_tags:
+                log.warning("cost_tags entry %r must reference a key present in span tags. Skipping entry.", cost_tag)
+                continue
+            if cost_tag not in validated_cost_tags:
+                validated_cost_tags.append(cost_tag)
+
+        return validated_cost_tags or None
 
     @classmethod
     def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:

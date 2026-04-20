@@ -369,6 +369,10 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
 
 
+def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.COST_TAGS)
+
+
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
@@ -438,6 +442,7 @@ def _annotate_llmobs_span_data(
     metadata: Optional[dict[str, Any]] = None,
     metrics: Optional[dict[str, Any]] = None,
     tags: Optional[dict[str, str]] = None,
+    cost_tags: Optional[list[str]] = None,
     input_messages: Optional[list[Message]] = None,
     input_value: Optional[Any] = None,
     input_documents: Optional[list[Document]] = None,
@@ -473,6 +478,7 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
 
         if name is not None:
@@ -499,6 +505,10 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
+        if cost_tags is not None:
+            llmobs_span_data[LLMOBS_STRUCT.COST_TAGS].extend(
+                cost_tag for cost_tag in cost_tags if cost_tag not in llmobs_span_data[LLMOBS_STRUCT.COST_TAGS]
+            )
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
