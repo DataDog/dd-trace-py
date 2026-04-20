@@ -52,7 +52,7 @@ notify_datadog_release:
       aud: rapid-seceng-sit
   tags: [ "arch:amd64" ]
   before_script:
-    - apt-get update && apt-get install --no-install-recommends -y curl
+    - apt-get update && apt-get install --no-install-recommends -y curl jq
     - >-
       DD_STS_API_KEY=$(curl -sS
       -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"

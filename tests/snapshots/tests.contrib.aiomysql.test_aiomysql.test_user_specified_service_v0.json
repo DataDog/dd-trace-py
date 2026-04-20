@@ -11,27 +11,29 @@
     "meta": {
       "_dd.base_service": "my-service-name",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de9d3400000000",
+      "_dd.svc_src": "aiomysql",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "aiomysql",
       "db.name": "test",
       "db.system": "mysql",
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "edd004724e314daf9ff1e51e8234b4df",
+      "runtime-id": "6ccf3914e35749a6882c71d40c3312d8",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "db.rownumber": 0,
-      "network.destination.port": 3306,
-      "process_id": 1191
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "db.rownumber": 0.0,
+      "network.destination.port": 3306.0,
+      "process_id": 71904.0
     },
-    "duration": 339958,
-    "start": 1682180471955479013
+    "duration": 350208,
+    "start": 1776196916146532174
   }]]
