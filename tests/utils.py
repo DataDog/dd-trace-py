@@ -297,6 +297,8 @@ def scoped_tracer(use_dummy_writer=True):
     finally:
         # Reset global tracer to original state
         ddtrace.tracer.shutdown()
+        # Ensure test tracer reinitialization restores the default start_span implementation.
+        ddtrace.tracer.__dict__.pop("start_span", None)
         # Tracer uses a singleton pattern. We reinitialize the existing object (not create a new one)
         # because ddtrace.tracer, ddtrace.trace.tracer, ddtrace.internal.core.tracer, etc. all reference
         # the same object. Reinitializing updates all references automatically.
