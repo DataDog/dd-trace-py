@@ -177,10 +177,16 @@ class JobSpec:
                 service_items.append((item, {}))
 
         service_names = {name for name, _ in service_items}
+        # A testagent env override would otherwise collide with the default testagent
+        # pulled in by `!reference [{snapshot_base}, services]`, producing two services
+        # with alias=testagent. Inherit from the non-snapshot base (ddagent only) so
+        # the expanded testagent is the sole provider of that alias.
+        testagent_overridden = self.snapshot and any(name == "testagent" and env for name, env in service_items)
+        services_base = base.removesuffix("_snapshot") if testagent_overridden else base
         if service_items:
             lines.append("  services:")
             if self.snapshot:
-                lines.append(f"    - !reference [{base}, services]")
+                lines.append(f"    - !reference [{services_base}, services]")
             for name, env_override in service_items:
                 if env_override:
                     lines.extend(_render_service_with_env(name, env_override, indent="    "))
