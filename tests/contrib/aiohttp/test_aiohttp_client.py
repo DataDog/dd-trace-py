@@ -237,7 +237,7 @@ async def test_base_url(snapshot_context):
     When ClientSession is initialized with base_url
         The full URL (base + path) is captured in the span
     """
-    with snapshot_context():
+    with snapshot_context(ignores=["meta._dd.svc_src"]):
         async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
             async with session.get("/status/200") as resp:
                 assert resp.status == 200
