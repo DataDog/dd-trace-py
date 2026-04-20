@@ -32,9 +32,6 @@ HEADER = """\
 #
 # This module provides fast O(1) lookups for environment variable validation
 # in ddtrace/internal/settings/env.py.
-
-from __future__ import annotations
-
 """
 
 

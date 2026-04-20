@@ -8,35 +8,20 @@ registry in supported-configurations.json. Unregistered variables produce a
 debug log.
 """
 
-from __future__ import annotations
-
 from collections.abc import MutableMapping
 import logging
 import os
 from typing import Iterator
-from typing import Optional
+
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
+from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
 
 
 logger = logging.getLogger(__name__)
 
-# Lazy-loaded to avoid circular imports at module load time.
-# Populated on first validation call.
-_supported: Optional[frozenset] = None
-_deprecated: Optional[frozenset] = None
-_alias_targets: Optional[frozenset] = None
+_ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
 _warned_keys: set[str] = set()
-
-
-def _load_registry() -> None:
-    global _supported, _deprecated, _alias_targets
-    from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
-    from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
-    from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
-
-    _supported = SUPPORTED_CONFIGURATIONS
-    _deprecated = DEPRECATED_CONFIGURATIONS
-    # Build a set of all alias names so we don't warn on known aliases
-    _alias_targets = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
 
 
 def _validate_key(key: str) -> None:
@@ -48,20 +33,13 @@ def _validate_key(key: str) -> None:
     if not (key.startswith("DD_") or key.startswith("OTEL_")):
         return
 
-    global _supported, _deprecated, _alias_targets
-    if _supported is None:
-        try:
-            _load_registry()
-        except Exception:
-            return  # If the registry can't be loaded, skip validation
-
     if key in _warned_keys:
         return
 
-    if key not in _supported and key not in _alias_targets:  # type: ignore[operator]
+    if key not in SUPPORTED_CONFIGURATIONS and key not in _ALIAS_TARGETS:
         _warned_keys.add(key)
         logger.debug("Unsupported Datadog configuration variable accessed: %s", key)
-    elif key in _deprecated:  # type: ignore[operator]
+    elif key in DEPRECATED_CONFIGURATIONS:
         _warned_keys.add(key)
         logger.debug("Deprecated Datadog configuration variable accessed: %s", key)
 
