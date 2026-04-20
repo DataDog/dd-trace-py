@@ -11,34 +11,36 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67251ffe00000000",
+      "_dd.p.tid": "69dd45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ListBuckets",
       "aws.partition": "aws",
       "aws.region": "us-west-2",
-      "aws.requestid": "YoVIhMGpBHGzxRtSBm3pXrhufApjcHGsVMTaMAfJ55gYoerwKddi",
-      "aws.response.body.HTTPHeaders.x-amzn-requestid": "YoVIhMGpBHGzxRtSBm3pXrhufApjcHGsVMTaMAfJ55gYoerwKddi",
+      "aws.requestid": "hvnNefQdYb1KJXOfbW2AhlXrCF4C4k4LT0FgCjHYwyC5j8ISb9fX",
+      "aws.response.body.HTTPHeaders.x-amzn-requestid": "hvnNefQdYb1KJXOfbW2AhlXrCF4C4k4LT0FgCjHYwyC5j8ISb9fX",
       "aws.response.body.HTTPStatusCode": "200",
-      "aws.response.body.RequestId": "YoVIhMGpBHGzxRtSBm3pXrhufApjcHGsVMTaMAfJ55gYoerwKddi",
+      "aws.response.body.RequestId": "hvnNefQdYb1KJXOfbW2AhlXrCF4C4k4LT0FgCjHYwyC5j8ISb9fX",
       "aws.response.body.RetryAttempts": "0",
       "aws_service": "s3",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-west-2",
-      "runtime-id": "010e1ba41dc54c378179fd51445afc77",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 94950.0,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 274611000,
-    "start": 1767144754512339000
+    "duration": 385089541,
+    "start": 1776109030241329925
   }],
 [
   {
@@ -53,34 +55,36 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67251ffc00000000",
+      "_dd.p.tid": "69dd45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ListBuckets",
       "aws.partition": "aws",
       "aws.region": "us-west-2",
-      "aws.requestid": "niWe5HO1MgcT2vq21MtdLzhY2xGs3kiyEzq7yR8ShXhvU6qQLAKa",
-      "aws.response.body.HTTPHeaders.x-amzn-requestid": "niWe5HO1MgcT2vq21MtdLzhY2xGs3kiyEzq7yR8ShXhvU6qQLAKa",
+      "aws.requestid": "UoiFR6pqqwfR1hgcBZe5ZWSJe2HWDmTts1oIwqnKkkiRIrLqQBLf",
+      "aws.response.body.HTTPHeaders.x-amzn-requestid": "UoiFR6pqqwfR1hgcBZe5ZWSJe2HWDmTts1oIwqnKkkiRIrLqQBLf",
       "aws.response.body.HTTPStatusCode": "200",
-      "aws.response.body.RequestId": "niWe5HO1MgcT2vq21MtdLzhY2xGs3kiyEzq7yR8ShXhvU6qQLAKa",
+      "aws.response.body.RequestId": "UoiFR6pqqwfR1hgcBZe5ZWSJe2HWDmTts1oIwqnKkkiRIrLqQBLf",
       "aws.response.body.RetryAttempts": "0",
       "aws_service": "s3",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-west-2",
-      "runtime-id": "010e1ba41dc54c378179fd51445afc77",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 3979,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 943066360,
-    "start": 1730486268691244191
+    "duration": 309970000,
+    "start": 1776109030627052633
   }],
 [
   {
@@ -95,7 +99,9 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67251ffd00000000",
+      "_dd.p.tid": "69dd45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ListObjects",
       "aws.partition": "aws",
@@ -104,20 +110,102 @@
       "aws_service": "s3",
       "component": "botocore",
       "error.message": "Parameter validation failed:\nMissing required parameter in input: \"Bucket\"\nUnknown parameter in input: \"bucket\", must be one of: Bucket, Delimiter, EncodingType, Marker, MaxKeys, Prefix, RequestPayer, ExpectedBucketOwner, OptionalObjectAttributes",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munir.abdinur/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/botocore/patch.py\", line 287, in patched_api_call_fallback\n    result = original_func(*args, **kwargs)\n  File \"/Users/munir.abdinur/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3139_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.13/site-packages/botocore/client.py\", line 962, in _make_api_call\n    request_dict = self._convert_to_request_dict(\n        api_params=api_params,\n    ...<3 lines>...\n        headers=additional_headers,\n    )\n  File \"/Users/munir.abdinur/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3139_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.13/site-packages/botocore/client.py\", line 1036, in _convert_to_request_dict\n    request_dict = self._serializer.serialize_to_request(\n        api_params, operation_model\n    )\n  File \"/Users/munir.abdinur/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3139_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.13/site-packages/botocore/validate.py\", line 381, in serialize_to_request\n    raise ParamValidationError(report=report.generate_report())\nbotocore.exceptions.ParamValidationError: Parameter validation failed:\nMissing required parameter in input: \"Bucket\"\nUnknown parameter in input: \"bucket\", must be one of: Bucket, Delimiter, EncodingType, Marker, MaxKeys, Prefix, RequestPayer, ExpectedBucketOwner, OptionalObjectAttributes\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/botocore/patch.py\", line 282, in patched_api_call_fallback\n    result = original_func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.12/site-packages/botocore/client.py\", line 962, in _make_api_call\n    request_dict = self._convert_to_request_dict(\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.12/site-packages/botocore/client.py\", line 1036, in _convert_to_request_dict\n    request_dict = self._serializer.serialize_to_request(\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]50_pytest-randomly_vcrpy601_botocore13449_boto313449/lib/python3.12/site-packages/botocore/validate.py\", line 381, in serialize_to_request\n    raise ParamValidationError(report=report.generate_report())\nbotocore.exceptions.ParamValidationError: Parameter validation failed:\nMissing required parameter in input: \"Bucket\"\nUnknown parameter in input: \"bucket\", must be one of: Bucket, Delimiter, EncodingType, Marker, MaxKeys, Prefix, RequestPayer, ExpectedBucketOwner, OptionalObjectAttributes\n",
       "error.type": "botocore.exceptions.ParamValidationError",
       "language": "python",
       "region": "us-west-2",
-      "runtime-id": "010e1ba41dc54c378179fd51445afc77",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 3979
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0
     },
-    "duration": 25330622,
-    "start": 1730486268578039557
+    "duration": 256052916,
+    "start": 1776109030937484842
+  }],
+[
+  {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.listqueues",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "aws.agent": "botocore",
+      "aws.operation": "ListQueues",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "JXTC8M6PIS1V0K088CB1HGS7HE7DTLXM69QS841LBWCDANLPXQBJ",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "region": "us-east-1",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
+    },
+    "duration": 9687750,
+    "start": 1776109030149466508
+  }],
+[
+  {
+    "name": "sqs.command",
+    "service": "aws.sqs",
+    "resource": "sqs.createqueue",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dd45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
+      "aws.agent": "botocore",
+      "aws.operation": "CreateQueue",
+      "aws.partition": "aws",
+      "aws.region": "us-east-1",
+      "aws.requestid": "74XK40ECDCL1RWVW7RLEQ0X11WO7UZJZSWC3Y26O6P0U1ZJR8HJ3",
+      "aws.sqs.queue_name": "Test",
+      "aws_service": "sqs",
+      "component": "botocore",
+      "http.status_code": "200",
+      "language": "python",
+      "queuename": "Test",
+      "region": "us-east-1",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
+    },
+    "duration": 3947584,
+    "start": 1776109030159840216
   }]]

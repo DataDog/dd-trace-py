@@ -893,7 +893,7 @@ class TestSpan(Span):
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
+        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -907,7 +907,7 @@ class TestSpan(Span):
         :param event_idx: id of the span event
         :type event_idx: integer
         """
-        span_event_attrs = self._events[event_idx].attributes
+        span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
             assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
             assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
