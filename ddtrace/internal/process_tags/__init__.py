@@ -159,7 +159,7 @@ def __getattr__(name: str) -> Any:
         _initialize_process_tags()
         _recompute_base_hash()
         if name == "process_tags":
-            return process_tags
-        return process_tags_list
+            return process_tags  # type: ignore
+        return process_tags_list  # type: ignore
 
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from e
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
