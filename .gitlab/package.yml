@@ -182,8 +182,15 @@ variables:
     # sccache's reqsign credential loader dials the hardcoded IMDS IP instead
     # of $AWS_EC2_METADATA_SERVICE_ENDPOINT, so resolve creds from the tart
     # iam-proxy once and export them as static AWS_* env vars for the build.
-    role=$(curl -sf "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
-    creds=$(curl -sf "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    echo "IMDS endpoint: ${AWS_EC2_METADATA_SERVICE_ENDPOINT:-<unset>}"
+    role_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    echo "role list response:"
+    echo "${role_resp}"
+    role=$(echo "${role_resp}" | sed '/^HTTP_STATUS:/d')
+    creds_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    echo "credentials response status line:"
+    echo "${creds_resp}" | tail -1
+    creds=$(echo "${creds_resp}" | sed '/^HTTP_STATUS:/d')
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
