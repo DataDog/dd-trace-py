@@ -272,6 +272,7 @@ scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-
 supported-configurations.json                     @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
+tests/internal/test_env.py                         @DataDog/apm-sdk-capabilities-python
 tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
