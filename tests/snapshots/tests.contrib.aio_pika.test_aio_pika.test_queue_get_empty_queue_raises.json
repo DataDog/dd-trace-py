@@ -2,7 +2,7 @@
   {
     "name": "rabbitmq.get",
     "service": "tests.contrib.aio_pika",
-    "resource": "test_queue_aiopika",
+    "resource": "rabbitmq.get",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

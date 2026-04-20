@@ -88,7 +88,6 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
         destination=destination,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        resource=destination,
         headers=message.headers,
         body=getattr(message, "body", b"") or b"",
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
@@ -130,7 +129,6 @@ async def traced_consumer(
         destination=destination,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        resource=destination,
         headers=decoded_headers,
         body=body,
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
@@ -167,7 +165,6 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
         destination=queue_name,
         component=_INTEGRATION_NAME,
         integration_config=config.aio_pika,
-        resource=queue_name,
         headers=decoded_headers,
         body=body,
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
@@ -196,7 +193,6 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
             destination=destination,
             component=_INTEGRATION_NAME,
             integration_config=config.aio_pika,
-            resource=destination,
             operation=operation,
         )
 

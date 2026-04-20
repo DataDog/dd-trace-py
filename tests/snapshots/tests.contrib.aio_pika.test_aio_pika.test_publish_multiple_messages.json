@@ -2,7 +2,7 @@
   {
     "name": "rabbitmq.publish",
     "service": "tests.contrib.aio_pika",
-    "resource": "test_exchange_aiopika",
+    "resource": "rabbitmq.publish",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -37,7 +37,7 @@
   {
     "name": "rabbitmq.publish",
     "service": "tests.contrib.aio_pika",
-    "resource": "test_exchange_aiopika",
+    "resource": "rabbitmq.publish",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -72,7 +72,7 @@
   {
     "name": "rabbitmq.publish",
     "service": "tests.contrib.aio_pika",
-    "resource": "test_exchange_aiopika",
+    "resource": "rabbitmq.publish",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
