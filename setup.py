@@ -1732,17 +1732,10 @@ def _git(*args: str) -> t.Optional[str]:
     return out.stdout.decode("utf-8", "replace").strip()
 
 
-def _head_on_main() -> bool:
-    # Only stamp when HEAD is an ancestor of the *remote* main branch
-    # (refs/remotes/origin/main) — i.e. the commit is on, or has been merged
-    # to, main. A local refs/heads/main can be stale or contain unpushed
-    # commits, so we deliberately do not fall back to it; a clone with no
-    # origin/main simply doesn't get stamped.
-    ref = "refs/remotes/origin/main"
-    # First check that we're in a git repo at all. Sdist installs, tarball
-    # extracts, and other non-repo build contexts legitimately have no .git,
-    # and setup.py runs just fine in those — stay silent so we don't paper
-    # them with spurious warnings.
+def _in_git_repo() -> bool:
+    # True iff `git rev-parse --git-dir` succeeds from HERE. Sdist installs,
+    # tarball extracts, and other non-repo build contexts legitimately have
+    # no .git and setup.py runs just fine in them.
     try:
         subprocess.run(
             ["git", "rev-parse", "--git-dir"],
@@ -1751,8 +1744,19 @@ def _head_on_main() -> bool:
             stderr=subprocess.DEVNULL,
             check=True,
         )
+        return True
     except (OSError, subprocess.CalledProcessError):
         return False
+
+
+def _head_on_main() -> bool:
+    # Only stamp when HEAD is an ancestor of the *remote* main branch
+    # (refs/remotes/origin/main) — i.e. the commit is on, or has been merged
+    # to, main. A local refs/heads/main can be stale or contain unpushed
+    # commits, so we deliberately do not fall back to it; a clone with no
+    # origin/main simply doesn't get stamped. Callers must ensure we're
+    # already in a git repo (see _in_git_repo).
+    ref = "refs/remotes/origin/main"
     # Probe whether origin/main exists. Exit 1 is the normal "ref absent"
     # answer (forks without tracking refs, mirrors without main, clones that
     # never fetched origin) and we stay silent for it. Any other non-zero
@@ -1846,14 +1850,18 @@ def _restore_pyproject(path: str, original_text: str) -> None:
 # exact same checkout — the worst outcome is one wheel being unstamped,
 # which is benign.
 #
-# On startup we detect and recover from a stale stamp (a prior build that
-# crashed via SIGKILL/OOM before atexit could restore): if the file on disk
-# already has `+g<sha>`, strip that back to the baseline before proceeding.
-# That baseline is then what we stamp anew (if eligible) or what we leave on
-# disk (if not).
+# Stale-stamp recovery handles a prior build that crashed via SIGKILL/OOM
+# before atexit could restore: if the file on disk already has `+g<sha>`,
+# strip that back to the baseline before proceeding. This runs in two
+# situations: (1) DD_VERSION_NO_LOCAL=1 — we must clear any stale stamp so
+# the escape hatch actually produces a clean artifact for PyPI; and (2)
+# we're in a git repo — safe to strip because we can re-stamp or cleanly
+# leave the baseline on disk. We deliberately do NOT strip when we're not
+# in a repo and not in no-local mode: that is the stamped-sdist-rebuild
+# case (an sdist built with a local segment, unpacked elsewhere with no
+# .git), where pyproject.toml's local segment is authoritative and must be
+# preserved so the wheel filename matches the sdist name.
 def _maybe_stamp_rc_version() -> None:
-    if os.environ.get("DD_VERSION_NO_LOCAL") == "1":
-        return
     if sys.platform == "win32":
         return
     pyproject = HERE / "pyproject.toml"
@@ -1865,23 +1873,39 @@ def _maybe_stamp_rc_version() -> None:
     if not m:
         return
     version = m.group(1)
-    stale = re.match(r"^(.+?)\+g[0-9a-f]{7,}$", version)
-    if stale:
-        stripped = stale.group(1)
-        text = text.replace(f'version = "{version}"', f'version = "{stripped}"', 1)
-        version = stripped
-        # Persist the recovered baseline immediately so that if we bail out
-        # below (non-rc, non-main ancestor, no head sha) the tree still ends
-        # up clean.
-        try:
-            _atomic_write(pyproject, text)
-        except OSError:
-            print(
-                "WARN: rc version stamping skipped; failed to restore stale "
-                "pyproject.toml stamp (dirty tree left on disk)",
-                file=sys.stderr,
-            )
-            return
+
+    no_local = os.environ.get("DD_VERSION_NO_LOCAL") == "1"
+    in_repo = _in_git_repo()
+
+    if no_local or in_repo:
+        stale = re.match(r"^(.+?)\+g[0-9a-f]{7,}$", version)
+        if stale:
+            stripped = stale.group(1)
+            text = text.replace(f'version = "{version}"', f'version = "{stripped}"', 1)
+            version = stripped
+            # Persist the recovered baseline immediately so that if we bail
+            # out below (non-rc, non-main ancestor, no head sha, or the
+            # no_local early return) the tree still ends up clean.
+            try:
+                _atomic_write(pyproject, text)
+            except OSError:
+                print(
+                    "WARN: rc version stamping skipped; failed to restore stale "
+                    "pyproject.toml stamp (dirty tree left on disk)",
+                    file=sys.stderr,
+                )
+                return
+
+    if no_local:
+        # Release-tag pipelines: output must not carry a local segment. We
+        # already stripped any stale stamp above; don't stamp anew.
+        return
+    if not in_repo:
+        # Sdist rebuild or other non-repo context. Respect whatever version
+        # is already in pyproject.toml — in particular, if it's a stamped
+        # sdist, its local segment must be preserved so the wheel filename
+        # matches the sdist name.
+        return
     if not re.search(r"rc\d+", version):
         return
     if not _head_on_main():
