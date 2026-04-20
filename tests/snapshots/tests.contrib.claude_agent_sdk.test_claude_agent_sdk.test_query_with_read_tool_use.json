@@ -1,6 +1,6 @@
 [[
   {
-    "name": "claude_agent_sdk.request",
+    "name": "claude_agent_sdk.query",
     "service": "tests.contrib.claude_agent_sdk",
     "resource": "claude_agent_sdk.query",
     "trace_id": 0,
@@ -28,9 +28,9 @@
     "start": 1776697821979837175
   },
      {
-       "name": "claude_agent_sdk.tool.Read",
+       "name": "claude_agent_sdk.llm",
        "service": "tests.contrib.claude_agent_sdk",
-       "resource": "Read",
+       "resource": "claude_agent_sdk.llm",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
