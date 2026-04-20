@@ -7,6 +7,7 @@ from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import RASP_CAPABILITY
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe
@@ -80,7 +81,7 @@ def _must_block(actions: Iterable[str]) -> bool:
     return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
 
 
-def _get_rasp_capability(capability: str) -> bool:
+def _get_rasp_capability(capability: RASP_CAPABILITY) -> bool:
     """Check if the RASP capability is enabled."""
     if asm_config._asm_enabled and asm_config._ep_enabled:
         from ddtrace.appsec._asm_request_context import in_asm_context
@@ -96,9 +97,7 @@ def _get_rasp_capability(capability: str) -> bool:
             _abort_appsec(str(e))
             return False
 
-        return AppSecSpanProcessor._instance is not None and getattr(
-            AppSecSpanProcessor._instance, f"rasp_{capability}_enabled", False
-        )
+        return AppSecSpanProcessor.rasp_enabled(capability)
     return False
 
 

@@ -14,6 +14,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import RASP_ADDRESSES
+from ddtrace.appsec._constants import RASP_CAPABILITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -109,6 +111,17 @@ class AppSecSpanProcessor(SpanProcessor):
     def enabled(self) -> bool:
         return isinstance(self._ddwaf, DDWaf)
 
+    @classmethod
+    def rasp_enabled(cls, capability: RASP_CAPABILITY) -> bool:
+        """Return True if the given RASP capability is active"""
+        if not asm_config._ep_enabled:
+            return False
+        instance = cls._instance
+        if instance is None:
+            return False
+        address = RASP_ADDRESSES.get(capability)
+        return address is not None and address in instance._addresses_to_keep
+
     def __post_init__(self) -> None:
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
@@ -176,26 +189,6 @@ class AppSecSpanProcessor(SpanProcessor):
         set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
-
-    @property
-    def rasp_lfi_enabled(self) -> bool:
-        return WAF_DATA_NAMES.LFI_ADDRESS in self._addresses_to_keep
-
-    @property
-    def rasp_shi_enabled(self) -> bool:
-        return WAF_DATA_NAMES.SHI_ADDRESS in self._addresses_to_keep
-
-    @property
-    def rasp_cmdi_enabled(self) -> bool:
-        return WAF_DATA_NAMES.CMDI_ADDRESS in self._addresses_to_keep
-
-    @property
-    def rasp_ssrf_enabled(self) -> bool:
-        return WAF_DATA_NAMES.SSRF_ADDRESS in self._addresses_to_keep
-
-    @property
-    def rasp_sqli_enabled(self) -> bool:
-        return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib.internal import trace_utils

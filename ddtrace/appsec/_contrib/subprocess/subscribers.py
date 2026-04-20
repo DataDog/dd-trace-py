@@ -3,9 +3,9 @@ from typing import Union
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
-from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._metrics import report_rasp_skipped
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.contrib._events.command import CommandEvents
 from ddtrace.contrib._events.command import ProcessCommandEvent
 from ddtrace.contrib._events.command import ShellCommandEvent
@@ -13,14 +13,14 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
 
 
-class AppSecShiSubscriber(Subscriber):
+class AppSecShiSubscriber(Subscriber[ShellCommandEvent]):
     """Subscriber for shell injection (SHI) detection on os.system calls."""
 
     event_names = (CommandEvents.OS_SYSTEM.value,)
 
     @classmethod
     def on_event(cls, event_instance: ShellCommandEvent) -> None:
-        if not _get_rasp_capability("shi"):
+        if not AppSecSpanProcessor.rasp_enabled("shi"):
             return
         if not in_asm_context():
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
@@ -36,14 +36,14 @@ class AppSecShiSubscriber(Subscriber):
             )
 
 
-class AppSecCmdiSubscriber(Subscriber):
+class AppSecCmdiSubscriber(Subscriber[ProcessCommandEvent]):
     """Subscriber for command injection (CMDI) detection on subprocess.Popen calls."""
 
     event_names = (CommandEvents.SUBPROCESS_POPEN.value,)
 
     @classmethod
     def on_event(cls, event_instance: ProcessCommandEvent) -> None:
-        if not _get_rasp_capability("cmdi"):
+        if not AppSecSpanProcessor.rasp_enabled("cmdi"):
             return
         if not in_asm_context():
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, False)

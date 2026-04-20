@@ -1,9 +1,9 @@
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
-from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._metrics import report_rasp_skipped
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.contrib._events.file_io import FileOpenEvent
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
@@ -14,7 +14,7 @@ class AppSecLfiSubscriber(Subscriber[FileOpenEvent]):
 
     @classmethod
     def on_event(cls, event_instance: FileOpenEvent) -> None:
-        if not _get_rasp_capability("lfi"):
+        if not AppSecSpanProcessor.rasp_enabled("lfi"):
             return
         if not in_asm_context():
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, False)
