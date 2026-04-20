@@ -4,12 +4,10 @@ import wrapt
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.redis.patch import instrumented_execute_command
-from ddtrace.contrib.internal.redis.patch import instrumented_pipeline
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -57,14 +55,10 @@ def patch():
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
         _w("rediscluster", "client.RedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
-        _w("rediscluster", "client.RedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
-        Pin().onto(rediscluster.RedisCluster)
     else:
         _w("rediscluster", "StrictRedisCluster.execute_command", instrumented_execute_command(config.rediscluster))
-        _w("rediscluster", "StrictRedisCluster.pipeline", instrumented_pipeline)
         _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
-        Pin().onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():
@@ -73,11 +67,9 @@ def unpatch():
 
         if REDISCLUSTER_VERSION >= (2, 0, 0):
             unwrap(rediscluster.client.RedisCluster, "execute_command")
-            unwrap(rediscluster.client.RedisCluster, "pipeline")
             unwrap(rediscluster.pipeline.ClusterPipeline, "execute")
         else:
             unwrap(rediscluster.StrictRedisCluster, "execute_command")
-            unwrap(rediscluster.StrictRedisCluster, "pipeline")
             unwrap(rediscluster.StrictClusterPipeline, "execute")
 
 
@@ -87,10 +79,6 @@ def unpatch():
 
 
 def traced_execute_pipeline(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-
     cmds = [
         stringify_cache_args(c.args, cmd_max_len=config.rediscluster.cmd_max_length) for c in instance.command_stack
     ]
@@ -101,7 +89,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as s:
         set_service_and_source(
-            s, trace_utils.ext_service(pin, config.rediscluster, "rediscluster"), config.rediscluster
+            s, trace_utils.ext_service(None, config.rediscluster, "rediscluster"), config.rediscluster
         )
         s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
         s._set_attribute(COMPONENT, config.rediscluster.integration_name)
