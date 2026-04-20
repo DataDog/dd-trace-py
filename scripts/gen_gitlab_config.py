@@ -431,9 +431,6 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
         if in_scenario_to_keep:
             new_contents.append(line)
 
-    # AIDEV-NOTE: when no scenarios survive filtering (selected suite has no
-    # thresholds in the template), emit `scenarios: []` so bp-runner still
-    # parses the file instead of failing with "'scenarios' is not a list".
     if kept_scenarios == 0:
         new_contents = [
             line.replace("scenarios:", "scenarios: []") if line.rstrip().endswith("scenarios:") else line
