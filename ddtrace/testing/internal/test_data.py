@@ -269,8 +269,9 @@ class Test(TestItem["TestSuite", "TestRun"]):
         test_run = TestRun(name=self.name, parent=self)
         test_run.attempt_number = len(self.test_runs)
         test_run.set_service(self.service)
-        if self.session.configuration_errors:
-            test_run.set_tags(self.session.configuration_errors)
+        config_errors = getattr(self.session, "configuration_errors", None)
+        if config_errors:
+            test_run.set_tags(config_errors)
         self.test_runs.append(test_run)
         return test_run
 
