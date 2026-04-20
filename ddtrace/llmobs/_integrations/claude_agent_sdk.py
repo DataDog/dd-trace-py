@@ -46,6 +46,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
     def extract_llm_input_messages(self, args: list, kwargs: dict, span: Span) -> list[Message]:
         """Return the user prompt as input messages for the first LLM span."""
+        if not self.llmobs_enabled:
+            return []
         return self._extract_input_messages(get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span)
 
     def _llmobs_set_llm_tags(
@@ -166,6 +168,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         """Parses content which can be a string or a list of content blocks
         (TextBlock, ToolUseBlock, etc.) into a list of messages.
         """
+        if not self.llmobs_enabled:
+            return []
         messages: list[Message] = []
 
         if isinstance(content, str):
