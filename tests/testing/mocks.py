@@ -397,6 +397,11 @@ class APIClientMockBuilder:
         self._skippable_items = items
         return self
 
+    def with_test_management_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
+        """Set test management properties."""
+        self._test_management_properties = properties
+        return self
+
     def build(self) -> Mock:
         """Build the APIClient mock with comprehensive mocking."""
         mock_client = Mock()
@@ -417,7 +422,7 @@ class APIClientMockBuilder:
         )
 
         mock_client.get_known_tests.return_value = self._known_tests
-        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_test_management_properties.return_value = getattr(self, "_test_management_properties", {})
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
         mock_client.get_skippable_tests.return_value = (
@@ -548,6 +553,7 @@ def mock_api_client_settings(
     skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
     known_tests: t.Optional[set[TestRef]] = None,
     coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
+    test_management_properties: t.Optional[dict[TestRef, TestProperties]] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
     builder: "APIClientMockBuilder" = APIClientMockBuilder()
@@ -568,6 +574,8 @@ def mock_api_client_settings(
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
+    if test_management_properties is not None:
+        builder = builder.with_test_management_properties(test_management_properties)
 
     mock_client = builder.build()
 

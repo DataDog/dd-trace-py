@@ -326,6 +326,12 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_flaky_run(self) -> bool:
         return self._is_flaky_run
 
+    def has_passed(self) -> bool:
+        return any(run.get_status() == TestStatus.PASS for run in self.test_runs)
+
+    def has_failed(self) -> bool:
+        return any(run.get_status() == TestStatus.FAIL for run in self.test_runs)
+
 
 class TestSuite(TestItem["TestModule", "Test"]):
     ChildClass = Test
