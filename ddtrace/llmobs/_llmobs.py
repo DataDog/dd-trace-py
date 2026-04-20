@@ -1566,10 +1566,10 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[dict[str, Any]] = None,
-        cost_tags: Optional[list[str]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
+        cost_tags: Optional[list[str]] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -2228,8 +2228,8 @@ class LLMObs(Service):
         metadata: Optional[dict[str, Any]] = None,
         metrics: Optional[dict[str, Any]] = None,
         tags: Optional[dict[str, Any]] = None,
-        cost_tags: Optional[list[str]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
+        cost_tags: Optional[list[str]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
