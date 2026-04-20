@@ -48,6 +48,38 @@ def test_periodic_double_start():
     t.join()
 
 
+def test_periodic_join_positional_timeout_is_honored():
+    """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
+
+    The native PeriodicThread_join skipped argument parsing whenever kwargs was
+    NULL — which is the normal case for positional calls — so the timeout was
+    dropped and execution fell through to the Py_None infinite-wait branch.
+    PeriodicService.join(timeout=...) forwards positionally to its worker, so
+    every user of that wrapper was silently waiting forever instead of
+    honoring the timeout. This test pins the positional form (and the kwarg
+    form) to actually return within the requested timeout.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+        start = monotonic()
+        t.join(0.1)  # positional
+        elapsed_pos = monotonic() - start
+        assert elapsed_pos < 1.0, (
+            "positional join(0.1) blocked for %.2fs — timeout was ignored" % elapsed_pos
+        )
+
+        start = monotonic()
+        t.join(timeout=0.1)  # keyword
+        elapsed_kw = monotonic() - start
+        assert elapsed_kw < 1.0, (
+            "keyword join(timeout=0.1) blocked for %.2fs — timeout was ignored" % elapsed_kw
+        )
+    finally:
+        t.stop()
+        t.join()
+
+
 def test_periodic_error():
     x = {"OK": False}
 
