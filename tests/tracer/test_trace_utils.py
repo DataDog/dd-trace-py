@@ -15,8 +15,10 @@ import pytest
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
+from ddtrace.ext import SpanKind
 from ddtrace.ext import http
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import _SERVICE_SOURCE
@@ -387,7 +389,7 @@ def test_set_http_meta_with_http_header_tags_config():
     assert response_span.get_tag("third-header") == "value3"
 
 
-@mock.patch("ddtrace.internal.settings._config.log")
+@mock.patch("ddtrace.internal.settings.http.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
@@ -404,6 +406,7 @@ def test_set_http_meta_with_http_header_tags_config():
 )
 def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, status_code, error, log_call):
     config._http_server.error_statuses = error_codes
+    span.set_tag(SPAN_KIND, SpanKind.SERVER)
     trace_utils.set_http_meta(span, int_config, status_code=status_code)
     assert span.error == error
     if log_call:
@@ -412,7 +415,56 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+@mock.patch("ddtrace.internal.settings.http.log")
+@pytest.mark.parametrize(
+    "error_codes,status_code,error,log_call",
+    [
+        ("404-400", 400, 1, None),
+        ("400-404", 400, 1, None),
+        ("400-404", 500, 0, None),
+        ("500-520", 530, 0, None),
+        ("500-550         ", 530, 1, None),
+        ("400-404,419", 419, 1, None),
+        ("400,401,403", 401, 1, None),
+        ("400-404,X", 0, 0, ("Error status codes was not a number %s", ["X"])),
+        ("500-599", 200, 0, None),
+    ],
+)
+def test_set_http_meta_custom_client_errors(mock_log, tracer, int_config, error_codes, status_code, error, log_call):
+    config._http_client.error_statuses = error_codes
+    with tracer.trace("client_request", span_type="http") as span:
+        span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+        trace_utils.set_http_meta(span, int_config.myint, status_code=status_code)
+        assert span.error == error
+    if log_call:
+        mock_log.exception.assert_called_once_with(*log_call)
+    else:
+        mock_log.exception.assert_not_called()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "404-412"}, err=None)
+def test_set_http_meta_custom_client_errors_via_env():
+    from ddtrace import config
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    config.myint = IntegrationConfig(config, "myint")
+    with tracer.trace("error", span_type=SpanTypes.HTTP) as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1
+
+    with tracer.trace("noterror", span_type=SpanTypes.HTTP) as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0
+
+    with tracer.trace("noterror2", span_type=SpanTypes.HTTP) as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}, err=None)
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -431,6 +483,31 @@ def test_set_http_meta_custom_errors_via_env():
     with tracer.trace("noterror2") as span3:
         set_http_meta(span3, config.myint, status_code=413)
         assert span3.error == 0
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}, err=None)
+def test_set_http_meta_server_env_applies_to_client_spans():
+    """DD_TRACE_HTTP_SERVER_ERROR_STATUSES must still classify client spans when
+    DD_TRACE_HTTP_CLIENT_ERROR_STATUSES is not explicitly configured (backward compat).
+    """
+    from ddtrace import config
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    config.myint = IntegrationConfig(config, "myint")
+    with tracer.trace("client_error", span_type=SpanTypes.HTTP) as span1:
+        set_http_meta(span1, config.myint, status_code=405)
+        assert span1.error == 1, f"expected error=1 for 405 with server range 404-412, got {span1.error}"
+
+    with tracer.trace("client_not_error", span_type=SpanTypes.HTTP) as span2:
+        set_http_meta(span2, config.myint, status_code=403)
+        assert span2.error == 0, f"expected error=0 for 403 with server range 404-412, got {span2.error}"
+
+    with tracer.trace("client_above_range", span_type=SpanTypes.HTTP) as span3:
+        set_http_meta(span3, config.myint, status_code=413)
+        assert span3.error == 0, f"expected error=0 for 413 with server range 404-412, got {span3.error}"
 
 
 @mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
@@ -989,7 +1066,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""}, err=None)
 def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -1013,7 +1090,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
 
 
 # TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
-@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
+@pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""}, err=None)
 def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # Test that query strings are not added to urls when the obfuscation regex is an empty string
     # and obfuscation is enabled (not disabled xD)

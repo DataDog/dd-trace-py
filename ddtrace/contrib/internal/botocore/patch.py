@@ -27,7 +27,7 @@ from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.http import _HTTPServerConfig
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
@@ -100,14 +100,14 @@ def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
 config._add(
     "botocore",
     {
-        "_default_service": env.get("DD_BOTOCORE_SERVICE", default="aws"),
-        "distributed_tracing": asbool(env.get("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
-        "invoke_with_legacy_context": asbool(env.get("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "operations": collections.defaultdict(Config._HTTPServerConfig),
-        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
-        "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "_default_service": os.getenv("DD_BOTOCORE_SERVICE", default="aws"),
+        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "operations": collections.defaultdict(_HTTPServerConfig),
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
+        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
         "add_span_pointers": asbool(env.get("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
         "payload_tagging_request": env.get("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),

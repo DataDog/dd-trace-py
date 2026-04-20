@@ -415,6 +415,29 @@ async def test_get_500(snapshot_context):
 
 
 @pytest.mark.asyncio
+async def test_custom_client_error_statuses(snapshot_context):
+    """
+    When DD_TRACE_HTTP_CLIENT_ERROR_STATUSES includes 4xx
+        we mark the span as an error for a 404 response
+    """
+    original = config._http_client.error_statuses
+    try:
+        config._http_client.error_statuses = "400-499"
+        url = get_url("/status/404")
+
+        with snapshot_context(wait_for_num_traces=1):
+            resp = httpx.get(url, headers=DEFAULT_HEADERS)
+            assert resp.status_code == 404
+
+        with snapshot_context(wait_for_num_traces=1):
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers=DEFAULT_HEADERS)
+                assert resp.status_code == 404
+    finally:
+        config._http_client.error_statuses = original
+
+
+@pytest.mark.asyncio
 async def test_split_by_domain(snapshot_context):
     """
     When split_by_domain is configured
