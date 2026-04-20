@@ -269,6 +269,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         test_run = TestRun(name=self.name, parent=self)
         test_run.attempt_number = len(self.test_runs)
         test_run.set_service(self.service)
+        if self.session.configuration_errors:
+            test_run.set_tags(self.session.configuration_errors)
         self.test_runs.append(test_run)
         return test_run
 
@@ -362,6 +364,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.itr_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
+        self.configuration_errors: dict[str, str] = {}
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -453,5 +456,11 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+
+    # Library configuration error tags — set when backend requests fail.
+    LIBRARY_CONFIGURATION_ERROR_SETTINGS = "_dd.ci.library_configuration_error.settings"
+    LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS = "_dd.ci.library_configuration_error.skippable_tests"
+    LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS = "_dd.ci.library_configuration_error.known_tests"
+    LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS = "_dd.ci.library_configuration_error.test_management_tests"
 
     __test__ = False
