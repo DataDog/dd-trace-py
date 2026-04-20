@@ -68,7 +68,7 @@ RUN python3.11d --version && python3.11d -m pip --version
 RUN python3.11d -c "import sys;sys.gettotalrefcount()"
 
 
-# AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
+# TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 ENV PATH="/root/.cargo/bin:$PATH"
