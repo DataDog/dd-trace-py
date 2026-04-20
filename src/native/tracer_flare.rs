@@ -168,8 +168,20 @@ impl TracerFlareManagerPy {
             }
         };
 
-        let config_data: RemoteConfigData = RemoteConfigData::try_parse(product, data)
-            .map_err(|e| ParsingError::new_err(format!("Parsing error: {}", e)))?;
+        let config_data: RemoteConfigData = match RemoteConfigData::try_parse(product, data) {
+            Ok(data) => data,
+            Err(e) => {
+                // AGENT_CONFIG has multiple payload shapes; e.g. configuration_order
+                // is valid JSON but not our schema. Valid-JSON parse failures return none_action()
+                // silently; truly malformed JSON propagates as ParsingError.
+                if product == RemoteConfigProduct::AgentConfig
+                    && serde_json::from_slice::<serde_json::Value>(data).is_ok()
+                {
+                    return Ok(FlareActionPy::none_action());
+                }
+                return Err(ParsingError::new_err(format!("Parsing error: {}", e)));
+            }
+        };
 
         Ok(manager
             .handle_remote_config_data(&config_data)
