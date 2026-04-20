@@ -3339,6 +3339,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
+                "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
@@ -3551,6 +3552,9 @@ venv = Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
+                    env={
+                        "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
+                    },
                     pkgs={
                         "protobuf": latest,
                     },
