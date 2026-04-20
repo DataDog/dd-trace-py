@@ -10,19 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67d87abc00000000",
+      "_dd.p.tid": "69e6428d00000000",
+      "_dd.svc_src": "tests.contrib.crewai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "df107156ac1c4cc6b08ba6dbf39979fc"
+      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 21238
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
     },
-    "duration": 19711000,
-    "start": 1742240444578857000
+    "duration": 42249000,
+    "start": 1776697997252402422
   },
      {
        "name": "Calculate participants' average ages",
@@ -34,15 +36,16 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "df107156ac1c4cc6b08ba6dbf39979fc"
+         "_dd.svc_src": "tests.contrib.crewai",
+         "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "process_id": 21238
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "process_id": 507.0
        },
-       "duration": 10097000,
-       "start": 1742240444581263000
+       "duration": 17487375,
+       "start": 1776697997255843214
      },
         {
           "name": "Python Data Analyst",
@@ -53,11 +56,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 9781000,
-          "start": 1742240444581521000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 17189125,
+          "start": 1776697997256084422
         },
            {
              "name": "Average Calculator",
@@ -68,11 +74,14 @@
              "parent_id": 4,
              "type": "",
              "error": 0,
-             "metrics": {
-               "_dd.measured": 1
+             "meta": {
+               "_dd.svc_src": "tests.contrib.crewai"
              },
-             "duration": 24000,
-             "start": 1742240444586653000
+             "metrics": {
+               "_dd.measured": 1.0
+             },
+             "duration": 72750,
+             "start": 1776697997265153089
            },
      {
        "name": "Recommend fun activities",
@@ -83,11 +92,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 4570000,
-       "start": 1742240444593149000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 15732417,
+       "start": 1776697997276846964
      },
         {
           "name": "Tour Guide",
@@ -98,9 +110,12 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 4278000,
-          "start": 1742240444593385000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 15418833,
+          "start": 1776697997277101214
         }]]

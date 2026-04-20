@@ -10,19 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67d48c9700000000",
+      "_dd.p.tid": "69e6428c00000000",
+      "_dd.svc_src": "tests.contrib.crewai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "0987b32bb1374a3eb66373e1d9469e3a"
+      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 6022
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
     },
-    "duration": 1679108000,
-    "start": 1741982871123297000
+    "duration": 26826250,
+    "start": 1776697996876248172
   },
      {
        "name": "Calculate participants' average ages",
@@ -34,15 +36,16 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "0987b32bb1374a3eb66373e1d9469e3a"
+         "_dd.svc_src": "tests.contrib.crewai",
+         "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "process_id": 6022
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "process_id": 507.0
        },
-       "duration": 1673705000,
-       "start": 1741982871125219000
+       "duration": 20581416,
+       "start": 1776697996878816339
      },
         {
           "name": "Python Data Analyst",
@@ -53,11 +56,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 1673227000,
-          "start": 1741982871125438000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 20306875,
+          "start": 1776697996879036505
         },
            {
              "name": "Average Calculator",
@@ -68,9 +74,12 @@
              "parent_id": 3,
              "type": "",
              "error": 0,
-             "metrics": {
-               "_dd.measured": 1
+             "meta": {
+               "_dd.svc_src": "tests.contrib.crewai"
              },
-             "duration": 134000,
-             "start": 1741982872203636000
+             "metrics": {
+               "_dd.measured": 1.0
+             },
+             "duration": 81208,
+             "start": 1776697996891609922
            }]]

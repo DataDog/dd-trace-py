@@ -10,19 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67d4836c00000000",
+      "_dd.p.tid": "69e6428c00000000",
+      "_dd.svc_src": "tests.contrib.crewai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "274f8024b18d47fbaa1bb86e4e4f2194"
+      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 97124
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
     },
-    "duration": 55736000,
-    "start": 1741980524340908000
+    "duration": 335786875,
+    "start": 1776697996083428255
   },
      {
        "name": "crewai.request",
@@ -33,11 +35,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 45907000,
-       "start": 1741980524343290000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 216787333,
+       "start": 1776697996091038422
      },
         {
           "name": "Senior Research Scientist",
@@ -48,11 +53,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 45533000,
-          "start": 1741980524343487000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 216299500,
+          "start": 1776697996091400755
         },
      {
        "name": "crewai.request",
@@ -63,11 +71,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 5421000,
-       "start": 1741980524390361000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 106726417,
+       "start": 1776697996309171880
      },
         {
           "name": "AI Reporting Analyst",
@@ -78,9 +89,12 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 4986000,
-          "start": 1741980524390729000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 106369084,
+          "start": 1776697996309446005
         }]]
