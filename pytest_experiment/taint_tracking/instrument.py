@@ -12,7 +12,8 @@ _SKIP_TYPES = (int, float, str, bool, bytes, type(None), type)
 
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Private attribute on sys — no builtins or module globals pollution
+# Single-char private name on sys, unlikely to collide.
+# sys survives interpreter shutdown longer than sys.modules entries.
 _SYS_ATTR = "_taint_mark"
 
 
@@ -25,6 +26,15 @@ def _is_internal(filename: str) -> bool:
 def taint_mark(obj: object) -> None:
     if obj is not None and not isinstance(obj, _SKIP_TYPES):
         taint.taint(obj)
+
+
+def _safe_taint_mark(obj: object) -> None:
+    """Shutdown-safe wrapper. During interpreter teardown, modules may be None."""
+    try:
+        if obj is not None and not isinstance(obj, _SKIP_TYPES):
+            taint.taint(obj)
+    except Exception:  # nosec B110
+        pass
 
 
 def _target_to_load(target: ast.AST) -> ast.expr | None:
@@ -40,10 +50,12 @@ def _target_to_load(target: ast.AST) -> ast.expr | None:
     return None
 
 
-def _make_taint_call_node(expr: ast.expr) -> ast.Call:
+def _make_taint_call_expr(expr: ast.expr) -> ast.Call:
     """Build AST for: getattr(__import__('sys'), '_taint_mark', lambda _: None)(expr)
 
-    Fully self-contained — no injected names in builtins or module globals.
+    Self-contained — no injected names in builtins or module globals.
+    Note: __import__('sys') may raise during interpreter shutdown. Callers
+    generating statements should wrap this in try/except (see _make_taint_call).
     """
     noop = ast.Lambda(
         args=ast.arguments(
@@ -55,34 +67,38 @@ def _make_taint_call_node(expr: ast.expr) -> ast.Call:
         ),
         body=ast.Constant(value=None),
     )
+    import_sys = ast.Call(
+        func=ast.Name(id="__import__", ctx=ast.Load()),
+        args=[ast.Constant(value="sys")],
+        keywords=[],
+    )
     lookup = ast.Call(
         func=ast.Name(id="getattr", ctx=ast.Load()),
-        args=[
-            ast.Call(
-                func=ast.Name(id="__import__", ctx=ast.Load()),
-                args=[ast.Constant(value="sys")],
-                keywords=[],
-            ),
-            ast.Constant(value=_SYS_ATTR),
-            noop,
-        ],
+        args=[import_sys, ast.Constant(value=_SYS_ATTR), noop],
         keywords=[],
     )
     return ast.Call(func=lookup, args=[expr], keywords=[])
 
 
 class TaintTransformer(ast.NodeTransformer):
-    def _make_taint_call(self, expr: ast.expr, node: ast.AST) -> ast.Expr:
-        call = ast.Expr(value=_make_taint_call_node(expr))
-        ast.copy_location(call, node)
-        ast.copy_location(call.value, node)
-        for n in ast.walk(call):
+    def _make_taint_call(self, expr: ast.expr, node: ast.AST) -> ast.Try:
+        r"""Generate: try: getattr(__import__('sys'), '_taint_mark', ...)(expr) \nexcept: pass"""
+        call_stmt = ast.Expr(value=_make_taint_call_expr(expr))
+        handler = ast.ExceptHandler(type=None, name=None, body=[ast.Pass()])
+        try_node = ast.Try(
+            body=[call_stmt],
+            handlers=[handler],
+            orelse=[],
+            finalbody=[],
+        )
+        ast.copy_location(try_node, node)
+        for n in ast.walk(try_node):
             if hasattr(n, "lineno"):
                 setattr(n, "end_lineno", getattr(n, "end_lineno", None) or n.lineno)
                 setattr(n, "end_col_offset", getattr(n, "end_col_offset", None) or getattr(n, "col_offset", 0))
-        return call
+        return try_node
 
-    def _taint_calls_for_target(self, target: ast.AST, node: ast.AST) -> list[ast.Expr]:
+    def _taint_calls_for_target(self, target: ast.AST, node: ast.AST) -> list[ast.stmt]:
         """Generate taint calls for an assignment target."""
         if isinstance(target, (ast.Tuple, ast.List)):
             calls = []
@@ -123,7 +139,7 @@ class TaintTransformer(ast.NodeTransformer):
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> ast.expr:
         self.generic_visit(node)
-        taint_call = _make_taint_call_node(ast.Name(id=node.target.id, ctx=ast.Load()))
+        taint_call = _make_taint_call_expr(ast.Name(id=node.target.id, ctx=ast.Load()))
         wrapper = ast.Subscript(
             value=ast.Tuple(elts=[node, taint_call], ctx=ast.Load()),
             slice=ast.Constant(value=0),
@@ -222,8 +238,8 @@ def install(test_paths: list[str] | None = None) -> None:
         test_paths = [os.getcwd()]
     _test_paths = [os.path.realpath(p) for p in test_paths]
 
-    # Store taint_mark on sys — private attribute, no builtins/globals pollution
-    sys._taint_mark = taint_mark  # type: ignore[attr-defined]
+    # Store shutdown-safe taint_mark on sys — catches all exceptions internally
+    sys._taint_mark = _safe_taint_mark  # type: ignore[attr-defined]
 
     # Patch compile to transform AST transparently
     _original_compile = builtins.compile
