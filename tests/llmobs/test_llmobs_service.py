@@ -1453,7 +1453,7 @@ def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
     with llmobs.agent(name="test_agent") as span:
-        assert {}.items() <= get_llmobs_tags(span).items()
+        assert "foo" not in get_llmobs_tags(span)
 
 
 def test_annotation_context_finished_context_does_not_modify_prompt(llmobs):
@@ -1553,7 +1553,7 @@ def test_annotation_context_not_reactivated_after_exit(llmobs):
 
     # After exiting annotation_context, tags should not be applied
     with llmobs.workflow(name="outside_span") as span2:
-        assert {}.items() <= get_llmobs_tags(span2).items()
+        assert "inside" not in get_llmobs_tags(span2)
 
 
 def test_annotation_context_sequential_contexts_work_independently(llmobs):
@@ -1637,7 +1637,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
 
     with llmobs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
-        assert {}.items() <= get_llmobs_tags(span).items()
+        assert "foo" not in get_llmobs_tags(span)
 
     event.set()
     thread_one.join()
@@ -1681,7 +1681,7 @@ async def test_annotation_context_async_finished_context_does_not_modify_tags(ll
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
     with llmobs.agent(name="test_agent") as span:
-        assert {}.items() <= get_llmobs_tags(span).items()
+        assert "foo" not in get_llmobs_tags(span)
 
 
 async def test_annotation_context_async_finished_context_does_not_modify_prompt(llmobs):
