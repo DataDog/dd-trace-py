@@ -24,7 +24,8 @@ from ddtrace.trace import Tracer
 
 from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
-from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
+from ddtrace.profiling.collector._task cimport get_task as _c_get_task
+from ddtrace.profiling.collector._task cimport initialize_gevent_support as _c_initialize_gevent_support
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -496,18 +497,12 @@ class LockCollector(collector.CaptureSamplerCollector):
 
             internal_module_file = threading_module.__file__
 
-        # Parse exclude modules config once at patch time (not per lock creation).
+        # Precompute module exclusion structures once at patch time (not per lock creation).
         # Two structures for fast matching:
         #   exclude_exact  — frozenset for O(1) exact module name lookup
         #   exclude_dotted — tuple of "prefix." strings for str.startswith()
-        exclude_str: str = config.lock.exclude_modules
-        if exclude_str:
-            _prefixes: list[str] = [m.strip() for m in exclude_str.split(",") if m.strip()]
-            exclude_exact: frozenset[str] = frozenset(_prefixes)
-            exclude_dotted: tuple[str, ...] = tuple(p + "." for p in _prefixes)
-        else:
-            exclude_exact = frozenset()
-            exclude_dotted = ()
+        exclude_exact: frozenset[str] = config.lock.exclude_modules
+        exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
 
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> Any:
             """Simple wrapper that returns profiled locks.
