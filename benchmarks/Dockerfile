@@ -1,6 +1,6 @@
-FROM debian:bookworm-slim as base
+FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d AS base
 
-# Keep this version in sync with the one we acually use in benchmarking-platform
+# Keep this version in sync with the one we actually use in benchmarking-platform
 # https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
 ARG PYTHON_VERSION=3.9.15
 ARG PYENV_VERSION=2.5.5
@@ -15,7 +15,7 @@ ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
 RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VERSION" --single-branch "$PYENV_ROOT"
 RUN pyenv install "$PYTHON_VERSION"
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 # Keep this version in sync with
 # https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
 ARG PYTHON_VERSION=3.9.15
@@ -55,7 +55,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Rust toolchain
-RUN curl https://sh.rustup.rs -sSf | \
+# TODO: Pin to a specific rustup-init version with SHA256 verification.
+# See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- --default-toolchain stable -y
 
 # Add base common files used by all scenarios

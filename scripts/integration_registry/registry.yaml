@@ -251,7 +251,7 @@ integrations:
   tested_versions_by_dependency:
     claude-agent-sdk:
       min: 0.0.23
-      max: 0.1.29
+      max: 0.1.49
 
 - integration_name: consul
   is_external_package: true
