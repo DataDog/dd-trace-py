@@ -371,47 +371,55 @@ def _build_llmobs_span(
     return llmobs_span, input_type, output_type
 
 
-def _build_span_meta(
+def _finalize_meta_struct(
     span: Span,
     llmobs_span: LLMObsSpan,
     llmobs_meta: _Meta,
     span_kind: str,
     input_type: Literal["value", "messages", ""],
     output_type: Literal["value", "messages", ""],
-) -> _Meta:
-    """Build and return the meta dict for a span event, omitting empty/inapplicable fields."""
-    meta = _Meta(
-        span=_SpanField(kind=span_kind),
-        metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
-    )
+) -> None:
+    """Finalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
+
+    Writes post-user-processor I/O back, inherits parent prompts for LLM spans, drops
+    invalid prompts, populates the error field, normalizes model_provider, and removes
+    empty optional fields.
+    """
+    llmobs_meta[LLMOBS_STRUCT.SPAN] = _SpanField(kind=span_kind)
+    llmobs_meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+
+    model_name = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_NAME, None)
+    model_provider = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_PROVIDER, None)
     if span_kind in ("llm", "embedding"):
-        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
-        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
-    tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
-    if tool_definitions:
-        meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
+        llmobs_meta[LLMOBS_STRUCT.MODEL_NAME] = model_name or "unknown"
+        llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or "custom").lower()
+
+    if not llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS):
+        llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
     intent = str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or "")
     if intent:
-        meta[LLMOBS_STRUCT.INTENT] = intent
+        llmobs_meta[LLMOBS_STRUCT.INTENT] = intent
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
+
     if span.error:
-        meta[LLMOBS_STRUCT.ERROR] = _ErrorField(
+        llmobs_meta[LLMOBS_STRUCT.ERROR] = _ErrorField(
             message=span.get_tag(ERROR_MSG) or "",
             stack=span.get_tag(ERROR_STACK) or "",
             type=span.get_tag(ERROR_TYPE) or "",
         )
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.ERROR, None)
 
     if span.context.get_baggage_item(EXPERIMENT_ID_KEY) and span_kind == "experiment":
-        # experiment i/o is stored as raw values — pass through directly
-        input_data = llmobs_meta.get(LLMOBS_STRUCT.INPUT)
-        if input_data:
-            meta[LLMOBS_STRUCT.INPUT] = input_data
-        output_data = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT)
-        if output_data:
-            meta[LLMOBS_STRUCT.OUTPUT] = output_data
-        expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
-        if expected_output is not None:
-            meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
-        return meta
+        # experiment i/o is stored as raw values — already in place from annotation
+        if not llmobs_meta.get(LLMOBS_STRUCT.INPUT):
+            llmobs_meta.pop(LLMOBS_STRUCT.INPUT, None)
+        if not llmobs_meta.get(LLMOBS_STRUCT.OUTPUT):
+            llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
+        if llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT) is None:
+            llmobs_meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
+        return
 
     meta_input: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.INPUT) or {}))
     meta_output: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or {}))
@@ -430,16 +438,20 @@ def _build_span_meta(
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     if meta_input:
-        meta[LLMOBS_STRUCT.INPUT] = meta_input
+        llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.INPUT, None)
 
     if output_type == "messages":
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     if meta_output:
-        meta[LLMOBS_STRUCT.OUTPUT] = meta_output
+        llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
 
-    return meta
+    llmobs_meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
 
 
 class LLMObs(Service):
@@ -503,6 +515,10 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
+        if not self._prepare_llmobs_span_data(span, span_kind):
+            # User span processor dropped the span or span has no LLMObs data
+            return
+
         span_event = None
         try:
             span_event = self._llmobs_span_event(span)
@@ -521,11 +537,6 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event)
             span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
             return
-
-        self._finalize_llmobs_span_data(span)
-
-    def _finalize_llmobs_span_data(self, span: Span) -> None:
-        pass
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -551,15 +562,42 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
+    def _prepare_llmobs_span_data(self, span: Span, span_kind: Optional[str]) -> bool:
+        """Commit final I/O and meta values to meta_struct before event assembly.
+
+        Runs the user span processor and folds its mutations — plus parent-prompt
+        inheritance, error fields, and other meta-level rules — directly into
+        the LLMObsSpanData stored on the span meta_struct.
+
+        Returns True if the user processor dropped the span (no event should be built).
+        """
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        if not llmobs_data or not span_kind:
+            return False
+
+        llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
+        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
+
+        llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        user_processed_span = self._apply_user_span_processor(span, llmobs_span)
+        if user_processed_span is None:
+            return False
+
+        _finalize_meta_struct(span, user_processed_span, llmobs_meta, span_kind, input_type, output_type)
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+        return True
+
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
-        """Generate LLMObs span event from span's stored meta_struct LLMObsSpanData."""
+        """Assemble the LLMObs span event from the finalized meta_struct contents.
+
+        This function is a pure reader: all I/O mutations, user-processor hooks, and
+        meta-level finalization must already have been committed to
+        ``meta_struct["_llmobs"]`` by ``_prepare_llmobs_span_data``.
+        """
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             return None
-
-        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
-        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
-        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 
         span_kind = get_llmobs_span_kind(span)
         if not span_kind:
@@ -572,14 +610,7 @@ class LLMObs(Service):
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
-        llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
-        user_processed_span = self._apply_user_span_processor(span, llmobs_span)
-        if user_processed_span is None:
-            return None
-        llmobs_span = user_processed_span
-
-        # Wait to build meta until after user processors apply and potentially mutate I/O
-        meta = _build_span_meta(span, llmobs_span, llmobs_meta, span_kind, input_type, output_type)
+        meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
