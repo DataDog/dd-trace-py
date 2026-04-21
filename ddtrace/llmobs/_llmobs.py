@@ -563,7 +563,7 @@ class LLMObs(Service):
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
-        cost_tags = self._llmobs_cost_tags(span)
+        cost_tags = get_llmobs_cost_tags(span)
         span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
@@ -655,13 +655,6 @@ class LLMObs(Service):
             tags["experiment_name"] = experiment_name
 
         return ["{}:{}".format(k, v) for k, v in tags.items()]
-
-    @staticmethod
-    def _llmobs_cost_tags(span: Span) -> Optional[list[str]]:
-        cost_tags = get_llmobs_cost_tags(span)
-        if not cost_tags:
-            return None
-        return cost_tags
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
