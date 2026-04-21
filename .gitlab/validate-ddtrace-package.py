@@ -102,10 +102,17 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
 
     sdist_path = sdists[0]
 
-    # Parse sdist filename using packaging library
+    # Parse sdist filename using packaging library.
+    # Unlike wheels, the sdist is intentionally built without a local
+    # version segment (see setup.py's sdist-skip), so an exact string
+    # comparison is used on the sdist side — a regression that accidentally
+    # stamps the sdist should fail validation here rather than be masked
+    # by `_public_version` stripping the segment. The `package_version`
+    # side is still normalized to absorb harmless canonicalization (e.g.
+    # `rc04` → `rc4`).
     try:
         name, version = parse_sdist_filename(sdist_path.name)
-        if _public_version(version) != _public_version(package_version):
+        if str(version) != _public_version(package_version):
             return (
                 False,
                 f"SDist version {version} != {package_version}",
