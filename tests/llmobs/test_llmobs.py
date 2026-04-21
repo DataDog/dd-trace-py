@@ -346,7 +346,7 @@ def test_cost_tags_are_set_on_span_event(tracer, llmobs_events):
             tags={"team": "ml", "feature": "chatbot"},
             cost_tags=["team", "feature"],
         )
-    assert llmobs_events[0]["cost_tags"] == ["team", "feature"]
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["cost_tags"] == ["team", "feature"]
 
 
 def test_langchain_span_name_is_set_to_class_name(tracer, llmobs_events):

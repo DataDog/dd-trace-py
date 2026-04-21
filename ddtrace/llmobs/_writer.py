@@ -78,7 +78,6 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     collection_errors: list[str]
     span_links: list[_SpanLink]
     config: ConfigType
-    cost_tags: list[str]
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
