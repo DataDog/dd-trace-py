@@ -311,6 +311,9 @@ class _PayloadFileTelemetryClient:
     same payload the writer would have sent over HTTP, just redirected to disk.
     """
 
+    # Matches the attribute read by TelemetryWriter.enable_agentless_client().
+    _agentless: bool = False
+
     def __init__(self, output_dir: str) -> None:
         self._output_dir = output_dir
 

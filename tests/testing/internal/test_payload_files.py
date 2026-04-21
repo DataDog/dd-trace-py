@@ -316,6 +316,23 @@ class TestPayloadFileTelemetryAPI:
         ]
         assert any(s["metric"] == "test_dist" and s["points"][0] == 42.5 for s in dist_series)
 
+    def test_enable_agentless_client_does_not_raise_after_client_swap(self, tmp_path):
+        """enable_agentless_client() must not AttributeError after PayloadFileTelemetryAPI swaps the client.
+
+        TelemetryWriter.enable_agentless_client() reads self._client._agentless; without that
+        attribute on _PayloadFileTelemetryClient, any code path that calls it (e.g. LLMObs
+        initialisation) would raise AttributeError.
+        """
+        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+
+        telemetry_dir = tmp_path / "telemetry"
+        api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
+
+        # Must not raise regardless of the requested mode.
+        api.writer.enable_agentless_client(True)
+        api.writer.enable_agentless_client(False)
+
     def test_online_telemetry_api_does_not_write_files(self, tmp_path):
         from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
         from ddtrace.testing.internal.telemetry import TelemetryAPI
