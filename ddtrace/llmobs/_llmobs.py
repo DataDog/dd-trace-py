@@ -378,6 +378,7 @@ def _finalize_meta_struct(
     span_kind: str,
     input_type: Literal["value", "messages", ""],
     output_type: Literal["value", "messages", ""],
+    export_to_llmobs: bool,
 ) -> None:
     """Finalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
 
@@ -393,32 +394,21 @@ def _finalize_meta_struct(
     if span_kind in ("llm", "embedding"):
         llmobs_meta[LLMOBS_STRUCT.MODEL_NAME] = model_name or "unknown"
         llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or "custom").lower()
-
-    if not llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS):
+    if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
-    intent = str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or "")
+    intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
     if intent:
-        llmobs_meta[LLMOBS_STRUCT.INTENT] = intent
-    else:
-        llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
+        llmobs_meta[LLMOBS_STRUCT.INTENT] = str(intent)
 
-    if span.error:
+    if span.error and export_to_llmobs:
         llmobs_meta[LLMOBS_STRUCT.ERROR] = _ErrorField(
             message=span.get_tag(ERROR_MSG) or "",
             stack=span.get_tag(ERROR_STACK) or "",
             type=span.get_tag(ERROR_TYPE) or "",
         )
-    else:
-        llmobs_meta.pop(LLMOBS_STRUCT.ERROR, None)
 
     if span.context.get_baggage_item(EXPERIMENT_ID_KEY) and span_kind == "experiment":
         # experiment i/o is stored as raw values — already in place from annotation
-        if not llmobs_meta.get(LLMOBS_STRUCT.INPUT):
-            llmobs_meta.pop(LLMOBS_STRUCT.INPUT, None)
-        if not llmobs_meta.get(LLMOBS_STRUCT.OUTPUT):
-            llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
-        if llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT) is None:
-            llmobs_meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
         return
 
     meta_input: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.INPUT) or {}))
@@ -439,8 +429,6 @@ def _finalize_meta_struct(
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
-    else:
-        llmobs_meta.pop(LLMOBS_STRUCT.INPUT, None)
 
     if output_type == "messages":
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
@@ -448,10 +436,6 @@ def _finalize_meta_struct(
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
-    else:
-        llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
-
-    llmobs_meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
 
 
 class LLMObs(Service):
@@ -516,7 +500,6 @@ class LLMObs(Service):
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
         if not self._prepare_llmobs_span_data(span, span_kind):
-            # User span processor dropped the span or span has no LLMObs data
             return
 
         span_event = None
@@ -528,9 +511,9 @@ class LLMObs(Service):
                 span,
                 exc_info=True,
             )
-        finally:
-            if span_event and self._evaluator_runner and span_kind == "llm":
-                self._evaluator_runner.enqueue(span_event, span)
+
+        if span_event and self._evaluator_runner and span_kind == "llm":
+            self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_directly_to_llmobs and span_event:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
@@ -569,7 +552,8 @@ class LLMObs(Service):
         inheritance, error fields, and other meta-level rules — directly into
         the LLMObsSpanData stored on the span meta_struct.
 
-        Returns True if the user processor dropped the span (no event should be built).
+        Returns True if the span is ready to be serialized into an event; False if
+        the span has no LLMObs data or the user processor dropped it.
         """
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data or not span_kind:
@@ -584,7 +568,9 @@ class LLMObs(Service):
         if user_processed_span is None:
             return False
 
-        _finalize_meta_struct(span, user_processed_span, llmobs_meta, span_kind, input_type, output_type)
+        _finalize_meta_struct(
+            span, user_processed_span, llmobs_meta, span_kind, input_type, output_type, self._export_directly_to_llmobs
+        )
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
@@ -593,7 +579,7 @@ class LLMObs(Service):
 
         This function is a pure reader: all I/O mutations, user-processor hooks, and
         meta-level finalization must already have been committed to
-        ``meta_struct["_llmobs"]`` by ``_prepare_llmobs_span_data``.
+        ``meta_struct`` by ``_prepare_llmobs_span_data``.
         """
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
@@ -612,9 +598,7 @@ class LLMObs(Service):
 
         meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
-        session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
-        span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
@@ -642,21 +626,23 @@ class LLMObs(Service):
         experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if experiment_config:
             llmobs_span_event["config"] = experiment_config
+        session_id = get_llmobs_session_id(span)
         if session_id:
             llmobs_span_event["session_id"] = session_id
+        span_links = get_llmobs_span_links(span) or []
         if span_links:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event
 
-    @staticmethod
-    def _llmobs_tags(span: Span) -> list[str]:
+    def _llmobs_tags(self, span: Span) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        tags["error"] = str(span.error)
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags["error_type"] = err_type
+        if self._export_directly_to_llmobs:
+            tags["error"] = str(span.error)
+            err_type = span.get_tag(ERROR_TYPE)
+            if err_type:
+                tags["error_type"] = err_type
 
         return sorted("{}:{}".format(k, v) for k, v in tags.items())
 
