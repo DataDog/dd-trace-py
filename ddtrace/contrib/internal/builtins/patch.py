@@ -30,16 +30,17 @@ def wrapped_open(
     """
     wrapper for builtins.open file function
     """
-    filename_arg = args[0] if args else kwargs.get("file", None)
+    if core.has_listeners(FileOpenEvent.event_name):
+        filename_arg = args[0] if args else kwargs.get("file", None)
 
-    if filename_arg is not None:
-        try:
-            filename = os.fspath(filename_arg)
-        except Exception:
-            filename = None
+        if filename_arg is not None:
+            try:
+                filename = os.fspath(filename_arg)
+            except Exception:
+                filename = None
 
-        if filename is not None:
-            core.dispatch_event(FileOpenEvent(filename=filename))
+            if filename is not None:
+                core.dispatch_event(FileOpenEvent(filename=filename))
 
     try:
         return original_open_callable(*args, **kwargs)

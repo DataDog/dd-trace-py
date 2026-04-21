@@ -502,9 +502,11 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
     try:
         mode, file, func_args, _, _ = args
-        if isinstance(func_args, (list, tuple, str)):
-            commands = [file] + list(func_args)
+        if isinstance(func_args, (list, tuple)):
+            commands = [str(file)] + [str(a) for a in func_args]
             core.dispatch_event(ProcessCommandEvent(command_args=commands))
+        elif isinstance(func_args, str):
+            core.dispatch_event(ProcessCommandEvent(command_args=[str(file), func_args]))
         shellcmd = SubprocessCmdLine(func_args, shell=False)
     except Exception:
         log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
@@ -555,9 +557,11 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             cmd_args = args[0] if len(args) else kwargs["args"]
             if isinstance(cmd_args, (list, tuple, str)):
                 if kwargs.get("shell", False):
-                    core.dispatch_event(ShellCommandEvent(command=cmd_args))
+                    shell_command = cmd_args if isinstance(cmd_args, str) else " ".join(str(a) for a in cmd_args)
+                    core.dispatch_event(ShellCommandEvent(command=shell_command))
                 else:
-                    core.dispatch_event(ProcessCommandEvent(command_args=cmd_args))
+                    process_args = cmd_args if isinstance(cmd_args, (list, str)) else list(cmd_args)
+                    core.dispatch_event(ProcessCommandEvent(command_args=process_args))
             cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
             is_shell = kwargs.get("shell", False)
             shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec

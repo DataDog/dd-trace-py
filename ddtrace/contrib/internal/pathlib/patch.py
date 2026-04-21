@@ -37,13 +37,14 @@ def wrapped_path_open(
     """
     wrapper for pathlib.Path.open() method
     """
-    try:
-        filename = os.fspath(instance)
-    except Exception:
-        filename = None
+    if core.has_listeners(FileOpenEvent.event_name):
+        try:
+            filename = os.fspath(instance)
+        except Exception:
+            filename = None
 
-    if filename is not None:
-        core.dispatch_event(FileOpenEvent(filename=filename))
+        if filename is not None:
+            core.dispatch_event(FileOpenEvent(filename=filename))
 
     try:
         return original_method_callable(*args, **kwargs)
