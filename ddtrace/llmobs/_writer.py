@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import tempfile
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypedDict
@@ -35,7 +36,6 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
-from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
@@ -49,6 +49,10 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.version import __version__
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._experiment import ConfigType
 
 
 logger = get_logger(__name__)
@@ -65,7 +69,7 @@ class LLMObsSpanData(TypedDict, total=False):
     tags: dict[str, str]
     metrics: dict[str, Any]
     span_links: list[_SpanLink]
-    config: ConfigType
+    config: "ConfigType"
     is_evaluation_span: bool
     meta: _Meta
 
@@ -76,7 +80,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     status_message: str
     collection_errors: list[str]
     span_links: list[_SpanLink]
-    config: ConfigType
+    config: "ConfigType"
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
