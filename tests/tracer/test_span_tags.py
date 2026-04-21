@@ -290,14 +290,6 @@ def test_span_bytes_string_set_tag(span_log):
     span_log.warning.assert_not_called()
 
 
-def test_span_repr_metastruct():
-    span = Span("span_test")
-    assert "metastruct={}" in repr(span)
-    span._set_struct_tag("key1", {"a": 1, "b": 2})
-    span._set_struct_tag("key2", ["bad item"])  # type: ignore
-    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)
-
-
 # ---------------------------------------------------------------------------
 # New tests for the internal attribute API
 # ---------------------------------------------------------------------------
@@ -595,16 +587,14 @@ def test_set_attribute_http_status_code_int():
     # int values must be coerced to str and stored in _meta, not _metrics
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, 200)
-    assert s._meta[http.STATUS_CODE] == "200"
-    assert http.STATUS_CODE not in s._metrics
+    assert s._get_attribute(http.STATUS_CODE) == "200"
 
 
 def test_set_attribute_http_status_code_str():
     # str values must stay as str and be stored in _meta
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, "404")
-    assert s._meta[http.STATUS_CODE] == "404"
-    assert http.STATUS_CODE not in s._metrics
+    assert s._get_attribute(http.STATUS_CODE) == "404"
 
 
 def test_set_attribute_http_status_code_readable_via_get_tag():

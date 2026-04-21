@@ -192,8 +192,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
         sp["duration"] = span.duration_ns
-        sp["meta"] = dict(sorted(span._meta.items()))
-        sp["metrics"] = dict(sorted(span._metrics.items()))
+        sp["meta"] = dict(sorted(span._get_str_attributes().items()))
+        sp["metrics"] = dict(sorted(span._get_numeric_attributes().items()))
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)

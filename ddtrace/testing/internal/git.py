@@ -26,6 +26,18 @@ class GitTag:
     # Git Branch
     BRANCH = "git.branch"
 
+    # Git Pull Request Base Branch
+    PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+    # Git Pull Request Base Branch SHA
+    PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+    # Git Pull Request Base Branch Head SHA
+    PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+    # Pull Request Number
+    PULL_REQUEST_NUMBER = "pr.number"
+
     # Git Tag
     TAG = "git.tag"
 
@@ -130,7 +142,7 @@ class Git:
     def _git_output(self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
         result = self._call_git(args)
 
-        if telemetry_type:
+        if telemetry_type and TelemetryAPI._instance is not None:
             TelemetryAPI.get().record_git_command(telemetry_type, result.elapsed_seconds, result.return_code)
 
         if result.return_code != 0:
@@ -277,7 +289,8 @@ class Git:
 
         finally:
             sw.stop()
-            TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
     def pack_objects(self, revisions: list[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
@@ -294,7 +307,10 @@ class Git:
             prefix = f"{output_dir}/{base_name}"
             result = self._call_git(["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions_text)
 
-            TelemetryAPI.get().record_git_command(GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code)
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_command(
+                    GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code
+                )
 
             if result.return_code != 0:
                 log.warning("Error calling git pack-objects: %s", result.stderr)
@@ -396,6 +412,8 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> dict[str,
         GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
         GitTag.BRANCH: branch,
+        GitTag.PULL_REQUEST_BASE_BRANCH: normalize_ref(env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH")),
+        GitTag.PULL_REQUEST_BASE_BRANCH_SHA: env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"),
         GitTag.TAG: tag,
         GitTag.COMMIT_MESSAGE: env.get("DD_GIT_COMMIT_MESSAGE"),
         GitTag.COMMIT_AUTHOR_DATE: env.get("DD_GIT_COMMIT_AUTHOR_DATE"),

@@ -192,3 +192,12 @@ def identify(request):
         scope="usr.scope",
     )
     return HttpResponse(status=200)
+
+
+class AsyncView(View):
+    async def get(self, request):
+        return HttpResponse("async response")
+
+
+async def async_function_view(request):
+    return HttpResponse("async function response")

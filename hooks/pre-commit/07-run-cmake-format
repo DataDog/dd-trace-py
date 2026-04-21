@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '(\.cmake$|CMakeLists\.txt$)')
+if [ -n "$staged_files" ]; then
+    hatch run lint:cmakeformat_check
+else
+    echo 'Run cmake-format skipped: No CMake files were found in `git diff --staged`'
+fi

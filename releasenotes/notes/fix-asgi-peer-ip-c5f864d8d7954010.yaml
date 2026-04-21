@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    asgi: Fixed an issue caused network.client.ip and http.client_ip span tags being missing for FastAPI.

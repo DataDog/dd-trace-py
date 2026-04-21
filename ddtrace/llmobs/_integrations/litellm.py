@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
@@ -146,6 +147,19 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
+        # Detect litellm proxy routing — the OpenAI integration never fires when requests go through a proxy.
+        # Three mechanisms exist (v1.72.1+ for use_litellm_proxy):
+        #   1. model prefix:        model="litellm_proxy/<model>"
+        #   2. per-call kwarg:      use_litellm_proxy=True
+        #   3. module-level flag:   litellm.use_litellm_proxy = True  /  USE_LITELLM_PROXY env var
+        if model_lower.startswith("litellm_proxy/"):
+            return False
+        if kwargs.get("use_litellm_proxy"):
+            return False
+        import litellm as _litellm
+
+        if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
+            return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")

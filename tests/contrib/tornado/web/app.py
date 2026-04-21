@@ -136,6 +136,34 @@ class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
         self.write("OK")
 
 
+class RouteComplexPatternHandler(tornado.web.RequestHandler):
+    """Handler for a route whose regex has no reverse mapping (_path is None)."""
+
+    @tornado.gen.coroutine
+    def get(self):
+        self.write("complex")
+
+
+class RouteMixedPatternHandler(tornado.web.RequestHandler):
+    """Handler for a route with both a non-capturing group and a capturing group."""
+
+    @tornado.gen.coroutine
+    def get(self, item_id):
+        self.write("mixed")
+
+
+class RouteOrderSpecificHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.write("specific")
+
+
+class RouteOrderCatchAllHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, path=None):
+        self.write("catch_all")
+
+
 class CustomDefaultHandler(tornado.web.ErrorHandler):
     """
     Default handler that is used in case of 404 error; in our tests
@@ -299,13 +327,29 @@ def make_app(settings=None):
         [(r"/nested_app/handler1/", SuccessHandler), (r"/nested_app/handler2/", SuccessHandler)], **settings
     )
 
+    route_order_app = tornado.web.Application(
+        [
+            (r"/route_order/specific/", RouteOrderSpecificHandler),
+            (r"/route_order/(.*)", RouteOrderCatchAllHandler),
+        ],
+        **settings,
+    )
+
     return tornado.web.Application(
         [
             # custom handlers
             (r"/success/", SuccessHandler),
+            # Non-capturing group: Tornado cannot build a reverse mapping (_path is None).
+            # Used to test that _find_route falls back to _regex_to_route in this case.
+            (r"/complex/(?:new|existing)/", RouteComplexPatternHandler),
+            # Mixed: non-capturing group followed by a capturing group.
+            # _path is None (non-capturing group breaks Tornado's reverse logic), but
+            # _regex_to_route should still replace the capturing group with %s.
+            (r"/mixed/(?:items|things)/([0-9]+)/", RouteMixedPatternHandler),
             (r"/status_code/([0-9]+)", ResponseStatusHandler),
             (r"/nested/.*", NestedHandler),
             (r"/nested_app/.*", nested_application),
+            (r"/route_order/.*", route_order_app),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),
             (r"/exception/", ExceptionHandler),

@@ -209,7 +209,7 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         }
 
         // Skip the uvloop wrapper frame if present (only at the outermost level of the top-level Task)
-        if (!stack.empty() && is_uvloop_wrapper_frame(echion, using_uvloop, stack.back().get())) {
+        if (!stack.empty() && is_uvloop_wrapper_frame(echion, using_uvloop, stack.back())) {
             stack.pop_back();
             continue;
         }

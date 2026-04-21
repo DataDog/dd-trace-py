@@ -46,4 +46,6 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertNotEqual(span.parent_id, 0)
-        self.assertEqual(span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask"})
+        self.assertEqual(
+            span.get_tags(), {"component": "flask", "_dd.base_service": "tests.contrib.flask", "_dd.svc_src": "m"}
+        )

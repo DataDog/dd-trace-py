@@ -38,6 +38,7 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
+        integration_config=config.anthropic,
         service=int_service(None, integration.integration_config),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
@@ -68,6 +69,7 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
     integration: AnthropicIntegration = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
+        integration_config=config.anthropic,
         service=int_service(None, integration.integration_config),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
