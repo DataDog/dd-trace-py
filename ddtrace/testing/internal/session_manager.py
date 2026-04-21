@@ -43,6 +43,14 @@ from ddtrace.testing.internal.writer import TestOptWriter
 log = logging.getLogger(__name__)
 
 
+def _parse_line_number(value: str) -> t.Optional[int]:
+    """Return the integer value of a source line tag, or None if it is not numeric."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
         offline = get_offline_mode()
@@ -378,14 +386,18 @@ class SessionManager:
         suite.tags[TestTag.SOURCE_FILE] = source_file
 
         start_lines = [
-            int(test.tags[TestTag.SOURCE_START])
+            v
             for test in suite.children.values()
             if TestTag.SOURCE_START in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_START])) is not None
         ]
         suite.tags[TestTag.SOURCE_START] = str(min(start_lines)) if start_lines else "1"
 
         end_lines = [
-            int(test.tags[TestTag.SOURCE_END]) for test in suite.children.values() if TestTag.SOURCE_END in test.tags
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_END in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_END])) is not None
         ]
         if end_lines:
             suite.tags[TestTag.SOURCE_END] = str(max(end_lines))
