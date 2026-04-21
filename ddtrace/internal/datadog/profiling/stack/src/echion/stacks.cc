@@ -13,11 +13,11 @@ FrameStack::render(EchionSampler& echion)
 
     for (auto it = this->begin(); it != this->end(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000
-        if ((*it).get().is_entry)
+        if ((*it).is_entry)
             // This is a shim frame so we skip it.
             continue;
 #endif
-        auto& frame = (*it).get();
+        auto& frame = *it;
 
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
@@ -66,7 +66,7 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
             continue;
         }
 
-        stack.push_back(*maybe_frame);
+        stack.push_back(maybe_frame->get());
         count++;
 
         if (count >= max_depth) {
