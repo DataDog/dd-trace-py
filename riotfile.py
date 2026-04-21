@@ -644,48 +644,42 @@ venv = Venv(
             name="gevent",
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
+                "aiobotocore": "<=2.3.1",
+                "aiohttp": latest,
+                "botocore": latest,
                 "elasticsearch": latest,
+                "opensearch-py": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
+                "requests": latest,
             },
             venvs=[
                 Venv(
+                    pys="3.9",
                     pkgs={
-                        "aiobotocore": "<=2.3.1",
-                        "aiohttp": latest,
-                        "botocore": latest,
-                        "requests": latest,
-                        "opensearch-py": latest,
+                        # https://github.com/gevent/gevent/issues/2076
+                        "gevent": ["~=21.1.0", "<21.8.0"],
+                        "greenlet": "~=1.0",
                     },
-                    venvs=[
-                        Venv(
-                            pys="3.9",
-                            pkgs={
-                                # https://github.com/gevent/gevent/issues/2076
-                                "gevent": ["~=21.1.0", "<21.8.0"],
-                                "greenlet": "~=1.0",
-                            },
-                        ),
-                        Venv(
-                            # gevent added support for Python 3.10 in 21.8.0
-                            pys="3.10",
-                            pkgs={
-                                "gevent": ["~=21.12.0", latest],
-                            },
-                        ),
-                        Venv(
-                            pys="3.11",
-                            pkgs={
-                                "gevent": ["~=22.10.0", latest],
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.12"),
-                            pkgs={
-                                "gevent": [latest],
-                            },
-                        ),
-                    ],
+                ),
+                Venv(
+                    # gevent added support for Python 3.10 in 21.8.0
+                    pys="3.10",
+                    pkgs={
+                        "gevent": ["~=21.12.0", latest],
+                    },
+                ),
+                Venv(
+                    pys="3.11",
+                    pkgs={
+                        "gevent": ["~=22.10.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "gevent": [latest],
+                    },
                 ),
             ],
         ),
@@ -1406,36 +1400,32 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=["3.9"],
-                            pkgs={
-                                "psycopg": "~=3.0.0",
-                                "pytest-asyncio": "==0.21.1",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.9", max_version="3.11"),
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": "==0.21.1",
-                            },
-                        ),
-                        Venv(
-                            pys=["3.12"],
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": "==0.23.7",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.13"),
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": ">=1.0",
-                            },
-                        ),
-                    ],
+                    pys=["3.9"],
+                    pkgs={
+                        "psycopg": "~=3.0.0",
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.12"],
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": ">=1.0",
+                    },
                 ),
             ],
         ),
@@ -3244,6 +3234,7 @@ venv = Venv(
         ),
         Venv(
             name="kafka",
+            command="pytest {cmdargs} -vv tests/contrib/kafka",
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
@@ -3253,18 +3244,13 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.9", max_version="3.10"),
-                            pkgs={"confluent-kafka": ["~=1.9.2", latest]},
-                        ),
-                        # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
-                            pkgs={"confluent-kafka": latest},
-                        ),
-                    ],
+                    pys=select_pys(min_version="3.9", max_version="3.10"),
+                    pkgs={"confluent-kafka": ["~=1.9.2", latest]},
+                ),
+                # confluent-kafka added support for Python 3.11 in 2.0.2
+                Venv(
+                    pys=select_pys(min_version="3.11", max_version="3.13"),
+                    pkgs={"confluent-kafka": latest},
                 ),
             ],
         ),
@@ -3780,15 +3766,6 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
             },
-            venvs=[
-                Venv(
-                    venvs=[
-                        Venv(
-                            name="selenium-pytest",
-                        ),
-                    ],
-                ),
-            ],
         ),
         # In-process tests (fast): test_iast_flask.py, test_appsec_flask_telemetry.py, and class-based
         # tests in test_appsec_flask.py. No subprocess/gunicorn overhead.
