@@ -1733,20 +1733,27 @@ def _git(*args: str) -> t.Optional[str]:
 
 
 def _in_git_repo() -> bool:
-    # True iff `git rev-parse --git-dir` succeeds from HERE. Sdist installs,
-    # tarball extracts, and other non-repo build contexts legitimately have
-    # no .git and setup.py runs just fine in them.
+    # True iff HERE is itself the top level of a git working tree. We use
+    # `rev-parse --show-toplevel` rather than `--git-dir` because the latter
+    # walks up through parent directories: if a stamped sdist is unpacked
+    # inside some other project's checkout, `--git-dir` would match that
+    # outer repo and stale-stamp recovery would corrupt the sdist's
+    # pyproject.toml. Sdist installs and tarball extracts outside any repo
+    # naturally fall through to False.
     try:
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
             cwd=str(HERE),
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=True,
         )
-        return True
     except (OSError, subprocess.CalledProcessError):
         return False
+    toplevel = out.stdout.decode("utf-8", "replace").strip()
+    if not toplevel:
+        return False
+    return Path(toplevel).resolve() == HERE.resolve()
 
 
 def _head_on_main() -> bool:
@@ -1837,11 +1844,21 @@ def _restore_pyproject(path: str, original_text: str) -> None:
 # .gitlab-ci.yml workflow:rules).
 # Only fires for rc builds (not a/b/dev) and only when HEAD is an ancestor
 # of origin/main (i.e. the commit is on, or has been merged to, main), so
-# topic branches and release-branch checkouts never get stamped. Windows
-# builds are skipped entirely (Windows wheels ship with the plain rc
-# version); this avoids propagating env vars into the Windows docker runner
-# and means aggregation tooling must treat wheel-local segments as optional
-# (see .gitlab/validate-ddtrace-package.py).
+# topic branches and release-branch checkouts never get stamped.
+#
+# Exclusions:
+#   - Windows builds: skipped entirely. Windows wheels ship with the plain
+#     rc version; this avoids propagating env vars into the Windows docker
+#     runner and means aggregation tooling must treat wheel-local segments
+#     as optional (see .gitlab/validate-ddtrace-package.py).
+#   - Sdist builds: skipped when `"sdist"` appears in sys.argv. A stamped
+#     sdist would outrank unstamped platform wheels in pip's candidate
+#     ordering, so a Windows resolver pointed at the combined wheelhouse
+#     would pull the sdist and try to build from source. Only wheels on
+#     supported platforms carry the commit hash.
+#   - Non-repo contexts: if HERE is not the top level of a git working tree
+#     (sdist rebuild, tarball extract, or HERE nested inside an unrelated
+#     repo), we respect whatever pyproject.toml already says.
 #
 # The implementation is intentionally lock-free: every concurrent-build flow
 # we actually care about (CI containers, separate worktrees) runs in its
@@ -1852,15 +1869,13 @@ def _restore_pyproject(path: str, original_text: str) -> None:
 #
 # Stale-stamp recovery handles a prior build that crashed via SIGKILL/OOM
 # before atexit could restore: if the file on disk already has `+g<sha>`,
-# strip that back to the baseline before proceeding. This runs in two
-# situations: (1) DD_VERSION_NO_LOCAL=1 — we must clear any stale stamp so
-# the escape hatch actually produces a clean artifact for PyPI; and (2)
-# we're in a git repo — safe to strip because we can re-stamp or cleanly
-# leave the baseline on disk. We deliberately do NOT strip when we're not
-# in a repo and not in no-local mode: that is the stamped-sdist-rebuild
-# case (an sdist built with a local segment, unpacked elsewhere with no
-# .git), where pyproject.toml's local segment is authoritative and must be
-# preserved so the wheel filename matches the sdist name.
+# strip it back to the baseline. This runs in two situations: (1)
+# DD_VERSION_NO_LOCAL=1 — we must clear any stale stamp so the escape
+# hatch actually produces a clean artifact for PyPI; and (2) we're in a
+# git repo — safe to strip because we can re-stamp or cleanly leave the
+# baseline on disk. We deliberately do NOT strip when we're in a non-repo
+# context without the env var: pyproject.toml's version there is
+# authoritative (a non-repo build has no other source of truth).
 def _maybe_stamp_rc_version() -> None:
     if sys.platform == "win32":
         return
@@ -1905,6 +1920,15 @@ def _maybe_stamp_rc_version() -> None:
         # is already in pyproject.toml — in particular, if it's a stamped
         # sdist, its local segment must be preserved so the wheel filename
         # matches the sdist name.
+        return
+    if "sdist" in sys.argv:
+        # Sdist builds are intentionally left unstamped. A stamped sdist
+        # (`4.8.0rc4+g<sha>`) would outrank unstamped platform wheels
+        # (notably the Windows wheels, which never stamp) in pip's
+        # candidate ordering, so a Windows resolver pointed at the combined
+        # wheelhouse would pull the sdist and try to build from source.
+        # Wheels on supported platforms still carry the commit hash via the
+        # bdist_wheel path.
         return
     if not re.search(r"rc\d+", version):
         return
