@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-import types
+from types import FunctionType
 from types import ModuleType
 import typing
 
@@ -27,6 +27,16 @@ log = get_logger(__name__)
 _ON_KNOWN_VERSION: bool = sys.hexversion < 0x03100000  # < 3.16
 
 ASYNCIO_IMPORTED: bool = False
+
+
+# AIDEV-NOTE: Structural Protocols for introspected asyncio/uvloop classes. getattr() returns Any, so
+# these annotations document the contract we actually depend on rather than accepting any `type`.
+class _HasSetEventLoop(typing.Protocol):
+    set_event_loop: typing.Callable[..., typing.Any]
+
+
+class _HasCreateTask(typing.Protocol):
+    create_task: typing.Callable[..., typing.Any]
 
 
 def current_task() -> typing.Optional["asyncio.Task[typing.Any]"]:
@@ -136,7 +146,7 @@ def _(asyncio: ModuleType) -> None:
     # replaced — the policy hook won't exist. Use asyncio.run(loop_factory=...) instead.
     # See docs/contributing-profiling-new-cpython.rst for migration guidance.
     events_module: ModuleType = sys.modules["asyncio.events"]
-    policy_class: typing.Optional[type]
+    policy_class: typing.Optional[type[_HasSetEventLoop]]
     if sys.hexversion >= 0x030E0000:
         # Python 3.14+: Use _BaseDefaultEventLoopPolicy
         policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
@@ -292,10 +302,10 @@ def _(asyncio: ModuleType) -> None:
         if sys.hexversion >= 0x030B0000:  # Python 3.11+
             taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
-                taskgroup_class: typing.Optional[type] = getattr(taskgroups_module, "TaskGroup", None)
+                taskgroup_class: typing.Optional[type[_HasCreateTask]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    @partial(wrap, taskgroup_class.create_task)
+                    @partial(wrap, typing.cast(FunctionType, taskgroup_class.create_task))
                     def _(
                         f: typing.Callable[..., "aio.Task[typing.Any]"],
                         args: tuple[typing.Any, ...],
@@ -353,10 +363,12 @@ def _(uvloop: ModuleType) -> None:
     init_stack: bool = config.stack.enabled and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
-    new_event_loop_func: typing.Optional[types.FunctionType] = getattr(uvloop, "new_event_loop", None)
+    new_event_loop_func: typing.Optional[typing.Callable[..., "asyncio.AbstractEventLoop"]] = getattr(
+        uvloop, "new_event_loop", None
+    )
     if new_event_loop_func is not None:
 
-        @partial(wrap, new_event_loop_func)
+        @partial(wrap, typing.cast(FunctionType, new_event_loop_func))
         def _(
             f: typing.Callable[..., "asyncio.AbstractEventLoop"],
             args: tuple[typing.Any, ...],
@@ -374,10 +386,10 @@ def _(uvloop: ModuleType) -> None:
             return loop
 
     # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
-    uvloop_policy_class: typing.Optional[type] = getattr(uvloop, "EventLoopPolicy", None)
+    uvloop_policy_class: typing.Optional[type[_HasSetEventLoop]] = getattr(uvloop, "EventLoopPolicy", None)
     if uvloop_policy_class is not None and hasattr(uvloop_policy_class, "set_event_loop"):
 
-        @partial(wrap, uvloop_policy_class.set_event_loop)
+        @partial(wrap, typing.cast(FunctionType, uvloop_policy_class.set_event_loop))
         def _(
             f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
         ) -> typing.Any:
