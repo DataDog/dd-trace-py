@@ -151,26 +151,37 @@ class _ProfiledLock:
         return bool(self.__wrapped__.locked())
 
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
-
-    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
-
-    def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
-
-    def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
             if config.enable_asserts:
-                # Ensure acquired_time is not set when acquire is not sampled
-                # (else a bogus release sample is produced)
                 assert self.acquired_time is None, (
                     "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
                 )  # nosec
+            return self.__wrapped__.acquire(*args, **kwargs)
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
-            return inner_func(*args, **kwargs)
+    def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
+            if config.enable_asserts:
+                assert self.acquired_time is None, (
+                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
+                )  # nosec
+            return self.__wrapped__.__enter__(*args, **kwargs)
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
+    def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
+            if config.enable_asserts:
+                assert self.acquired_time is None, (
+                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
+                )  # nosec
+            return self.__wrapped__.__aenter__(*args, **kwargs)
+        return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
+
+    def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        # Called only when capture_sampler.capture() already returned True — no re-check needed.
         cdef long long start = time.monotonic_ns()
         result: Any = None
         error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
@@ -203,16 +214,24 @@ class _ProfiledLock:
         return result
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
+        if self.acquired_time is None:
+            return self.__wrapped__.release(*args, **kwargs)
         return self._release(self.__wrapped__.release, *args, **kwargs)
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        if self.acquired_time is None:
+            self.__wrapped__.__exit__(*args, **kwargs)
+            return
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
+        if self.acquired_time is None:
+            return self.__wrapped__.__aexit__(*args, **kwargs)
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        start: Optional[int] = getattr(self, "acquired_time", None)
+        # All callers *must* check that `self.acquired_time` is not None (i.e. the event was sampled)
+        start: int = self.acquired_time  # type: ignore[assignment]
         self.acquired_time = None
 
         # Note: this can raise an exception. We don't catch it because we
@@ -222,9 +241,6 @@ class _ProfiledLock:
         # What comes next in the function is only code for sampling the lock
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
-
-        if start is None:
-            return result
 
         if self.is_internal:
             return result
