@@ -226,9 +226,25 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
 }
 
 void
+Datadog::Profile::prefork()
+{
+    // Lock the profile mutex before fork to ensure the sampling thread is not
+    // mid-allocation inside ddog_prof_Profile_add2 when the fork happens.
+    // If the sampling thread is currently inside collect(), this will block
+    // until it finishes, guaranteeing the IndexSet<StackTrace> is in a
+    // fully-consistent state before the child calls ddog_prof_Profile_drop().
+    profile_mtx.lock();
+}
+
+void
+Datadog::Profile::postfork_parent()
+{
+    profile_mtx.unlock();
+}
+
+void
 Datadog::Profile::postfork_child()
 {
-    new (&profile_mtx) std::mutex();
     // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
 
@@ -240,4 +256,7 @@ Datadog::Profile::postfork_child()
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error re-initializing profile after fork" << std::endl;
     }
+
+    // Unlock profile_mtx, which was locked by prefork.
+    profile_mtx.unlock();
 }

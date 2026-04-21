@@ -2,7 +2,7 @@
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
 # Note: Using trixie for GLIBC 2.38+ support (required for Python 3.14 native extensions)
-FROM debian:trixie-slim
+FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.2
@@ -22,7 +22,12 @@ RUN useradd -ms /bin/bash bits
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-    && curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
+    && curl --proto '=https' --tlsv1.2 -sSf https://mariadb.org/mariadb_release_signing_key.pgp -o /tmp/mariadb_key.pgp \
+    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --import /tmp/mariadb_key.pgp 2>/dev/null \
+    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --with-colons --fingerprint 2>/dev/null \
+       | grep -qi "^fpr:.*:177F4010FE56CA3336300305F1656F24C74CD1D8:$" \
+    && gpg --no-default-keyring --keyring /tmp/mariadb_keyring.gpg --export > /etc/apt/trusted.gpg.d/mariadb.gpg \
+    && rm -f /tmp/mariadb_key.pgp /tmp/mariadb_keyring.gpg /tmp/mariadb_keyring.gpg~ \
     && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ trixie main" > /etc/apt/sources.list.d/mariadb.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -66,8 +71,12 @@ RUN apt-get update \
     # Note: Using bookworm repo as trixie is not yet available
     && if [ "$TARGETARCH" = "amd64" ]; \
     then \
-      curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
-      && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
+      curl --proto '=https' --tlsv1.2 -sSf https://packages.microsoft.com/keys/microsoft.asc -o /tmp/microsoft_key.asc \
+      && gpg --no-default-keyring --keyring /tmp/ms_keyring.gpg --import /tmp/microsoft_key.asc 2>/dev/null \
+      && gpg --no-default-keyring --keyring /tmp/ms_keyring.gpg --with-colons --fingerprint 2>/dev/null \
+         | grep -qi "^fpr:.*:BC528686B50D79E339D3721CEB3E94ADBE1229CF:$" \
+      && gpg --no-default-keyring --keyring /tmp/ms_keyring.gpg --export > /etc/apt/trusted.gpg.d/microsoft.gpg \
+      && rm -f /tmp/microsoft_key.asc /tmp/ms_keyring.gpg /tmp/ms_keyring.gpg~ \
       && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" > /etc/apt/sources.list.d/dotnetdev.list \
       && apt-get update \
       && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.1.0-1; \
@@ -75,7 +84,12 @@ RUN apt-get update \
     # Google Chrome is needed for selenium contrib tests but is currently only available on amd64
     && if [ "$TARGETARCH" = "amd64" ]; \
     then \
-      curl https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
+      curl --proto '=https' --tlsv1.2 -sSf https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google_key.pub \
+      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --import /tmp/google_key.pub 2>/dev/null \
+      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --with-colons --fingerprint 2>/dev/null \
+         | grep -qi "^fpr:.*:EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796:$" \
+      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --export > /etc/apt/trusted.gpg.d/google.gpg \
+      && rm -f /tmp/google_key.pub /tmp/google_keyring.gpg /tmp/google_keyring.gpg~ \
       && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
       && apt-get update \
       && apt-get install -y --no-install-recommends google-chrome-stable ; \
@@ -95,7 +109,9 @@ ENV PYTHON_CONFIGURE_OPTS=--enable-shared
 ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
-RUN curl https://sh.rustup.rs -sSf | \
+# AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
+# See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- --profile minimal --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing

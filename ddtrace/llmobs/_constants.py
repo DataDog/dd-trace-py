@@ -8,8 +8,10 @@ PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
@@ -172,3 +174,8 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
 }
+
+# Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.
+# These were removed in the span._store -> span._meta_struct migration (PR #16774).
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"

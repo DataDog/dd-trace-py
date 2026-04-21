@@ -83,7 +83,7 @@ class ThreadRestartTimer(PeriodicThread):
     _timestamp = 0
 
     def __init__(self):
-        super().__init__(self.__timeout__ / 1e9, self._restart_threads, name=f"{__name__}.{self.__class__.__name__}")
+        super().__init__(self.__timeout__ / 1e9, self._restart_threads, name=f"{__name__}:{self.__class__.__name__}")
 
     def _restart_threads(self) -> None:
         # Restart the threads after we have stopped calling fork for a while.

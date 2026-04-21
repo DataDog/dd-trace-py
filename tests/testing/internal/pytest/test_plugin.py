@@ -254,7 +254,7 @@ class TestFinalStatusFeatures:
         mock_manager.is_auto_injected = False
         retry_handler = Mock(spec=AutoTestRetriesHandler)
         retry_handler.should_apply.return_value = True
-        retry_handler.should_retry.side_effect = [True, True, True, False]  # Retry 3 times, then stop
+        retry_handler.should_retry.side_effect = [True, True, True, True, False]  # Initial check, retry 3 times, stop
         retry_handler.get_final_status.return_value = TestStatus.PASS
         retry_handler.get_pretty_name.return_value = "Auto Test Retries"
         retry_handler.set_tags_for_test_run = Mock()

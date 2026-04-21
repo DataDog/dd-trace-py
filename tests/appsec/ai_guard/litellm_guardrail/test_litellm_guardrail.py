@@ -22,6 +22,7 @@ from tests.appsec.ai_guard.litellm_guardrail.conftest import system_msg
 from tests.appsec.ai_guard.litellm_guardrail.conftest import tool_msg
 from tests.appsec.ai_guard.litellm_guardrail.conftest import user_msg
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 
 
 class TestConvertRequestMessages:
@@ -232,6 +233,36 @@ class TestResolveBlock:
 
     def test_none_falls_back_to_instance_false(self, guardrail_monitor):
         assert guardrail_monitor._resolve_block({}) is False
+
+    def test_none_delegates_to_config_default_true(self, guardrail_default):
+        """block=None delegates to ai_guard_config._ai_guard_block (default True)."""
+        assert guardrail_default._resolve_block({}) is True
+
+    def test_none_delegates_to_config_false(self):
+        """block=None with DD_AI_GUARD_BLOCK=false returns False."""
+        config = dict(
+            _ai_guard_enabled="True",
+            _ai_guard_endpoint="https://api.example.com/ai-guard",
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-application-key",
+            _ai_guard_block=False,
+        )
+        with override_ai_guard_config(config):
+            g = DatadogAIGuardGuardrail()  # block=None (default)
+            assert g._resolve_block({}) is False
+
+    def test_explicit_true_overrides_config_false(self):
+        """block=True in litellm config takes precedence over DD_AI_GUARD_BLOCK=false."""
+        config = dict(
+            _ai_guard_enabled="True",
+            _ai_guard_endpoint="https://api.example.com/ai-guard",
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-application-key",
+            _ai_guard_block=False,
+        )
+        with override_ai_guard_config(config):
+            g = DatadogAIGuardGuardrail(block=True)
+            assert g._resolve_block({}) is True
 
     def test_bool_true_overrides_default(self, guardrail_monitor):
         assert guardrail_monitor._resolve_block({"block": True}) is True
