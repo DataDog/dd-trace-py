@@ -67,7 +67,7 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
     span = test_spans.spans[0]
     assert span.name == "name"
     assert span.span_type == "custom"
-    assert span.get_tag(COMPONENT) == "comp"
+    assert span._get_str_attribute(COMPONENT) == "comp"
     assert span.resource == "test.resource"
     assert span.service == "svc"
 

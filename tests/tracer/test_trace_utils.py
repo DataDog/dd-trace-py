@@ -1039,7 +1039,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
             url="http://weblog:7777/?application_key=123",
             status_code=200,
         )
-        assert span.get_tag(http.URL) == "http://weblog:7777/", span.get_tags()
+        assert span.get_tag(http.URL) == "http://weblog:7777/", span._get_str_attributes()
 
 
 def test_url_in_http_meta(span, int_config):

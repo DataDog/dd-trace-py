@@ -217,8 +217,8 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
             with tracer.trace("test_span", service="asm_standalone") as span:
                 pass
 
-            assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP, (
-                f"Expected AUTO_KEEP (1), got {span.get_metric('_sampling_priority_v1')}. "
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP, (
+                f"Expected AUTO_KEEP (1), got {span._get_numeric_attribute('_sampling_priority_v1')}. "
                 "Agent-based samplers should not interfere with ASM standalone mode."
             )
 

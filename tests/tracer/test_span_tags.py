@@ -73,7 +73,7 @@ def test_set_tag_bool():
     s.set_tag("false", False)
 
     assert s.get_tags() == {}
-    assert s.get_metrics() == {"true": 1, "false": 0}
+    assert s.get_metrics() == {"true": 1.0, "false": 0.0}
 
 
 def test_set_tag_metric():

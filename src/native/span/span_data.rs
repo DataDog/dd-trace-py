@@ -48,6 +48,14 @@ impl SpanData {
         self.data.trace_id = id;
         self._trace_id_py = None;
     }
+
+    /// Setdefault helper for `_set_default_attributes`: insert one key/value pair only if
+    /// the key is not already present in either meta or metrics.
+    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
+        if !self.has_attribute(k) {
+            let _ = self.set_attribute(k, v);
+        }
+    }
 }
 
 /// `http.status_code` must always be stored in meta (not metrics) because
@@ -825,37 +833,6 @@ impl SpanData {
 
     fn _has_events(&self) -> bool {
         !self.data.span_events.is_empty()
-    }
-}
-
-impl SpanData {
-    /// Inner logic for `_set_default_attributes`: insert one key/value pair with setdefault
-    /// semantics. Bails silently on bad key type, bad value type, or duplicate key.
-    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
-        let Some(key_pbs) = try_extract_backed_string(k) else {
-            return;
-        };
-
-        // Setdefault: skip keys already present in either map
-        if self.data.meta.contains_key(&*key_pbs) || self.data.metrics.contains_key(&*key_pbs) {
-            return;
-        }
-
-        if let Ok(s) = v.cast::<PyString>() {
-            let Some(val) = PyBackedString::try_from(s.clone()).ok() else {
-                return;
-            };
-            self.data.meta.insert(key_pbs, val);
-        } else if v.cast::<PyFloat>().is_ok() || v.cast::<PyInt>().is_ok() {
-            let Ok(n) = v.extract::<f64>() else {
-                return;
-            };
-            if n.is_nan() || n.is_infinite() {
-                return;
-            }
-            self.data.metrics.insert(key_pbs, n);
-        }
-        // Skip other types — context dicts only contain str and numeric values
     }
 }
 
