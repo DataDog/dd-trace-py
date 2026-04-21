@@ -4,7 +4,6 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace import tracer
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
@@ -183,9 +182,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                         tool_id = getattr(block, "id", "")
                         tool_name = getattr(block, "name", "unknown_tool")
                         tool_input = getattr(block, "input", {})
-
-                        if self.current_step_span:
-                            tracer.context_provider.activate(self.current_step_span)
                         tool_span = self.integration.trace(
                             "claude_agent_sdk.tool",
                             submit_to_llmobs=True,
