@@ -36,6 +36,7 @@ class ProfilingConfigStack(DDConfig):
 class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool
+    extended_primitives_enabled: bool
 
 class ProfilingConfigMemory(DDConfig):
     enabled: bool

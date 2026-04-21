@@ -362,6 +362,19 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    extended_primitives_enabled = DDConfig.v(
+        bool,
+        "extended_primitives_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to profile Semaphore, BoundedSemaphore, and Condition primitives in addition to Lock and RLock. "
+            "Disabled by default due to overhead in high-throughput async applications where these primitives are "
+            "used heavily by framework internals (e.g. uvicorn, asyncio.Queue, connection pools). "
+            "Enable when diagnosing contention on these specific primitives."
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"

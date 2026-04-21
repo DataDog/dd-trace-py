@@ -11,7 +11,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
-from unittest import mock  # type: ignore[import-untyped]
+from unittest import mock
 import uuid
 
 import pytest
@@ -580,8 +580,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     when config.enable_asserts=False (default).
     """
     import threading
-
-    import mock
+    from unittest import mock
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
@@ -619,8 +618,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
     """
     import threading
     import time
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -658,8 +656,7 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
     the exact instant of boot — never in practice, but guard it anyway.
     """
     import threading
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -2154,3 +2151,46 @@ class TestThreadingConditionCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Condition]:
         return threading.Condition
+
+
+class TestExtendedPrimitivesEnabled:
+    """Tests for DD_PROFILING_LOCK_EXTENDED_PRIMITIVES_ENABLED flag."""
+
+    def test_extended_primitives_disabled_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Semaphore/Condition collectors must NOT be registered when flag is off (default)."""
+        from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+        from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+
+        monkeypatch.setenv("DD_PROFILING_LOCK_EXTENDED_PRIMITIVES_ENABLED", "false")
+
+        from ddtrace.internal.settings.profiling import config as profiling_config
+
+        assert not profiling_config.lock.extended_primitives_enabled
+
+        # Semaphore/Condition types should not be wrapped when flag is off
+        with mock.patch("ddtrace.internal.settings.profiling.config.lock.extended_primitives_enabled", False):
+            assert threading.Semaphore is not ThreadingSemaphoreCollector.PROFILED_LOCK_CLASS
+            assert threading.BoundedSemaphore is not ThreadingBoundedSemaphoreCollector.PROFILED_LOCK_CLASS
+
+    def test_extended_primitives_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Semaphore/BoundedSemaphore/Condition are profiled when flag is on."""
+        monkeypatch.setenv("DD_PROFILING_LOCK_EXTENDED_PRIMITIVES_ENABLED", "true")
+
+        from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+
+        # With the flag on, a ThreadingSemaphoreCollector should profile normally
+        with ThreadingSemaphoreCollector(capture_pct=100):
+            sem = threading.Semaphore(1)
+            assert hasattr(sem, "is_internal"), "Semaphore should be wrapped when extended_primitives_enabled=true"
+
+    def test_lock_and_rlock_always_enabled(self) -> None:
+        """Lock and RLock must always be profiled regardless of extended_primitives_enabled."""
+        from ddtrace.profiling.collector._lock import _ProfiledLock
+        from ddtrace.profiling.collector.threading import ThreadingLockCollector
+        from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+
+        with ThreadingLockCollector(capture_pct=100), ThreadingRLockCollector(capture_pct=100):
+            lock = threading.Lock()
+            rlock = threading.RLock()
+            assert isinstance(lock, _ProfiledLock), "Lock must always be wrapped"
+            assert isinstance(rlock, _ProfiledLock), "RLock must always be wrapped"

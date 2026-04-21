@@ -241,14 +241,18 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
+
+            if profiling_config.lock.extended_primitives_enabled:
+                self._collectors_on_import += [
+                    ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
+                    ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                    ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
+                    ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
+                    ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                    ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
+                ]
 
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
