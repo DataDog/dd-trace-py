@@ -594,6 +594,7 @@ def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
         llmobs.annotate(span=span, input_data=[{"content": "test_input"}])
 
         # force the span event to be created - this is where we normalize the role
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
         span_event = llmobs._instance._llmobs_span_event(span)
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
@@ -601,6 +602,7 @@ def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
 def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": None}])
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
         span_event = llmobs._instance._llmobs_span_event(span)
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
