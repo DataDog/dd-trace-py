@@ -751,6 +751,20 @@ class TestTrackerNameNormalization:
 
         assert result == []
 
+    def test_update_imported_dependencies_swallows_tracer_config_import_failure(self):
+        """If the tracer_config import itself fails (e.g. sys.modules torn down), return [] without raising."""
+        import sys
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
+
+        broken_module = type(sys)("ddtrace.internal.settings._config")
+
+        with patch.dict(sys.modules, {"ddtrace.internal.settings._config": broken_module}):
+            result = update_imported_dependencies({}, ["requests"])
+
+        assert result == []
+
     def test_collect_report_marks_sent_with_normalized_lookup(self):
         """collect_report should find entries by normalized key when marking as sent."""
         from unittest.mock import patch

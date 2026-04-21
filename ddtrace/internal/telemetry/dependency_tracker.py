@@ -219,10 +219,17 @@ def update_imported_dependencies(
     DependencyTracker instead.
 
     Defensive: on interpreter shutdown or partial teardown, ``importlib.metadata``
-    and ``sys.path`` resolution can fail.  Any exception is swallowed so the
-    telemetry path never propagates to ``sys.excepthook``.
+    and ``sys.path`` resolution can fail, and even the ``tracer_config`` import
+    itself may raise once ``sys.modules`` starts being torn down.  Any exception
+    is swallowed so the telemetry path never propagates to ``sys.excepthook``.
     """
-    from ddtrace.internal.settings._config import config as tracer_config
+    try:
+        from ddtrace.internal.settings._config import config as tracer_config
+
+        sca_enabled = tracer_config._sca_enabled
+    except Exception:
+        log.debug("update_imported_dependencies: failed to read tracer config", exc_info=True)
+        return []
 
     deps: list[dict] = []
     for module_name in new_modules:
@@ -236,7 +243,7 @@ def update_imported_dependencies(
             if key == "ddtrace" or key in already_imported:
                 continue
 
-            metadata: Optional[list] = [] if tracer_config._sca_enabled else None
+            metadata: Optional[list] = [] if sca_enabled else None
             entry = DependencyEntry(name=name, version=version, metadata=metadata)
             already_imported[key] = entry
             deps.append(entry.to_telemetry_dict())
