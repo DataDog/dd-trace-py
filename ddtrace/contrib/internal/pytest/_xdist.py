@@ -20,8 +20,19 @@ from ddtrace.internal.utils.formats import asbool
 log = get_logger(__name__)
 
 # xdist-related constants
-PYTEST_XDIST_WORKER_VALUE = env.get("PYTEST_XDIST_WORKER")
 XDIST_UNSET = "UNSET"
+
+
+def is_xdist_worker_env() -> bool:
+    """Return True if the current process is currently running as an xdist worker.
+
+    Unlike PYTEST_XDIST_WORKER_VALUE (frozen at import time), this reads os.environ
+    live, so it returns the correct answer even when inline_run() is called inside
+    an outer xdist worker that has cleared PYTEST_XDIST_WORKER from the environment.
+    """
+    return env.get("PYTEST_XDIST_WORKER") is not None
+
+
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
 

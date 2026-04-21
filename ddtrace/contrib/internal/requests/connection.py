@@ -30,7 +30,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return False
 
 
-def _extract_hostname_and_path(uri: str) -> str:
+def _extract_hostname_and_path(uri: str) -> tuple[Optional[str], str]:
     parsed_uri = parse.urlparse(uri)
     hostname = parsed_uri.hostname
     try:
@@ -88,11 +88,11 @@ def _wrap_send(func, instance, args, kwargs):
             service=_get_service_name(request, hostname),
             component=config.requests.integration_name,
             resource=f"{method} {path}",
-            config=config.requests,
+            integration_config=config.requests,
             request_method=request.method,
             request_headers=request.headers,
-            url=request.url,
-            query=_extract_query_string(url),
+            request_url=request.url,
+            query=_extract_query_string(url) or "",
             target_host=host_without_port,
         ),
     ) as ctx:

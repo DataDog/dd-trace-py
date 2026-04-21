@@ -21,6 +21,7 @@ from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestTag
 
 
 log = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ class APIClient:
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         self.coverage_connector = connector_setup.get_connector_for_subdomain(Subdomain.CICOVREPRT)
         self.telemetry_api = telemetry_api
+        self.configuration_errors: dict[str, str] = {}
 
     def close(self) -> None:
         self.connector.close()
@@ -100,6 +102,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch settings (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS] = "true"
             return Settings()
 
         try:
@@ -110,6 +113,7 @@ class APIClient:
 
         except Exception as e:
             log.warning("Error getting settings from API: %s", e)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS] = "true"
             return Settings()
 
         try:
@@ -119,6 +123,7 @@ class APIClient:
         except Exception as e:
             log.warning("Error getting settings from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS] = "true"
             return Settings()
 
         self.telemetry_api.record_settings(settings)
@@ -159,6 +164,7 @@ class APIClient:
             except KeyError as e:
                 log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
                 telemetry.record_error(ErrorType.UNKNOWN)
+                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
 
             try:
@@ -167,6 +173,7 @@ class APIClient:
 
             except Exception as e:
                 log.warning("Error getting known tests from API: %s", e)
+                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
 
             try:
@@ -186,6 +193,7 @@ class APIClient:
                 if not isinstance(page_info, dict):
                     log.warning("Known tests response page_info is not a dict")
                     telemetry.record_error(ErrorType.BAD_JSON)
+                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                     return set()
 
                 has_next = page_info.get("has_next")
@@ -196,15 +204,18 @@ class APIClient:
                 if not page_state:
                     log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
                     telemetry.record_error(ErrorType.BAD_JSON)
+                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                     return set()
 
             except Exception:
                 log.warning("Error getting known tests from API")
                 telemetry.record_error(ErrorType.BAD_JSON)
+                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
         else:
             log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
             return set()
 
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
@@ -237,6 +248,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}
 
         try:
@@ -247,6 +259,7 @@ class APIClient:
 
         except Exception as e:
             log.warning("Error getting Test Management properties from API: %s", e)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}
 
         try:
@@ -271,6 +284,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse Test Management tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}
 
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
@@ -395,6 +409,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
         try:
@@ -403,6 +418,7 @@ class APIClient:
 
         except Exception as e:
             log.warning("Error getting skippable tests from API: %s", e)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
         try:
@@ -423,6 +439,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse skippable tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
@@ -451,8 +468,9 @@ class APIClient:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="coverage_upload.request",
             duration="coverage_upload.request_ms",
-            response_bytes="coverage_upload.request_bytes",  # FIXME: Request bytes != response bytes
+            response_bytes=None,
             error="coverage_upload.request_errors",
+            request_bytes="coverage_upload.request_bytes",
         )
 
         try:

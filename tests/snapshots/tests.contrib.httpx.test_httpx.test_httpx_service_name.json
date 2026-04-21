@@ -11,15 +11,17 @@
     "meta": {
       "_dd.base_service": "tests.contrib.httpx",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69305f5b00000000",
+      "_dd.p.tid": "69de7a6100000000",
+      "_dd.svc_src": "opt.split_by_domain",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.httpx",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200",
-      "http.useragent": "python-httpx/0.28.1",
+      "http.useragent": "python-httpx/0.25.2",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "0a6cef25c7034e74b5b943bf6846b3ac",
+      "runtime-id": "af89a2fe1f1e4e77a6315c42a0dcc771",
       "span.kind": "client"
     },
     "metrics": {
@@ -27,8 +29,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 40316.0
     },
-    "duration": 6692917,
-    "start": 1764777819145128088
+    "duration": 2379542,
+    "start": 1776188001992000179
   }]]

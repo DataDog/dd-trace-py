@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import mock
@@ -381,6 +382,45 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spa
         )
 
     assert len(test_spans.pop_traces()) == 0
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 8, 0),
+    reason="with_raw_response available in openai >= 1.8.0",
+)
+async def test_achat_completion_raw_response_non_stream(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async non-streamed with_raw_response requests must produce
+    a properly finished span. The pre-parse fix runs on this path (stream=False
+    raw-response does not hit the early return), so verify it doesn't break.
+    """
+    with openai_vcr.use_cassette("chat_completion_async.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.with_raw_response.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                user="ddtrace-test",
+            )
+            parsed = resp.parse()
+            if asyncio.iscoroutine(parsed):
+                parsed = await parsed
+            assert parsed is not None
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createChatCompletion"
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -837,6 +877,47 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
             _ = [c async for c in resp]
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26, 0),
+    reason="Streamed tokens available in 1.26.0+",
+)
+async def test_chat_completion_async_stream_span_finished(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async streaming spans must be finished with correct parent-child
+    relationships. Previously AsyncAPIResponse.parse() returned an unawaited coroutine,
+    leaving spans unfinished.
+    """
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+                stream=True,
+                n=None,
+                user="ddtrace-test",
+            )
+            chunks = [c async for c in resp]
+
+    assert len(chunks) > 0
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2  # parent + openai request
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None  # span was finished (the bug left it open)
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createChatCompletion"
+    assert child.get_tag("openai.request.endpoint") == "/v1/chat/completions"
+    assert child.get_tag("openai.request.method") == "POST"
+    assert child.get_tag("openai.request.model") == "gpt-3.5-turbo"
+
+
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
@@ -1264,6 +1345,41 @@ async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
             stream=True,
         )
         _ = [c async for c in resp]
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66, 0),
+    reason="Responses API available in openai >= 1.66",
+)
+async def test_response_async_stream_span_finished(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async streaming response spans must be finished with correct
+    parent-child relationships.
+    """
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.responses.create(
+                model="gpt-4.1",
+                input="Hello world",
+                stream=True,
+            )
+            chunks = [c async for c in resp]
+
+    assert len(chunks) > 0
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createResponse"
 
 
 @pytest.mark.snapshot
