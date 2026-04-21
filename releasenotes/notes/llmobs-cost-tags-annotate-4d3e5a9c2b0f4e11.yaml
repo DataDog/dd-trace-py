@@ -1,3 +1,4 @@
+---
 features:
   - |
     LLM Observability: Adds an optional ``cost_tags`` argument to ``LLMObs.annotate()`` and

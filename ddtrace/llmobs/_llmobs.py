@@ -1580,7 +1580,8 @@ class LLMObs(Service):
         :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
                           metrics. Keys must already exist on the merged span tag set. Since annotation contexts
                           are applied at span start, `cost_tags` should reference tags provided in the same context
-                          or already present on the span when it starts.
+                          or already present on the span when it starts. Use only low-cardinality tag keys here;
+                          propagation to downstream cost/token metrics depends on backend support for the feature.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
@@ -2286,7 +2287,9 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
-                          metrics. Keys must already exist on the merged span tag set.
+                          metrics. Keys must already exist on the merged span tag set. Use only low-cardinality tag
+                          keys here; propagation to downstream cost/token metrics depends on backend support for the
+                          feature.
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
@@ -2422,7 +2425,7 @@ class LLMObs(Service):
 
     @classmethod
     def _validate_cost_tags(
-        cls, span: Span, cost_tags: Optional[Any], source: str = "annotate", emit_telemetry: bool = True
+        cls, span: Span, cost_tags: Any, source: str = "annotate", emit_telemetry: bool = True
     ) -> Optional[list[str]]:
         if cost_tags is None:
             return None
@@ -2432,6 +2435,8 @@ class LLMObs(Service):
             if emit_telemetry:
                 telemetry.record_cost_tags_annotated(span, source=source)
                 telemetry.record_cost_tags_accepted(span, accepted_count=0, source=source)
+                # We cannot infer how many entries the caller intended for a non-list payload, so this reports one
+                # invalid occurrence rather than a per-entry dropped count like the list-validation reasons below.
                 telemetry.record_cost_tags_dropped(span, reason="non_list")
             return None
 
