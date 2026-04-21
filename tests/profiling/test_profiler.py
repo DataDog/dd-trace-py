@@ -209,7 +209,7 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     monkeypatch.setattr(
         profiler.profiling_config.lock,
         "primitives",
-        frozenset(
+        set(
             {
                 "threading.Lock",
                 "threading.RLock",
