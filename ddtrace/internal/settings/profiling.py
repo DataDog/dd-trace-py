@@ -363,10 +363,10 @@ class ProfilingConfigLock(DDConfig):
     )
 
     exclude_modules = DDConfig.v(
-        frozenset,
+        set,
         "exclude_modules",
-        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
-        default=frozenset(),
+        parser=lambda raw: set(p.strip() for p in raw.split(",") if p.strip()),
+        default=set(),
         help_type="String",
         help="Comma-separated list of module prefixes. Locks created from these modules are not profiled.",
     )
