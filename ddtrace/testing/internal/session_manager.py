@@ -138,6 +138,9 @@ class SessionManager:
             self.settings = self.api_client.get_settings()
             self.override_settings_with_env_vars()
 
+        # Snapshot configuration errors before closing the client.
+        self.configuration_errors = dict(self.api_client.configuration_errors)
+
         self.api_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
@@ -165,6 +168,11 @@ class SessionManager:
             skipping_enabled=self.settings.skipping_enabled,
             skipping_level=self.itr_skipping_level,
         )
+
+        # Propagate configuration errors to the session event and all child events.
+        if self.configuration_errors:
+            self.session.configuration_errors = self.configuration_errors
+            self.session.set_tags(self.configuration_errors)
 
         self.writer.add_metadata("*", self.env_tags)
         self.writer.add_metadata("*", self.platform_tags)
@@ -286,6 +294,8 @@ class SessionManager:
         """
         test_module, created = self.session.get_or_create_child(test_ref.suite.module.name)
         if created:
+            if self.configuration_errors:
+                test_module.set_tags(self.configuration_errors)
             try:
                 on_new_module(test_module)
             except Exception:
@@ -293,6 +303,8 @@ class SessionManager:
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
+            if self.configuration_errors:
+                test_suite.set_tags(self.configuration_errors)
             try:
                 on_new_suite(test_suite)
             except Exception:

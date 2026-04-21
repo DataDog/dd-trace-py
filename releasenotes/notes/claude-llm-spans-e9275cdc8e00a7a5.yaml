@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: Captures individual LLM spans for each Claude model turn within a Claude Agent SDK
+    session. Each LLM span captures the input messages, output messages, model name, and token usage metrics
+    (for claude_agent_sdk >= 0.1.49).
+upgrade:
+  - |
+    claude_agent_sdk: Tool span resource names have changed from the tool name (e.g. ``Read``,
+    ``Bash``) to ``claude_agent_sdk.tool``. The specific tool name is still available in the
+    span name (e.g. ``claude_agent_sdk.tool.Read``). Users relying on tool resource names should update
+    them accordingly.

@@ -3274,10 +3274,23 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
+                        "pydantic-ai": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pydantic-ai": ["==1.63.0"],
                     },
                 ),
             ],
@@ -4522,7 +4535,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),
             pkgs={
-                "claude-agent-sdk": ["==0.0.23", "==0.1.29", latest],
+                "claude-agent-sdk": ["==0.0.23", "==0.1.29", "==0.1.49", latest],
                 "pytest-asyncio": latest,
             },
         ),
