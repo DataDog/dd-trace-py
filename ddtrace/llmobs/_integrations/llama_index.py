@@ -235,13 +235,23 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
-        if operation not in ("", "llm"):
-            return
-        metrics = self._extract_usage(response) if not span.error and response is not None else {}
+        span_kind_map = {
+            "": "llm",
+            "llm": "llm",
+            "query": "workflow",
+            "retrieval": "retrieval",
+            "embedding": "embedding",
+            "agent": "agent",
+            "tool": "tool",
+        }
+        span_kind = span_kind_map.get(operation, "workflow")
+        metrics = {}
+        if operation in ("", "llm") and not span.error and response is not None:
+            metrics = self._extract_usage(response)
         self._apply_shadow_metrics(
             span,
             metrics,
-            "llm",
+            span_kind,
             model_name=span.get_tag(MODEL),
             model_provider=span.get_tag(PROVIDER),
             llmobs_enabled=self.llmobs_enabled,
