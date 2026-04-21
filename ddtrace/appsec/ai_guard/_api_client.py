@@ -313,6 +313,7 @@ class AIGuardClient:
                 root_span = core.get_root_span()
                 if root_span:
                     _aiguard_manual_keep(root_span)
+                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(
