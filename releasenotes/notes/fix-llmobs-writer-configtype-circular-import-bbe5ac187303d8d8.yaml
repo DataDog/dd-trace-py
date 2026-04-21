@@ -1,6 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: Fixes a circular import in ``ddtrace.llmobs._writer`` that could cause
-    ``ImportError: cannot import name 'ConfigType' from partially initialized module 'ddtrace.llmobs._experiment'``
-    when ``anthropic`` is installed alongside ``openai`` or ``botocore`` and auto-instrumentation is enabled.
+    LLM Observability: Fixes a circular import in ``ddtrace.llmobs._writer`` when ``anthropic``, ``openai``, and ``botocore`` is installed.
