@@ -92,9 +92,10 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
-# test_frame_state_315 tests Python 3.15 frame internals and relies on cpython/tasks.h code paths that require a
-# concrete PyFrameObject definition only available with Python 3.14+ internal headers.
-if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
+# test_frame_state_315 validates the PyFrameState renumbering and related frame-internals changes introduced in Python
+# 3.15. All test bodies are gated on PY_VERSION_HEX >= 0x030f0000, so building on older versions would produce an empty
+# test binary.
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
     dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
 endif()
 dd_wrapper_add_test(test_cpython_layout_contracts test_cpython_layout_contracts.cpp)

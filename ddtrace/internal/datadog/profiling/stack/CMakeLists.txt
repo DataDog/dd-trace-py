@@ -93,12 +93,9 @@ add_clangtidy_target(${EXTENSION_NAME})
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
-# Path to libdatadog (Rust) generated C headers for the active Python version. Computed once here so that test targets
-# (and anything else in this project) can reuse it without repeating the fragile ../../../../../ chain.
-get_filename_component(
-    NATIVE_HEADERS_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include"
-    ABSOLUTE)
+# Resolves NATIVE_HEADERS_DIR (libdatadog's generated C headers for the active Python minor). See
+# cmake/NativeHeaders.cmake for the resolution policy.
+include(NativeHeaders)
 
 # Includes; echion and python are marked "system" to suppress warnings
 target_include_directories(
