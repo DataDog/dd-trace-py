@@ -103,7 +103,7 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // new value and we forget to handle it.  See test_cpython_layout_contracts
     // for static_asserts that verify the enum values match our expectations.
     switch (frame_addr->owner) {
-        case FRAME_OWNED_BY_THREAD: // fall-through
+        case FRAME_OWNED_BY_THREAD:
         case FRAME_OWNED_BY_GENERATOR:
             break; // valid live Python frame — proceed with frame reading
         case FRAME_OWNED_BY_FRAME_OBJECT:

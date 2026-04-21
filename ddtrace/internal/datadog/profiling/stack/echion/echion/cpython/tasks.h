@@ -260,7 +260,7 @@ extern "C"
             return nullptr;
         }
 
-        int stacktop = (int)((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
+        int stacktop = static_cast<int>((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
         if (stacktop < 1 || stacktop > MAX_STACK_SIZE) {
             return nullptr;
         }
