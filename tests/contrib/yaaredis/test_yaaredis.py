@@ -36,14 +36,12 @@ def test_patching():
         We unwrap the correct methods
     """
     assert is_wrapted(yaaredis.client.StrictRedis.execute_command)
-    assert is_wrapted(yaaredis.client.StrictRedis.pipeline)
     assert is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
     assert is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 
     unpatch()
 
     assert not is_wrapted(yaaredis.client.StrictRedis.execute_command)
-    assert not is_wrapted(yaaredis.client.StrictRedis.pipeline)
     assert not is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
     assert not is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 

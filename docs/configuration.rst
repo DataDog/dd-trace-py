@@ -590,6 +590,20 @@ Application & API Security
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
 
+AI Guard
+--------
+
+.. ddtrace-configuration-options::
+
+   DD_AI_GUARD_BLOCK:
+     type: Boolean
+     default: True
+     description: |
+       Controls whether AI Guard blocking is enabled. When set to ``True`` (default), the blocking
+       behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
+       force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
+       never raised, regardless of the in-app blocking setting.
+
 Code Security
 -------------
 
@@ -803,6 +817,47 @@ Test Visibility
 
      version_added:
         v4.8.0:
+
+   DD_TEST_OPTIMIZATION_MANIFEST_FILE:
+     type: String
+     default: ""
+
+     description: |
+        Enables manifest mode for Bazel offline execution. When set to the path of a manifest
+        file (or a Bazel rlocation), the ``CIVisibility`` service reads settings, known tests,
+        and test management data from pre-fetched cache files inside ``.testoptimization/``
+        instead of making HTTP requests to the Datadog backend. Test skipping is disabled
+        unconditionally in this mode.
+
+     version_added:
+        v4.9.0:
+
+   DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables payload-files mode for Bazel offline execution. When set to ``true``, test
+        event, coverage, and telemetry payloads are written as JSON files to
+        ``TEST_UNDECLARED_OUTPUTS_DIR/payloads/{tests,coverage,telemetry}/`` instead of
+        being sent over HTTP. CI and Git tags can be provided via
+        ``DD_TEST_OPTIMIZATION_ENV_DATA_FILE`` to avoid invoking the git CLI.
+
+     version_added:
+        v4.9.0:
+
+   DD_TEST_OPTIMIZATION_ENV_DATA_FILE:
+     type: String
+     default: ""
+
+     description: |
+        Path to a JSON file containing CI and Git environment tags. Used in payload-files
+        mode (``DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=true``) to supply CI/Git metadata
+        without invoking the git CLI. When no other CI provider is detected and this variable
+        is unset, the provider name falls back to ``bazel``.
+
+     version_added:
+        v4.9.0:
 
 Agent
 -----
