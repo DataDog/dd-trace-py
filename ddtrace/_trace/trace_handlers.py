@@ -11,7 +11,9 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
+from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
+from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
+from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -20,6 +22,7 @@ from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
+from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -27,6 +30,8 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -71,6 +76,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _extract_header_value
 from ddtrace.trace import tracer
 
 
@@ -251,20 +257,78 @@ def _on_web_framework_finish_request(
         span.finish()
 
 
-def _set_inferred_proxy_tags(span, status_code):
-    if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
+def _set_inferred_proxy_tags(span: Span, status_code):
+    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
         inferred_span = span._parent
-        status_code = status_code if status_code else span.get_tag("http.status_code")
+        status_code = status_code or span._get_attribute("http.status_code")
         if status_code:
             inferred_span._set_attribute("http.status_code", status_code)
         if span.error == 1:
             inferred_span.error = span.error
-            if span._has_attribute(ERROR_MSG):
-                inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-            if span._has_attribute(ERROR_TYPE):
-                inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-            if span._has_attribute(ERROR_STACK):
-                inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
+                inferred_span._set_attribute(ERROR_MSG, error_msg)
+            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
+                inferred_span._set_attribute(ERROR_TYPE, error_type)
+            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
+                inferred_span._set_attribute(ERROR_STACK, error_stack)
+
+
+def _set_pubsub_receive_attributes(
+    span: Span, project_id: str, subscription_id: str, message_id: Optional[str] = None
+) -> None:
+    """Set common span attributes for Pub/Sub receive operations (pull and push)."""
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
+    span._set_attribute("gcloud.project_id", project_id)
+    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
+    span._set_attribute(MESSAGING_DESTINATION_NAME, subscription_id)
+    span._set_attribute(MESSAGING_OPERATION, "receive")
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    if message_id:
+        span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+
+
+def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
+    """Create an inferred parent span for GCP Pub/Sub push subscriptions.
+
+    Push subscriptions deliver messages via HTTP POST with metadata in headers.
+    This creates an inferred parent span representing the Pub/Sub receive operation.
+    """
+    normalized = {k.lower(): v for k, v in headers.items()}
+
+    subscription_name = _extract_header_value(POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION, normalized)
+    if not subscription_name:
+        return
+
+    _ensure_pubsub_config()
+
+    message_id = _extract_header_value(POSSIBLE_HEADER_PUBSUB_MESSAGE_ID, normalized)
+    project_id, subscription_id = _parse_pubsub_resource_path(subscription_name)
+
+    propagated_context = (
+        tracer.current_trace_context() if config.google_cloud_pubsub.distributed_tracing_enabled else None
+    )
+
+    span = tracer.start_span(
+        "gcp.pubsub.receive",
+        service=config._get_service(),
+        resource=subscription_id,
+        span_type=SpanTypes.WORKER,
+        activate=True,
+        child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
+    )
+
+    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
+    span._set_attribute(_INFERRED_SPAN_KEY, 1)
+
+    if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
+        span.link_span(propagated_context)
+
+    def finish_callback(_: object) -> None:
+        span.finish()
+
+    ctx.set_item("inferred_proxy_span", span)
+    ctx.set_item("inferred_proxy_finish_callback", finish_callback)
 
 
 def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
@@ -272,20 +336,34 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
     if ctx.get_item("inferred_proxy_span"):
         return
 
+    event = getattr(ctx, "event", None)
+
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+    if headers is None and event is not None:
+        # Events-based web framework instrumentation stores request headers on the event.
+        headers = getattr(event, "request_headers", None)
+
     integration_config = ctx.get_item("integration_config")
+    if integration_config is None and event is not None:
+        # Events-based instrumentation stores integration config on the event.
+        integration_config = getattr(event, "integration_config", None)
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(ctx, headers=headers)
-        inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
-        # use the inferred proxy span as the new parent span
-        if inferred_proxy_span and not call_trace:
-            span_kwargs["child_of"] = inferred_proxy_span
-            ctx.set_item("span_kwargs", span_kwargs)
+    # GCP Pub/Sub push subscriptions
+    if not ctx.get_item("inferred_proxy_span") and headers is not None:
+        _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers=headers)
+
+    inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+
+    # use the inferred proxy span as the new parent span
+    if inferred_proxy_span and not call_trace:
+        span_kwargs["child_of"] = inferred_proxy_span
+        ctx.set_item("span_kwargs", span_kwargs)
 
 
 def _on_inferred_proxy_finish(ctx):
@@ -830,7 +908,7 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span._set_attribute(db.ROWCOUNT, rowcount)
 
 
-def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, args, instance, query):
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
@@ -1343,6 +1421,16 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
+    _start_span(ctx)
+    span = ctx.span
+
+    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
+    span._set_attribute("pubsub.method", ctx.get_item("pubsub_method"))
+
+
 def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     _start_span(ctx)
     span = ctx.span
@@ -1375,16 +1463,12 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
     span = ctx.span
     message = ctx.get_item("message")
 
-    span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
-    span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
-    span._set_attribute("gcloud.project_id", ctx.get_item("project_id"))
-    span._set_attribute(MESSAGING_SYSTEM, "pubsub")
-    span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("subscription_id"))
-    span._set_attribute(MESSAGING_OPERATION, "receive")
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if message.message_id:
-        span._set_attribute(MESSAGING_MESSAGE_ID, message.message_id)
+    _set_pubsub_receive_attributes(
+        span,
+        ctx.get_item("project_id"),
+        ctx.get_item("subscription_id"),
+        message.message_id,
+    )
 
     propagated_context = ctx.get_item("propagated_context")
     if propagated_context:
@@ -1656,6 +1740,7 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
     core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
     core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
@@ -1685,8 +1770,6 @@ def listen():
 
     for context_name in (
         # web frameworks
-        "aiohttp.request",
-        "bottle.request",
         "cherrypy.request",
         "falcon.request",
         "molten.request",
@@ -1785,6 +1868,7 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "google_cloud_pubsub.receive",
+        "google_cloud_pubsub.request",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
