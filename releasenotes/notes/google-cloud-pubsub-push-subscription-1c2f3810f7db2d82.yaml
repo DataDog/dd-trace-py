@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    google_cloud_pubsub: Adds support for Google Cloud Pub/Sub push subscriptions.
+    When a push subscription delivers a message via HTTP, the integration now creates an inferred
+    ``gcp.pubsub.receive`` span that captures subscription and message metadata.
+    Use ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS`` to control whether the inferred span
+    becomes a child of the producer trace or starts a new trace with the producer context attached
+    as a span link (default: ``False``).

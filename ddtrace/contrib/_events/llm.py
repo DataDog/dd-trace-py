@@ -40,5 +40,5 @@ class LlmRequestEvent(TracingEvent):
     span_type: Optional[str] = field(init=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        self.span_name = f"{self.component}.request"
+        self.operation_name = f"{self.component}.request"
         self.span_type = SpanTypes.LLM if (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled) else None

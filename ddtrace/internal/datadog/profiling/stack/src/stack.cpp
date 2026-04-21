@@ -257,6 +257,20 @@ stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_threads;
+
+    if (!PyArg_ParseTuple(args, "I", &max_threads)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_threads_per_sample(max_threads);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
 {
     uintptr_t thread_id;
@@ -696,6 +710,7 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_sampling_period,
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
+    { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Native call monitoring
     { "start_native_monitoring",

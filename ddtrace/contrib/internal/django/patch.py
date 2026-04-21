@@ -8,6 +8,7 @@ specific Django apps like Django Rest Framework (DRF).
 """
 
 from inspect import getmro
+from inspect import iscoroutinefunction
 from inspect import unwrap
 from typing import cast
 
@@ -160,6 +161,30 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
+
+        if iscoroutinefunction(func):
+
+            async def _async():
+                with (
+                    core.context_with_data(
+                        "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+                    ) as ctx,
+                    ctx.span,
+                ):
+                    core.dispatch(
+                        "django.func.wrapped",
+                        (
+                            args,
+                            kwargs,
+                            django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                            ctx,
+                            ignored_excs,
+                        ),
+                    )
+                    return await func(*args, **kwargs)
+
+            return _async()
+
         with (
             core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
             ctx.span,

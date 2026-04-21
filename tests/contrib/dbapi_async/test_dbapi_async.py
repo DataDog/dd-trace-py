@@ -652,3 +652,23 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
+
+    @mark_asyncio
+    async def test_cursor_wraps_awaitable_cursor(self):
+        class Cursor(object):
+            rowcount = 0
+
+            async def execute(self, *args, **kwargs):
+                pass
+
+        class ConnectionAwaitableCursor(object):
+            async def cursor(self):
+                return Cursor()
+
+        conn = TracedAsyncConnection(ConnectionAwaitableCursor())
+        cursor = await conn.cursor()
+        assert isinstance(cursor, TracedAsyncCursor)
+
+        await cursor.execute("query")
+        spans = self.pop_spans()
+        assert len(spans) == 1

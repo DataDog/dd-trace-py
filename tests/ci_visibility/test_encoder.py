@@ -1,7 +1,7 @@
 import json
 import os
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -480,8 +480,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_span = spans[0]
-        given_test_event = decoded_event_payload[b"events"][0]
+        given_test_span = next(s for s in spans if s.get_tag("type") == "test")
+        given_test_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test")
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_span._get_str_attributes().items())
@@ -544,9 +544,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_suite_span = spans[3]
-        assert given_test_suite_span.get_tag("type") == "test_suite_end"
-        given_test_suite_event = decoded_event_payload[b"events"][3]
+        given_test_suite_span = next(s for s in spans if s.get_tag("type") == "test_suite_end")
+        given_test_suite_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_suite_end")
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_suite_span._get_str_attributes().items())
@@ -603,8 +602,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_module_span = spans[2]
-        given_test_module_event = decoded_event_payload[b"events"][2]
+        given_test_module_span = next(s for s in spans if s.get_tag("type") == "test_module_end")
+        given_test_module_event = next(e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_module_end")
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_module_span._get_str_attributes().items())
@@ -651,14 +650,21 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
+        # Clear xdist worker env vars so the encoder doesn't treat this as an xdist worker
+        # (which would filter out session spans). The outer xdist worker sets PYTEST_XDIST_WORKER
+        # but the inner inline_run is not an xdist worker session.
+        self.monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        self.monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
-        given_test_session_span = spans[1]
-        given_test_session_event = decoded_event_payload[b"events"][1]
+        given_test_session_span = next(s for s in spans if s.get_tag("type") == "test_session_end")
+        given_test_session_event = next(
+            e for e in decoded_event_payload[b"events"] if e[b"type"] == b"test_session_end"
+        )
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
             for key, value in sorted(given_test_session_span._get_str_attributes().items())
@@ -839,8 +845,13 @@ def test_filter_ids_without_new_parent_session_span_id():
     assert SESSION_ID not in result["meta"]
 
 
-def test_full_encoding_with_parent_session_override():
+def test_full_encoding_with_parent_session_override(monkeypatch):
     """Test complete encoding flow when session spans have parent_id"""
+    # Clear xdist worker env vars: this test simulates the main process encoding spans
+    # from xdist workers (session spans have parent_id). The encoder filters session spans
+    # when _is_xdist_worker=True, so clear PYTEST_XDIST_WORKER to test main-process behavior.
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+
     # Create parent session span (simulating main process)
     parent_session_span = Span(name="parent.session", span_id=0xAAAAAA, service="test")
     parent_session_span.set_tag(EVENT_TYPE, SESSION_TYPE)

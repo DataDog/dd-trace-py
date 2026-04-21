@@ -11,24 +11,26 @@
     "meta": {
       "_dd.base_service": "tests.opentelemetry",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "69de7ab300000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "bytes_tag": "bstr",
       "language": "python",
       "real_string_tag": "rstr",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d",
+      "runtime-id": "70ff513e149c4275a000e61227618926",
       "tag1": "one",
       "tag2": "two",
       "tag3": "3",
       "unicode_tag": "ustr"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "_sampling_priority_v1": 1.0,
+      "process_id": 42232.0
     },
-    "duration": 907417,
-    "start": 1700080043692314967
+    "duration": 88958,
+    "start": 1776188083658336050
   }],
 [
   {
@@ -43,23 +45,25 @@
     "meta": {
       "_dd.base_service": "tests.opentelemetry",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "69de7ab300000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "70ff513e149c4275a000e61227618926"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
+      "_sampling_priority_v1": 1.0,
       "float_tag": 2.111,
-      "int_tag": 1,
-      "process_id": 7032,
-      "tag1": 1,
-      "tag2": 2,
+      "int_tag": 1.0,
+      "process_id": 42232.0,
+      "tag1": 1.0,
+      "tag2": 2.0,
       "tag3": 3.1415
     },
-    "duration": 68000,
-    "start": 1704737749273699000
+    "duration": 43334,
+    "start": 1776188083658562758
   }],
 [
   {
@@ -73,34 +77,36 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "659c3bd500000000",
+      "_dd.p.tid": "69de7ab300000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
       "moon.0": "True",
       "moon.2.0": "hello",
       "moon.2.2.0": "5",
       "moon.2.2.1": "6asda",
-      "runtime-id": "4b2f5598b7cb468fab14c8b0b52221bc"
+      "runtime-id": "70ff513e149c4275a000e61227618926"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "gamer421.0": 1,
-      "gamer421.1": 2,
-      "gamer421.2": 3,
-      "moon.1": 2,
-      "moon.2.1": 4,
-      "moon1.0": 1,
-      "moon1.1": 2,
-      "moon1.2": 3,
-      "process_id": 47933,
-      "sunk.0": 1,
-      "sunk.1": 2,
-      "sunk.2": 3,
-      "teardrop68.0": 1,
-      "teardrop68.1": 2,
-      "teardrop68.2": 3
+      "_sampling_priority_v1": 1.0,
+      "gamer421.0": 1.0,
+      "gamer421.1": 2.0,
+      "gamer421.2": 3.0,
+      "moon.1": 2.0,
+      "moon.2.1": 4.0,
+      "moon1.0": 1.0,
+      "moon1.1": 2.0,
+      "moon1.2": 3.0,
+      "process_id": 42232.0,
+      "sunk.0": 1.0,
+      "sunk.1": 2.0,
+      "sunk.2": 3.0,
+      "teardrop68.0": 1.0,
+      "teardrop68.1": 2.0,
+      "teardrop68.2": 3.0
     },
-    "duration": 242000,
-    "start": 1704737749273824000
+    "duration": 92542,
+    "start": 1776188083658709800
   }]]

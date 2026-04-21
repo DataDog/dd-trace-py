@@ -1,8 +1,8 @@
 [[
   {
-    "name": "rq.queue.enqueue_job",
-    "service": "rq",
-    "resource": "tests.contrib.rq.jobs.JobClass.__call__",
+    "name": "rq.worker.perform_job",
+    "service": "rq-worker",
+    "resource": "__call__",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,74 +11,44 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de954c00000000",
+      "_dd.svc_src": "rq_worker",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
-      "job.func_name": "__call__",
-      "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec",
+      "job.id": "8fe83c7d-115c-4927-9ddd-a89e61738f7c",
+      "job.origin": "q",
+      "job.status": "finished",
       "language": "python",
-      "queue.name": "q",
-      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
-      "span.kind": "producer"
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2601
+      "_sampling_priority_v1": 1.0,
+      "process_id": 62795.0
     },
-    "duration": 1405875,
-    "start": 1692649889010972675
+    "duration": 2432625,
+    "start": 1776194892178941970
   },
      {
-       "name": "rq.worker.perform_job",
+       "name": "rq.job.perform",
        "service": "rq-worker",
        "resource": "__call__",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "worker",
+       "type": "",
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
-         "_dd.p.dm": "-0",
-         "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec",
-         "job.origin": "q",
-         "job.status": "finished",
-         "language": "python",
-         "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
-         "span.kind": "consumer",
-         "traceparent": "00-0000000000000000ca8efbd373b000c4-8181c29a96439a08-01",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "job.id": "8fe83c7d-115c-4927-9ddd-a89e61738f7c"
        },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 2601
-       },
-       "duration": 3012167,
-       "start": 1692649889027591925
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "__call__",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "_dd.base_service": "tests.contrib.rq",
-            "_dd.p.tid": "654a694400000000",
-            "component": "rq",
-            "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec"
-          },
-          "duration": 375042,
-          "start": 1692649889028484842
-        }],
+       "duration": 227500,
+       "start": 1776194892179687137
+     }],
 [
   {
     "name": "rq.queue.enqueue_job",
@@ -92,71 +62,107 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de954c00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "job.func_name": "job_on_class",
-      "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb",
+      "job.id": "8a2dd6d3-ff6e-41c5-99db-a40fcd7b23c1",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2601
+      "_sampling_priority_v1": 1.0,
+      "process_id": 62795.0
     },
-    "duration": 2605917,
-    "start": 1692649889007909925
+    "duration": 2165125,
+    "start": 1776194892162812012
+  }],
+[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.JobClass.__call__",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.rq",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de954c00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
+      "component": "rq",
+      "job.func_name": "__call__",
+      "job.id": "8fe83c7d-115c-4927-9ddd-a89e61738f7c",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 62795.0
+    },
+    "duration": 952166,
+    "start": 1776194892165519054
+  }],
+[
+  {
+    "name": "rq.worker.perform_job",
+    "service": "rq-worker",
+    "resource": "job_on_class",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.rq",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de954c00000000",
+      "_dd.svc_src": "rq_worker",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
+      "component": "rq",
+      "job.id": "8a2dd6d3-ff6e-41c5-99db-a40fcd7b23c1",
+      "job.origin": "q",
+      "job.status": "finished",
+      "language": "python",
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 62795.0
+    },
+    "duration": 2653916,
+    "start": 1776194892171504304
   },
      {
-       "name": "rq.worker.perform_job",
+       "name": "rq.job.perform",
        "service": "rq-worker",
        "resource": "job_on_class",
-       "trace_id": 1,
+       "trace_id": 3,
        "span_id": 2,
        "parent_id": 1,
-       "type": "worker",
+       "type": "",
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
-         "_dd.p.dm": "-0",
-         "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb",
-         "job.origin": "q",
-         "job.status": "finished",
-         "language": "python",
-         "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
-         "span.kind": "consumer",
-         "traceparent": "00-00000000000000009afba59f8340c843-59d5d6268d89e44d-01",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "job.id": "8a2dd6d3-ff6e-41c5-99db-a40fcd7b23c1"
        },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 2601
-       },
-       "duration": 3630417,
-       "start": 1692649889018475342
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "job_on_class",
-          "trace_id": 1,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 0,
-          "meta": {
-            "_dd.base_service": "tests.contrib.rq",
-            "_dd.p.tid": "654a694400000000",
-            "component": "rq",
-            "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb"
-          },
-          "duration": 363917,
-          "start": 1692649889019516300
-        }]]
+       "duration": 338042,
+       "start": 1776194892172249845
+     }]]

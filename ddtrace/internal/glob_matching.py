@@ -12,6 +12,7 @@ class GlobMatcher(object):
     def __init__(self, pattern):
         # type: (str) -> None
         self.pattern = pattern.lower()
+        self.wildcards_only = not (set(self.pattern) - {"?", "*"})
 
     @cachedmethod()
     def match(self, subject):

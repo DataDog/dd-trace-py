@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import base64
 import logging
 import threading
 import typing as t
@@ -9,6 +10,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -32,18 +34,39 @@ EventSerializer = t.Callable[[TSerializable], Event]
 
 
 class BaseWriter(ABC):
-    def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
+    # After this many consecutive failed flushes (each already retried internally),
+    # stop sending and drop events until the backend recovers.
+    _MAX_CONSECUTIVE_FAILURES = 3
+
+    def __init__(
+        self,
+        min_flush_events: t.Optional[int] = None,
+        max_buffer_events: t.Optional[int] = None,
+    ) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
         self._flush_now = threading.Event()
-        self.flush_interval_seconds = 60
+        self.flush_interval_seconds: float = 60
         self.min_flush_events = min_flush_events
+        self.max_buffer_events = max_buffer_events
         self.events: list[Event] = []
+        self._consecutive_failures = 0
+        self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
 
     def put_event(self, event: Event) -> None:
         with self.lock:
+            if self.max_buffer_events is not None and len(self.events) >= self.max_buffer_events:
+                self._dropped_events += 1
+                if self._dropped_events % 1000 == 1:
+                    log.warning(
+                        "%s: buffer full (%d max), dropping events. %d dropped so far.",
+                        self.__class__.__name__,
+                        self.max_buffer_events,
+                        self._dropped_events,
+                    )
+                return
             self.events.append(event)
             buffer_len = len(self.events)
 
@@ -71,16 +94,31 @@ class BaseWriter(ABC):
         self.should_finish.set()
         self._flush_now.set()
 
-    def wait_finish(self) -> None:
-        self.task.join()
-        log.debug("%s writer thread finished", self.__class__.__name__)
+    def wait_finish(self, timeout: t.Optional[float] = None) -> None:
+        self.task.join(timeout=timeout)
+        if self.task.is_alive():
+            log.warning(
+                "%s writer thread did not finish within %.1fs timeout; %d events may be lost.",
+                self.__class__.__name__,
+                timeout,
+                len(self.events),
+            )
+        else:
+            log.debug("%s writer thread finished", self.__class__.__name__)
+        if self._dropped_events > 0:
+            log.warning(
+                "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
+            )
 
     def _periodic_task(self) -> None:
         while True:
             self._flush_now.wait(timeout=self.flush_interval_seconds)
             self._flush_now.clear()
             log.debug("Flushing %s events in background task", self.__class__.__name__)
-            self.flush()
+            try:
+                self.flush()
+            except Exception:
+                log.exception("Unexpected error flushing %s events", self.__class__.__name__)
 
             if self.should_finish.is_set():
                 break
@@ -88,12 +126,40 @@ class BaseWriter(ABC):
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
-        if events := self.pop_events():
-            log.debug("Sending %d events for %s", len(events), self.__class__.__name__)
-            self._send_events(events)
+        events = self.pop_events()
+        if not events:
+            return
+
+        # Circuit breaker: after repeated failures, drop events but probe
+        # periodically (every _MAX_CONSECUTIVE_FAILURES flushes) to detect recovery.
+        if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+            if (self._consecutive_failures + 1) % self._MAX_CONSECUTIVE_FAILURES != 0:
+                log.debug(
+                    "Dropping %d %s event(s): backend unreachable",
+                    len(events),
+                    self.__class__.__name__,
+                )
+                self._consecutive_failures += 1
+                return
+            log.debug("Probing backend after %d consecutive failures", self._consecutive_failures)
+
+        log.debug("Sending %d events for %s", len(events), self.__class__.__name__)
+        if self._send_events(events):
+            if self._consecutive_failures > 0:
+                log.info("%s: backend connectivity restored", self.__class__.__name__)
+            self._consecutive_failures = 0
+        else:
+            self._consecutive_failures += 1
+            if self._consecutive_failures == self._MAX_CONSECUTIVE_FAILURES:
+                log.warning(
+                    "%s: backend unreachable after %d consecutive failures, will drop events until recovery",
+                    self.__class__.__name__,
+                    self._consecutive_failures,
+                )
 
     @abstractmethod
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
+        """Send events to the backend. Return True if all events were sent successfully."""
         pass
 
     @abstractmethod
@@ -109,8 +175,15 @@ class BaseWriter(ABC):
             packs = self._split_pack_events(events[0:midpoint])
             packs += self._split_pack_events(events[midpoint:])
             return packs
-        else:
-            return [pack]
+
+        if len(pack) > self.max_payload_size:
+            log.warning(
+                "Single event payload (%d bytes) exceeds max size (%d bytes); sending anyway",
+                len(pack),
+                self.max_payload_size,
+            )
+
+        return [pack]
 
 
 def _get_min_flush_events() -> t.Optional[int]:
@@ -184,7 +257,7 @@ class TestOptWriter(BaseWriter):
         }
         return msgpack_packb(payload)
 
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -199,8 +272,6 @@ class TestOptWriter(BaseWriter):
                 send_gzip=True,
             )
 
-            self.connector.close()
-
             TelemetryAPI.get().record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
@@ -208,6 +279,33 @@ class TestOptWriter(BaseWriter):
                 events_count=len(events),
                 error=result.error_type,
             )
+
+            if result.error_type:
+                return False
+
+        return True
+
+
+class PayloadFileTestOptWriter(TestOptWriter):
+    """TestOptWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Filenames match Go's DDTestRunner
+    naming pattern.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 1, "metadata": self.metadata, "events": events},
+            kind="tests",
+        )
+        return True
 
 
 class TestCoverageWriter(BaseWriter):
@@ -237,7 +335,7 @@ class TestCoverageWriter(BaseWriter):
     def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
 
-    def _send_events(self, events: list[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -261,8 +359,6 @@ class TestCoverageWriter(BaseWriter):
 
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
-            self.connector.close()
-
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",
                 payload_size=len(pack),
@@ -270,6 +366,48 @@ class TestCoverageWriter(BaseWriter):
                 events_count=len(events),
                 error=result.error_type,
             )
+
+            if result.error_type:
+                return False
+
+        return True
+
+
+class PayloadFileCoverageWriter(TestCoverageWriter):
+    """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Coverage bitmaps (bytes) are
+    base64-encoded so they survive JSON serialization.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        encoded_events = []
+        for event in events:
+            event_copy = dict(event)
+            if "files" in event_copy:
+                event_copy["files"] = [
+                    {
+                        **f,
+                        "bitmap": base64.b64encode(f["bitmap"]).decode("ascii")
+                        if isinstance(f.get("bitmap"), bytes)
+                        else f.get("bitmap"),
+                    }
+                    for f in event_copy["files"]
+                ]
+            encoded_events.append(event_copy)
+
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 2, "coverages": encoded_events},
+            kind="coverage",
+        )
+        return True
 
 
 def serialize_test_run(test_run: TestRun) -> Event:

@@ -249,6 +249,55 @@ def reset_coverage_state() -> None:
     log.debug("Reset coverage state")
 
 
+def reset_all_coverage_state() -> None:
+    """Reset all coverage state, including coverage.py's own ``Coverage.current()`` singleton.
+
+    This is more aggressive than :func:`reset_coverage_state` — it also drains
+    the ``Coverage._instances`` stack so that ``Coverage.current()`` returns
+    ``None``.  Use this only for **test isolation**, not in production code
+    paths where an external coverage session (e.g. pytest-cov) may still be
+    active.
+    """
+    reset_coverage_state()
+    _clear_coverage_current()
+
+
+def _clear_coverage_current() -> None:
+    """Clear the coverage.py library's own 'current' instance reference.
+
+    This prevents ``Coverage.current()`` from returning a stale instance that
+    leaked from a previous test run.  ``Coverage.current()`` (added in
+    coverage.py 5.0) returns the top of an internal ``Coverage._instances``
+    stack.  Instances are pushed by ``start()`` and popped by ``stop()``.
+    """
+    if Coverage is None:
+        return
+
+    if not hasattr(Coverage, "current"):
+        return  # coverage.py < 5.0, no current() concept
+
+    # Pop all stacked instances via the public stop() API.
+    try:
+        while Coverage.current() is not None:
+            try:
+                Coverage.current().stop()
+            except Exception:
+                # stop() failed — break out to avoid an infinite loop and
+                # fall through to the private-attribute fallback below.
+                break
+    except Exception:
+        log.debug("Failed to clear coverage current instances via stop()", exc_info=True)
+
+    # If stop() didn't fully clear the stack (e.g. an instance's stop() raises),
+    # clear the private storage directly as a last resort.
+    if hasattr(Coverage, "_instances"):
+        try:
+            if Coverage.current() is not None:
+                Coverage._instances.clear()
+        except Exception:
+            log.debug("Failed to clear Coverage._instances", exc_info=True)
+
+
 def clear_coverage_instance() -> None:
     """
     Clear the coverage instance (alias for reset_coverage_state for backward compatibility).

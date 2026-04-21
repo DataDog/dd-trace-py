@@ -83,7 +83,7 @@
         "dependency": "asyncpg",
         "integration": "asyncpg",
         "minimum_tracer_supported": "0.23.0",
-        "max_tracer_supported": "0.30.0",
+        "max_tracer_supported": "0.31.0",
         "auto-instrumented": true
     },
     {
@@ -113,21 +113,21 @@
         "minimum_tracer_supported": "4.9.0",
         "max_tracer_supported": "4.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",
         "integration": "azure_durable_functions",
         "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "2.0.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions-durable",
         "integration": "azure_durable_functions",
         "minimum_tracer_supported": "1.2.1",
         "max_tracer_supported": "1.5.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-eventhub",
@@ -195,7 +195,7 @@
         "integration": "claude_agent_sdk",
         "minimum_tracer_supported": "0.0.23",
         "max_tracer_supported": "0.1.29",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "python-consul",
@@ -348,15 +348,15 @@
         "dependency": "google-adk",
         "integration": "google_adk",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.15.1",
+        "max_tracer_supported": "1.28.1",
         "auto-instrumented": true
     },
     {
         "dependency": "google-cloud-pubsub",
         "integration": "google_cloud_pubsub",
         "minimum_tracer_supported": "2.10.0",
-        "max_tracer_supported": "2.36.0",
-        "auto-instrumented": false
+        "max_tracer_supported": "2.37.0",
+        "auto-instrumented": true
     },
     {
         "dependency": "google-genai",
@@ -509,14 +509,14 @@
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.9.0",
+        "minimum_tracer_supported": "3.10.1",
         "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.9.0",
+        "minimum_tracer_supported": "3.10.1",
         "max_tracer_supported": "3.10.1",
         "auto-instrumented": false
     },
@@ -558,8 +558,8 @@
     {
         "dependency": "protobuf",
         "integration": "protobuf",
-        "minimum_tracer_supported": "6.30.1",
-        "max_tracer_supported": "6.32.0",
+        "minimum_tracer_supported": "6.33.6",
+        "max_tracer_supported": "7.34.1",
         "auto-instrumented": false
     },
     {
@@ -580,7 +580,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.8.1",
+        "max_tracer_supported": "1.63.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -638,7 +638,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "9.0.2",
+        "max_tracer_supported": "9.0.3",
         "auto-instrumented": false
     },
     {
@@ -740,7 +740,7 @@
         "dependency": "urllib3",
         "integration": "urllib3",
         "minimum_tracer_supported": "1.25.8",
-        "max_tracer_supported": "2.5.0",
+        "max_tracer_supported": "2.6.3",
         "auto-instrumented": false
     },
     {

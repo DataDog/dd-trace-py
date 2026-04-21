@@ -86,6 +86,7 @@ async def test_send_multiple_servers():
     topic = await create_topic("send_multiple_servers")
     async with producer_ctx([BOOTSTRAP_SERVERS] * 3) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        await producer.flush()
 
 
 @pytest.mark.asyncio
@@ -170,6 +171,6 @@ async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracin
 
     assert consumer_span is not None, "Consumer span not found"
 
-    span_links = consumer_span._links
+    span_links = consumer_span._get_links()
     assert span_links is not None, "Consumer span should have span links"
     assert len(span_links) == 3, "Consumer span should have at least one span link"

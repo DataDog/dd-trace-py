@@ -5,7 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: onzia/add-back-checks-by-increase
+    branch: v1.1.0
     strategy: depend
   needs:
     - job: "upload serverless"

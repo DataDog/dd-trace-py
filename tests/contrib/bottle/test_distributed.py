@@ -124,7 +124,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert 123 != s.trace_id
         assert 456 != s.parent_id
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_SPANS_ENABLED="True"))
     def test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
         @self.app.route("/")
         def default_endpoint():
@@ -172,7 +172,7 @@ class TraceBottleDistributedTest(TracerTestCase):
             distributed_sampling_priority=USER_KEEP,
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_SPANS_ENABLED="False"))
     def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
         @self.app.route("/")
         def default_endpoint():

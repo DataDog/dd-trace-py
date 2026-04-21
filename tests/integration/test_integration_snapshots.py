@@ -104,21 +104,13 @@ def test_filters():
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
-@pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
+@pytest.mark.subprocess()
 @snapshot(async_mode=False)
-def test_synchronous_writer(writer_class):
-    import os
-
-    from ddtrace.internal.writer import AgentWriter
+def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
 
-    if os.environ["writer_class"] == "AgentWriter":
-        writer_class = AgentWriter
-    elif os.environ["writer_class"] == "NativeWriter":
-        writer_class = NativeWriter
-
-    writer = writer_class(tracer._span_aggregator.writer.intake_url, sync_mode=True)
+    writer = NativeWriter(tracer._span_aggregator.writer.intake_url, sync_mode=True)
     tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
@@ -394,13 +386,11 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
 
 @pytest.mark.parametrize("use_ddtrace_run", [True, False])
 @pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
-@pytest.mark.parametrize("writer_class", ["AgentWriter", "NativeWriter"])
 @pytest.mark.parametrize("api_version", ["v0.4", "v0.5"])
 @pytest.mark.parametrize("compute_stats", ["false", "true"])
 def test_signal_shutdown_flushes_traces(
     use_ddtrace_run,
     signum,
-    writer_class,
     api_version,
     compute_stats,
     tmpdir,
@@ -469,7 +459,6 @@ except KeyboardInterrupt:
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
                 "DD_TRACE_COMPUTE_STATS": compute_stats,
-                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
             }
         )
 

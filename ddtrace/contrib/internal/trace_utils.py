@@ -11,6 +11,7 @@ from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
@@ -490,27 +491,25 @@ def set_http_meta(
         if referrer_host:
             span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
 
-        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if asm_config._asm_enabled or config._retrieve_client_ip:
-            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.find_item("http.request.remote_ip")
-
-            if not request_ip:
-                # Not calculated: framework does not support IP blocking or testing env
-                request_ip = (
-                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-                )
-
-            if request_ip:
-                span._set_attribute(http.CLIENT_IP, request_ip)
-                span._set_attribute("network.client.ip", request_ip)
-
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
+        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+        request_ip = core.find_item("http.request.remote_ip")
+
+        if not request_ip:
+            # Not calculated: framework does not support IP blocking or testing env
+            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+
+        if request_ip:
+            span._set_attribute(http.CLIENT_IP, request_ip)
+            span._set_attribute("network.client.ip", request_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -544,7 +543,7 @@ def set_http_meta(
 def activate_distributed_headers(
     tracer: "Tracer",
     int_config: Optional["IntegrationConfig"] = None,
-    request_headers: Optional[dict[str, str]] = None,
+    request_headers: Optional[MutableMapping[str, str]] = None,
     override: Optional[bool] = None,
 ) -> None:
     """
@@ -643,7 +642,10 @@ def set_flattened_tags(
 ) -> None:
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
-            span.set_tag(tag, processor(v) if processor is not None else v)
+            v = processor(v) if processor is not None else v
+            if isinstance(v, bool):
+                v = str(v)
+            span.set_tag(tag, v)
 
 
 def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:

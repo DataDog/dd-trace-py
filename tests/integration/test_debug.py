@@ -9,7 +9,6 @@ import pytest
 
 import ddtrace
 from ddtrace.internal import debug
-from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -156,7 +155,7 @@ class TestGlobalConfig(SubprocessTestCase):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
-            ddtrace.config.version = AgentWriter(intake_url="foobar")
+            ddtrace.config.version = object()  # unserializable object to test error handling
             ddtrace.trace.tracer._generate_diagnostic_logs()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls, (
             mock_logger.mock_calls
