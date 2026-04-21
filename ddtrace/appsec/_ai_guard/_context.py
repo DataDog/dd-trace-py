@@ -27,5 +27,16 @@ def is_aiguard_context_active() -> bool:
 
 
 def reset_aiguard_context_active(token: contextvars.Token) -> None:
-    """Restore the previous value after the framework evaluation is done."""
-    _ai_guard_active.reset(token)
+    """Restore the previous value after the framework evaluation is done.
+
+    When the reset runs in a different ``Context`` than the one that created
+    the token — e.g. LangChain streams drive iteration via ``context.run``,
+    so the stream finalizer runs in a copied Context — ``ContextVar.reset``
+    raises ``ValueError``. In that case, clear the flag in the current
+    Context copy instead so provider integrations do not observe a stale
+    "active" value for the remainder of this copy's lifetime.
+    """
+    try:
+        _ai_guard_active.reset(token)
+    except ValueError:
+        _ai_guard_active.set(False)

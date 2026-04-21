@@ -1,7 +1,10 @@
+import contextvars
 from unittest.mock import patch
 
 import pytest
 
+from ddtrace.appsec._ai_guard._context import _ai_guard_active
+from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec._ai_guard._openai import _convert_openai_messages
@@ -401,3 +404,32 @@ async def test_collision_avoidance_async_skips_evaluation(mock_execute_request, 
         mock_execute_request.assert_not_called()
     finally:
         reset_aiguard_context_active(token)
+
+
+def test_reset_same_context_restores_previous_value():
+    assert is_aiguard_context_active() is False
+    token = set_aiguard_context_active()
+    assert is_aiguard_context_active() is True
+    reset_aiguard_context_active(token)
+    assert is_aiguard_context_active() is False
+
+
+def test_reset_cross_context_does_not_raise():
+    # Simulates LangChain stream iteration: set() happens in the outer Context,
+    # but reset() runs inside context.run() — a copied Context. ContextVar.reset
+    # would raise ValueError for a foreign token; the helper must degrade to
+    # clearing the flag in the current Context copy instead.
+    token = set_aiguard_context_active()
+    try:
+        ctx = contextvars.copy_context()
+
+        def _reset_in_child_context():
+            assert _ai_guard_active.get() is True
+            reset_aiguard_context_active(token)
+            assert _ai_guard_active.get() is False
+
+        ctx.run(_reset_in_child_context)
+        assert is_aiguard_context_active() is True
+    finally:
+        reset_aiguard_context_active(token)
+    assert is_aiguard_context_active() is False
