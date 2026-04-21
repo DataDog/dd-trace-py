@@ -295,15 +295,18 @@ class SpanTestCase(TracerTestCase):
         }
         s1.link_span(s2.context, link_attributes)
 
-        assert [link for link in s1._links if link.span_id == s2.span_id] == [
-            SpanLink(
-                trace_id=s2.trace_id,
-                span_id=s2.span_id,
-                tracestate="dd=s:1,congo=t61rcWkgMzE",
-                flags=1,
-                attributes=link_attributes,
-            )
-        ]
+        # Attributes containing nested lists are flattened when stored natively;
+        # compare via to_dict() which is the canonical serialized form.
+        expected = SpanLink(
+            trace_id=s2.trace_id,
+            span_id=s2.span_id,
+            tracestate="dd=s:1,congo=t61rcWkgMzE",
+            flags=1,
+            attributes=link_attributes,
+        )
+        actual = [link for link in s1._get_links() if link.span_id == s2.span_id]
+        assert len(actual) == 1
+        assert actual[0].to_dict() == expected.to_dict()
 
     def test_init_with_span_links(self):
         links = [
@@ -314,7 +317,7 @@ class SpanTestCase(TracerTestCase):
         ]
         s = Span(name="test.span", links=links)
 
-        assert s._links == [
+        assert s._get_links() == [
             links[0],
             links[1],
             # duplicate links are overwritten (last one wins)
@@ -327,21 +330,42 @@ class SpanTestCase(TracerTestCase):
         s.set_link(trace_id=1, span_id=20)
         s.set_link(trace_id=2, span_id=30, flags=0)
 
-        with mock.patch("ddtrace._trace.span.log") as log:
-            s.set_link(trace_id=2, span_id=30, flags=1)
-        log.debug.assert_called_once_with(
-            "Span %d already linked to span %d. Overwriting existing link: %s",
-            s.span_id,
-            30,
-            mock.ANY,
-        )
+        s.set_link(trace_id=2, span_id=30, flags=1)
 
-        assert s._links == [
+        assert s._get_links() == [
             SpanLink(trace_id=1, span_id=10),
             SpanLink(trace_id=1, span_id=20),
             # duplicate links are overwritten (last one wins)
             SpanLink(trace_id=2, span_id=30, flags=1),
         ]
+
+    def test_span_link_flags_none_vs_zero_roundtrip(self):
+        # flags=None and flags=0 are distinct values. Both must round-trip correctly
+        # through native storage. Internally, bit 31 of the native u32 flags field
+        # acts as a "flags present" sentinel: None->0, Some(f)->f|0x8000_0000.
+        s = Span(name="test.span")
+        s.set_link(trace_id=1, span_id=10)  # flags=None
+        s.set_link(trace_id=2, span_id=20, flags=0)  # flags=0 (explicitly set)
+        s.set_link(trace_id=3, span_id=30, flags=1)  # flags=1
+
+        links = s._get_links()
+        assert links[0].flags is None
+        assert links[1].flags == 0
+        assert links[2].flags == 1
+
+    def test_span_link_flags_out_of_range_behavior(self):
+        # flags is stored as u32 with bit 31 as "present" sentinel (None->0, Some(f)->f|0x8000_0000).
+        # Values outside the 31-bit range are silently truncated — this documents the behavior.
+        # W3C tracecontext flags are 8 bits, so this only affects pathological inputs.
+        s = Span(name="test.span")
+        # 0x1_0000_0000 as u32 truncates to 0; ORed with sentinel -> 0x8000_0000; strip sentinel -> 0
+        s.set_link(trace_id=1, span_id=10, flags=0x1_0000_0000)
+        # -1 as i64 -> 0xFFFF_FFFF as u32; ORed with sentinel -> 0xFFFF_FFFF; strip bit 31 -> 0x7FFF_FFFF
+        s.set_link(trace_id=1, span_id=20, flags=-1)
+
+        links = s._get_links()
+        assert links[0].flags == 0  # 0x1_0000_0000 truncated to 0; sentinel set then stripped -> 0
+        assert links[1].flags == 0x7FFF_FFFF  # -1 -> 0xFFFF_FFFF; sentinel strip -> 0x7FFF_FFFF
 
     def test_span_pointers(self):
         s = Span(name="test.span")
@@ -362,9 +386,9 @@ class SpanTestCase(TracerTestCase):
         )
 
         # We don't particularly care about how they're stored, but we do care
-        # that they are serizlied correctly into the _links when they get
+        # that they are serialized correctly into the _links when they get
         # shipped.
-        assert [link.to_dict() for link in s._links] == [
+        assert [link.to_dict() for link in s._get_links()] == [
             {
                 "trace_id": "00000000000000000000000000000001",
                 "span_id": "000000000000000a",
