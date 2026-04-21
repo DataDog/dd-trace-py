@@ -187,10 +187,11 @@ class TelemetryWriter(PeriodicService):
         self._client = _TelemetryClient(agentless)
 
         if self._enabled:
-            # Avoids sending app-started and app-closed events in forked processes
-            forksafe.register(self._fork_writer)
-            # shutdown the telemetry writer when the application exits
-            atexit.register(self.app_shutdown)
+            if self._is_periodic:
+                # Avoids sending app-started and app-closed events in forked processes
+                forksafe.register(self._fork_writer)
+                # shutdown the telemetry writer when the application exits
+                atexit.register(self.app_shutdown)
             # Captures unhandled exceptions during application start up
             self.install_excepthook()
             # In order to support 3.12, we start the writer upon initialization.

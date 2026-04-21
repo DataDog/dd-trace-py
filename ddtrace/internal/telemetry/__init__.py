@@ -7,6 +7,7 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -111,7 +112,10 @@ if telemetry_enabled:
 else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
-telemetry_writer = TelemetryWriter()
+writer_kwargs = {}
+if in_aws_lambda():
+    writer_kwargs['is_periodic'] = False
+telemetry_writer = TelemetryWriter(**writer_kwargs)
 
 
 def report_configuration(config: DDConfig) -> None:
