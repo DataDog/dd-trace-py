@@ -17,9 +17,6 @@ RAY_ENTRYPOINT = "ray.entrypoint"
 # Default job name if not set by the user
 DEFAULT_JOB_NAME = "unnamed.ray.job"
 
-# Component tag
-RAY_COMPONENT = "ray"
-
 # Task and job status values
 RAY_STATUS_SUCCESS = "success"
 RAY_STATUS_ERROR = "error"
@@ -30,10 +27,10 @@ RAY_STATUS_FAILED = "FAILED"
 # Ray span tag names
 RAY_TASK_ARGS = "ray.task.args"
 RAY_TASK_KWARGS = "ray.task.kwargs"
-RAY_TASK_STATUS = "ray.task.status"
 RAY_TASK_SUBMIT_STATUS = "ray.task.submit_status"
 RAY_ACTOR_METHOD_ARGS = "ray.actor_method.args"
 RAY_ACTOR_METHOD_KWARGS = "ray.actor_method.kwargs"
+RAY_ACTOR_METHOD_SUBMIT_STATUS = "ray.actor_method.submit_status"
 RAY_JOB_STATUS = "ray.job.status"
 RAY_JOB_SUBMIT_STATUS = "ray.job.submit_status"
 RAY_JOB_MESSAGE = "ray.job.message"

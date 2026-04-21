@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import base64
 import logging
 import threading
 import typing as t
@@ -9,6 +10,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -36,19 +38,35 @@ class BaseWriter(ABC):
     # stop sending and drop events until the backend recovers.
     _MAX_CONSECUTIVE_FAILURES = 3
 
-    def __init__(self, min_flush_events: t.Optional[int] = None) -> None:
+    def __init__(
+        self,
+        min_flush_events: t.Optional[int] = None,
+        max_buffer_events: t.Optional[int] = None,
+    ) -> None:
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
         self._flush_now = threading.Event()
-        self.flush_interval_seconds = 60
+        self.flush_interval_seconds: float = 60
         self.min_flush_events = min_flush_events
+        self.max_buffer_events = max_buffer_events
         self.events: list[Event] = []
         self._consecutive_failures = 0
+        self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
 
     def put_event(self, event: Event) -> None:
         with self.lock:
+            if self.max_buffer_events is not None and len(self.events) >= self.max_buffer_events:
+                self._dropped_events += 1
+                if self._dropped_events % 1000 == 1:
+                    log.warning(
+                        "%s: buffer full (%d max), dropping events. %d dropped so far.",
+                        self.__class__.__name__,
+                        self.max_buffer_events,
+                        self._dropped_events,
+                    )
+                return
             self.events.append(event)
             buffer_len = len(self.events)
 
@@ -76,9 +94,21 @@ class BaseWriter(ABC):
         self.should_finish.set()
         self._flush_now.set()
 
-    def wait_finish(self) -> None:
-        self.task.join()
-        log.debug("%s writer thread finished", self.__class__.__name__)
+    def wait_finish(self, timeout: t.Optional[float] = None) -> None:
+        self.task.join(timeout=timeout)
+        if self.task.is_alive():
+            log.warning(
+                "%s writer thread did not finish within %.1fs timeout; %d events may be lost.",
+                self.__class__.__name__,
+                timeout,
+                len(self.events),
+            )
+        else:
+            log.debug("%s writer thread finished", self.__class__.__name__)
+        if self._dropped_events > 0:
+            log.warning(
+                "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
+            )
 
     def _periodic_task(self) -> None:
         while True:
@@ -256,6 +286,28 @@ class TestOptWriter(BaseWriter):
         return True
 
 
+class PayloadFileTestOptWriter(TestOptWriter):
+    """TestOptWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Filenames match Go's DDTestRunner
+    naming pattern.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 1, "metadata": self.metadata, "events": events},
+            kind="tests",
+        )
+        return True
+
+
 class TestCoverageWriter(BaseWriter):
     __test__ = False
 
@@ -318,6 +370,43 @@ class TestCoverageWriter(BaseWriter):
             if result.error_type:
                 return False
 
+        return True
+
+
+class PayloadFileCoverageWriter(TestCoverageWriter):
+    """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Coverage bitmaps (bytes) are
+    base64-encoded so they survive JSON serialization.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        encoded_events = []
+        for event in events:
+            event_copy = dict(event)
+            if "files" in event_copy:
+                event_copy["files"] = [
+                    {
+                        **f,
+                        "bitmap": base64.b64encode(f["bitmap"]).decode("ascii")
+                        if isinstance(f.get("bitmap"), bytes)
+                        else f.get("bitmap"),
+                    }
+                    for f in event_copy["files"]
+                ]
+            encoded_events.append(event_copy)
+
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 2, "coverages": encoded_events},
+            kind="coverage",
+        )
         return True
 
 
