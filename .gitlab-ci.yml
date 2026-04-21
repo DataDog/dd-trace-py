@@ -1,6 +1,7 @@
 stages:
   - package
   - tests
+  - system-tests
   - fuzz
   - shared-pipeline
   - benchmarks
@@ -15,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "c56273abb92d4e9557453e904bf5819ab7f0e52a"
+  SYSTEM_TESTS_REF: "adcd0e88eecd59a179f9470d76a5bc48eed14524"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -32,6 +33,7 @@ default:
 
 .is_main: $CI_COMMIT_REF_NAME == "main"
 .is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
 .is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
@@ -60,6 +62,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
 
 "pipeline variables":
@@ -394,7 +397,7 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:
@@ -423,7 +426,7 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:
@@ -509,19 +512,20 @@ lib_injection_tests:
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
-  parallel:
-    matrix:
-      - PYTHON: [ "2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev" ]
-  script:
-    - export PYENV_ROOT="${HOME}/.pyenv"
-    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
-    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
-    - pyenv --version
-    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
-    - python --version
-    - python lib-injection/sources/sitecustomize.py
+  image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  script: |
+    echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
+    pyenv --version
+    pyenv versions --bare
+    echo -e "\e[0Ksection_end:`date +%s`:info\r\e[0K"
+
+    for python_version in $(pyenv versions --bare); do
+      echo -e "\e[0Ksection_start:`date +%s`:test_${python_version}[collapsed=true]\r\e[0KTesting with Python ${python_version}"
+      pyenv global "${python_version}"
+      pyenv exec python --version
+      pyenv exec python lib-injection/sources/sitecustomize.py
+      echo -e "\e[0Ksection_end:`date +%s`:test_${python_version}\r\e[0K"
+    done
 
 # Profiling native tests with sanitizers
 # Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed

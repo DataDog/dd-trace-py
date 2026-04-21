@@ -26,6 +26,7 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -332,8 +333,10 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        # If coverage report upload is enabled, generate and upload the report
-        if self.manager.settings.coverage_report_upload_enabled:
+        # If coverage report upload is enabled, generate and upload the report.
+        # NOTE: Skip in payload-files mode (Bazel): coverage data is already
+        # written as JSON files by TestCoverageWriter; network upload is not possible.
+        if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
                 return self.manager.upload_coverage_report(
@@ -374,7 +377,7 @@ class TestOptPlugin:
 
         if self._logs_writer is not None:
             self._logs_writer.signal_finish()
-            self._logs_writer.wait_finish()
+            self._logs_writer.wait_finish(timeout=30.0)
             self._logs_writer = None
 
         self.manager.finish()
@@ -554,14 +557,28 @@ class TestOptPlugin:
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
-            self._do_retries(item, nextitem, test, retry_handler, reports)
+        should_retry = not test.is_skipped_by_itr() and retry_handler is not None and retry_handler.should_retry(test)
+
+        if should_retry:
+            retry_reports, last_reports = self._do_retries(
+                item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
+            )
         else:
             if _get_user_property(item, "dd_disabled_attempt_to_fix"):
                 self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())
+
+        # Finalization: when a retry handler applies, it always determines final status and tags,
+        # regardless of whether retries were actually performed.
+        if retry_handler:
+            final_status = retry_handler.get_final_status(test)
+        else:
+            final_status = test_run.get_status()
+        test.set_status(final_status)
+
+        if should_retry:
+            self._log_retry_final_reports(item, test, retry_reports, final_status, last_reports)
 
         # Set final status on the last test run (single location for both retry and non-retry paths)
         if test.test_runs:
@@ -588,7 +605,8 @@ class TestOptPlugin:
         test: Test,
         retry_handler: RetryHandler,
         reports: _ReportGroup,
-    ) -> None:
+    ) -> tuple[RetryReports, _ReportGroup]:
+        """Execute retry loop and collect reports. Returns (retry_reports, last_reports)."""
         retry_reports = RetryReports()
 
         # Log initial attempt.
@@ -601,13 +619,10 @@ class TestOptPlugin:
         retry_handler.set_tags_for_test_run(test_run)
         test_run.finish()
 
-        should_retry = True
-
-        while should_retry:
+        while retry_handler.should_retry(test):
             with trace_context(self.enable_ddtrace_trace_filter) as context:
                 test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-            should_retry = retry_handler.should_retry(test)
             retry_handler.set_tags_for_test_run(test_run)
             self._mark_test_reports_as_retry(reports, retry_handler)
 
@@ -620,10 +635,17 @@ class TestOptPlugin:
 
             test_run.finish()
 
-        final_status = retry_handler.get_final_status(test)
-        test.set_status(final_status)
+        return retry_reports, reports
 
-        # Log final status.
+    def _log_retry_final_reports(
+        self,
+        item: pytest.Item,
+        test: Test,
+        retry_reports: RetryReports,
+        final_status: TestStatus,
+        last_reports: _ReportGroup,
+    ) -> None:
+        """Create and log the final report and teardown after retries."""
         final_report = retry_reports.make_final_report(test, item, final_status)
 
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
@@ -636,7 +658,7 @@ class TestOptPlugin:
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
-        teardown_report = reports.get(TestPhase.TEARDOWN)
+        teardown_report = last_reports.get(TestPhase.TEARDOWN)
         if _get_user_property(item, "dd_disabled_attempt_to_fix"):
             self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
@@ -863,7 +885,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         if test.is_disabled() and not test.is_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
         elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # AIDEV-NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
+            # NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
             # neither disabled nor quarantined run normally and must not get report mangling or a user property.
             if test.is_attempt_to_fix():
                 item.user_properties += [("dd_disabled_attempt_to_fix", True)]
@@ -1089,7 +1111,7 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    # AIDEV-NOTE: Coverage collection decision tree:
+    # NOTE: Coverage collection decision tree:
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
     # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
@@ -1170,7 +1192,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
         # Start coverage.py ourselves for report generation

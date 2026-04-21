@@ -9,31 +9,28 @@
     "type": "",
     "error": 1,
     "meta": {
-      "_dd.llmobs.model_name": "text-curie-001",
-      "_dd.llmobs.model_provider": "openai",
-      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd1fc900000000",
+      "_dd.p.tid": "69de554100000000",
       "_dd.svc_src": "tests.contrib.openai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
       "error.message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/openai/patch.py\", line 244, in patched_endpoint\n    resp = func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai_pillow/lib/python3.12/site-packages/openai/_utils/_utils.py\", line 286, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai_pillow/lib/python3.12/site-packages/openai/resources/completions.py\", line 541, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai_pillow/lib/python3.12/site-packages/openai/_base_client.py\", line 1259, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai_pillow/lib/python3.12/site-packages/openai/_base_client.py\", line 1047, in request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/openai/patch.py\", line 244, in patched_endpoint\n    resp = func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.9/site-packages/openai/_utils/_utils.py\", line 299, in wrapper\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.9/site-packages/openai/resources/completions.py\", line 532, in create\n    return self._post(\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.9/site-packages/openai/_base_client.py\", line 1055, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.9/site-packages/openai/_base_client.py\", line 834, in request\n    return self._request(\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.9/site-packages/openai/_base_client.py\", line 877, in _request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}\n",
       "error.type": "openai.AuthenticationError",
       "language": "python",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.model": "text-curie-001",
       "openai.request.provider": "OpenAI",
-      "runtime-id": "5275fb69072e4452a60dd76a84c8f7ab"
+      "runtime-id": "a51e01fca0a04f029fd471b3a81ca9c9"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 488.0
+      "process_id": 91935.0
     },
-    "duration": 2300042,
-    "start": 1776099273855157797
+    "duration": 10044584,
+    "start": 1776178497707857300
   }]]

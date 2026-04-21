@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd1fc700000000",
+      "_dd.p.tid": "69de554100000000",
       "_dd.svc_src": "tests.contrib.openai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
@@ -19,7 +19,7 @@
       "openai.request.endpoint": "/v1/files",
       "openai.request.method": "GET",
       "openai.request.provider": "OpenAI",
-      "runtime-id": "5275fb69072e4452a60dd76a84c8f7ab"
+      "runtime-id": "a51e01fca0a04f029fd471b3a81ca9c9"
     },
     "metrics": {
       "_dd.measured": 1.0,
@@ -27,8 +27,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "openai.response.count": 99.0,
-      "process_id": 488.0
+      "process_id": 91935.0
     },
-    "duration": 8012875,
-    "start": 1776099271226495879
+    "duration": 26073667,
+    "start": 1776178497609375633
   }]]

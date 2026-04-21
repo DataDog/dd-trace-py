@@ -115,7 +115,6 @@ def test_logger_subprocess(
         tmp_path.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
-    env["_DD_TRACE_WRITER_NATIVE"] = "1"
     env["_DD_NATIVE_LOGGING_BACKEND"] = backend
     env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level

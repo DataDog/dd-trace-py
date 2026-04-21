@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    ray: Adds ``DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED`` (default: ``False``) configuration to control Ray submission tracing.
+    Set ``DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED=true`` to trace ``task.submit`` and ``actor_method.submit`` spans. Leave it unset to trace only execution spans.
+    See `Ray integration documentation <https://github.com/DataDog/dd-trace-py/blob/main/ddtrace/contrib/internal/ray/__init__.py>`_ for more details.

@@ -1,17 +1,15 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
-from typing import Mapping
-from typing import MutableMapping
 from typing import Optional
-from typing import Protocol
-from typing import Sequence
 from typing import Union
 
 from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib._events.http import HttpBaseEvent
+from ddtrace.contrib._events.http import HttpRequestBaseEvent
+from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -19,18 +17,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 log = get_logger(__name__)
-
-
-JsonType = Union[None, bool, int, float, str, Sequence["JsonType"], Mapping[str, "JsonType"]]
-
-
-class _HttpClientResponse(Protocol):
-    @property
-    def headers(self) -> MutableMapping[str, str]: ...
-    @property
-    def status_code(self) -> int: ...
-
-    def json(self) -> JsonType: ...
 
 
 class HttpClientEvents(Enum):
@@ -41,20 +27,7 @@ class HttpClientEvents(Enum):
 
 
 @dataclass
-class HttpClientBaseEvent(Event):
-    url: str = event_field()
-    request_method: str = event_field()
-    request_headers: MutableMapping[str, str] = event_field()
-    response_headers: Mapping[str, str] = event_field(default_factory=dict)
-    response_status_code: Optional[int] = event_field(default=None)
-
-    def set_response(self, response: _HttpClientResponse) -> None:
-        self.response_status_code = response.status_code
-        self.response_headers = response.headers
-
-
-@dataclass
-class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
+class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     """HTTP client request event"""
 
     event_name = HttpClientEvents.HTTP_REQUEST.value
@@ -62,24 +35,23 @@ class HttpClientRequestEvent(HttpClientBaseEvent, TracingEvent):
     span_kind = SpanKind.CLIENT
     span_type = SpanTypes.HTTP
 
-    http_operation: str = event_field()
-    query: str = event_field()
-    target_host: Optional[str] = event_field()
-
-    response: Optional[_HttpClientResponse] = event_field(default=None)
+    target_host: Optional[str] = event_field(default=None)
+    retries_remain: Optional[Union[int, str]] = event_field(default=None)
+    server_address: Optional[str] = event_field(default=None)
+    response: Optional[_HttpResponse] = event_field(default=None)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
 
-    def set_response(self, response: _HttpClientResponse) -> None:
+    def set_response(self, response: _HttpResponse) -> None:
         super().set_response(response)
         self.response = response
 
 
 @dataclass
-class HttpClientSendEvent(HttpClientBaseEvent):
+class HttpClientSendEvent(HttpBaseEvent):
     """HTTP client send event
 
     This represents individual requests in a single http client call.
