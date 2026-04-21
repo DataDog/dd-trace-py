@@ -97,11 +97,14 @@ new_pyobject_id(PyObject* tainted_object)
 
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
-        if (!empty_unicode)
+        if (!empty_unicode) {
+            Py_INCREF(tainted_object);
             return tainted_object;
+        }
         PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
         if (!val) {
             Py_XDECREF(empty_unicode);
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
         PyObject* result = PyUnicode_Join(empty_unicode, val);
@@ -117,13 +120,16 @@ new_pyobject_id(PyObject* tainted_object)
 
     if (PyBytes_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
-        if (!empty_bytes)
+        if (!empty_bytes) {
+            Py_INCREF(tainted_object);
             return tainted_object;
+        }
 
         const auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
         const auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
         if (!val or !bytes_join_ptr.ptr()) {
             Py_XDECREF(empty_bytes);
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
 
@@ -139,12 +145,15 @@ new_pyobject_id(PyObject* tainted_object)
 
     if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
-        if (!empty_bytes)
+        if (!empty_bytes) {
+            Py_INCREF(tainted_object);
             return tainted_object;
+        }
 
         PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
         if (!empty_bytearray) {
             Py_XDECREF(empty_bytes);
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
 
@@ -153,6 +162,7 @@ new_pyobject_id(PyObject* tainted_object)
         if (!val or !bytearray_join_ptr.ptr()) {
             Py_XDECREF(empty_bytes);
             Py_XDECREF(empty_bytearray);
+            Py_INCREF(tainted_object);
             return tainted_object;
         }
 
