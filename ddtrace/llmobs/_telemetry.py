@@ -34,6 +34,9 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    COST_TAGS_ANNOTATED = "cost_tags.annotated"
+    COST_TAGS_ACCEPTED = "cost_tags.accepted"
+    COST_TAGS_DROPPED = "cost_tags.dropped"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -184,6 +187,40 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
+    )
+
+
+def record_cost_tags_annotated(span: Optional[Span], source: str) -> None:
+    span_kind = "N/A"
+    if span and isinstance(span, Span):
+        span_kind = get_llmobs_span_kind(span) or "N/A"
+    tags = [("span_kind", span_kind), ("source", source)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.COST_TAGS_ANNOTATED, value=1, tags=tuple(tags),
+    )
+
+
+def record_cost_tags_accepted(span: Optional[Span], accepted_count: int, source: str) -> None:
+    span_kind = "N/A"
+    if span and isinstance(span, Span):
+        span_kind = get_llmobs_span_kind(span) or "N/A"
+    tags = [("span_kind", span_kind), ("source", source)]
+    telemetry_writer.add_distribution_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.COST_TAGS_ACCEPTED,
+        value=accepted_count,
+        tags=tuple(tags),
+    )
+
+
+def record_cost_tags_dropped(span: Optional[Span], reason: str, count: int = 1) -> None:
+    span_kind = "N/A"
+    if span and isinstance(span, Span):
+        span_kind = get_llmobs_span_kind(span) or "N/A"
+    tags = [("span_kind", span_kind)]
+    tags.append(("reason", reason))
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.COST_TAGS_DROPPED, value=count, tags=tuple(tags)
     )
 
 

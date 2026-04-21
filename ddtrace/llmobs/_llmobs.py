@@ -1629,6 +1629,7 @@ class LLMObs(Service):
                             "prompt": prompt,
                             "_name": name,
                             "_linked_spans": _linked_spans,
+                            "_telemetry_source": "annotation_context",
                         },
                     )
                 )
@@ -2228,6 +2229,7 @@ class LLMObs(Service):
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
+        _telemetry_source: str = "annotate",
     ) -> None:
         """
         Sets metadata, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -2323,7 +2325,7 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
-            validated_cost_tags = cls._validate_cost_tags(span, cost_tags)
+            validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
             if tool_definitions is not None:
@@ -2408,26 +2410,40 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _validate_cost_tags(cls, span: Span, cost_tags: Optional[Any]) -> Optional[list[str]]:
+    def _validate_cost_tags(cls, span: Span, cost_tags: Optional[Any], source: str = "annotate") -> Optional[list[str]]:
         if cost_tags is None:
             return None
 
         if not isinstance(cost_tags, list):
             log.warning("cost_tags must be a list of strings. Ignoring value.")
+            telemetry.record_cost_tags_annotated(span, source=source)
+            telemetry.record_cost_tags_accepted(span, accepted_count=0, source=source)
+            telemetry.record_cost_tags_dropped(span, reason="non_list")
             return None
 
         span_tags = get_llmobs_tags(span) or {}
 
         validated_cost_tags = []
+        non_string_entries = 0
+        missing_span_tags = 0
         for cost_tag in cost_tags:
             if not isinstance(cost_tag, str):
                 log.warning("cost_tags entries must be strings. Skipping entry %r.", cost_tag)
+                non_string_entries += 1
                 continue
             if cost_tag not in span_tags:
                 log.warning("cost_tags entry %r must reference a key present in span tags. Skipping entry.", cost_tag)
+                missing_span_tags += 1
                 continue
             if cost_tag not in validated_cost_tags:
                 validated_cost_tags.append(cost_tag)
+
+        telemetry.record_cost_tags_annotated(span, source=source)
+        telemetry.record_cost_tags_accepted(span, accepted_count=len(validated_cost_tags), source=source)
+        if non_string_entries:
+            telemetry.record_cost_tags_dropped(span, reason="non_string_entry", count=non_string_entries)
+        if missing_span_tags:
+            telemetry.record_cost_tags_dropped(span, reason="missing_span_tag", count=missing_span_tags)
 
         return validated_cost_tags or None
 
