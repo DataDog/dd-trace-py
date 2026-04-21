@@ -316,6 +316,7 @@ class TestSessionManagerEnvVarOverrides:
         mock_client.send_git_pack_file.return_value = None
         mock_client.get_skippable_tests.return_value = (set(), None)
         mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
 
         monkeypatch.setenv(env_var, env_value)
 
