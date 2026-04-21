@@ -10,7 +10,8 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c269c600000000",
+      "_dd.p.tid": "69de940b00000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -20,7 +21,7 @@
       "messaging.message_id": "12345",
       "messaging.operation": "receive",
       "messaging.system": "pubsub",
-      "runtime-id": "8e5d60d4405b45b6b7fc8d00fec1709d",
+      "runtime-id": "729fefdf9d7d4926b0f1ece352afc9d0",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -29,10 +30,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1696.0
+      "process_id": 57237.0
     },
-    "duration": 2498791,
-    "start": 1774348742297368380
+    "duration": 1402750,
+    "start": 1776194571882100961
   },
      {
        "name": "falcon.request",
@@ -45,6 +46,7 @@
        "error": 1,
        "meta": {
          "_dd.base_service": "tests.contrib.google_cloud_pubsub",
+         "_dd.svc_src": "m",
          "component": "falcon",
          "http.method": "POST",
          "http.route": "/push",
@@ -56,6 +58,6 @@
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0
        },
-       "duration": 2184208,
-       "start": 1774348742297613963
+       "duration": 1302458,
+       "start": 1776194571882171919
      }]]

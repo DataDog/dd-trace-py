@@ -104,7 +104,23 @@ class _Test_Flask_Base:
 
 
 class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
-    pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/<int:param_int>/<string:param_str>",
+        "/asm/",
+        "/new_service/<string:service_name>",
+        "/login",
+        "/login_sdk",
+        "/rasp/<string:endpoint>/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = re.sub(r"<int:[a-z_]+>", "123", path)
+        path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
+        return path
 
 
 class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):

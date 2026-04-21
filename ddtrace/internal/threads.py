@@ -51,6 +51,21 @@ class BoundMethod(t.Protocol):
 _threads_to_start_after_fork: list[BoundMethod] = []
 
 
+def _safe_restart(start: t.Callable[[], None], name: t.Optional[str] = None) -> None:
+    """Invoke a post-fork thread-start callable, logging resource errors instead of raising.
+
+    The native layer translates pthread_create failures (EAGAIN, ENOMEM) into
+    OSError. Post-fork restart is triggered automatically by forksafe hooks —
+    there is no explicit caller that can handle the error, so losing a
+    periodic thread to resource exhaustion must not crash the host.
+    Explicit start() calls let OSError propagate so the caller can react.
+    """
+    try:
+        start()
+    except Exception as e:
+        log.error("failed to start periodic thread %s: %s", name, e)
+
+
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
@@ -83,7 +98,7 @@ class ThreadRestartTimer(PeriodicThread):
     _timestamp = 0
 
     def __init__(self):
-        super().__init__(self.__timeout__ / 1e9, self._restart_threads, name=f"{__name__}.{self.__class__.__name__}")
+        super().__init__(self.__timeout__ / 1e9, self._restart_threads, name=f"{__name__}:{self.__class__.__name__}")
 
     def _restart_threads(self) -> None:
         # Restart the threads after we have stopped calling fork for a while.
@@ -103,12 +118,15 @@ class ThreadRestartTimer(PeriodicThread):
                         # caught in periodic_threads during a fork.
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
-                    thread._after_fork(force=True)
+                    try:
+                        thread._after_fork(force=True)
+                    except Exception as e:
+                        log.error("failed to restart periodic thread %s after fork: %s", thread.name, e)
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
                     log.debug("Starting thread %s after fork", thread_start.__self__.name)
-                    thread_start()
+                    _safe_restart(thread_start, thread_start.__self__.name)
                 _threads_to_start_after_fork.clear()
 
                 # We no longer need this thread so we clear it.
@@ -152,12 +170,15 @@ def _after_fork_child():
     # forked workers.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Restarting thread %s after fork in child", thread.name)
-        thread._after_fork()
+        try:
+            thread._after_fork()
+        except Exception as e:
+            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
         log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
-        thread_start()
+        _safe_restart(thread_start, thread_start.__self__.name)
     _threads_to_start_after_fork.clear()
 
 

@@ -80,6 +80,11 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # Check if the task has been instrumented so we can inject the context in kwargs
     inject_context = DD_RAY_TRACE_CTX in inspect.signature(instance._function).parameters
 
+    if not config.ray.submission_spans:
+        if inject_context:
+            core.dispatch_event(RayContextInjectionEvent(kwargs=kwargs))
+        return wrapped(*args, **kwargs)
+
     parent_context = tracer.current_trace_context() or _extract_tracing_context_from_env()
     with core.context_with_event(
         RaySubmissionEvent(

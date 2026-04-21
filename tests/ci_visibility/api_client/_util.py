@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import typing as t
 from unittest import mock
@@ -103,7 +105,9 @@ def _get_tests_api_response(
     tests_body: t.Optional[dict] = None,
     page_info: t.Optional[dict] = None,
 ):
-    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}}
+    response: dict[str, t.Any] = {
+        "data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}
+    }
 
     if tests_body is not None:
         response["data"]["attributes"]["tests"].update(tests_body)
@@ -153,13 +157,13 @@ class TestTestVisibilityAPIClientBase:
     """
 
     @pytest.fixture(scope="function", autouse=True)
-    def _disable_ci_visibility(self):
-        try:
-            if CIVisibility.enabled:
-                CIVisibility.disable()
-        except Exception:  # noqa: E722
-            # no-dd-sa:python-best-practices/no-silent-exception
-            pass
+    def _ci_visibility_isolation(self):
+        # AIDEV-NOTE: Suspend/resume outer CIVisibility instance so that running
+        # these tests with --ddtrace in the outer pytest session does not leak the
+        # outer singleton into test bodies, and test bodies cannot corrupt the outer
+        # session.  _suspend() removes the outer instance without stopping it;
+        # _resume() pushes it back after the test.
+        _suspended = CIVisibility._suspend()
         yield
         try:
             if CIVisibility.enabled:
@@ -167,10 +171,11 @@ class TestTestVisibilityAPIClientBase:
         except Exception:  # noqa: E722
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
+        CIVisibility._resume(_suspended)
 
     default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
-    default_configurations = {
+    default_configurations: dict[str, str | dict[str, str]] = {
         "os.architecture": "arm64",
         "os.platform": "PlatForm",
         "os.version": "9.8.a.b",
@@ -198,12 +203,12 @@ class TestTestVisibilityAPIClientBase:
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
-                api_key,
+                api_key,  # type: ignore[arg-type]
                 dd_site,
                 agentless_url,
                 dd_service,
                 dd_env,
-                client_timeout,
+                client_timeout,  # type: ignore[arg-type]
             )
         # no-dd-sa:python-best-practices/if-return-no-else
         else:
@@ -211,10 +216,10 @@ class TestTestVisibilityAPIClientBase:
                 itr_skipping_level,
                 git_data,
                 self.default_configurations,
-                agent_url,
+                agent_url,  # type: ignore[arg-type]
                 dd_service,
                 dd_env,
-                client_timeout,
+                client_timeout,  # type: ignore[arg-type]
                 evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH_V4,
             )
 

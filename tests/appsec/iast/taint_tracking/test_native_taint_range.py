@@ -570,7 +570,8 @@ def reset_contexts_loop():
 async def async_context_loop(task_id: int):
     await asyncio.sleep(0.03)
     a_1 = "abc123"
-    assert _get_iast_context_id() >= 0
+    context_id = _get_iast_context_id()
+    assert context_id is not None and context_id >= 0
     for i in range(25):
         a_1 = taint_pyobject(
             a_1,
