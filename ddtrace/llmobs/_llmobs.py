@@ -391,7 +391,7 @@ def _finalize_meta_struct(
     model_provider = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_PROVIDER, None)
     if span_kind in ("llm", "embedding"):
         llmobs_meta[LLMOBS_STRUCT.MODEL_NAME] = model_name or "unknown"
-        llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or "custom").lower()
+        llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or "unknown").lower()
     if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
     intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
