@@ -1333,9 +1333,13 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Capture reference before context manager
         foo_class = Foo
 
-        with self.collector_class(capture_pct=100):
-            foo: Foo = Foo(self.lock_class)
-            foo.foo()
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                foo: Foo = Foo(self.lock_class)
+                foo.foo()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1447,33 +1451,37 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         foo_func: Optional[Callable[[], None]] = None
         test_bar_class: Optional[type] = None
 
-        with self.collector_class(capture_pct=100):
-            # Create true module-level globals
-            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                # Create true module-level globals
+                _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
-            class TestBar:
-                def __init__(self, lock_class: LockTypeClass) -> None:
-                    self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
+                class TestBar:
+                    def __init__(self, lock_class: LockTypeClass) -> None:
+                        self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
 
-                def bar(self) -> None:
-                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                    def bar(self) -> None:
+                        with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                            pass
+
+                def foo() -> None:
+                    global _test_global_lock
+                    assert _test_global_lock is not None
+                    with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                         pass
 
-            def foo() -> None:
-                global _test_global_lock
-                assert _test_global_lock is not None
-                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
-                    pass
+                # Capture references before context manager exits
+                foo_func = foo
+                test_bar_class = TestBar
 
-            # Capture references before context manager exits
-            foo_func = foo
-            test_bar_class = TestBar
+                _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
-            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
-
-            # Use the locks
-            foo()
-            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
+                # Use the locks
+                foo()
+                _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
