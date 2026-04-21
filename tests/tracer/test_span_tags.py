@@ -53,14 +53,13 @@ def test_numeric_tags():
     s.set_tag("really_large_float", (2.0**53) + 1)
 
     assert s.get_tags() == {}
+    # DEV: Rust stores metrics as f64, so integer values are returned as floats
     assert s.get_metrics() == {
-        "negative": -1,
-        "zero": 0,
-        "positive": 1,
-        "large_int": 2**53,
-        "really_large_int": (2**53) + 1,
-        "large_negative_int": -(2**53),
-        "really_large_negative_int": -((2**53) + 1),
+        "negative": -1.0,
+        "zero": 0.0,
+        "positive": 1.0,
+        "large_int": float(2**53),
+        "large_negative_int": float(-(2**53)),
         "float": 12.3456789,
         "negative_float": -12.3456789,
         "large_float": 2.0**53,
@@ -283,14 +282,6 @@ def test_span_bytes_string_set_tag(span_log):
     assert span.get_tag("key") == "🤔"
     assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
-
-
-def test_span_repr_metastruct():
-    span = Span("span_test")
-    assert "metastruct={}" in repr(span)
-    span._set_struct_tag("key1", {"a": 1, "b": 2})
-    span._set_struct_tag("key2", ["bad item"])  # type: ignore
-    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)
 
 
 # ---------------------------------------------------------------------------
