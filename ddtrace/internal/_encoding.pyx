@@ -788,6 +788,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_meta
         cdef int has_metrics
         cdef uint64_t span_id = span.span_id
+        cdef dict _meta_struct
         cdef list span_links_list
         cdef list span_events_list
 
@@ -798,10 +799,10 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             span_events_list = span._get_events()
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
+        has_meta_struct = <bint> span._has_meta_structs()
         has_links = <bint> span._has_links()
         if has_links:
             span_links_list = span._get_links()
-        has_meta_struct = <bint> (len(span._meta_struct) > 0)
         has_meta = <bint> (
             len(span._meta) > 0
             or dd_origin is not NULL
@@ -922,10 +923,11 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-                ret = msgpack_pack_map(&self.pk, len(span._meta_struct))
+                _meta_struct = span._get_meta_structs()
+                ret = msgpack_pack_map(&self.pk, len(_meta_struct))
                 if ret != 0:
                     return ret
-                for k, v in span._meta_struct.items():
+                for k, v in _meta_struct.items():
                     ret = pack_text(&self.pk, k)
                     if ret != 0:
                         return ret
