@@ -1,0 +1,13 @@
+{
+  "integrations": [
+    {
+      "name": "mlflow",
+      "targets": [
+        {
+          "py": "3.12+",
+          "version_to_test": ["==2.12.4"]
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,10 @@ include:
 .test_base_riot:
   extends: .testrunner
   stage: riot
-  needs: [ build_base_venvs, prechecks ]
+  needs:
+    - job: build_base_venvs
+      artifacts: true
+    - prechecks
   parallel: 4
   services:
     - !reference [.services, ddagent]

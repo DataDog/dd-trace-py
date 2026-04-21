@@ -71,6 +71,7 @@ fi
 
 docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
+       -e DD_TESTAGENT_URL \
        --rm \
        -i \
        testrunner \

@@ -124,14 +124,26 @@ def check_redis(redis_config):
         client.close()
 
 
-@try_until_timeout(Exception, args={"url": os.environ.get("DD_TRACE_AGENT_URL", "http://localhost:8126")})
-def check_agent(url):
+def _check_agent_url(url):
     if not url.endswith("/"):
         url += "/"
 
     res = requests.get(url)
     if res.status_code not in (404, 200):
         raise Exception("Agent not ready")
+
+
+@try_until_timeout(Exception, args={"url": os.environ.get("DD_TRACE_AGENT_URL", "http://localhost:8126")})
+def check_agent(url):
+    _check_agent_url(url)
+
+
+@try_until_timeout(
+    Exception,
+    args={"url": os.environ.get("DD_TESTAGENT_URL", os.environ.get("DD_TRACE_AGENT_URL", "http://localhost:9126"))},
+)
+def check_testagent(url):
+    _check_agent_url(url)
 
 
 @try_until_timeout(Exception, args={"url": "http://{host}:{port}/".format(**ELASTICSEARCH_CONFIG)})
@@ -236,7 +248,7 @@ if __name__ == "__main__":
         "pubsub": check_pubsub,
         "rabbitmq": check_rabbitmq,
         "redis": check_redis,
-        "testagent": check_agent,
+        "testagent": check_testagent,
         "vertica": check_vertica,
         "azurecosmosemulator": check_azurecosmosemulator,
         "azureeventhubsemulator": check_azureeventhubsemulator,
