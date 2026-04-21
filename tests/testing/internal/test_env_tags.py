@@ -352,3 +352,97 @@ def test_pull_request_base_branch_normalized_when_branch_is_tag(monkeypatch: pyt
     assert tags[GitTag.TAG] == "v1.2.3"
     assert GitTag.BRANCH not in tags
     assert tags[GitTag.PULL_REQUEST_BASE_BRANCH] == "main"
+
+
+def test_github_actions_base_branch_head_sha_extracted_from_event(
+    monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]
+) -> None:
+    """pull_request.base.sha from the GitHub event file is stored as base_branch_head_sha."""
+    git_repo, head_sha = git_shallow_repo
+    github_sha = "abcd1234"
+    base_branch_head_sha = "aabbccdd" * 5  # arbitrary fake SHA
+
+    github_event_path = f"{git_repo}/event.json"
+    with open(github_event_path, "w") as f:
+        json.dump(
+            {
+                "pull_request": {
+                    "head": {"sha": head_sha},
+                    "base": {"sha": base_branch_head_sha},
+                }
+            },
+            f,
+        )
+
+    ci_env = {
+        "GITHUB_SHA": github_sha,
+        "GITHUB_EVENT_PATH": github_event_path,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch("ddtrace.testing.internal.env_tags.get_pr_base_commit_sha", return_value=None):
+        tags = get_env_tags()
+
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] == base_branch_head_sha
+    assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in tags
+
+
+def test_github_actions_base_branch_sha_computed_as_merge_base(
+    monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]
+) -> None:
+    """PULL_REQUEST_BASE_BRANCH_SHA is set to the merge-base of base_branch_head_sha and head_sha."""
+    git_repo, head_sha = git_shallow_repo
+    github_sha = "abcd1234"
+    base_branch_head_sha = "aabbccdd" * 5
+    expected_merge_base = "deadbeef" * 5
+
+    github_event_path = f"{git_repo}/event.json"
+    with open(github_event_path, "w") as f:
+        json.dump(
+            {
+                "pull_request": {
+                    "head": {"sha": head_sha},
+                    "base": {"sha": base_branch_head_sha},
+                }
+            },
+            f,
+        )
+
+    ci_env = {
+        "GITHUB_SHA": github_sha,
+        "GITHUB_EVENT_PATH": github_event_path,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch(
+        "ddtrace.testing.internal.env_tags.get_pr_base_commit_sha", return_value=expected_merge_base
+    ) as mock_merge_base:
+        tags = get_env_tags()
+
+    mock_merge_base.assert_called_once_with(base_branch_head_sha, head_sha)
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
+
+
+def test_github_actions_base_branch_sha_not_overwritten_when_already_set(
+    monkeypatch: pytest.MonkeyPatch, git_repo: str
+) -> None:
+    """PULL_REQUEST_BASE_BRANCH_SHA from DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA is not overwritten by merge-base."""
+    existing_base_sha = "cafebabe" * 5
+
+    ci_env = {
+        "GITHUB_SHA": "abcd1234",
+        "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA": existing_base_sha,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch("ddtrace.testing.internal.env_tags.get_pr_base_commit_sha") as mock_merge_base:
+        tags = get_env_tags()
+
+    mock_merge_base.assert_not_called()
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == existing_base_sha
