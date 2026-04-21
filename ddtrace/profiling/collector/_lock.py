@@ -285,16 +285,30 @@ class _ProfiledLock:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
+
             if value is self:
                 return name
+
             if config.lock.name_inspect_dir:
-                for attribute in dir(value):
-                    try:
-                        if not attribute.startswith("__") and getattr(value, attribute) is self:
-                            return attribute
-                    except AttributeError:
-                        # Accessing unset attributes in __slots__ raises AttributeError.
-                        pass
+                # Use __dict__ rather than dir + getattr to avoid invoking
+                # arbitrary descriptors. Some third-party descriptors (e.g. Ray's get_actor_name)
+                # crash the process when accessed from a non-actor worker context.
+                instance_dict = getattr(value, "__dict__", None)
+                if instance_dict is None:
+                    # No __dict__ (built-in or __slots__-only). Slot attributes are backed
+                    # by C-level member_descriptors, not arbitrary user descriptors, so
+                    # getattr is safe here.
+                    for klass in type(value).__mro__:
+                        available_attributes = (a for a in getattr(klass, "__slots__", ()) if not a.startswith("__"))
+                        for attribute in available_attributes:
+                            if getattr(value, attribute, None) is self:
+                                return attribute
+
+                    continue
+
+                for attribute, attr_val in instance_dict.items():
+                    if not attribute.startswith("__") and attr_val is self:
+                        return attribute
         return None
 
     def _update_name(self) -> None:
