@@ -3,9 +3,9 @@ import csv
 import json
 import os
 import tempfile
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -47,12 +47,13 @@ from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
-from ddtrace.llmobs.types import _SpanLink
+from ddtrace.llmobs.types import ExperimentConfigType
 from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
-    from ddtrace.llmobs._experiment import ConfigType
+    from ddtrace.llmobs.types import ExperimentConfigType
+    from ddtrace.llmobs.types import _SpanLink
 
 
 logger = get_logger(__name__)
@@ -68,8 +69,8 @@ class LLMObsSpanData(TypedDict, total=False):
     session_id: str
     tags: dict[str, str]
     metrics: dict[str, Any]
-    span_links: list[_SpanLink]
-    config: "ConfigType"
+    span_links: list["_SpanLink"]
+    config: "ExperimentConfigType"
     is_evaluation_span: bool
     meta: _Meta
 
@@ -79,8 +80,8 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     service: str
     status_message: str
     collection_errors: list[str]
-    span_links: list[_SpanLink]
-    config: "ConfigType"
+    span_links: list["_SpanLink"]
+    config: "ExperimentConfigType"
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
