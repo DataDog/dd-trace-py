@@ -973,7 +973,7 @@ integrations:
   tested_versions_by_dependency:
     urllib3:
       min: 1.25.8
-      max: 2.5.0
+      max: 2.6.3
 
 - integration_name: valkey
   is_external_package: true
