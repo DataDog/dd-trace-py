@@ -375,6 +375,21 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    primitives = DDConfig.v(
+        frozenset,
+        "primitives",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
+        help_type="String",
+        help=(
+            "Comma-separated list of lock primitive types to profile. "
+            "Default: ``threading.Lock,threading.RLock,asyncio.Lock``. "
+            "Available primitives: ``threading.Lock``, ``threading.RLock``, ``threading.Semaphore``, "
+            "``threading.BoundedSemaphore``, ``threading.Condition``, ``asyncio.Lock``, "
+            "``asyncio.Semaphore``, ``asyncio.BoundedSemaphore``, ``asyncio.Condition``."
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
