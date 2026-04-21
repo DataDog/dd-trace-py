@@ -1925,7 +1925,7 @@ class LLMObs(Service):
         ):
             val = span.context.get_baggage_item(baggage_key)
             if val:
-                initial_tags[tag_key] = val
+                initial_tags[tag_key] = str(val)
 
         _annotate_llmobs_span_data(
             span,
@@ -2233,7 +2233,7 @@ class LLMObs(Service):
             _annotate_llmobs_span_data(span, tags={"run_id": run_id})
         if run_iteration is not None:
             span.context.set_baggage_item(EXPERIMENT_RUN_ITERATION_KEY, run_iteration)
-            _annotate_llmobs_span_data(span, tags={"run_iteration": run_iteration})
+            _annotate_llmobs_span_data(span, tags={"run_iteration": str(run_iteration)})
         if dataset_name:
             span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
             _annotate_llmobs_span_data(span, tags={"dataset_name": dataset_name})
