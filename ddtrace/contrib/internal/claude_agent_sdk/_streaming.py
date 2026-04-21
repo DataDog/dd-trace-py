@@ -82,10 +82,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.current_step_span = None
         self.current_llm_span = None
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
-        self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
+        self._step_input_snapshot: Optional[list[Message]] = None # input captured before llm extenstion
         self._accumulated_input_messages: Optional[list[Message]] = None
-        # Open the first step+llm span immediately so duration includes
-        # the time waiting for the first AssistantMessage.
         self._create_step_span()
 
     def _create_step_span(self) -> None:
@@ -96,7 +94,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name="claude_agent_sdk.step",
             instance=self.instance,
         )
-        # llm span is a child of the step span (step is now active)
         self.current_llm_span = self.integration.trace(
             "claude_agent_sdk.llm",
             submit_to_llmobs=True,
@@ -139,9 +136,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         span = self.current_step_span
         self.current_step_span = None
 
-        # Use the snapshot captured before _finalize_llm_span extended the
-        # accumulated messages so that the step span has the same input context
-        # as the llm span.
         input_msgs = self._step_input_snapshot
         if input_msgs is None:
             if self._accumulated_input_messages is None:
@@ -172,26 +166,17 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         content = getattr(chunk, "content", []) or []
 
         if chunk_type == "AssistantMessage":
-            # If no step span is open (previous step had no tools and closed
-            # immediately), lazily open one now before creating tool spans.
             if self.current_step_span is None:
                 self._create_step_span()
 
-            # Ensure input messages are initialised and capture a snapshot
-            # BEFORE _finalize_llm_span extends them with the assistant response.
-            # Both the llm and step spans use this snapshot so they share the
-            # same input context.
             if self._accumulated_input_messages is None:
                 self._accumulated_input_messages = self.integration.extract_llm_input_messages(
                     self.request_args, self.request_kwargs, self.primary_span
                 )
             self._step_input_snapshot = list(self._accumulated_input_messages)
 
-            # Close the llm span with the model's response BEFORE creating tool
-            # spans so that tool spans nest under the step span, not the llm span.
             self._finalize_llm_span(chunk)
 
-            # Create tool spans (under step span, which is now active).
             if isinstance(content, list):
                 for block in content:
                     if type(block).__name__ == "ToolUseBlock":
@@ -218,7 +203,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             else:
                 self._finalize_step_span(chunk)
 
-        # Tool results arrive in UserMessages.
+        # Tool results arrive in UserMessages
         if chunk_type == "UserMessage":
             if isinstance(content, list):
                 for block in content:
@@ -230,8 +215,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                             tool_output = safe_json(result_content) or str(result_content)
                             self._finalize_tool_span(tool_data, tool_output)
 
-            # Once all tool results are in, finalize the deferred step and open
-            # the next step+llm span ready for the next inference cycle.
+            # Once all tool results are in, finalize the deferred step and open the next step+llm span
             if not self._active_tool_spans:
                 if self._step_response_chunk is not None:
                     self._finalize_step_span(self._step_response_chunk)
