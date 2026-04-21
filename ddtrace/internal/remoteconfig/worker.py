@@ -26,6 +26,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     """
 
     _enable = True
+    _MAX_CONSECUTIVE_FAILURES = 3
 
     def __init__(self) -> None:
         super(RemoteConfigPoller, self).__init__(
@@ -35,6 +36,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._agent_check
         self._parent_id = os.getpid()
         self._capabilities_map: dict[enum.IntFlag, str] = dict()
+        self._consecutive_failures = 0
 
     def _agent_check(self) -> None:
         try:
@@ -62,10 +64,13 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def _online(self) -> None:
         with StopWatch() as sw:
             if not self._client.request():
-                # An error occurred, so we transition back to the agent check
-                self._state = self._agent_check
+                self._consecutive_failures += 1
+                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                    self._state = self._agent_check
+                    self._consecutive_failures = 0
                 return
 
+        self._consecutive_failures = 0
         elapsed = sw.elapsed()
         log.debug(
             "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",

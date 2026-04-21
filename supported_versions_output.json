@@ -83,7 +83,7 @@
         "dependency": "asyncpg",
         "integration": "asyncpg",
         "minimum_tracer_supported": "0.23.0",
-        "max_tracer_supported": "0.30.0",
+        "max_tracer_supported": "0.31.0",
         "auto-instrumented": true
     },
     {
@@ -348,14 +348,14 @@
         "dependency": "google-adk",
         "integration": "google_adk",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.15.1",
+        "max_tracer_supported": "1.28.1",
         "auto-instrumented": true
     },
     {
         "dependency": "google-cloud-pubsub",
         "integration": "google_cloud_pubsub",
         "minimum_tracer_supported": "2.10.0",
-        "max_tracer_supported": "2.36.0",
+        "max_tracer_supported": "2.37.0",
         "auto-instrumented": true
     },
     {
@@ -441,6 +441,27 @@
         "minimum_tracer_supported": "1.65.4",
         "max_tracer_supported": "1.80.16",
         "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama-index",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama-index-core",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama_index",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.11.23",
+        "max_tracer_supported": "0.14.18",
         "auto-instrumented": true
     },
     {
@@ -537,8 +558,8 @@
     {
         "dependency": "protobuf",
         "integration": "protobuf",
-        "minimum_tracer_supported": "6.30.1",
-        "max_tracer_supported": "6.32.0",
+        "minimum_tracer_supported": "6.33.6",
+        "max_tracer_supported": "7.34.1",
         "auto-instrumented": false
     },
     {
@@ -559,7 +580,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.8.1",
+        "max_tracer_supported": "1.63.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -617,7 +638,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "9.0.2",
+        "max_tracer_supported": "9.0.3",
         "auto-instrumented": false
     },
     {

@@ -1,0 +1,113 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are a helpful assistant."},{"role":"user","content":"What
+      is Python?"},{"role":"assistant","content":"Python is a programming language."},{"role":"user","content":"Tell
+      me more."}],"model":"gpt-4o-mini","max_tokens":100,"stream":false,"temperature":0.1}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - OpenAI/Python 2.29.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - Linux
+      X-Stainless-Package-Version:
+      - 2.29.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.13.8
+      x-stainless-read-timeout:
+      - '60.0'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/6rmUlBQykxRslJQSs5ILEnOLcjRdQlMTnFyLQEAAAD//4xUTY/aMBC976+Y5lIJ
+        AYJAC+y16rZb9dByq7qryDiTxF3HznocIKr2v3ccAgn9kHogKPNmxm/mPefT8zpfy7u71Wq7/bbc
+        v7df43X8HI1Dhd39QOnPVVNpuQ69suYES4fCY+g6X63exIvVYrNqgdKmqENZXvnJ0k5KZdQknsXL
+        yWw1ma+76sIqicRp3/kV4Gf7DDxNikcOz8bnSIlEIkeOnZM46KwOkUgQKfLC+Gjcg9Iaj6al/g6d
+        F8ro5hV8aXxhDSgCAYXKi4nGPeoxKE52lUMeBipncydKppyDFiav+WB4MvZgILMOlCfgsVOxU1r5
+        BoRJgRTvRUl+ncK9h4Mg6FYDuwY+1Cq1sBcGtpaoLtuSTDny3EijIE5TBuabzXwKH9EhCP6RLflY
+        bCDjRrVDastYBickk+WJlSSwWTfT7YN5MFw/Gm17cqPRbQe/JqDGeHEMs6dIKjd8qrewQ5DMwbXd
+        mUsTgjUL4MJK0zEcCiULKMUTM1Ce0wCPErXm5cJJwXYtO8yVMVwFPPyB8fCPx4qZopGDtXLKNHCN
+        A9f7wd4/d7vuSbc6mStxzoKMoURhgkSejQmS/Ray8YiybvOUQd790BEOs5pEcKWptR4AwhjrRXB1
+        68XHDnm5uE/bnNnv6LfSKGNXU5Gw0sQ3gp3GS8l9EbX4Cz8fW5/XV9aNuFVZ+cTbJ2wPXGxODaP+
+        dvXgfNZdgsgzRz0ALmVX/ZIU2euaBjclkkIWmPal/bUSdarsALgZzP0nnb/1Ps3OOvxP+x6QEiuW
+        KWFVUyWvR+7THIavz7/SLltuCUeEbs9mTLxCF7RIMRO1Pn0TImrIY5mwYHmwkjp9GLIqmb+N04Vc
+        rmdZdPNy8wsAAP//AwAZQIcOJgUAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - 9e69cc640e0ea9d6-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 03 Apr 2026 17:29:58 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1468'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - __cf_bm=9uV.fCICNiPyv..CL9MB_VgQsh7tSelHCo86O.FB79g-1775237397.1251628-1.0.1.1-bAimw.PaJzEtaiKmk0inwV_e9NRA.x6YihEmCcVLJR27Wh9gRsaLaWYt9XXDzIG17.KQEn7JGZoyp4s3.vfXuEEzijC8vyJZQz3bgv3l6rfbl7xA.H1hOgDpzpI79Atj;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Fri, 03 Apr 2026
+        17:59:58 GMT
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999972'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2cccd4e0b0e044aeae3d58d9094a132a
+    status:
+      code: 200
+      message: OK
+version: 1

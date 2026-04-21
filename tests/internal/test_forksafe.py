@@ -287,15 +287,17 @@ def test_gevent_gunicorn_behaviour():
         def __init__(self):
             super(TestService, self).__init__(interval=0.1)
             self._has_run = False
+            self._pid = os.getpid()
 
         def reset(self):
             self._has_run = False
 
         def periodic(self):
-            if not self._has_run:
+            if not self._has_run or self._pid != os.getpid():
                 sys.stdout.write("T")
                 sys.stdout.flush()
                 self._has_run = True
+                self._pid = os.getpid()
 
     service = TestService()
     service.start()

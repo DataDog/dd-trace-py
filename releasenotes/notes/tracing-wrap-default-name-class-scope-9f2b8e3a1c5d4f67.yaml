@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Support for making the default span name for ``@tracer.wrap`` include the class name has
+    been added. For now, this is opt-in and can be enabled by setting ``DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true``.
+    The new naming will become the default in the next major release.

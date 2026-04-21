@@ -18,6 +18,7 @@ ENTRYPOINT_NAME_TAG = "entrypoint.name"
 ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
 ENTRYPOINT_TYPE_TAG = "entrypoint.type"
 ENTRYPOINT_TYPE_SCRIPT = "script"
+ENTRYPOINT_TYPE_MODULE = "module"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
 SVC_USER_TAG = "svc.user"
 SVC_AUTO_TAG = "svc.auto"
@@ -61,19 +62,49 @@ def _compute_process_tag(key: str, compute_value: Callable):
         return None
 
 
+def _get_entrypoint_name() -> str:
+    argv0 = sys.argv[0]
+    if argv0 == "-m":
+        # When executing a python program like `python -m myapp`, sys.argv
+        # can be only ["-m"] so we are using sys.orig_argv when available (python3.9+)
+        orig_argv = getattr(sys, "orig_argv", None)
+        if isinstance(orig_argv, list):
+            for i, arg in enumerate(orig_argv[:-1]):
+                if arg == "-m" and orig_argv[i + 1]:
+                    return orig_argv[i + 1]
+
+        # In python3.9, without access to sys.orig_argv, we fallback to __main__
+        main_module = sys.modules.get("__main__")
+        return getattr(main_module, __name__, "__main__")
+
+    return os.path.splitext(os.path.basename(argv0))[0]
+
+
+def _get_entrypoint_type() -> str:
+    if sys.argv and sys.argv[0] == "-m":
+        return ENTRYPOINT_TYPE_MODULE
+    return ENTRYPOINT_TYPE_SCRIPT
+
+
 def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
     if not process_tags_config.enabled:
         return None, None
 
     from ddtrace import config as ddtrace_config
+    from ddtrace.internal.settings._inferred_base_service import detect_service
 
     tag_definitions = [
         (ENTRYPOINT_WORKDIR_TAG, lambda: os.path.basename(os.getcwd())),
         (ENTRYPOINT_BASEDIR_TAG, lambda: Path(sys.argv[0]).resolve().parent.name),
-        (ENTRYPOINT_NAME_TAG, lambda: os.path.splitext(os.path.basename(sys.argv[0]))[0]),
-        (ENTRYPOINT_TYPE_TAG, lambda: ENTRYPOINT_TYPE_SCRIPT),
+        (ENTRYPOINT_NAME_TAG, _get_entrypoint_name),
+        (ENTRYPOINT_TYPE_TAG, _get_entrypoint_type),
         (SVC_USER_TAG, lambda: "true" if ddtrace_config._is_user_provided_service else None),
-        (SVC_AUTO_TAG, lambda: ddtrace_config.service if not ddtrace_config._is_user_provided_service else None),
+        (
+            SVC_AUTO_TAG,
+            lambda: (detect_service(sys.argv) or _get_entrypoint_name())
+            if not ddtrace_config._is_user_provided_service
+            else None,
+        ),
     ]
 
     process_tags_list = sorted(
@@ -124,11 +155,11 @@ _container_tags_hash = ""
 
 
 def __getattr__(name: str) -> Any:
-    if "process_tags" in name:
+    if name in ("process_tags", "process_tags_list"):
         _initialize_process_tags()
         _recompute_base_hash()
         if name == "process_tags":
             return process_tags  # type: ignore
-        elif name == "process_tags_list":
-            return process_tags_list  # type: ignore
-    return globals()[name]
+        return process_tags_list  # type: ignore
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

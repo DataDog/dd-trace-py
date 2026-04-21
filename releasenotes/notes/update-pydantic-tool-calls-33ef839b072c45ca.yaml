@@ -1,0 +1,6 @@
+fixes:
+  - |
+    LLM Observability: This fix resolves tracing issues for pydantic-ai >= 1.63.0 where
+    tool spans and agent instructions were not being properly captured. This fix adds tracing
+    to the ``ToolManager.execute_tool_call`` method for newer versions of the library to resolve
+    this issue.

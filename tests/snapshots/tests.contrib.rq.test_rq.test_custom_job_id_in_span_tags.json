@@ -1,0 +1,49 @@
+[[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.job_add1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.rq",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b9302f00000000",
+      "component": "rq",
+      "job.func_name": "tests.contrib.rq.jobs.job_add1",
+      "job.id": "my-custom-job-id",
+      "language": "python",
+      "queue.name": "sync-q",
+      "runtime-id": "12d8cd5abfbf4a28a28c9b236f8c6064",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 10206459,
+    "start": 1773744175382465041
+  },
+     {
+       "name": "rq.job.perform",
+       "service": "rq",
+       "resource": "tests.contrib.rq.jobs.job_add1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.rq",
+         "_dd.svc_src": "rq",
+         "component": "rq",
+         "job.id": "my-custom-job-id"
+       },
+       "duration": 614250,
+       "start": 1773744175390601000
+     }]]

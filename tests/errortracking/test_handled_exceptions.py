@@ -91,8 +91,8 @@ class ErrorTestCases(TracerTestCase):
         )
         # This asserts that the reported span event contained the info
         # of the last time the error is handled
-        assert "line 48" in self.spans[0]._events[0].attributes["exception.stacktrace"], (
-            self.spans[0]._events[0].attributes["exception.stacktrace"]
+        assert "line 48" in self.spans[0]._get_events()[0].attributes["exception.stacktrace"], (
+            self.spans[0]._get_events()[0].attributes["exception.stacktrace"]
         )
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
@@ -157,16 +157,16 @@ class ErrorTestCases(TracerTestCase):
 
         assert value == 1
         assert self.spans[0].name == "parent_span"
-        assert len(self.spans[0]._events) == 1
+        assert len(self.spans[0]._get_events()) == 1
         self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
         )
-        assert "line 100" in self.spans[0]._events[0].attributes["exception.stacktrace"], (
-            self.spans[0]._events[0].attributes["exception.stacktrace"]
+        assert "line 100" in self.spans[0]._get_events()[0].attributes["exception.stacktrace"], (
+            self.spans[0]._get_events()[0].attributes["exception.stacktrace"]
         )
 
         assert self.spans[1].name == "child_span"
-        assert len(self.spans[1]._events) == 0
+        assert len(self.spans[1]._get_events()) == 0
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_unhashable_exception(self):
@@ -278,8 +278,8 @@ class UserCodeErrorTestCases(TracerTestCase):
         # Depending on CI vs local tests, it is not clear if ddtrace is considered
         # as user code or not, so we cannot assume the exact number of span events
         # We will just assert the message that should be present or absent
-        assert len(self.spans[0]._events) >= expected_events.get("min_events", 1)
-        event_messages = [event.attributes["exception.message"] for event in self.spans[0]._events]
+        assert len(self.spans[0]._get_events()) >= expected_events.get("min_events", 1)
+        event_messages = [event.attributes["exception.message"] for event in self.spans[0]._get_events()]
         for message in expected_events.get("messages_present", []):
             assert message in event_messages
         for message in expected_events.get("messages_absent", []):

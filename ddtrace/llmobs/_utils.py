@@ -60,6 +60,15 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
+def get_asyncio():
+    # asyncio must NOT be imported at module level — this module is
+    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
+    # event loop on some platforms.  See test_lazyimport.py.
+    import asyncio
+
+    return asyncio
+
+
 def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
@@ -319,7 +328,7 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    return cast("LLMObsSpanData", span._meta_struct.get(LLMOBS_STRUCT.KEY, {}))
+    return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
 def resolve_ml_app(ml_app: Optional[str] = None) -> str:

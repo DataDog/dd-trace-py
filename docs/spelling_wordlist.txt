@@ -45,6 +45,7 @@ backoff
 backport
 backported
 backporting
+Bazel
 bdd
 bikeshedding
 Blowfish
@@ -187,6 +188,7 @@ libFuzzer
 lifecycle
 linters
 litellm
+LlamaIndex
 LLM
 lockfiles
 logbook
@@ -282,6 +284,7 @@ repo
 resolvers
 respawn
 riotfile
+rlocation
 RLock
 rowcount
 rq
@@ -380,3 +383,6 @@ jitter
 durations
 numer
 denom
+mtime
+mtimes
+txt
