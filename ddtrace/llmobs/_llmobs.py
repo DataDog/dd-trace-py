@@ -2323,10 +2323,9 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
-            if cost_tags is not None:
-                validated_cost_tags = cls._validate_cost_tags(span, tags, cost_tags)
-                if validated_cost_tags:
-                    _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
+            validated_cost_tags = cls._validate_cost_tags(span, cost_tags)
+            if validated_cost_tags:
+                _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
@@ -2409,9 +2408,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _validate_cost_tags(
-        cls, span: Span, tags: Optional[dict[str, Any]], cost_tags: Optional[Any]
-    ) -> Optional[list[str]]:
+    def _validate_cost_tags(cls, span: Span, cost_tags: Optional[Any]) -> Optional[list[str]]:
         if cost_tags is None:
             return None
 
@@ -2419,16 +2416,14 @@ class LLMObs(Service):
             log.warning("cost_tags must be a list of strings. Ignoring value.")
             return None
 
-        merged_tags = dict(get_llmobs_tags(span) or {})
-        if tags:
-            merged_tags.update(tags)
+        span_tags = get_llmobs_tags(span) or {}
 
         validated_cost_tags = []
         for cost_tag in cost_tags:
             if not isinstance(cost_tag, str):
                 log.warning("cost_tags entries must be strings. Skipping entry %r.", cost_tag)
                 continue
-            if cost_tag not in merged_tags:
+            if cost_tag not in span_tags:
                 log.warning("cost_tags entry %r must reference a key present in span tags. Skipping entry.", cost_tag)
                 continue
             if cost_tag not in validated_cost_tags:
