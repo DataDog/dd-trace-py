@@ -475,7 +475,18 @@ def _observation_span(
     elif observation_type == "KNOWLEDGE_BASE":
         output_chunk = observation.get("knowledgeBaseLookupOutput", {})
         bedrock_metadata = output_chunk.get("metadata", {})
-        output_value = output_chunk.get("retrievedReferences", {}).get("text", "")
+        retrieved = output_chunk.get("retrievedReferences", [])
+        if isinstance(retrieved, list):
+            if retrieved:
+                output_value = (
+                    retrieved[0].get("content", {}).get("text", "")
+                )
+            else:
+                output_value = ""
+        elif isinstance(retrieved, dict):
+            output_value = retrieved.get("text", "")
+        else:
+            output_value = ""
     elif observation_type == "ACTION_GROUP_CODE_INTERPRETER":
         output_chunk = observation.get("codeInterpreterInvocationOutput", {})
         bedrock_metadata = output_chunk.get("metadata", {})
