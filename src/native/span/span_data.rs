@@ -1,7 +1,8 @@
 use pyo3::{
     types::{
-        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
-        PyInt, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
+        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
+        PyFloat, PyInt, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString,
+        PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };

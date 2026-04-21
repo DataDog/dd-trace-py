@@ -77,7 +77,6 @@ def test_set_tag_bool():
     assert s.get_metrics() == {"true": 1, "false": 0}
 
 
-
 def test_set_tag_metric():
     s = Span(name="test.span")
 
