@@ -195,7 +195,11 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
-                self._ddspan.set_tag(k, v)
+                # DEV: Check bool before int/float since bool subclasses from int
+                if isinstance(v, bool):
+                    self._ddspan.set_tag(k, str(v))
+                else:
+                    self._ddspan.set_tag(k, v)
             return
         if key == "http.status_code":
             if isinstance(value, (int, float)):
