@@ -330,18 +330,10 @@ class Span(SpanData):
                 log.warning("failed to convert %r tag to an integer from %r", key, value)
                 return
 
-        # FIXME[matt] we could push this check to serialization time as well.
-        # only permit types that are commonly serializable (don't use
-        # isinstance so that we convert unserializable types like numpy
-        # numbers)
-        if not isinstance(value, (int, float)):
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
-        self._set_attribute(key, value)
+        try:
+            self._set_attribute(key, float(value))
+        except (ValueError, TypeError):
+            log.debug("ignoring not number metric %s:%s", key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
