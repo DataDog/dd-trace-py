@@ -14,18 +14,18 @@ if [ -n "$staged_files" ]; then
         hatch -v run lint:ruff check --fix --show-fixes --no-cache $staged_ruff || exit $?
     fi
 
+    # Re-stage ruff's fixes before cython-lint so they're preserved even if cython-lint fails
+    echo "$staged_files" | tr ' ' '\n' | while read -r f; do
+        [ -n "$f" ] || continue
+        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+    done
+
     # cython-lint runs on .pyx files only; ruff covers .py/.pyi, and cython-lint's
     # pycodestyle checks would be redundant on .py files
     staged_cython_lint=$(echo "$staged_files" | tr ' ' '\n' | grep '\.pyx$' | grep -v '^$' | tr '\n' ' ')
     if [ -n "$(printf '%s' "$staged_cython_lint" | tr -d ' \t\n')" ]; then
         hatch -v run lint:cython-lint $staged_cython_lint || exit $?
     fi
-
-    # Re-stage only files that had no unstaged changes before ruff (preserves partial staging)
-    echo "$staged_files" | tr ' ' '\n' | while read -r f; do
-        [ -n "$f" ] || continue
-        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
-    done
 else
     echo 'Format/lint skipped: No Python/stub files were found in `git diff --staged`'
 fi
