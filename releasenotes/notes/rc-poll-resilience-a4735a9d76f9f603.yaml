@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    remote_config: This fix resolves an issue where brief Datadog Agent connection
+    errors could drop Remote Configuration polls, causing products such as Dynamic
+    Instrumentation to temporarily appear disabled.
