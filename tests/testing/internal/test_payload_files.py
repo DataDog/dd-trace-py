@@ -237,8 +237,55 @@ class TestTelemetryPayloadFileNaming:
 # ---------------------------------------------------------------------------
 
 
+def _collect_events(telemetry_dir) -> list[dict]:
+    """Return all events from all telemetry payload files as a flat list."""
+    events = []
+    for f in sorted(telemetry_dir.glob("telemetry-*.json")):
+        data = json.loads(f.read_text())
+        events.extend(data.get("payload", []))
+    return events
+
+
 class TestPayloadFileTelemetryAPI:
-    def test_telemetry_metrics_written_to_file_on_finish(self, tmp_path):
+    def test_telemetry_batch_written_on_finish(self, tmp_path):
+        """finish() writes at least one message-batch file with real writer fields."""
+        telemetry_dir = tmp_path / "telemetry"
+
+        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+
+        api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
+        api.finish()
+
+        files = list(telemetry_dir.glob("telemetry-*.json"))
+        assert len(files) >= 1
+
+        # Every file must be a structurally valid message-batch from the real writer.
+        for f in files:
+            data = json.loads(f.read_text())
+            assert data["api_version"] == "v2"
+            assert data["request_type"] == "message-batch"
+            assert "seq_id" in data
+            assert "application" in data
+            assert "host" in data
+            assert isinstance(data["payload"], list)
+
+    def test_app_started_and_closing_present(self, tmp_path):
+        """finish() produces both app-started and app-closing events."""
+        telemetry_dir = tmp_path / "telemetry"
+
+        from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+        from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
+
+        api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
+        api.finish()
+
+        event_types = {e["request_type"] for e in _collect_events(telemetry_dir)}
+        assert "app-started" in event_types
+        assert "app-closing" in event_types
+
+    def test_ci_metrics_present_in_batch(self, tmp_path):
+        """CI visibility metrics added before finish() appear in the batch."""
         telemetry_dir = tmp_path / "telemetry"
 
         from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
@@ -249,37 +296,42 @@ class TestPayloadFileTelemetryAPI:
         api.add_distribution_metric("test_dist", 42.5)
         api.finish()
 
-        files = list(telemetry_dir.glob("telemetry-*.json"))
-        assert len(files) == 1
+        events = _collect_events(telemetry_dir)
 
-        data = json.loads(files[0].read_text())
-        assert data["api_version"] == "v2"
-        assert data["request_type"] == "message-batch"
-        assert "application" in data
-        assert "host" in data
-        assert len(data["payload"]) == 1
-        event = data["payload"][0]
-        assert event["request_type"] == "generate-metrics"
-        assert event["payload"]["namespace"] == "civisibility"
-        series = event["payload"]["series"]
-        assert len(series) == 2
-        assert series[0]["type"] == "count"
-        assert series[0]["metric"] == "test_metric"
-        assert series[0]["value"] == 1
-        assert series[1]["type"] == "distribution"
-        assert series[1]["metric"] == "test_dist"
-        assert series[1]["value"] == 42.5
+        # generate-metrics uses points: [[timestamp, value], ...]
+        metrics_series = [
+            s
+            for e in events
+            if e["request_type"] == "generate-metrics" and e["payload"]["namespace"] == "civisibility"
+            for s in e["payload"]["series"]
+        ]
+        assert any(s["metric"] == "test_metric" and s["points"][0][1] == 1 for s in metrics_series)
 
-    def test_no_telemetry_file_when_no_metrics(self, tmp_path):
-        telemetry_dir = tmp_path / "telemetry"
+        # distributions uses points: [value, ...]
+        dist_series = [
+            s
+            for e in events
+            if e["request_type"] == "distributions" and e["payload"]["namespace"] == "civisibility"
+            for s in e["payload"]["series"]
+        ]
+        assert any(s["metric"] == "test_dist" and s["points"][0] == 42.5 for s in dist_series)
 
+    def test_enable_agentless_client_does_not_raise_after_client_swap(self, tmp_path):
+        """enable_agentless_client() must not AttributeError after PayloadFileTelemetryAPI swaps the client.
+
+        TelemetryWriter.enable_agentless_client() reads self._client._agentless; without that
+        attribute on _PayloadFileTelemetryClient, any code path that calls it (e.g. LLMObs
+        initialisation) would raise AttributeError.
+        """
         from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
         from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 
+        telemetry_dir = tmp_path / "telemetry"
         api = PayloadFileTelemetryAPI(connector_setup=NoOpBackendConnectorSetup(), output_dir=str(telemetry_dir))
-        api.finish()
 
-        assert not telemetry_dir.exists()
+        # Must not raise regardless of the requested mode.
+        api.writer.enable_agentless_client(True)
+        api.writer.enable_agentless_client(False)
 
     def test_online_telemetry_api_does_not_write_files(self, tmp_path):
         from ddtrace.testing.internal.http import NoOpBackendConnectorSetup

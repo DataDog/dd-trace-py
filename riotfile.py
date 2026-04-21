@@ -2302,6 +2302,7 @@ venv = Venv(
                         "rq": [
                             "~=1.8.1",
                             "~=1.10.0",
+                            "~=2.0.0",  # first major version; removed Job.get_id() in favour of job.id property
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
@@ -4535,7 +4536,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),
             pkgs={
-                "claude-agent-sdk": ["==0.0.23", "==0.1.29", latest],
+                "claude-agent-sdk": ["==0.0.23", "==0.1.29", "==0.1.49", latest],
                 "pytest-asyncio": latest,
             },
         ),
