@@ -4,6 +4,7 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import tracer
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
@@ -81,7 +82,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.current_step_span = None
         self.current_llm_span = None
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
-        self._step_input_snapshot: Optional[list[Message]] = None # input captured before llm extenstion
+        self._step_input_snapshot: Optional[list[Message]] = None # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
         self._create_step_span()
 
@@ -182,6 +183,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                         tool_id = getattr(block, "id", "")
                         tool_name = getattr(block, "name", "unknown_tool")
                         tool_input = getattr(block, "input", {})
+                        tracer.context_provider.activate(self.current_step_span)
                         tool_span = self.integration.trace(
                             "claude_agent_sdk.tool",
                             submit_to_llmobs=True,
@@ -212,10 +214,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                             self._finalize_tool_span(tool_data, tool_output)
 
             # Once all tool results are in, finalize the deferred step and open the next step+llm span
-            if not self._active_tool_spans:
-                if self._step_response_chunk is not None:
-                    self._finalize_step_span(self._step_response_chunk)
-                    self._step_response_chunk = None
+            if not self._active_tool_spans and self._step_response_chunk is not None:
+                self._finalize_step_span(self._step_response_chunk)
+                self._step_response_chunk = None
                 if self._accumulated_input_messages is None:
                     self._accumulated_input_messages = self.integration.extract_llm_input_messages(
                         self.request_args, self.request_kwargs, self.primary_span

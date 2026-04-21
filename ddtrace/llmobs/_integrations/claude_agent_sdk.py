@@ -70,8 +70,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=kind,
-            model_name=model,
-            model_provider="anthropic",
+            model_name=model if kind == "llm" else None,
+            model_provider="anthropic" if kind == "llm" else None,
             input_messages=input_messages or None,
             output_messages=output_messages or [Message(content="")],
             metrics=metrics or None,
