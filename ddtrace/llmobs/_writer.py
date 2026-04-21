@@ -3,9 +3,9 @@ import csv
 import json
 import os
 import tempfile
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -46,8 +46,8 @@ from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import ExperimentConfigType
+from ddtrace.llmobs.types import _Meta
 from ddtrace.version import __version__
 
 
