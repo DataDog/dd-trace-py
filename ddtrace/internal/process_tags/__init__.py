@@ -155,11 +155,11 @@ _container_tags_hash = ""
 
 
 def __getattr__(name: str) -> Any:
-    if "process_tags" in name:
+    if name in ("process_tags", "process_tags_list"):
         _initialize_process_tags()
         _recompute_base_hash()
         if name == "process_tags":
             return process_tags  # type: ignore
-        elif name == "process_tags_list":
-            return process_tags_list  # type: ignore
-    return globals()[name]
+        return process_tags_list  # type: ignore
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

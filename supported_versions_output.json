@@ -580,7 +580,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.8.1",
+        "max_tracer_supported": "1.63.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -740,7 +740,7 @@
         "dependency": "urllib3",
         "integration": "urllib3",
         "minimum_tracer_supported": "1.25.8",
-        "max_tracer_supported": "2.5.0",
+        "max_tracer_supported": "2.6.3",
         "auto-instrumented": false
     },
     {

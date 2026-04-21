@@ -50,7 +50,10 @@ def _ddmap(span, attribute, value):
 
             if isinstance(value, (str, bytes)):
                 span.set_tag(meta_key, ensure_text(value))
-            if isinstance(value, (int, float)):
+            # DEV: Check bool before int/float since bool subclasses from int
+            elif isinstance(value, bool):
+                span.set_tag(meta_key, str(value))
+            elif isinstance(value, (int, float)):
                 span._set_attribute(meta_key, value)
     else:
         setattr(span, attribute, value)
@@ -195,10 +198,11 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
-                # TODO: remove bool→str coercion once set_tag callers are migrated
+                # DEV: Check bool before int/float since bool subclasses from int
                 if isinstance(v, bool):
-                    v = str(v)
-                self._ddspan.set_tag(k, v)
+                    self._ddspan.set_tag(k, str(v))
+                else:
+                    self._ddspan.set_tag(k, v)
             return
         if key == "http.status_code":
             if isinstance(value, (int, float)):

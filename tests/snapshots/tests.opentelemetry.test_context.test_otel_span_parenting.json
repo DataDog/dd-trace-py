@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529aa00000000",
+      "_dd.p.tid": "69de7abd00000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "70ff513e149c4275a000e61227618926"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "_sampling_priority_v1": 1.0,
+      "process_id": 42232.0
     },
-    "duration": 261488626,
-    "start": 1700080042950720258
+    "duration": 243616500,
+    "start": 1776188093276932555
   },
      {
        "name": "internal",
@@ -32,8 +34,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 110618583,
-       "start": 1700080042974075675
+       "meta": {
+         "_dd.svc_src": "tests.opentelemetry"
+       },
+       "duration": 110033167,
+       "start": 1776188093300640971
      },
         {
           "name": "internal",
@@ -44,8 +49,11 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 65187750,
-          "start": 1700080043019322133
+          "meta": {
+            "_dd.svc_src": "tests.opentelemetry"
+          },
+          "duration": 61893584,
+          "start": 1776188093348532971
         },
      {
        "name": "internal",
@@ -56,8 +64,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 127379917,
-       "start": 1700080043084759842
+       "meta": {
+         "_dd.svc_src": "tests.opentelemetry"
+       },
+       "duration": 109374042,
+       "start": 1776188093411004721
      },
      {
        "name": "internal",
@@ -69,14 +80,15 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+         "_dd.svc_src": "tests.opentelemetry",
+         "runtime-id": "70ff513e149c4275a000e61227618926"
        },
        "metrics": {
-         "_dd.top_level": 1,
-         "process_id": 7032
+         "_dd.top_level": 1.0,
+         "process_id": 42232.0
        },
-       "duration": 126974250,
-       "start": 1700080043085104425
+       "duration": 108015750,
+       "start": 1776188093412196513
      },
         {
           "name": "internal",
@@ -88,12 +100,13 @@
           "type": "",
           "error": 0,
           "meta": {
-            "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+            "_dd.svc_src": "tests.opentelemetry",
+            "runtime-id": "70ff513e149c4275a000e61227618926"
           },
           "metrics": {
-            "_dd.top_level": 1,
-            "process_id": 7032
+            "_dd.top_level": 1.0,
+            "process_id": 42232.0
           },
-          "duration": 79690208,
-          "start": 1700080043132067967
+          "duration": 63893833,
+          "start": 1776188093455975513
         }]]

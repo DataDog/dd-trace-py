@@ -52,17 +52,30 @@ def test_numeric_tags():
     s.set_tag("large_float", 2.0**53)
     s.set_tag("really_large_float", (2.0**53) + 1)
 
+    assert s.get_tags() == {}
     assert s.get_metrics() == {
         "negative": -1,
         "zero": 0,
         "positive": 1,
         "large_int": 2**53,
+        "really_large_int": (2**53) + 1,
         "large_negative_int": -(2**53),
+        "really_large_negative_int": -((2**53) + 1),
         "float": 12.3456789,
         "negative_float": -12.3456789,
         "large_float": 2.0**53,
         "really_large_float": (2.0**53) + 1,
     }
+
+
+def test_set_tag_bool():
+    s = Span(name="test.span")
+    s.set_tag("true", True)
+    s.set_tag("false", False)
+
+    assert s.get_tags() == {}
+    assert s.get_metrics() == {"true": 1, "false": 0}
+
 
 
 def test_set_tag_metric():
@@ -260,6 +273,17 @@ def test_span_binary_unicode_set_tag(span_log):
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
     assert span.get_tag("key_str") == "🤔"
+
+
+@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
+@mock.patch("ddtrace._trace.span.log")
+def test_span_bytes_string_set_tag(span_log):
+    span = Span(None)
+    span.set_tag("key", b"\xf0\x9f\xa4\x94")
+    span._set_attribute("key_str", b"\xf0\x9f\xa4\x94")
+    assert span.get_tag("key") == "🤔"
+    assert span.get_tag("key_str") == "🤔"
+    span_log.warning.assert_not_called()
 
 
 def test_span_repr_metastruct():

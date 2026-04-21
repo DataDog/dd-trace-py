@@ -1,18 +1,26 @@
 use pyo3::{
     types::{
-        PyAnyMethods as _, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
-        PyInt, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
+        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyFloat,
+        PyInt, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
     },
-    Bound, IntoPyObject as _, Py, PyAny, Python,
+    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
 use crate::py_string::{PyBackedString, PyTraceData};
-use libdd_trace_utils::span::SpanText as _;
+use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
+use libdd_trace_utils::span::{
+    v04::{
+        AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
+        SpanLink as NativeSpanLink,
+    },
+    SpanText as _,
+};
 
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
-    extract_i64_or_default, try_extract_backed_string, wall_clock_ns,
+    extract_i64_or_default, extract_time_unix_nano, try_extract_backed_string, wall_clock_ns,
 };
+use super::{SpanEvent, SpanLink};
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -23,6 +31,9 @@ pub struct SpanData {
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
     pub _trace_id_py: Option<Py<PyAny>>,
+    /// Storage for meta_struct values: dict[str, Any].
+    /// None until first use; initialized to an empty dict in __new__.
+    pub meta_struct: Option<Py<PyDict>>,
 }
 
 impl SpanData {
@@ -638,6 +649,182 @@ impl SpanData {
         // Not a dict or mapping — bail silently.
         Ok(())
     }
+    // meta_struct methods
+
+    fn _set_struct_tag(
+        &mut self,
+        py: Python<'_>,
+        key: &str,
+        value: &Bound<'_, PyDict>,
+    ) -> pyo3::PyResult<()> {
+        let dict = self
+            .meta_struct
+            .get_or_insert_with(|| PyDict::new(py).unbind())
+            .bind(py);
+        dict.set_item(key, value)
+    }
+
+    fn _get_struct_tag<'py>(
+        &self,
+        py: Python<'py>,
+        key: &str,
+    ) -> pyo3::PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.meta_struct {
+            None => Ok(None),
+            Some(dict) => dict.bind(py).get_item(key),
+        }
+    }
+
+    fn _remove_struct_tag<'py>(
+        &mut self,
+        py: Python<'py>,
+        key: &str,
+    ) -> pyo3::PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.meta_struct {
+            None => Ok(None),
+            Some(dict) => {
+                let dict = dict.bind(py);
+                let value = dict.get_item(key)?;
+                if value.is_some() {
+                    dict.del_item(key)?;
+                }
+                Ok(value)
+            }
+        }
+    }
+
+    fn _has_meta_structs(&self, py: Python<'_>) -> bool {
+        self.meta_struct
+            .as_ref()
+            .map(|d| !d.bind(py).is_empty())
+            .unwrap_or(false)
+    }
+
+    fn _get_meta_structs<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        match &self.meta_struct {
+            None => PyDict::new(py),
+            Some(dict) => dict.bind(py).clone(),
+        }
+    }
+    // --- Span links ---
+
+    /// Add a span link to native storage from raw fields (avoids constructing a PyO3 SpanLink).
+    /// Applies dedup logic: span pointers are always appended;
+    /// regular links replace any existing link with the same span_id.
+    #[pyo3(signature = (trace_id, span_id, tracestate=None, flags=None, attributes=None))]
+    fn _set_link(
+        &mut self,
+        py: Python<'_>,
+        trace_id: u128,
+        span_id: u64,
+        tracestate: Option<&Bound<'_, PyAny>>,
+        flags: Option<i64>,
+        attributes: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let attrs = match attributes {
+            None => Default::default(),
+            Some(obj) if obj.is_none() => Default::default(),
+            Some(obj) => {
+                if let Ok(dict) = obj.cast_exact::<PyDict>() {
+                    py_dict_to_link_attrs(py, dict)?
+                } else {
+                    // Accept any mapping (e.g. OTel BoundedAttributes)
+                    let dict = PyDict::new(py);
+                    let mapping = obj.cast::<PyMapping>()?;
+                    dict.update(mapping)?;
+                    py_dict_to_link_attrs(py, &dict)?
+                }
+            }
+        };
+
+        // DEV: is_span_pointer must be computed before build_native_link, which consumes attrs by value.
+        let is_span_pointer = attrs
+            .get(&PyBackedString::from_static_str("link.kind"))
+            .is_some_and(|v| v.as_ref() as &str == "span-pointer");
+
+        // Extract tracestate as PyBackedString; silently default to empty for None or non-string values.
+        let tracestate = tracestate
+            .and_then(|obj| obj.extract::<PyBackedString>().ok())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_default();
+
+        let native_link = build_native_link(trace_id, span_id, tracestate, flags, attrs);
+
+        if is_span_pointer {
+            self.data.span_links.push(native_link);
+        } else {
+            match self
+                .data
+                .span_links
+                .iter()
+                .position(|l| l.span_id == span_id)
+            {
+                Some(idx) => self.data.span_links[idx] = native_link,
+                None => self.data.span_links.push(native_link),
+            }
+        }
+        Ok(())
+    }
+
+    /// Add a SpanEvent to native storage.
+    #[pyo3(signature = (name, attributes = None, time_unix_nano = None))]
+    fn _add_event(
+        &mut self,
+        py: Python<'_>,
+        name: &Bound<'_, PyAny>,
+        attributes: Option<&Bound<'_, PyAny>>,
+        time_unix_nano: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let name = extract_backed_string_or_default(name);
+        let time_unix_nano = extract_time_unix_nano(time_unix_nano);
+        let attrs = match attributes {
+            None => Default::default(),
+            Some(obj) if obj.is_none() => Default::default(),
+            Some(obj) => {
+                if let Ok(dict) = obj.cast_exact::<PyDict>() {
+                    py_dict_to_event_attrs(py, dict)?
+                } else {
+                    // Accept any mapping
+                    let dict = PyDict::new(py);
+                    let mapping = obj.cast::<PyMapping>()?;
+                    dict.update(mapping)?;
+                    py_dict_to_event_attrs(py, &dict)?
+                }
+            }
+        };
+        self.data.span_events.push(NativeSpanEvent {
+            name,
+            time_unix_nano,
+            attributes: attrs,
+        });
+        Ok(())
+    }
+
+    /// Materialize all stored links back to PyO3 SpanLink objects.
+    fn _get_links(&self, py: Python<'_>) -> PyResult<Vec<Py<SpanLink>>> {
+        self.data
+            .span_links
+            .iter()
+            .map(|l| native_span_link_to_py(py, l))
+            .collect()
+    }
+
+    /// Materialize all stored events back to PyO3 SpanEvent objects.
+    fn _get_events(&self, py: Python<'_>) -> PyResult<Vec<Py<SpanEvent>>> {
+        self.data
+            .span_events
+            .iter()
+            .map(|e| native_span_event_to_py(py, e))
+            .collect()
+    }
+
+    fn _has_links(&self) -> bool {
+        !self.data.span_links.is_empty()
+    }
+
+    fn _has_events(&self) -> bool {
+        !self.data.span_events.is_empty()
+    }
 }
 
 impl SpanData {
@@ -668,5 +855,220 @@ impl SpanData {
             self.data.metrics.insert(key_pbs, n);
         }
         // Skip other types — context dicts only contain str and numeric values
+    }
+}
+
+// --- Conversion helpers ---
+
+/// Build a native SpanLink from raw fields and a pre-computed attributes HashMap.
+/// `tracestate` should already be extracted as a PyBackedString (empty for absent).
+fn build_native_link(
+    trace_id: u128,
+    span_id: u64,
+    tracestate: PyBackedString,
+    flags: Option<i64>,
+    attrs: std::collections::HashMap<PyBackedString, PyBackedString>,
+) -> NativeSpanLink<PyTraceData> {
+    let trace_id_low = trace_id as u64;
+    let trace_id_high = (trace_id >> 64) as u64;
+    // Encode "flags present" using bit 31: None -> 0, Some(f) -> f as u32 | 0x8000_0000.
+    let flags = match flags {
+        None => 0u32,
+        Some(f) => (f as u32) | 0x8000_0000u32,
+    };
+    NativeSpanLink {
+        trace_id: trace_id_low,
+        trace_id_high,
+        span_id,
+        attributes: attrs,
+        tracestate,
+        flags,
+    }
+}
+
+/// Convert attributes from a PyDict to a HashMap<PyBackedString, PyBackedString> for SpanLink storage.
+/// Flattens nested sequences and stringifies all values (mirrors SpanLink::to_dict() logic).
+fn py_dict_to_link_attrs(
+    py: Python<'_>,
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<std::collections::HashMap<PyBackedString, PyBackedString>> {
+    let mut out = std::collections::HashMap::new();
+    for (k, v) in dict.iter() {
+        for (fk, fv) in flatten_key_value_vec_fn(py, &k, &v)? {
+            // fk is a Bound<PyAny> (Python string) — extract as PyBackedString (zero-copy borrow)
+            let key: PyBackedString = fk.extract()?;
+            // Stringify value: bools as lowercase, others via Python str().
+            let py_val_str = if fv.is_instance_of::<PyBool>() {
+                let b: bool = fv.extract()?;
+                if b { "true" } else { "false" }
+                    .into_pyobject(py)?
+                    .into_any()
+            } else {
+                fv.str()?.into_any()
+            };
+            let val: PyBackedString = py_val_str.extract()?;
+            out.insert(key, val);
+        }
+    }
+    Ok(out)
+}
+
+/// Convert a PyDict to a HashMap<PyBackedString, AttributeAnyValue<PyTraceData>> for SpanEvent storage.
+fn py_dict_to_event_attrs(
+    py: Python<'_>,
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<std::collections::HashMap<PyBackedString, AttributeAnyValue<PyTraceData>>> {
+    let mut out = std::collections::HashMap::new();
+    for (k, v) in dict.iter() {
+        let key: PyBackedString = k.extract()?;
+        let val = py_value_to_attribute_any_value(py, &v)?;
+        out.insert(key, val);
+    }
+    Ok(out)
+}
+
+/// Convert a Python value to AttributeAnyValue<PyTraceData>.
+fn py_value_to_attribute_any_value(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<AttributeAnyValue<PyTraceData>> {
+    // Must check bool before int (bool is a subclass of int in Python)
+    if obj.is_instance_of::<PyBool>() {
+        let b: bool = obj.extract()?;
+        return Ok(AttributeAnyValue::SingleValue(
+            AttributeArrayValue::Boolean(b),
+        ));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(AttributeAnyValue::SingleValue(
+            AttributeArrayValue::Integer(i),
+        ));
+    }
+    if let Ok(f) = obj.extract::<f64>() {
+        return Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::Double(
+            f,
+        )));
+    }
+    if obj.is_instance_of::<PyList>() {
+        let list = obj.cast::<PyList>()?;
+        let mut items = Vec::with_capacity(list.len());
+        for item in list.iter() {
+            items.push(py_value_to_array_value(py, &item)?);
+        }
+        return Ok(AttributeAnyValue::Array(items));
+    }
+    // Default: stringify as string
+    let s: PyBackedString = obj
+        .extract::<PyBackedString>()
+        .or_else(|_| obj.str()?.extract::<PyBackedString>())?;
+    Ok(AttributeAnyValue::SingleValue(AttributeArrayValue::String(
+        s,
+    )))
+}
+
+/// Convert a Python value to AttributeArrayValue<PyTraceData> (for array elements).
+fn py_value_to_array_value(
+    _py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<AttributeArrayValue<PyTraceData>> {
+    if obj.is_instance_of::<PyBool>() {
+        let b: bool = obj.extract()?;
+        return Ok(AttributeArrayValue::Boolean(b));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(AttributeArrayValue::Integer(i));
+    }
+    if let Ok(f) = obj.extract::<f64>() {
+        return Ok(AttributeArrayValue::Double(f));
+    }
+    let s: PyBackedString = obj
+        .extract()
+        .or_else(|_| obj.str()?.extract::<PyBackedString>())?;
+    Ok(AttributeArrayValue::String(s))
+}
+
+/// Materialize a native SpanLink<PyTraceData> back to a PyO3 SpanLink.
+fn native_span_link_to_py(
+    py: Python<'_>,
+    link: &NativeSpanLink<PyTraceData>,
+) -> PyResult<Py<SpanLink>> {
+    let trace_id = (link.trace_id as u128) | ((link.trace_id_high as u128) << 64);
+    let tracestate = if link.tracestate.is_empty() {
+        None
+    } else {
+        Some(link.tracestate.clone_ref(py))
+    };
+    // Bit 31 of native flags encodes "flags present": 0 means None, otherwise strip bit 31.
+    let flags = if link.flags & 0x8000_0000 != 0 {
+        Some((link.flags & 0x7FFF_FFFF) as i64)
+    } else {
+        None
+    };
+    // Reconstruct attributes dict from flat string->string map.
+    // &PyBackedString implements IntoPyObject — for Python-backed strings this is a zero-copy
+    // incref of the original Python object; for static strings it creates an interned PyString.
+    let attrs = PyDict::new(py);
+    for (k, v) in link.attributes.iter() {
+        attrs.set_item(k, v)?;
+    }
+    Py::new(
+        py,
+        SpanLink {
+            trace_id,
+            span_id: link.span_id,
+            tracestate,
+            flags,
+            attributes: attrs.unbind(),
+        },
+    )
+}
+
+/// Materialize a native SpanEvent<PyTraceData> back to a PyO3 SpanEvent.
+fn native_span_event_to_py(
+    py: Python<'_>,
+    event: &NativeSpanEvent<PyTraceData>,
+) -> PyResult<Py<SpanEvent>> {
+    let attrs = PyDict::new(py);
+    for (k, v) in &event.attributes {
+        let py_val = attribute_any_value_to_py(py, v)?;
+        attrs.set_item(k, py_val)?;
+    }
+    Py::new(
+        py,
+        SpanEvent {
+            name: event.name.clone_ref(py),
+            time_unix_nano: event.time_unix_nano,
+            attributes: attrs.unbind(),
+        },
+    )
+}
+
+/// Convert an AttributeAnyValue<PyTraceData> back to a Python object.
+fn attribute_any_value_to_py(
+    py: Python<'_>,
+    val: &AttributeAnyValue<PyTraceData>,
+) -> PyResult<Py<PyAny>> {
+    match val {
+        AttributeAnyValue::SingleValue(v) => array_value_to_py(py, v),
+        AttributeAnyValue::Array(items) => {
+            let list = PyList::empty(py);
+            for item in items {
+                list.append(array_value_to_py(py, item)?)?;
+            }
+            Ok(list.into_any().unbind())
+        }
+    }
+}
+
+/// Convert an AttributeArrayValue<PyTraceData> back to a Python object.
+fn array_value_to_py(
+    py: Python<'_>,
+    val: &AttributeArrayValue<PyTraceData>,
+) -> PyResult<Py<PyAny>> {
+    match val {
+        AttributeArrayValue::String(s) => Ok(s.as_py(py).unbind()),
+        AttributeArrayValue::Boolean(b) => Ok(PyBool::new(py, *b).to_owned().into_any().unbind()),
+        AttributeArrayValue::Integer(i) => Ok(i.into_pyobject(py)?.into_any().unbind()),
+        AttributeArrayValue::Double(f) => Ok(f.into_pyobject(py)?.into_any().unbind()),
     }
 }

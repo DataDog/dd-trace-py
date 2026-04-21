@@ -545,3 +545,14 @@ def test_endpoint_discovery(site, config, param, expected):
         with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
             client = new_ai_guard_client(endpoint=param)
             assert client._endpoint == expected
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
+    """Test that AI Guard event tag is set on the root span of the trace."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", reason="It's fine")
+
+    with tracer.trace("root_span") as root_span:
+        ai_guard_client.evaluate(PROMPT, Options(block=False))
+
+    assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"

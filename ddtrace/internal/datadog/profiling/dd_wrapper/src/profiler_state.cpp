@@ -163,17 +163,36 @@ ProfilerState::prefork()
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     // upload_lock is now held - will be released in postfork_parent/child
+
+    // Lock the profile mutex so the sampling thread cannot be mid-allocation
+    // inside ddog_prof_Profile_add2 when the child calls ddog_prof_Profile_drop.
+    // postfork_parent releases it via unlock; postfork_child releases it
+    // via placement-new reinit of profile_mtx (which implicitly creates a fresh
+    // unlocked mutex, consistent with every other mutex's postfork path).
+    profile_state.prefork();
 }
 
 void
 ProfilerState::postfork_parent()
 {
+    profile_state.postfork_parent();
     upload_lock.unlock();
 }
 
 void
 ProfilerState::postfork_child()
 {
+    // profile_mtx was locked in prefork; ensure postfork_child is called on
+    // every exit path to unlock it.
+    // We need to call this at the end of the function because the Sampling Thread
+    // needs the ProfilerState to be consistent and waits on the profile_mtx that
+    // postfork_child releases.
+    struct ProfileGuard
+    {
+        ProfilerState& self;
+        ~ProfileGuard() { self.profile_state.postfork_child(); }
+    } guard{ *this };
+
     // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
     new (&upload_lock) std::mutex();
 
@@ -202,9 +221,6 @@ ProfilerState::postfork_child()
         initialized_.store(false, std::memory_order_release);
         return;
     }
-
-    // Reset the profile state
-    profile_state.postfork_child();
 }
 
 } // namespace Datadog
