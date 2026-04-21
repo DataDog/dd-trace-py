@@ -644,18 +644,21 @@ venv = Venv(
             name="gevent",
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
+                "aiobotocore": "<=2.3.1",
+                "aiohttp": latest,
+                "botocore": latest,
                 "elasticsearch": latest,
+                "opensearch-py": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
+                "requests": latest,
             },
             venvs=[
                 Venv(
+                    pys=select_pys(max_version="3.11"),
                     pkgs={
-                        "aiobotocore": "<=2.3.1",
-                        "aiohttp": latest,
-                        "botocore": latest,
-                        "requests": latest,
-                        "opensearch-py": latest,
+                        # gevent 21.x/22.x imports pkg_resources, removed in setuptools>=82
+                        "setuptools": "<82",
                     },
                     venvs=[
                         Venv(
@@ -679,13 +682,13 @@ venv = Venv(
                                 "gevent": ["~=22.10.0", latest],
                             },
                         ),
-                        Venv(
-                            pys=select_pys(min_version="3.12"),
-                            pkgs={
-                                "gevent": [latest],
-                            },
-                        ),
                     ],
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={
+                        "gevent": [latest],
+                    },
                 ),
             ],
         ),
@@ -1406,36 +1409,32 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=["3.9"],
-                            pkgs={
-                                "psycopg": "~=3.0.0",
-                                "pytest-asyncio": "==0.21.1",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.9", max_version="3.11"),
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": "==0.21.1",
-                            },
-                        ),
-                        Venv(
-                            pys=["3.12"],
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": "==0.23.7",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.13"),
-                            pkgs={
-                                "psycopg": latest,
-                                "pytest-asyncio": ">=1.0",
-                            },
-                        ),
-                    ],
+                    pys=["3.9"],
+                    pkgs={
+                        "psycopg": "~=3.0.0",
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": "==0.21.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.12"],
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "psycopg": latest,
+                        "pytest-asyncio": ">=1.0",
+                    },
                 ),
             ],
         ),
@@ -3244,6 +3243,7 @@ venv = Venv(
         ),
         Venv(
             name="kafka",
+            command="pytest {cmdargs} -vv tests/contrib/kafka",
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
@@ -3253,18 +3253,13 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.9", max_version="3.10"),
-                            pkgs={"confluent-kafka": ["~=1.9.2", latest]},
-                        ),
-                        # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
-                            pkgs={"confluent-kafka": latest},
-                        ),
-                    ],
+                    pys=select_pys(min_version="3.9", max_version="3.10"),
+                    pkgs={"confluent-kafka": ["~=1.9.2", latest]},
+                ),
+                # confluent-kafka added support for Python 3.11 in 2.0.2
+                Venv(
+                    pys=select_pys(min_version="3.11", max_version="3.13"),
+                    pkgs={"confluent-kafka": latest},
                 ),
             ],
         ),
@@ -3780,15 +3775,6 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
             },
-            venvs=[
-                Venv(
-                    venvs=[
-                        Venv(
-                            name="selenium-pytest",
-                        ),
-                    ],
-                ),
-            ],
         ),
         # In-process tests (fast): test_iast_flask.py, test_appsec_flask_telemetry.py, and class-based
         # tests in test_appsec_flask.py. No subprocess/gunicorn overhead.
