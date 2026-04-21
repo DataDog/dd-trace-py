@@ -540,6 +540,27 @@ def test_annotate_cost_tags_invalid_entries_are_skipped(llmobs, mock_llmobs_logs
     )
 
 
+def test_annotate_cost_tags_non_list_is_rejected(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags="team")
+        assert get_llmobs_cost_tags(span) is None
+
+    mock_llmobs_logs.warning.assert_any_call("cost_tags must be a list of strings. Ignoring value.")
+
+
+def test_annotate_cost_tags_references_existing_span_tags(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"})
+        llmobs.annotate(span=span, cost_tags=["team"])
+        assert get_llmobs_cost_tags(span) == ["team"]
+
+
+def test_annotate_cost_tags_empty_list_is_ignored(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags=[])
+        assert get_llmobs_cost_tags(span) is None
+
+
 def test_annotate_tag_wrong_type(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         with pytest.raises(Exception) as excinfo:
