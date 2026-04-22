@@ -82,7 +82,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.current_step_span = None
         self.current_llm_span = None
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
-        self._step_input_snapshot: Optional[list[Message]] = None # input captured before llm extension
+        self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
         self._create_step_span()
 

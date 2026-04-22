@@ -772,13 +772,19 @@ class TestLLMObsClaudeAgentSdk:
 
         # [0] llm span for step 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            llm_spans[0], span_kind="llm", model_name=MOCK_MODEL, model_provider="anthropic",
-            input_messages=turn1_input, output_messages=turn1_output, tags=tags,
+            llm_spans[0],
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=turn1_input,
+            output_messages=turn1_output,
+            tags=tags,
         )
 
         # [1] tool span
         assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-            tool_span, span_kind="tool",
+            tool_span,
+            span_kind="tool",
             input_value=safe_json({"file_path": "/etc/hostname"}),
             output_value="myhost.local",
             metadata={"tool_id": MOCK_READ_TOOL_ID},
@@ -787,7 +793,8 @@ class TestLLMObsClaudeAgentSdk:
 
         # [2] step span for step 1 (container: llm + tool)
         assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
-            step_spans[0], span_kind="step",
+            step_spans[0],
+            span_kind="step",
             input_value=safe_json(turn1_input),
             output_value=safe_json(turn1_output),
             tags=tags,
@@ -795,13 +802,19 @@ class TestLLMObsClaudeAgentSdk:
 
         # [3] llm span for step 2
         assert llmobs_events[3] == _expected_llmobs_llm_span_event(
-            llm_spans[1], span_kind="llm", model_name=MOCK_MODEL, model_provider="anthropic",
-            input_messages=turn2_input, output_messages=turn2_output, tags=tags,
+            llm_spans[1],
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=turn2_input,
+            output_messages=turn2_output,
+            tags=tags,
         )
 
         # [4] step span for step 2
         assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(
-            step_spans[1], span_kind="step",
+            step_spans[1],
+            span_kind="step",
             input_value=safe_json(turn2_input),
             output_value=safe_json(turn2_output),
             tags=tags,
