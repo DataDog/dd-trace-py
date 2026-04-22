@@ -19,6 +19,8 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.code import _get_ctx_covered_lines
+from ddtrace.internal.coverage.code import ctx_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -42,7 +44,7 @@ def _is_patched():
 
 class CoverageCollectingMultiprocess(BaseProcess):
     def _absorb_child_coverage(self) -> None:
-        if not ModuleCodeCollector.coverage_enabled() or ModuleCodeCollector._instance is None:
+        if not self._dd_coverage_enabled or ModuleCodeCollector._instance is None:
             return
 
         if self._parent_conn is None:
@@ -63,6 +65,13 @@ class CoverageCollectingMultiprocess(BaseProcess):
                     covered: dict[str, CoverageLines] = data.get("covered", {})
 
                     ModuleCodeCollector.inject_coverage(lines, covered)
+
+                    # Also write to the captured parent context if available.
+                    # inject_coverage() may miss context-level coverage when called from
+                    # a management thread that doesn't share the parent's ContextVars.
+                    if covered and self._parent_ctx_covered is not None:
+                        for path, path_covered in covered.items():
+                            self._parent_ctx_covered[path].update(path_covered)
                 else:
                     log.debug("Child process sent empty coverage data")
             else:
@@ -111,6 +120,11 @@ class CoverageCollectingMultiprocess(BaseProcess):
         self._parent_conn: t.Optional[Connection] = None
         self._child_conn: t.Optional[Connection] = None
 
+        # Capture the parent's context-level coverage dict so _absorb_child_coverage() can write to it
+        # directly. This is needed because join()/close() may be called from a management thread
+        # (e.g. ProcessPoolExecutor) that doesn't share the parent's ContextVars.
+        self._parent_ctx_covered = None
+
         # Only enable coverage in a child process being created if the parent process has coverage enabled
         if ModuleCodeCollector.coverage_enabled():
             parent_conn, child_conn = multiprocessing.Pipe()
@@ -120,6 +134,10 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._dd_coverage_enabled = True
             if ModuleCodeCollector._instance is not None:
                 self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
+
+            # Capture context-level coverage dict if active (runs in the main thread)
+            if ctx_coverage_enabled.get():
+                self._parent_ctx_covered = _get_ctx_covered_lines()
 
         base_process_init(self, *posargs, **kwargs)
 
