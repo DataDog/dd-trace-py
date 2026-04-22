@@ -164,6 +164,20 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
 
 
+def llmobs_wants_agentless() -> bool:
+    """Return True if LLMObs is enabled and should use agentless APM submission.
+
+    Used by ``create_trace_writer`` to pick ``AgentlessTraceWriter`` so LLM
+    spans ship to the APM agentless intake with their ``meta_struct["_llmobs"]``
+    payload preserved, instead of being POSTed to ``llmobs-intake`` separately.
+    """
+    if not config._llmobs_enabled:
+        return False
+    if config._llmobs_agentless_enabled is not None:
+        return bool(config._llmobs_agentless_enabled)
+    return should_use_agentless()
+
+
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 

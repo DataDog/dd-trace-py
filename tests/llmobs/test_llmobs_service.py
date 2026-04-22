@@ -70,15 +70,22 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
-def test_enable_agentless(tracer, test_spans):
+def test_enable_agentless(tracer):
+    # test_spans fixture intentionally omitted: it hooks into the tracer's writer
+    # via DummyWriter.pop(), but enable(agentless_enabled=True) now swaps the
+    # writer to AgentlessTraceWriter which doesn't implement pop().
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == tracer
-        assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(tracer, test_spans) is not None
+        # New agentless path: tracer writer is AgentlessTraceWriter, LLMObs span writer is skipped.
+        assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+        assert llmobs_instance._llmobs_span_writer is None
+        assert llmobs_instance._export_directly_to_llmobs is False
 
         llmobs_service.disable()
 
@@ -95,36 +102,97 @@ def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
 
 
 def test_enable_agentless_when_agent_info_is_not_available(tracer, no_agent_info):
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance._llmobs_span_writer._agentless is True
+        assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+        assert llmobs_instance._llmobs_span_writer is None
 
         llmobs_service.disable()
 
 
 def test_enable_agentless_when_agent_is_not_available(tracer, no_agent):
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance._llmobs_span_writer._agentless is True
+        assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+        assert llmobs_instance._llmobs_span_writer is None
 
         llmobs_service.disable()
 
 
 def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_proxy):
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance._llmobs_span_writer._agentless is True
+        assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+        assert llmobs_instance._llmobs_span_writer is None
 
         llmobs_service.disable()
+
+
+def test_disable_reverts_runtime_tracer_writer_swap(tracer):
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
+        # Capture the writer after entering the override context — override_global_config
+        # dispatches events that can rebuild the tracer's writer on context entry.
+        original_writer = tracer._span_aggregator.writer
+        assert not isinstance(original_writer, AgentlessTraceWriter)
+
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
+        assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+        llmobs_service.disable()
+        # disable() restores the original writer, so other tests and the application are not polluted.
+        assert tracer._span_aggregator.writer is original_writer
+
+
+def test_enable_agentless_rollback_keeps_direct_submit(tracer):
+    """_DD_LLMOBS_EXPORT=llmobs keeps the SDK on the old LLMObsSpanWriter path."""
+    with override_env({"_DD_LLMOBS_EXPORT": "llmobs"}):
+        with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance._export_directly_to_llmobs is True
+            assert llmobs_instance._llmobs_span_writer is not None
+            assert llmobs_instance._llmobs_span_writer._agentless is True
+            llmobs_service.disable()
+
+
+def test_apm_tracing_agentless_overrides_llmobs_export_rollback(tracer):
+    """_DD_APM_TRACING_AGENTLESS_ENABLED=1 coerces _DD_LLMOBS_EXPORT=llmobs to the new path."""
+    import ddtrace
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
+    # override_global_config's whitelist doesn't include _trace_agentless_enabled,
+    # so patch it directly and restore after.
+    original_trace_agentless = ddtrace.config._trace_agentless_enabled
+    ddtrace.config._trace_agentless_enabled = True
+    try:
+        with override_env({"_DD_LLMOBS_EXPORT": "llmobs"}):
+            with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
+                llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
+                llmobs_instance = llmobs_service._instance
+                # _DD_LLMOBS_EXPORT=llmobs is ignored; new path wins.
+                assert isinstance(tracer._span_aggregator.writer, AgentlessTraceWriter)
+                assert llmobs_instance._export_directly_to_llmobs is False
+                assert llmobs_instance._llmobs_span_writer is None
+                llmobs_service.disable()
+    finally:
+        ddtrace.config._trace_agentless_enabled = original_trace_agentless
 
 
 def test_service_disable(tracer):
@@ -1160,7 +1228,9 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    # _DD_LLMOBS_EXPORT=llmobs forces the legacy direct-to-llmobs-intake path
+    # (instead of the new APM agentless path) so the LLMObsSpanWriter URL can be asserted.
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0", "_DD_LLMOBS_EXPORT": "llmobs"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import mock
@@ -1206,9 +1276,14 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning", "_DD_LLMOBS_EXPORT": "llmobs"})
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
-    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter.
+
+    _DD_LLMOBS_EXPORT=llmobs keeps the legacy direct-to-llmobs-intake path so the
+    LLMObsSpanWriter still exists to be asserted against. The new APM agentless path
+    sets LLMObs._instance._llmobs_span_writer to None.
+    """
     import os
 
     import mock

@@ -449,6 +449,10 @@ class LLMObs(Service):
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    # If enable() swaps the tracer's writer to AgentlessTraceWriter at runtime,
+    # these hold the pre-swap state so disable() can revert cleanly (important for tests).
+    _pre_swap_tracer_writer: Any = None
+    _swapped_tracer: Any = None
 
     def __init__(
         self,
@@ -459,13 +463,35 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        self._export_directly_to_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+
+        # When the tracer's writer is AgentlessTraceWriter, the APM agentless intake
+        # carries LLM spans directly (with meta_struct["_llmobs"] preserved). In that
+        # case we must not also POST to llmobs-intake nor scrub the meta_struct.
+        # Lazy import to avoid a circular import during ddtrace module initialization.
+        from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
+        uses_apm_agentless = isinstance(self.tracer._span_aggregator.writer, AgentlessTraceWriter)
+        export_override = _env.get("_DD_LLMOBS_EXPORT")
+        if config._trace_agentless_enabled and export_override == "llmobs":
+            log.warning(
+                "_DD_LLMOBS_EXPORT=llmobs is ignored when _DD_APM_TRACING_AGENTLESS_ENABLED=1; "
+                "LLMObs spans will ship via the APM agentless intake. Forcing _DD_LLMOBS_EXPORT=apm."
+            )
+            export_override = "apm"
+        if export_override is not None:
+            self._export_directly_to_llmobs = export_override == "llmobs"
+        else:
+            self._export_directly_to_llmobs = not uses_apm_agentless
+
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
-        self._llmobs_span_writer = LLMObsSpanWriter(
-            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            is_agentless=agentless_enabled,
-        )
+        if self._export_directly_to_llmobs:
+            self._llmobs_span_writer: Optional[LLMObsSpanWriter] = LLMObsSpanWriter(
+                interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+                timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+                is_agentless=agentless_enabled,
+            )
+        else:
+            self._llmobs_span_writer = None
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
@@ -523,7 +549,7 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_directly_to_llmobs:
+        if self._export_directly_to_llmobs and self._llmobs_span_writer is not None:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
@@ -677,7 +703,8 @@ class LLMObs(Service):
                     self.annotate(span, **annotation_kwargs, _suppress_span_kind_error=True)
 
     def _child_after_fork(self) -> None:
-        self._llmobs_span_writer = self._llmobs_span_writer.recreate()
+        if self._llmobs_span_writer is not None:
+            self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
@@ -686,7 +713,8 @@ class LLMObs(Service):
 
     def _start_service(self) -> None:
         try:
-            self._llmobs_span_writer.start()
+            if self._llmobs_span_writer is not None:
+                self._llmobs_span_writer.start()
             self._llmobs_eval_metric_writer.start()
         except ServiceStatusError:
             log.debug("Error starting LLMObs writers")
@@ -700,13 +728,15 @@ class LLMObs(Service):
         try:
             self._evaluator_runner.stop()
             # flush remaining evaluation spans & evaluations
-            self._instance._llmobs_span_writer.periodic()
+            if self._instance._llmobs_span_writer is not None:
+                self._instance._llmobs_span_writer.periodic()
             self._instance._llmobs_eval_metric_writer.periodic()
         except ServiceStatusError:
             log.debug("Error stopping evaluator runner")
 
         try:
-            self._llmobs_span_writer.stop()
+            if self._llmobs_span_writer is not None:
+                self._llmobs_span_writer.stop()
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
@@ -823,6 +853,50 @@ class LLMObs(Service):
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+
+                # AIDEV-NOTE: when LLMObs is enabled agentlessly at runtime (not via env var),
+                # the tracer was already created with NativeWriter. Swap in AgentlessTraceWriter
+                # so LLM spans ride the APM agentless intake with meta_struct["_llmobs"] preserved.
+                # The pre-swap writer is saved on the class so disable() can restore it.
+                # Skip the swap when _DD_LLMOBS_EXPORT=llmobs forces the legacy direct-submit
+                # path (same precedence as LLMObs.__init__: APM agentless flag wins over the override).
+                from ddtrace.internal.dogstatsd import get_dogstatsd_client
+                from ddtrace.internal.settings._agent import config as _agent_config
+                from ddtrace.internal.utils.http import verify_url
+                from ddtrace.internal.writer.writer import AgentlessTraceWriter
+
+                _export_env = _env.get("_DD_LLMOBS_EXPORT")
+                _force_legacy = _export_env == "llmobs" and not config._trace_agentless_enabled
+
+                # Clear any stale state from a prior enable() that wasn't paired with a disable().
+                cls._pre_swap_tracer_writer = None
+                cls._swapped_tracer = None
+
+                _swap_target_tracer = _tracer or ddtrace.tracer
+                if not _force_legacy and not isinstance(
+                    _swap_target_tracer._span_aggregator.writer, AgentlessTraceWriter
+                ):
+                    cls._pre_swap_tracer_writer = _swap_target_tracer._span_aggregator.writer
+                    cls._swapped_tracer = _swap_target_tracer
+                    try:
+                        _swap_target_tracer._span_aggregator.writer.flush_queue()
+                    except Exception:
+                        log.debug("flush of old writer during LLMObs agentless swap failed", exc_info=True)
+                    try:
+                        _swap_target_tracer._span_aggregator.writer.stop()
+                    except ServiceStatusError:
+                        pass
+                    intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+                    verify_url(intake_url)
+                    _swap_target_tracer._span_aggregator.writer = AgentlessTraceWriter(
+                        intake_url=intake_url,
+                        api_key=config._dd_api_key,
+                        dogstatsd=get_dogstatsd_client(_agent_config.dogstatsd_url),
+                    )
+                    try:
+                        _swap_target_tracer._span_aggregator.writer.start()
+                    except ServiceStatusError:
+                        pass
 
             if integrations_enabled:
                 cls._patch_integrations()
@@ -1569,6 +1643,17 @@ class LLMObs(Service):
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
+        # Revert the runtime tracer-writer swap from enable() if we made one.
+        if cls._pre_swap_tracer_writer is not None and cls._swapped_tracer is not None:
+            swapped_writer = cls._swapped_tracer._span_aggregator.writer
+            cls._swapped_tracer._span_aggregator.writer = cls._pre_swap_tracer_writer
+            try:
+                swapped_writer.stop()
+            except ServiceStatusError:
+                pass
+            cls._pre_swap_tracer_writer = None
+            cls._swapped_tracer = None
+
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
@@ -1797,7 +1882,8 @@ class LLMObs(Service):
             log.warning("Failed to run evaluator runner.", exc_info=True)
 
         try:
-            cls._instance._llmobs_span_writer.periodic()
+            if cls._instance._llmobs_span_writer is not None:
+                cls._instance._llmobs_span_writer.periodic()
             cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             error = "writer_flush_error"
