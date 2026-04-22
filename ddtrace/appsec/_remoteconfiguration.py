@@ -60,7 +60,8 @@ def enable_appsec_rc() -> None:
 
         load_common_appsec_modules()
 
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    if asm_config._asm_enabled:
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
     asm_config._rc_client_id = remoteconfig_poller._client.id
 
 
@@ -68,8 +69,6 @@ def disable_appsec_rc() -> None:
     for product_name in APPSEC_PRODUCTS:
         remoteconfig_poller.unregister_callback(product_name)
         remoteconfig_poller.disable_product(product_name)
-
-    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
 
 class AppSecCallback(RCCallback):
@@ -177,10 +176,13 @@ def disable_asm() -> None:
         from ddtrace.appsec._listeners import disable_appsec
 
         disable_appsec(reconfigure_tracer=True)
+        if not asm_config._asm_enabled:
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
 
 def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC)
+        if load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC):
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)

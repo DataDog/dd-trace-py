@@ -11,28 +11,31 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfb8d500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "runtime-id": "35e2707575884fceb6fb7614d8a38d61",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET put_key_in_resource"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 6379,
-      "out.valkey_db": 0,
-      "process_id": 65639,
-      "valkey.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.valkey_db": 0.0,
+      "process_id": 8239.0,
+      "valkey.args_length": 2.0
     },
-    "duration": 2978000,
-    "start": 1698858795260743000
+    "duration": 498292,
+    "start": 1776269525927330711
   }],
 [
   {
@@ -47,25 +50,28 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfb8d500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "runtime-id": "35e2707575884fceb6fb7614d8a38d61",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.valkey_db": 0,
-      "process_id": 65639,
-      "valkey.pipeline_length": 2
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.valkey_db": 0.0,
+      "process_id": 8239.0,
+      "valkey.pipeline_length": 2.0
     },
-    "duration": 1408000,
-    "start": 1698858795278553000
+    "duration": 188542,
+    "start": 1776269525928220086
   }]]

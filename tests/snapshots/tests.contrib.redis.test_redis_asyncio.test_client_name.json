@@ -11,18 +11,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a6e81500000000",
+      "_dd.p.tid": "69de77a000000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.redis",
       "language": "python",
-      "runtime-id": "506faaac5b3444ff8e82e10a1b9b745f"
+      "runtime-id": "fd66415085a44627a3e026a929c9af5d"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 94076.0
+      "process_id": 34363.0
     },
-    "duration": 1949416,
-    "start": 1772546069333916805
+    "duration": 1187333,
+    "start": 1776187296822524214
   },
      {
        "name": "redis.command",
@@ -52,6 +54,6 @@
          "out.redis_db": 0.0,
          "redis.args_length": 2.0
        },
-       "duration": 1474792,
-       "start": 1772546069334338388
+       "duration": 860416,
+       "start": 1776187296822807714
      }]]

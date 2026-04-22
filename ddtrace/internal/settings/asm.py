@@ -4,6 +4,7 @@ from platform import system
 import sys
 from typing import Optional
 
+from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -14,11 +15,6 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import AI_GUARD_ENABLED
-from ddtrace.internal.constants import AI_GUARD_ENDPOINT
-from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
-from ddtrace.internal.constants import AI_GUARD_MAX_MESSAGES_LENGTH
-from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
@@ -341,16 +337,18 @@ config = ASMConfig()
 
 
 class AIGuardConfig(DDConfig):
-    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=False)
-    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
-    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD_MAX_CONTENT_SIZE, default=512 * 1024)
-    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD_MAX_MESSAGES_LENGTH, default=16)
-    _ai_guard_timeout = DDConfig.var(int, AI_GUARD_TIMEOUT, default=10_000)
+    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD.ENV_ENABLED, default=False)
+    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD.ENV_ENDPOINT, default="")
+    _ai_guard_block = DDConfig.var(bool, AI_GUARD.BLOCK_ENV, default=True)
+    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
+    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
+    _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
 
     # for tests purposes
     _ai_guard_config_keys = [
         "_ai_guard_enabled",
         "_ai_guard_endpoint",
+        "_ai_guard_block",
         "_ai_guard_max_content_size",
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",

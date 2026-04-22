@@ -487,6 +487,57 @@ class FileAttachment:
     data: bytes
 
 
+class NoOpBackendConnector:
+    """
+    A connector that makes no network requests.
+
+    Used when the plugin is running in Bazel's hermetic sandbox (manifest mode
+    active), where network access is unavailable. Any call to ``request()`` or
+    its helpers is silently discarded and an empty ``BackendResult`` is returned.
+    Writers and the telemetry API receive this connector but their event
+    delivery is handled via the payload-files code path instead.
+    """
+
+    def close(self) -> None:
+        pass
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        data: t.Optional[bytes] = None,
+        headers: t.Optional[dict[str, str]] = None,
+        send_gzip: bool = False,
+        is_json_response: bool = False,
+        telemetry: t.Any = None,
+        max_attempts: int = 1,
+    ) -> BackendResult:
+        log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
+        return BackendResult()
+
+    def get_json(self, path: str, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_json(self, path: str, data: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_files(self, path: str, files: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+
+class NoOpBackendConnectorSetup(BackendConnectorSetup):
+    """
+    A connector setup for fully offline (Bazel sandbox) mode.
+
+    Returns ``NoOpBackendConnector`` instances for all subdomains so that no
+    network requests are attempted. ``default_env`` falls back to the standard
+    default because there is no agent to query.
+    """
+
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> "NoOpBackendConnector":  # type: ignore[override]
+        return NoOpBackendConnector()
+
+
 class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 

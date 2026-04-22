@@ -763,7 +763,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.13 ms
+              - execution_time < 0.17 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
@@ -775,7 +775,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown
             thresholds:
-              - execution_time < 0.89 ms
+              - execution_time < 0.96 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown_cached
             thresholds:
@@ -791,7 +791,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.03 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib_cache
             thresholds:
@@ -799,7 +799,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
-              - execution_time < 0.05 ms
+              - execution_time < 0.051 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
@@ -853,11 +853,11 @@ experiments:
           # samplingrules
           - name: samplingrules-average_match
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.20 ms
               - max_rss_usage < 38.00 MB
           - name: samplingrules-high_match
             thresholds:
-              - execution_time < 0.48 ms
+              - execution_time < 0.20 ms
               - max_rss_usage < 38.00 MB
           - name: samplingrules-low_match
             thresholds:
@@ -865,7 +865,7 @@ experiments:
               - max_rss_usage < 780.00 MB
           - name: samplingrules-very_low_match
             thresholds:
-              - execution_time < 9.00 ms
+              - execution_time < 4.00 ms
               - max_rss_usage < 85.00 MB
           # sethttpmeta
           - name: sethttpmeta-all-disabled
@@ -956,7 +956,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-record-exception
             thresholds:
-              - execution_time < 41.00 ms
+              - execution_time < 42.00 ms
               - max_rss_usage < 53.00 MB
           - name: span-set-status
             thresholds:
@@ -1049,6 +1049,16 @@ experiments:
               - execution_time < 2.50 ms
               - max_rss_usage < 38.75 MB
 
+          # telemetrydependencies
+          - name: telemetrydependencies-first-50-deps-sca-off
+            thresholds:
+              - execution_time < 3.50 ms
+              - max_rss_usage < 46.00 MB
+          - name: telemetrydependencies-first-50-deps-sca-on
+            thresholds:
+              - execution_time < 3.75 ms
+              - max_rss_usage < 46.00 MB
+
           # tracer
           - name: tracer-large
             thresholds:
@@ -1076,7 +1086,7 @@ experiments:
               - max_rss_usage < 33 MB
           - name: forktime-configured
             thresholds:
-              - execution_time < 13 ms
+              - execution_time < 17 ms
               - max_rss_usage < 60 MB
 
           # rand

@@ -18,7 +18,9 @@ class TestPydanticAIPatch(PatchTestCase.Base):
     def assert_module_patched(self, pydantic_ai):
         self.assert_wrapped(pydantic_ai.agent.Agent.iter)
         self.assert_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (0, 4, 4):
+        if PYDANTIC_AI_VERSION >= (1, 63, 0):
+            self.assert_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
+        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
             self.assert_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_wrapped(pydantic_ai.tools.Tool.run)
@@ -26,7 +28,9 @@ class TestPydanticAIPatch(PatchTestCase.Base):
     def assert_not_module_patched(self, pydantic_ai):
         self.assert_not_wrapped(pydantic_ai.agent.Agent.iter)
         self.assert_not_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (0, 4, 4):
+        if PYDANTIC_AI_VERSION >= (1, 63, 0):
+            self.assert_not_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
+        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
             self.assert_not_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_not_wrapped(pydantic_ai.tools.Tool.run)
@@ -34,7 +38,9 @@ class TestPydanticAIPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, pydantic_ai):
         self.assert_not_double_wrapped(pydantic_ai.agent.Agent.iter)
         self.assert_not_double_wrapped(pydantic_ai.agent.Agent.run_stream)
-        if PYDANTIC_AI_VERSION >= (0, 4, 4):
+        if PYDANTIC_AI_VERSION >= (1, 63, 0):
+            self.assert_not_double_wrapped(pydantic_ai.agent.ToolManager.execute_tool_call)
+        elif PYDANTIC_AI_VERSION >= (0, 4, 4):
             self.assert_not_double_wrapped(pydantic_ai.agent.ToolManager.handle_call)
         else:
             self.assert_not_double_wrapped(pydantic_ai.tools.Tool.run)

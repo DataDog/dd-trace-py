@@ -191,11 +191,17 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     )
 
     git_commit_head_sha = None
+    git_pr_base_branch_head_sha = None
     if "GITHUB_EVENT_PATH" in environ:
         try:
             with open(environ["GITHUB_EVENT_PATH"]) as f:
                 github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
+                pr_data = github_event_data.get("pull_request", {})
+                git_commit_head_sha = pr_data.get("head", {}).get("sha")
+                # pull_request.base.sha points to the HEAD of the base branch, not the merge base commit.
+                # Store it as base_branch_head_sha; the actual merge base (base_branch_sha) must be
+                # computed separately via `git merge-base`.
+                git_pr_base_branch_head_sha = pr_data.get("base", {}).get("sha")
         except Exception as e:
             log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
 
@@ -216,8 +222,10 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     tags = {
         git.BRANCH: environ.get("GITHUB_HEAD_REF") or environ.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("GITHUB_BASE_REF"),
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
+        git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: git_pr_base_branch_head_sha,
         _PIPELINE_ID: github_run_id,
         _PIPELINE_NAME: environ.get("GITHUB_WORKFLOW"),
         _PIPELINE_NUMBER: environ.get("GITHUB_RUN_NUMBER"),

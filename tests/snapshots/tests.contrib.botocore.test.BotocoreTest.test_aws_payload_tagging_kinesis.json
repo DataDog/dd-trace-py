@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
+      "_dd.p.tid": "69dd45f100000000",
+      "_dd.svc_src": "tests.contrib.botocore",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "language": "python",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202"
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4315
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0
     },
-    "duration": 2128653547,
-    "start": 1730486575665558320
+    "duration": 1044179278,
+    "start": 1776109041790748180
   },
      {
        "name": "kinesis.command",
@@ -34,6 +36,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
+         "_dd.svc_src": "m",
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "CreateStream",
@@ -41,7 +44,7 @@
          "aws.region": "us-east-1",
          "aws.request.body.ShardCount": "1",
          "aws.request.body.StreamName": "test",
-         "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:42:56 GMT",
+         "aws.response.body.HTTPHeaders.date": "Mon, 13 Apr 2026 19:37:22 GMT",
          "aws.response.body.HTTPHeaders.server": "amazon.com",
          "aws.response.body.HTTPStatusCode": "200",
          "aws.response.body.RetryAttempts": "0",
@@ -53,12 +56,12 @@
          "streamname": "test"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "retry_attempts": 0
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "retry_attempts": 0.0
        },
-       "duration": 1222098056,
-       "start": 1730486575665790837
+       "duration": 509894167,
+       "start": 1776109041791024222
      },
      {
        "name": "kinesis.command",
@@ -71,6 +74,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
+         "_dd.svc_src": "m",
          "aws.agent": "botocore",
          "aws.kinesis.stream_name": "test",
          "aws.operation": "PutRecords",
@@ -81,7 +85,7 @@
          "aws.request.body.Records.1.Data.foo": "bar",
          "aws.request.body.Records.1.PartitionKey": "1234",
          "aws.request.body.StreamName": "test",
-         "aws.response.body.HTTPHeaders.date": "Fri, 01 Nov 2024 18:42:57 GMT",
+         "aws.response.body.HTTPHeaders.date": "Mon, 13 Apr 2026 19:37:22 GMT",
          "aws.response.body.HTTPHeaders.server": "amazon.com",
          "aws.response.body.HTTPStatusCode": "200",
          "aws.response.body.RetryAttempts": "0",
@@ -93,12 +97,12 @@
          "streamname": "test"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "retry_attempts": 0
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "retry_attempts": 0.0
        },
-       "duration": 905954737,
-       "start": 1730486576888145627
+       "duration": 533770236,
+       "start": 1776109042301078472
      }],
 [
   {
@@ -113,30 +117,32 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
+      "_dd.p.tid": "69dd45f100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ListQueues",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "S0Y391B6GM02XQHP7AAXP8BV0IZ0PTOUQY82NR7SHN651ERF2H8W",
+      "aws.requestid": "2D5QABTE6UZWQTYGBUOXRENFBI6XY7PBSLJUYQ3RGX2R5C5HV7W7",
       "aws_service": "sqs",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4315,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 9310053,
-    "start": 1730486575625781470
+    "duration": 4876875,
+    "start": 1776109041685332805
   }],
 [
   {
@@ -151,12 +157,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725212f00000000",
+      "_dd.p.tid": "69dd45f100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "CreateQueue",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "HZLL7XGXSPWJD740TO4PBM4MN8CCVOL1UJRHUSV05ANLZCC0OEHN",
+      "aws.requestid": "M6P87SM92SZX19ECH3YDHET1MKU7X38WOQXINES1LNT26II5864K",
       "aws.sqs.queue_name": "Test",
       "aws_service": "sqs",
       "component": "botocore",
@@ -164,17 +172,17 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "2139211528f64010b06b4e04ea9d4202",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4315,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 6980220,
-    "start": 1730486575636068298
+    "duration": 4018875,
+    "start": 1776109041690576013
   }]]

@@ -172,7 +172,7 @@ tests/profiling                              @DataDog/profiling-python
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
 ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
-tests/internal/crashtracker/                 @DataDog/profiling-python @DataDog/apm-core-python
+tests/crashtracker/                          @DataDog/profiling-python
 src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
@@ -321,3 +321,8 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @Da
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
+
+# Supported versions
+supported_versions_table.csv                    @DataDog/apm-core-python @DataDog/apm-idm-python
+supported_versions_output.json                  @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
