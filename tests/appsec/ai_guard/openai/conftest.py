@@ -1,5 +1,4 @@
 import json
-import os
 
 import httpx
 import pytest
@@ -26,11 +25,11 @@ def pytest_configure():
 
 @pytest.fixture
 def openai_sdk():
-    with override_env(
-        dict(
-            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-        )
-    ):
+    # Force a dummy API key unconditionally: tests hit the testagent VCR / mock
+    # transport, never the real OpenAI API. Falling back to the developer's
+    # real OPENAI_API_KEY would risk leaking it into recorded cassettes if a
+    # test regenerates them.
+    with override_env(dict(OPENAI_API_KEY="<not-a-real-key>")):
         patch()
         import openai
 
@@ -118,4 +117,69 @@ def async_openai_client_stream(openai_sdk):
     return openai_sdk.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Non-streaming mock transport
+#
+# The testagent VCR only matches specific request payloads (byte-hashed body).
+# Tests that send arbitrary message shapes (e.g. system-only, assistant+tool)
+# don't match any cassette and would otherwise hit APIConnectionError with
+# retries. This transport returns a canned chat.completion response so those
+# tests can exercise the before/after AI Guard dispatch path without cassette
+# coupling.
+# ---------------------------------------------------------------------------
+
+
+def _fake_chat_completion_body() -> bytes:
+    return json.dumps(
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "gpt-3.5-turbo",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+    ).encode()
+
+
+def _fake_chat_response() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=_fake_chat_completion_body(),
+    )
+
+
+class _ChatMockTransport(httpx.BaseTransport):
+    def handle_request(self, request):
+        return _fake_chat_response()
+
+
+class _AsyncChatMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request):
+        return _fake_chat_response()
+
+
+@pytest.fixture
+def openai_client_mock(openai_sdk):
+    return openai_sdk.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_ChatMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_client_mock(openai_sdk):
+    return openai_sdk.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncChatMockTransport()),
     )

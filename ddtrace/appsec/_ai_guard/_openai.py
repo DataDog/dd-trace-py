@@ -61,20 +61,27 @@ def _convert_openai_messages(messages):
 
             tool_calls = _get(msg, "tool_calls")
             if tool_calls:
-                ai_msg["tool_calls"] = [
-                    ToolCall(
-                        id=_get(tc, "id", ""),
-                        function=Function(
-                            name=_get(_get(tc, "function") or {}, "name", ""),
-                            arguments=_get(_get(tc, "function") or {}, "arguments", "{}"),
-                        ),
-                    )
-                    for tc in tool_calls
-                ]
+                ai_msg["tool_calls"] = [_tool_call_from(tc) for tc in tool_calls]
             result.append(ai_msg)
         except Exception:
             logger.debug("Failed to convert OpenAI message", exc_info=True)
     return result
+
+
+def _tool_call_from(tc):
+    """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object).
+
+    Hoists ``_get(tc, "function")`` to a single lookup — this runs once per
+    tool call on the OpenAI hot path.
+    """
+    fn = _get(tc, "function") or {}
+    return ToolCall(
+        id=_get(tc, "id", ""),
+        function=Function(
+            name=_get(fn, "name", ""),
+            arguments=_get(fn, "arguments", "{}"),
+        ),
+    )
 
 
 def _convert_openai_response(resp):
@@ -99,16 +106,7 @@ def _convert_openai_response(resp):
 
             tool_calls = _get(message, "tool_calls")
             if tool_calls:
-                ai_msg["tool_calls"] = [
-                    ToolCall(
-                        id=_get(tc, "id", ""),
-                        function=Function(
-                            name=_get(_get(tc, "function") or {}, "name", ""),
-                            arguments=_get(_get(tc, "function") or {}, "arguments", "{}"),
-                        ),
-                    )
-                    for tc in tool_calls
-                ]
+                ai_msg["tool_calls"] = [_tool_call_from(tc) for tc in tool_calls]
             result.append(ai_msg)
         except Exception:
             logger.debug("Failed to convert OpenAI response message", exc_info=True)
@@ -135,7 +133,15 @@ def _openai_chat_completion_before(client, kwargs):
     if not ai_guard_messages:
         return None
 
-    # Only evaluate when the last message is from the user
+    # AIDEV-NOTE: Before-model evaluation fires only when the last message is
+    # role="user". Tool-role messages (agentic loop tool responses) are skipped
+    # here because they are already covered by the after-model evaluation on
+    # the previous turn (which sees the full request+response including tool
+    # calls) and by framework-level integrations (LangChain/Strands) that wrap
+    # the full agentic loop. Raw-OpenAI users driving their own agent loop
+    # without a framework should enable the framework integration or evaluate
+    # tool outputs themselves — do not widen this check to role="tool" without
+    # also gating it on "no framework is active".
     if ai_guard_messages[-1].get("role") != "user":
         return None
 

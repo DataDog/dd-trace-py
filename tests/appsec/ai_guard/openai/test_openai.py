@@ -1,4 +1,6 @@
+import asyncio
 import contextvars
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -411,6 +413,160 @@ def test_reset_same_context_restores_previous_value():
     token = set_aiguard_context_active()
     assert is_aiguard_context_active() is True
     reset_aiguard_context_active(token)
+    assert is_aiguard_context_active() is False
+
+
+# ---------------------------------------------------------------------------
+# Before-model skip when the last message is not role="user"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        pytest.param(
+            [{"role": "system", "content": "You are helpful."}],
+            id="last-system",
+        ),
+        pytest.param(
+            [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "content": "Hello!"},
+            ],
+            id="last-assistant",
+        ),
+        pytest.param(
+            [
+                {"role": "user", "content": "What's the weather?"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "get_weather", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_1", "content": "72F and sunny"},
+            ],
+            id="last-tool",
+        ),
+    ],
+)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_before_skips_when_last_message_not_user(mock_execute_request, openai_client_mock, messages):
+    """Before-model evaluation MUST be skipped when the last message is not
+    role="user". The after-model evaluation still fires for the response.
+
+    Uses the mock-transport client so arbitrary message shapes don't depend
+    on a matching testagent VCR cassette.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_client_mock.chat.completions.create(messages=messages, **CHAT_PARAMS)
+
+    assert resp is not None
+    # Only the after-model evaluation fired — before was skipped.
+    assert mock_execute_request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Fail-open: client.evaluate raises a non-abort exception
+# ---------------------------------------------------------------------------
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_fails_open_on_non_abort_error(mock_execute_request, openai_client):
+    """If client.evaluate raises anything other than AIGuardAbortError, the
+    OpenAI call MUST proceed (fail-open) — a broken AI Guard service must
+    never break user applications.
+    """
+    mock_execute_request.side_effect = RuntimeError("ai-guard service unreachable")
+
+    resp = openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert resp is not None
+    # evaluate() was attempted — twice (before + after), both fail open.
+    assert mock_execute_request.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_fails_open_on_non_abort_error(mock_execute_request, async_openai_client):
+    mock_execute_request.side_effect = RuntimeError("ai-guard service unreachable")
+
+    resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert resp is not None
+    assert mock_execute_request.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Concurrent contexts: _ai_guard_active in one task must not bleed into another
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_concurrent_tasks_isolate_ai_guard_active(mock_execute_request, async_openai_client):
+    """Two coroutines run concurrently: one holds _ai_guard_active=True (as a
+    framework integration would), the other must still evaluate. ContextVar
+    semantics guarantee this — this test pins the guarantee so a future refactor
+    to a thread-local or module-global flag fails loudly.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    active_entered = asyncio.Event()
+    release_active = asyncio.Event()
+
+    async def _framework_task():
+        token = set_aiguard_context_active()
+        try:
+            active_entered.set()
+            await release_active.wait()
+        finally:
+            reset_aiguard_context_active(token)
+
+    async def _provider_task():
+        await active_entered.wait()
+        try:
+            # _ai_guard_active is True in the other task's Context, but MUST be
+            # False here — so evaluate() must fire.
+            assert is_aiguard_context_active() is False
+            resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+            assert resp is not None
+        finally:
+            release_active.set()
+
+    await asyncio.gather(_framework_task(), _provider_task())
+    # Provider task ran a full before+after evaluation.
+    assert mock_execute_request.call_count == 2
+    # And the flag is back to False in the caller's Context.
+    assert is_aiguard_context_active() is False
+
+
+def test_concurrent_threads_isolate_ai_guard_active():
+    """contextvars are copied-per-thread at thread start (see PEP 567). A thread
+    that sets _ai_guard_active=True MUST NOT affect the main thread's value.
+    """
+    barrier = threading.Barrier(2)
+    observed_in_main = []
+
+    def _worker():
+        set_aiguard_context_active()
+        barrier.wait()  # release main; worker exits with active=True in its own Context
+        barrier.wait()  # hold until main has observed
+
+    t = threading.Thread(target=_worker)
+    t.start()
+    barrier.wait()
+    observed_in_main.append(is_aiguard_context_active())
+    barrier.wait()
+    t.join()
+
+    assert observed_in_main == [False]
     assert is_aiguard_context_active() is False
 
 

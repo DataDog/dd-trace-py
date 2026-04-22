@@ -1,6 +1,7 @@
 import sys
 from typing import Any
 from typing import Optional
+import weakref
 
 import langchain_core
 
@@ -300,23 +301,48 @@ def traced_chain_stream(func, instance, args, kwargs):
     )
 
 
+def _one_shot_reset(token):
+    """Wrap an AI Guard reset token so it is applied at most once.
+
+    The stream-finalize callback and the weakref finalizer below both try to
+    reset. Without this guard, the second reset attempt either raises
+    ``ValueError`` on the already-consumed token or degrades to ``set(False)``,
+    which leaves an unreferenced token in the current Context.
+    """
+    done = [False]
+
+    def _reset():
+        if done[0]:
+            return
+        done[0] = True
+        reset_aiguard_context_active(token)
+
+    return _reset
+
+
 def traced_chat_stream(func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    ai_guard_token = set_aiguard_context_active()
+    # AIDEV-NOTE: token reset MUST happen on the stream's terminal event —
+    # exhaustion, error, early break (generator ``finally`` runs on close),
+    # AND never-consumed abandonment (weakref.finalize runs on GC). Otherwise
+    # ``_ai_guard_active`` leaks into the Context and silently disables
+    # provider-level evaluation (e.g. direct OpenAI calls) for its remainder.
+    ai_guard_reset = _one_shot_reset(set_aiguard_context_active())
+
     try:
         _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
     except Exception:
-        reset_aiguard_context_active(ai_guard_token)
+        ai_guard_reset()
         raise
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        reset_aiguard_context_active(ai_guard_token)
+        ai_guard_reset()
         kwargs["_dd.identifying_params"] = instance._identifying_params
         if len(streamed_chunks):
             joined_chunks = streamed_chunks[0]
@@ -326,18 +352,24 @@ def traced_chat_stream(func, instance, args, kwargs):
             joined_chunks = []
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
-    return shared_stream(
-        integration=integration,
-        func=func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        interface_type="chat_model",
-        on_span_started=_on_span_started,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
-    )
+    try:
+        stream = shared_stream(
+            integration=integration,
+            func=func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            interface_type="chat_model",
+            on_span_started=_on_span_started,
+            on_span_finished=_on_span_finished,
+            provider=llm_provider,
+            model=model,
+        )
+    except Exception:
+        ai_guard_reset()
+        raise
+    weakref.finalize(stream, ai_guard_reset)
+    return stream
 
 
 def traced_llm_stream(func, instance, args, kwargs):
@@ -345,7 +377,9 @@ def traced_llm_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    ai_guard_token = set_aiguard_context_active()
+    # AIDEV-NOTE: see traced_chat_stream — same abandonment-safety contract.
+    ai_guard_reset = _one_shot_reset(set_aiguard_context_active())
+
     try:
         _raising_dispatch(
             "langchain.llm.stream.before",
@@ -356,30 +390,36 @@ def traced_llm_stream(func, instance, args, kwargs):
             ),
         )
     except Exception:
-        reset_aiguard_context_active(ai_guard_token)
+        ai_guard_reset()
         raise
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        reset_aiguard_context_active(ai_guard_token)
+        ai_guard_reset()
         content = "".join([str(chunk) for chunk in streamed_chunks])
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
 
-    return shared_stream(
-        integration=integration,
-        func=func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        interface_type="llm",
-        on_span_started=_on_span_start,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
-    )
+    try:
+        stream = shared_stream(
+            integration=integration,
+            func=func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            interface_type="llm",
+            on_span_started=_on_span_start,
+            on_span_finished=_on_span_finished,
+            provider=llm_provider,
+            model=model,
+        )
+    except Exception:
+        ai_guard_reset()
+        raise
+    weakref.finalize(stream, ai_guard_reset)
+    return stream
 
 
 def traced_base_tool_invoke(func, instance, args, kwargs):

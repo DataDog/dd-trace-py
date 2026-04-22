@@ -179,7 +179,7 @@ def unpatch():
             if async_resource is not None and hasattr(async_resource, method_name):
                 unwrap(async_resource, method_name)
 
-    delattr(openai, "_datadog_integration")
+    openai.__dict__.pop("_datadog_integration", None)
 
 
 def traced_client_init(func, instance, args, kwargs):
