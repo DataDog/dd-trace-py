@@ -25,12 +25,15 @@ log = get_logger(__name__)
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
-EXTENDED_ARG = dis.EXTENDED_ARG
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-RESUME = dis.opmap["RESUME"]
-RETURN_CONST = dis.opmap["RETURN_CONST"]
-EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
+
+# Detect empty modules: the bytecode pattern varies across Python versions.
+# Python 3.12-3.13: RESUME + RETURN_CONST
+# Python 3.14: RESUME + LOAD_CONST + RETURN_VALUE (RETURN_CONST was removed)
+# Python 3.15+: same as 3.14 but RESUME has a CACHE entry (extra 2 bytes)
+# Instead of hardcoding, just compile an empty module to get the expected bytes.
+EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
@@ -150,6 +153,10 @@ def _instrument_with_monitoring(
             lines.add(0)
             if package is not None:
                 import_names[0] = (package, ("",))
+            # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules,
+            # so we call the hook directly to ensure empty __init__.py files are covered
+            if sys.version_info >= (3, 13):
+                hook((0, path, import_names.get(0)))
 
     return code, lines
 
@@ -158,11 +165,14 @@ def _extract_lines_and_imports(
     code: CodeType, package: str, track_lines: bool = True
 ) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
     """
-    Extract line numbers and import information from bytecode.
+    Extract line numbers and import information from bytecode using dis.get_instructions().
 
     This parses the bytecode to:
     1. Collect all executable line numbers (if track_lines=True)
     2. Track IMPORT_NAME and IMPORT_FROM opcodes for dependency tracking
+
+    Uses dis.get_instructions() which properly handles version-specific bytecode differences
+    (CACHE entries, arg encoding, line number formats) across Python 3.12+.
 
     Args:
         code: The code object to analyze
@@ -175,78 +185,66 @@ def _extract_lines_and_imports(
     lines = CoverageLines()
     import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
 
-    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
-    # For example, from ...package import module
-    current_arg: int = 0
-    previous_arg: int = 0
-    _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
-
-    # Track line numbers
-    linestarts = dict(dis.findlinestarts(code))
     line: t.Optional[int] = None
+    prev_line: t.Optional[int] = None
 
-    ext: list[bytes] = []
-    code_iter = iter(enumerate(code.co_code))
-    try:
-        while True:
-            offset, opcode = next(code_iter)
-            _, arg = next(code_iter)
+    # Track the previous two argvals to determine import depth.
+    # For IMPORT_NAME, the import depth is loaded two instructions prior:
+    # Python 3.12-3.13: LOAD_CONST <level>, LOAD_CONST <fromlist>, IMPORT_NAME <name>
+    # Python 3.14+: LOAD_SMALL_INT <level>, LOAD_CONST <fromlist>, IMPORT_NAME <name>
+    # Using argval gives us the decoded value regardless of the opcode used.
+    prev_argval: t.Any = 0
+    prev_prev_argval: t.Any = 0
 
-            if opcode == RESUME:
-                continue
+    for instr in dis.get_instructions(code):
+        if instr.opname == "RESUME" or instr.opname == "CACHE":
+            continue
 
-            if offset in linestarts:
-                line = linestarts[offset]
-                # Skip if line is None (bytecode that doesn't map to a specific source line)
-                if line is not None and track_lines:
-                    lines.add(line)
+        # Track line numbers. line_number is available on 3.13+, starts_line is an int on 3.12 (None if same line).
+        # On 3.13+, line_number is set for every instruction, so we detect new lines by comparing with prev_line.
+        instr_line = getattr(instr, "line_number", None) or getattr(instr, "starts_line", None)
+        if instr_line is not None and instr_line != prev_line:
+            line = instr_line
+            prev_line = line
+            if track_lines:
+                lines.add(line)
 
-                    # Make sure that the current module is marked as depending on its own package by instrumenting the
-                    # first executable line
-                    if code.co_name == "<module>" and len(lines) == 1 and package is not None:
-                        import_names[line] = (package, ("",))
+                # Make sure that the current module is marked as depending on its own package by instrumenting the
+                # first executable line
+                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
+                    import_names[line] = (package, ("",))
 
-            if opcode is EXTENDED_ARG:
-                ext.append(arg)
-                continue
-            else:
-                _previous_previous_arg = previous_arg
-                previous_arg = current_arg
-                current_arg = int.from_bytes([*ext, arg], "big", signed=False)
-                ext.clear()
+        if instr.opcode == IMPORT_NAME and line is not None:
+            import_depth: int = prev_prev_argval
+            current_import_name = instr.argval
+            # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
+            current_import_package = ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
 
-            if opcode == IMPORT_NAME and line is not None:
-                import_depth: int = code.co_consts[_previous_previous_arg]
-                current_import_name: str = code.co_names[current_arg]
-                # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package: str = (
-                    ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
+            if line in import_names:
+                import_names[line] = (
+                    current_import_package,
+                    tuple(list(import_names[line][1]) + [current_import_name]),
                 )
+            else:
+                import_names[line] = (current_import_package, (current_import_name,))
 
-                if line in import_names:
-                    import_names[line] = (
-                        current_import_package,
-                        tuple(list(import_names[line][1]) + [current_import_name]),
-                    )
-                else:
-                    import_names[line] = (current_import_package, (current_import_name,))
+        # Also track import from statements since it's possible that the "from" target is a module, eg:
+        # from my_package import my_module
+        # Since the package has not changed, we simply extend the previous import names with the new value
+        elif instr.opcode == IMPORT_FROM and line is not None:
+            import_from_name = f"{current_import_name}.{instr.argval}"
+            if line in import_names:
+                import_names[line] = (
+                    current_import_package,
+                    tuple(list(import_names[line][1]) + [import_from_name]),
+                )
+            else:
+                import_names[line] = (current_import_package, (import_from_name,))
 
-            # Also track import from statements since it's possible that the "from" target is a module, eg:
-            # from my_package import my_module
-            # Since the package has not changed, we simply extend the previous import names with the new value
-            if opcode == IMPORT_FROM and line is not None:
-                import_from_name = f"{current_import_name}.{code.co_names[current_arg]}"
-                if line in import_names:
-                    import_names[line] = (
-                        current_import_package,
-                        tuple(list(import_names[line][1]) + [import_from_name]),
-                    )
-                else:
-                    import_names[line] = (current_import_package, (import_from_name,))
-
-    except StopIteration:
-        pass
+        # Shift argval history for import depth tracking
+        prev_prev_argval = prev_argval
+        prev_argval = instr.argval
 
     return lines, import_names
