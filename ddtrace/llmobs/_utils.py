@@ -370,7 +370,8 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
 
 
 def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.COST_TAGS)
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    return metadata.get(LLMOBS_STRUCT.METADATA_DD, {}).get(LLMOBS_STRUCT.COST_TAGS)
 
 
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
@@ -506,9 +507,12 @@ def _annotate_llmobs_span_data(
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if cost_tags is not None:
-            llmobs_span_data.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
-            # Track seen keys explicitly so we preserve insertion order without relying on mutation-during-iteration.
-            existing_cost_tags = llmobs_span_data[LLMOBS_STRUCT.COST_TAGS]
+            metadata_dict = meta[LLMOBS_STRUCT.METADATA]
+            metadata_dd = metadata_dict.get(LLMOBS_STRUCT.METADATA_DD)
+            if not isinstance(metadata_dd, dict):
+                metadata_dd = {}
+                metadata_dict[LLMOBS_STRUCT.METADATA_DD] = metadata_dd
+            existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
             existing_cost_tags_set = set(existing_cost_tags)
             for cost_tag in cost_tags:
                 if cost_tag not in existing_cost_tags_set:

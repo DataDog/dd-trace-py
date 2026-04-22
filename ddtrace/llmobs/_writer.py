@@ -63,7 +63,6 @@ class LLMObsSpanData(TypedDict, total=False):
     ml_app: str
     session_id: str
     tags: dict[str, str]
-    cost_tags: list[str]
     metrics: dict[str, Any]
     span_links: list[_SpanLink]
     config: ConfigType

@@ -127,7 +127,6 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
-from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -563,7 +562,6 @@ class LLMObs(Service):
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = get_llmobs_session_id(span)
         tags = self._llmobs_tags(span)
-        cost_tags = get_llmobs_cost_tags(span)
         span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
@@ -592,13 +590,6 @@ class LLMObs(Service):
             llmobs_span_event["config"] = experiment_config
         if session_id:
             llmobs_span_event["session_id"] = session_id
-        if cost_tags:
-            metadata = llmobs_span_event["meta"]["metadata"]
-            metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD)
-            if not isinstance(metadata_dd, dict):
-                metadata_dd = {}
-                metadata[LLMOBS_STRUCT.METADATA_DD] = metadata_dd
-            metadata_dd[LLMOBS_STRUCT.COST_TAGS] = cost_tags
         if span_links:
             llmobs_span_event["span_links"] = span_links
 
