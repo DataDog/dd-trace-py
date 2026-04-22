@@ -3,6 +3,8 @@ import pytest
 
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _normalize_trace_id_to_hex
+from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
@@ -346,7 +348,7 @@ class TestAnnotateLLMObsSpanData:
                 model_provider="openai",
                 session_id="sess-1",
                 parent_id="parent-1",
-                trace_id=12345,
+                trace_id="12345",
                 input_messages=messages_in,
                 output_messages=messages_out,
                 metadata={"temperature": 0.5},
@@ -360,7 +362,7 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.ML_APP] == "test-app"
             assert data[LLMOBS_STRUCT.SESSION_ID] == "sess-1"
             assert data[LLMOBS_STRUCT.PARENT_ID] == "parent-1"
-            assert data[LLMOBS_STRUCT.TRACE_ID] == 12345
+            assert data[LLMOBS_STRUCT.TRACE_ID] == "12345"
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10}
             assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod"}
             assert data[LLMOBS_STRUCT.SPAN_LINKS] == links
@@ -386,3 +388,50 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
             assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod", "version": "1.0"}
+
+
+class TestTraceIdNormalization:
+    HEX_TRACE_ID = "ef017ddb6db557ea44fb6ce732fd0687"
+    DECIMAL_TRACE_ID = str(int(HEX_TRACE_ID, 16))
+
+    def test_normalize_canonical_hex_passthrough(self):
+        assert _normalize_trace_id_to_hex(self.HEX_TRACE_ID) == self.HEX_TRACE_ID
+
+    def test_normalize_decimal_converts_to_hex(self):
+        assert _normalize_trace_id_to_hex(self.DECIMAL_TRACE_ID) == self.HEX_TRACE_ID
+
+    def test_normalize_small_decimal_identity(self):
+        # format_trace_id returns str(int) for values <= 2^64, so small ints stay decimal.
+        assert _normalize_trace_id_to_hex("12345") == "12345"
+
+    def test_normalize_non_numeric_custom_id_passthrough(self, caplog):
+        import logging
+
+        caplog.set_level(logging.DEBUG, logger="ddtrace.llmobs._utils")
+        assert _normalize_trace_id_to_hex("custom-trace-id-abc") == "custom-trace-id-abc"
+        assert any("neither 32-char hex nor a valid decimal" in r.message for r in caplog.records)
+
+    def test_normalize_uppercase_hex_passthrough(self):
+        up = self.HEX_TRACE_ID.upper()
+        assert _normalize_trace_id_to_hex(up) == up
+
+    def test_normalize_none_and_empty(self):
+        assert _normalize_trace_id_to_hex(None) is None
+        assert _normalize_trace_id_to_hex("") is None
+
+    def test_wire_hex_to_decimal(self):
+        assert _trace_id_to_wire(self.HEX_TRACE_ID) == self.DECIMAL_TRACE_ID
+
+    def test_wire_decimal_passthrough(self):
+        assert _trace_id_to_wire(self.DECIMAL_TRACE_ID) == self.DECIMAL_TRACE_ID
+
+    def test_wire_custom_passthrough(self):
+        assert _trace_id_to_wire("custom-trace-id-abc") == "custom-trace-id-abc"
+
+    def test_wire_none_and_empty(self):
+        assert _trace_id_to_wire(None) is None
+        assert _trace_id_to_wire("") is None
+
+    def test_normalize_after_wire_recovers_hex(self):
+        wire = _trace_id_to_wire(self.HEX_TRACE_ID)
+        assert _normalize_trace_id_to_hex(wire) == self.HEX_TRACE_ID

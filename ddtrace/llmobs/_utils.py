@@ -4,6 +4,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
@@ -363,6 +364,58 @@ def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
+
+
+_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _normalize_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
+    """Normalize a trace_id into the canonical 32-char lowercase hex storage format.
+
+    - Canonical 32-char lowercase hex → return as-is.
+    - Decimal integer string → convert via ``format_trace_id`` (hex for 128-bit IDs,
+      pass-through for smaller ints).
+    - Empty string or ``None`` → return ``None``.
+    - Anything else (non-numeric custom ID from another SDK or manual user input) →
+      return as-is and log at debug. Cross-SDK trace joining may be affected but we
+      must not raise or corrupt the span.
+    """
+    if value is None or value == "":
+        return None
+    if _HEX_TRACE_ID_RE.match(value):
+        return value
+    try:
+        return format_trace_id(int(value))
+    except (ValueError, TypeError):
+        log.debug(
+            "LLMObs trace_id %r is neither 32-char hex nor a valid decimal integer; "
+            "storing as-is. Cross-SDK trace joining may be affected.",
+            value,
+        )
+        return value
+
+
+def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
+    """Convert a stored trace_id to the decimal wire format for cross-version compat.
+
+    Older dd-trace-py versions parse the ``_DD_LLMOBS_TRACE_ID`` header via ``int(x)``
+    without a base argument, which fails on any hex string with a-f characters. We
+    therefore keep the wire format as decimal and let each SDK normalize back to hex
+    internally on receive.
+
+    - Canonical 32-char lowercase hex → ``str(int(value, 16))`` → decimal.
+    - Already-decimal or non-hex → return as-is.
+    - Empty / ``None`` → return ``None``.
+    """
+    if not value:
+        return None
+    if _HEX_TRACE_ID_RE.match(value):
+        try:
+            return str(int(value, 16))
+        except ValueError:
+            log.debug("Failed to convert hex LLMObs trace_id %r to decimal; sending as-is.", value)
+            return value
+    return value
 
 
 def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
