@@ -1887,7 +1887,7 @@ class LLMObs(Service):
             llmobs_trace_id = (
                 parent_llmobs_trace_id
                 if parent_llmobs_trace_id is not None
-                else format_trace_id(llmobs_parent.trace_id)
+                else format_trace_id(llmobs_parent.trace_id or 0)
             )
             if isinstance(llmobs_parent, Span):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
