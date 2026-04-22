@@ -194,7 +194,7 @@
         "dependency": "claude-agent-sdk",
         "integration": "claude_agent_sdk",
         "minimum_tracer_supported": "0.0.23",
-        "max_tracer_supported": "0.1.29",
+        "max_tracer_supported": "0.1.49",
         "auto-instrumented": true
     },
     {
@@ -249,15 +249,15 @@
     {
         "dependency": "elastic-transport",
         "integration": "elasticsearch",
-        "minimum_tracer_supported": "8.11.0",
-        "max_tracer_supported": "9.1.0",
+        "minimum_tracer_supported": "8.17.1",
+        "max_tracer_supported": "9.2.1",
         "auto-instrumented": true
     },
     {
         "dependency": "elasticsearch",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
-        "max_tracer_supported": "9.1.0",
+        "max_tracer_supported": "9.3.0",
         "auto-instrumented": true
     },
     {
@@ -292,7 +292,7 @@
         "dependency": "elasticsearch7",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
-        "max_tracer_supported": "7.17.12",
+        "max_tracer_supported": "7.17.13",
         "auto-instrumented": true
     },
     {
