@@ -313,7 +313,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.135.3",
+        "max_tracer_supported": "0.136.0",
         "auto-instrumented": true
     },
     {
