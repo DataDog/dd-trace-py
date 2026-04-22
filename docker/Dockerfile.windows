@@ -9,7 +9,8 @@
 #   - Rust stable + i686-pc-windows-msvc cross-compile target
 #   - Python 3.9-3.14 for windows-x86_64 and windows-x86
 
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+# ltsc2022
+FROM mcr.microsoft.com/windows/servercore@sha256:ba95f404a7f05eb4a827d2175e225e6d77200b4431dd24668255bdb954973810
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';"]
 
