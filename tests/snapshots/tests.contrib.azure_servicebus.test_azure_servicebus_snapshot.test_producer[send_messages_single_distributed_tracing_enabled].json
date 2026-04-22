@@ -11,25 +11,27 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d76600000000",
+      "_dd.p.tid": "69e92bbb00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.message_id": "061e2b65-4cc1-4138-939b-395ba20487e3",
+      "messaging.message_id": "a5ce1ed6-4ce4-49b8-b91a-9b474220d838",
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "135121aa8da74f3ca97abaf9816b8289",
+      "runtime-id": "92993f0216ce463dbd6afc413eb0bc0b",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16491
+      "_sampling_priority_v1": 1.0,
+      "process_id": 66837.0
     },
-    "duration": 552660000,
-    "start": 1757534054134645130
+    "duration": 531310000,
+    "start": 1776888763718404000
   }],
 [
   {
@@ -44,25 +46,27 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d76600000000",
+      "_dd.p.tid": "69e92bbc00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.message_id": "5eae45f5-7a86-45d6-beb9-c574e6bcd0fc",
+      "messaging.message_id": "50c60a39-82e3-4b08-bfe1-8189726f2548",
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "135121aa8da74f3ca97abaf9816b8289",
+      "runtime-id": "92993f0216ce463dbd6afc413eb0bc0b",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16491
+      "_sampling_priority_v1": 1.0,
+      "process_id": 66837.0
     },
-    "duration": 7807333,
-    "start": 1757534054693857880
+    "duration": 13152000,
+    "start": 1776888764250900000
   }],
 [
   {
@@ -77,24 +81,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d76600000000",
+      "_dd.p.tid": "69e92bbc00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "135121aa8da74f3ca97abaf9816b8289",
+      "runtime-id": "92993f0216ce463dbd6afc413eb0bc0b",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16491
+      "_sampling_priority_v1": 1.0,
+      "process_id": 66837.0
     },
-    "duration": 5892291,
-    "start": 1757534054702405797
+    "duration": 12345000,
+    "start": 1776888764265086000
   }],
 [
   {
@@ -109,23 +115,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d76600000000",
+      "_dd.p.tid": "69e92bbc00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.message_id": "eaf39d71-071a-4e17-9ca1-46d00bfd1e7c",
+      "messaging.message_id": "30809224-7866-45a4-819a-14d92cc23a5e",
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "135121aa8da74f3ca97abaf9816b8289",
+      "runtime-id": "92993f0216ce463dbd6afc413eb0bc0b",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16491
+      "_sampling_priority_v1": 1.0,
+      "process_id": 66837.0
     },
-    "duration": 4774334,
-    "start": 1757534054708523463
+    "duration": 9815000,
+    "start": 1776888764277748000
   }]]
