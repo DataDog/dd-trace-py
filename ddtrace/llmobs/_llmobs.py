@@ -72,9 +72,14 @@ from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import RUM_BAGGAGE_ACCOUNT_ID_KEY
+from ddtrace.llmobs._constants import RUM_BAGGAGE_SESSION_ID_KEY
+from ddtrace.llmobs._constants import RUM_BAGGAGE_USER_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import USER_ACCOUNT_ID_TAG_KEY
+from ddtrace.llmobs._constants import USER_ID_TAG_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -560,7 +565,9 @@ class LLMObs(Service):
         # Wait to build meta until after user processors apply and potentially mutate I/O
         meta = _build_span_meta(span, llmobs_span, llmobs_meta, span_kind, input_type, output_type)
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
-        session_id = get_llmobs_session_id(span)
+        # Fall back to the session.id baggage key propagated by the RUM browser SDK so that
+        # RUM sessions automatically correlate to LLMObs traces without a manual annotate call.
+        session_id = get_llmobs_session_id(span) or span.context.get_baggage_item(RUM_BAGGAGE_SESSION_ID_KEY)
         tags = self._llmobs_tags(span)
         span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
@@ -612,7 +619,7 @@ class LLMObs(Service):
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
-        session_id = get_llmobs_session_id(span)
+        session_id = get_llmobs_session_id(span) or span.context.get_baggage_item(RUM_BAGGAGE_SESSION_ID_KEY)
         if session_id:
             tags["session_id"] = session_id
 
@@ -637,6 +644,17 @@ class LLMObs(Service):
         dataset_name = span.context.get_baggage_item(EXPERIMENT_DATASET_NAME_KEY)
         if dataset_name and "dataset_name" not in tags:
             tags["dataset_name"] = dataset_name
+
+        # RUM browser SDK propagates user/account identity via OTel baggage when
+        # `propagateTraceBaggage` is enabled. Map onto Datadog standard attribute
+        # names so RUM users correlate to LLMObs traces. Explicit annotate() tags win.
+        user_id = span.context.get_baggage_item(RUM_BAGGAGE_USER_ID_KEY)
+        if user_id and USER_ID_TAG_KEY not in tags:
+            tags[USER_ID_TAG_KEY] = user_id
+
+        account_id = span.context.get_baggage_item(RUM_BAGGAGE_ACCOUNT_ID_KEY)
+        if account_id and USER_ACCOUNT_ID_TAG_KEY not in tags:
+            tags[USER_ACCOUNT_ID_TAG_KEY] = account_id
 
         project_name = span.context.get_baggage_item(EXPERIMENT_PROJECT_NAME_KEY)
         if project_name and "project_name" not in tags:

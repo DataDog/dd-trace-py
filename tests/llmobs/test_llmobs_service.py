@@ -347,6 +347,49 @@ def test_session_id_becomes_top_level_field(llmobs, llmobs_events):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
 
 
+def test_rum_baggage_auto_tags_session_and_user(llmobs, llmobs_events):
+    # Simulates a request where the RUM browser SDK's `propagateTraceBaggage` has
+    # injected session/user/account identifiers into the inbound trace context.
+    with llmobs.task() as span:
+        span.context.set_baggage_item("session.id", "rum-session-123")
+        span.context.set_baggage_item("user.id", "user-abc")
+        span.context.set_baggage_item("account.id", "acct-xyz")
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["session_id"] == "rum-session-123"
+    tag_dict = dict(t.split(":", 1) for t in event["tags"])
+    assert tag_dict["session_id"] == "rum-session-123"
+    assert tag_dict["usr.id"] == "user-abc"
+    assert tag_dict["usr.account_id"] == "acct-xyz"
+
+
+def test_rum_baggage_does_not_overwrite_explicit_session_id(llmobs, llmobs_events):
+    with llmobs.task(session_id="explicit-session") as span:
+        span.context.set_baggage_item("session.id", "rum-session-123")
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["session_id"] == "explicit-session"
+
+
+def test_rum_baggage_does_not_overwrite_annotated_user_tag(llmobs, llmobs_events):
+    with llmobs.task() as span:
+        span.context.set_baggage_item("user.id", "rum-user")
+        llmobs.annotate(span, tags={"usr.id": "explicit-user"})
+    assert len(llmobs_events) == 1
+    tag_dict = dict(t.split(":", 1) for t in llmobs_events[0]["tags"])
+    assert tag_dict["usr.id"] == "explicit-user"
+
+
+def test_rum_baggage_partial_keys_only_tags_what_is_present(llmobs, llmobs_events):
+    with llmobs.task() as span:
+        span.context.set_baggage_item("user.id", "user-only")
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert "session_id" not in event
+    tag_dict = dict(t.split(":", 1) for t in event["tags"])
+    assert tag_dict["usr.id"] == "user-only"
+    assert "usr.account_id" not in tag_dict
+
+
 def test_llm_span(llmobs, llmobs_events):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         assert span.name == "test_llm_call"
