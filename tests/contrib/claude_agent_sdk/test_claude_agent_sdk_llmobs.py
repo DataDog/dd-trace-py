@@ -17,6 +17,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -700,11 +701,11 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
-    async def test_llmobs_multi_turn_produces_two_llm_spans(
+    async def test_llmobs_multi_turn_produces_two_step_spans(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_use_with_followup, test_spans
     ):
-        """Multi-turn: AssistantMessage(tool) → UserMessage(result) → AssistantMessage(text)
-        should produce two LLM spans + one tool span + one agent span.
+        """Multi-turn with a tool call produces two step spans, one per inference cycle.
+        Step 1 contains an llm span and a tool span; step 2 contains only an llm span.
         """
         prompt = "Read /etc/hostname and tell me the hostname."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -856,5 +857,30 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json(input_msgs),
             output_value=safe_json(output_msgs),
             token_metrics=EXPECTED_ASSISTANT_USAGE,
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_tool_error_marks_tool_span_as_error(
+        self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_error, test_spans
+    ):
+        """ToolResultBlock with is_error=True should mark the tool span as an error."""
+        prompt = "Read the file at /etc/hostname"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = test_spans.pop_traces()[0]
+        tool_span = next(s for s in spans if "tool" in s.name)
+
+        assert tool_span.error == 1
+
+        tool_event = next(e for e in llmobs_events if e["meta"]["span"]["kind"] == "tool")
+        assert tool_event == _expected_llmobs_non_llm_span_event(
+            tool_span,
+            span_kind="tool",
+            input_value=safe_json({"file_path": "/etc/hostname"}),
+            output_value=MOCK_TOOL_ERROR_MESSAGE,
+            metadata={"tool_id": MOCK_READ_TOOL_ID},
+            error="ToolError",
+            error_message=MOCK_TOOL_ERROR_MESSAGE,
             tags=COMMON_TAGS,
         )

@@ -4,7 +4,8 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace import tracer
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
@@ -183,7 +184,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                         tool_id = getattr(block, "id", "")
                         tool_name = getattr(block, "name", "unknown_tool")
                         tool_input = getattr(block, "input", {})
-                        tracer.context_provider.activate(self.current_step_span)
                         tool_span = self.integration.trace(
                             "claude_agent_sdk.tool",
                             submit_to_llmobs=True,
@@ -211,7 +211,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                             tool_data = self._active_tool_spans.pop(tool_use_id)
                             result_content = getattr(block, "content", "")
                             tool_output = safe_json(result_content) or str(result_content)
-                            self._finalize_tool_span(tool_data, tool_output)
+                            is_error = getattr(block, "is_error", False) or False
+                            self._finalize_tool_span(tool_data, tool_output, is_error=is_error)
 
             # Once all tool results are in, finalize the deferred step and open the next step+llm span
             if not self._active_tool_spans and self._step_response_chunk is not None:
@@ -225,8 +226,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
                 self._create_step_span()
 
-    def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
+    def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str, is_error: bool = False) -> None:
         tool_span = tool_data["tool_span"]
+
+        if is_error:
+            tool_span.error = 1
+            tool_span.set_tag(ERROR_TYPE, "ToolError")
+            tool_span.set_tag(ERROR_MSG, tool_output)
 
         self.integration.llmobs_set_tags(
             tool_span,
