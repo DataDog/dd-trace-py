@@ -783,7 +783,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
-        self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+        self._shutdown_exporter()  # 3 seconds timeout
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
