@@ -795,3 +795,91 @@ class TestTrackerNameNormalization:
         key = _normalize_dep_name("PyYAML")
         assert key in tracker._imported_dependencies
         assert tracker._imported_dependencies[key]._initial_report_sent is True
+
+
+class TestSnapshotForHeartbeat:
+    """Tests for DependencyTracker.snapshot_for_heartbeat — lock-protected extended-heartbeat payload."""
+
+    def test_empty_tracker_returns_empty_list(self):
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        tracker = DependencyTracker()
+        assert tracker.snapshot_for_heartbeat() == []
+
+    def test_returns_all_entries_serialized(self):
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        tracker = DependencyTracker()
+        tracker._imported_dependencies = {
+            "requests": DependencyEntry(name="requests", version="2.28.0", metadata=[]),
+            "flask": DependencyEntry(name="flask", version="3.0.0"),
+        }
+        tracker._imported_dependencies["requests"].add_metadata("CVE-1", "mod", "func", 10)
+
+        snapshot = tracker.snapshot_for_heartbeat()
+
+        assert len(snapshot) == 2
+        by_name = {d["name"]: d for d in snapshot}
+        assert by_name["requests"]["version"] == "2.28.0"
+        assert "metadata" in by_name["requests"]
+        assert len(by_name["requests"]["metadata"]) == 1
+        # flask has metadata=None -> no "metadata" key
+        assert "metadata" not in by_name["flask"]
+
+    def test_includes_already_sent_metadata(self):
+        """Extended heartbeat must re-send sent metadata (include_all_metadata=True)."""
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.add_metadata("CVE-1", "mod", "func", 10)
+        entry.mark_all_metadata_sent()
+
+        tracker = DependencyTracker()
+        tracker._imported_dependencies = {"requests": entry}
+
+        snapshot = tracker.snapshot_for_heartbeat()
+        assert len(snapshot[0]["metadata"]) == 1
+
+    def test_serialization_holds_lock_against_concurrent_mutation(self):
+        """Concurrent attach_metadata must not race iteration inside json.dumps.
+
+        Spawns a writer thread repeatedly adding CVEs to a tracked entry while the
+        heartbeat serializer builds snapshots. Without the lock, the writer thread
+        could append to ReachabilityMetadata.value["reached"] mid-serialization —
+        json.dumps on a list being mutated in another thread is not safe.
+        """
+        import threading
+
+        from ddtrace.internal.settings._config import config as tracer_config
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        tracer_config._sca_enabled = True
+        tracker = DependencyTracker()
+        tracker._imported_dependencies["requests"] = DependencyEntry(
+            name="requests", version="2.28.0", metadata=[]
+        )
+
+        stop = threading.Event()
+        errors: list[BaseException] = []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                try:
+                    tracker.attach_metadata("requests", f"CVE-{i}", "mod", "func", i)
+                    i += 1
+                except BaseException as exc:  # pragma: no cover — asserted below
+                    errors.append(exc)
+                    return
+
+        t = threading.Thread(target=writer, daemon=True)
+        t.start()
+        try:
+            for _ in range(200):
+                snapshot = tracker.snapshot_for_heartbeat()
+                assert snapshot and snapshot[0]["name"] == "requests"
+        finally:
+            stop.set()
+            t.join(timeout=2)
+
+        assert not errors, errors
