@@ -11,7 +11,7 @@ anthropic,anthropic,0.28.1,0.74.1,True
 aredis,aredis,1.1.8,1.1.8,True
 pytest-asyncio,asyncio *,0.21.1,1.2.0,True
 asyncpg,asyncpg,0.23.0,0.31.0,True
-avro,avro,1.12.0,1.12.0,True
+avro,avro,1.12.1,1.12.1,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
 datadog_lambda,aws_lambda,6.105.0,6.105.0,True
 azure-cosmos,azure_cosmos *,4.9.0,4.15.0,True
