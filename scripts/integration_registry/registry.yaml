@@ -941,7 +941,7 @@ integrations:
   tested_versions_by_dependency:
     structlog:
       min: 20.2.0
-      max: 25.4.0
+      max: 25.5.0
 
 - integration_name: subprocess
   is_external_package: false
