@@ -741,6 +741,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
+            .set_shared_runtime(self._native_runtime.shared_runtime)
         )
         if config.service:
             builder.set_service(config.service)
@@ -773,7 +774,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id())
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        builder.set_shared_runtime(self._native_runtime.shared_runtime)
 
         return builder.build()
 

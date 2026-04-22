@@ -174,7 +174,6 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
-
         self._native_runtime = NativeRuntime()
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,

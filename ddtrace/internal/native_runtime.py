@@ -19,14 +19,9 @@ class NativeRuntime:
 
     def __init__(self) -> None:
         self._shared_runtime = native.SharedRuntime()
-        # Store bound-method references so we can unregister the exact same
-        # objects later (list.remove uses __eq__ on bound methods).
-        self._before_fork_hook = self._before_fork
-        self._after_fork_parent_hook = self._after_fork_parent
-        self._after_fork_child_hook = self._after_fork_child
-        forksafe.register_before_fork(self._before_fork_hook)
-        forksafe.register_after_parent(self._after_fork_parent_hook)
-        forksafe.register(self._after_fork_child_hook)
+        forksafe.register_before_fork(self._before_fork)
+        forksafe.register_after_parent(self._after_fork_parent)
+        forksafe.register(self._after_fork_child)
 
     @property
     def shared_runtime(self) -> native.SharedRuntime:
@@ -50,11 +45,11 @@ class NativeRuntime:
                 already been stopped (e.g. via TraceExporter.shutdown).
         """
         self._shared_runtime.shutdown(timeout_ms=timeout_ms)
-        forksafe.unregister_before_fork(self._before_fork_hook)
-        forksafe.unregister_parent(self._after_fork_parent_hook)
-        forksafe.unregister(self._after_fork_child_hook)
+        forksafe.unregister_before_fork(self._before_fork)
+        forksafe.unregister_parent(self._after_fork_parent)
+        forksafe.unregister(self._after_fork_child)
 
     def __del__(self) -> None:
-        forksafe.unregister_before_fork(self._before_fork_hook)
-        forksafe.unregister_parent(self._after_fork_parent_hook)
-        forksafe.unregister(self._after_fork_child_hook)
+        forksafe.unregister_before_fork(self._before_fork)
+        forksafe.unregister_parent(self._after_fork_parent)
+        forksafe.unregister(self._after_fork_child)

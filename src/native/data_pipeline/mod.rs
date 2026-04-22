@@ -53,11 +53,9 @@ impl SharedRuntimePy {
     fn shutdown(&self, py: Python<'_>, timeout_ms: Option<u64>) -> PyResult<()> {
         let shared_runtime = self.try_as_ref()?.clone();
         let timeout = timeout_ms.map(Duration::from_millis);
-        py.detach(move || {
-            shared_runtime
-                .shutdown(timeout)
-                .map_err(shared_runtime_error_to_pyerr)
-        })
+        shared_runtime
+            .shutdown(timeout)
+            .map_err(shared_runtime_error_to_pyerr)
     }
 
     fn debug(&self) -> String {
