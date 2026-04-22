@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Tracing: Adds Python 3.15 support for coroutine, generator, and async generator wrapping.
