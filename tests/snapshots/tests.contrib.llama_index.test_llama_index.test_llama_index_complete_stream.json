@@ -13,21 +13,22 @@
       "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd23f600000000",
+      "_dd.p.tid": "69e91fda00000000",
       "_dd.svc_src": "llama_index",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.llama_index",
       "language": "python",
       "llama_index.request.model": "gpt-4o-mini",
       "llama_index.request.provider": "openai",
-      "runtime-id": "31d93563eb7a4175a5241c37bb92d0ab"
+      "runtime-id": "1c61162da4a047f8bfb7b65619734e8b"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 488.0
+      "process_id": 605.0
     },
-    "duration": 9121417,
-    "start": 1776100342859439967
+    "duration": 9059667,
+    "start": 1776885722030392297
   }]]

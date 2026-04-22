@@ -9,6 +9,9 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "text-embedding-ada-002",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "687509d100000000",
       "langchain.request.model": "text-embedding-ada-002",
@@ -17,6 +20,7 @@
       "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 0.75,
@@ -37,6 +41,8 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_provider": "faiss",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "687509d100000000",
       "langchain.request.provider": "faiss",
@@ -44,6 +50,7 @@
       "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 0.75,
@@ -63,10 +70,14 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "text-embedding-ada-002",
+         "_dd.llmobs.model_provider": "openai",
+         "_dd.llmobs.span_kind": "embedding",
          "langchain.request.model": "text-embedding-ada-002",
          "langchain.request.provider": "openai"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0,
          "_dd.measured": 1
        },
        "duration": 52000,

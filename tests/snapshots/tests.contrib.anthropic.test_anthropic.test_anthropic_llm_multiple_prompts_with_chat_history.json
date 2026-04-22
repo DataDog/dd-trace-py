@@ -13,12 +13,12 @@
       "_dd.llmobs.model_provider": "anthropic",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd1ffc00000000",
+      "_dd.p.tid": "69e9203400000000",
       "_dd.svc_src": "anthropic",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.anthropic",
       "anthropic.request.model": "claude-3-opus-20240229",
       "language": "python",
-      "runtime-id": "e4f5587622a0430a88cb7719270fa929"
+      "runtime-id": "4a62431cb71240c88eda83587cf3fe4c"
     },
     "metrics": {
       "_dd.llmobs.enabled": 0.0,
@@ -29,8 +29,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 488.0
+      "process_id": 621.0
     },
-    "duration": 3973584,
-    "start": 1776099324401201542
+    "duration": 1748000,
+    "start": 1776885812743568589
   }]]

@@ -9,6 +9,9 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-35-turbo",
+      "_dd.llmobs.model_provider": "azure_openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de554100000000",
       "_dd.svc_src": "tests.contrib.openai",
@@ -23,6 +26,7 @@
       "runtime-id": "a51e01fca0a04f029fd471b3a81ca9c9"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,

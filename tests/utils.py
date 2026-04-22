@@ -1223,18 +1223,6 @@ def snapshot_context(
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
         ignores.append("meta._dd.tags.process")
-    # LLMObs shadow tags may vary between test environments
-    ignores.extend(
-        [
-            "meta._dd.llmobs.span_kind",
-            "meta._dd.llmobs.model_name",
-            "meta._dd.llmobs.model_provider",
-            "metrics._dd.llmobs.enabled",
-            "metrics._dd.llmobs.input_tokens",
-            "metrics._dd.llmobs.output_tokens",
-            "metrics._dd.llmobs.total_tokens",
-        ]
-    )
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)

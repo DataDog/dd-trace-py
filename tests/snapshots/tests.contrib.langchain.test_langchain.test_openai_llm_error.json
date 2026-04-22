@@ -9,25 +9,29 @@
     "type": "",
     "error": 1,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-3.5-turbo-instruct",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de496000000000",
+      "_dd.p.tid": "69e91e4100000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "error.message": "Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/langchain/patch.py\", line 72, in traced_llm_generate\n    completions = func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/langchain_core/language_models/llms.py\", line 803, in generate\n    output = self._generate_helper(\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/langchain_core/language_models/llms.py\", line 670, in _generate_helper\n    raise e\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/langchain_core/language_models/llms.py\", line 657, in _generate_helper\n    self._generate(\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/langchain_openai/llms/base.py\", line 350, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/openai/_utils/_utils.py\", line 286, in wrapper\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/openai/resources/completions.py\", line 541, in create\n    return self._post(\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/openai/_base_client.py\", line 1259, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/home/bits/project/.riot/venv_py3925_176838af7a41f69b/lib/python3.9/site-packages/openai/_base_client.py\", line 1047, in request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/langchain/patch.py\", line 72, in traced_llm_generate\n    completions = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 1000, in generate\n    return self._generate_helper(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 815, in _generate_helper\n    self._generate(\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/langchain_openai/llms/base.py\", line 446, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/openai/_utils/_utils.py\", line 286, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/openai/resources/completions.py\", line 541, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/openai/_base_client.py\", line 1259, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_11b0e127c98a1692/lib/python3.12/site-packages/openai/_base_client.py\", line 1047, in request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}\n",
       "error.type": "openai.BadRequestError",
       "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.provider": "openai",
       "language": "python",
-      "runtime-id": "5d52c01e8808486cb32b3d08c8e2c347"
+      "runtime-id": "d7ad066befb447f5b032e61e42823050"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 69535.0
+      "process_id": 488.0
     },
-    "duration": 8758376,
-    "start": 1776175456401195628
+    "duration": 8036917,
+    "start": 1776885313390404302
   }]]

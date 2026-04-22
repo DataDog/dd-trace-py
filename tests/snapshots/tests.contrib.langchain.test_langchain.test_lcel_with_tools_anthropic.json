@@ -9,22 +9,26 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "claude-3-opus-20240229",
+      "_dd.llmobs.model_provider": "anthropic",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de49c500000000",
+      "_dd.p.tid": "69e9271700000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.model": "claude-3-opus-20240229",
       "langchain.request.provider": "anthropic",
       "language": "python",
-      "runtime-id": "7dc4cd5b529f415b831ffb034ebc6ed5"
+      "runtime-id": "f2d6586de5d244eabf82925f017a421a"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 70110.0
+      "process_id": 488.0
     },
-    "duration": 5817250,
-    "start": 1776175557141258217
+    "duration": 31094667,
+    "start": 1776887575217331960
   }]]
