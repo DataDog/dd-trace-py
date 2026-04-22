@@ -1548,6 +1548,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        # Keep config._llmobs_enabled aligned so _ConfigItem.value() reflects reality.
         config._llmobs_enabled = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)

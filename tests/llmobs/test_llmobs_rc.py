@@ -50,7 +50,7 @@ def test_rc_missing_llmobs_is_noop():
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._product import apm_tracing_rc
 
-    for payload in ({}, {"llmobs": {}}, {"llmobs": {"enabled": None}}):
+    for payload in ({}, {"llmobs": None}, {"llmobs": {}}, {"llmobs": {"enabled": None}}):
         with mock.patch.object(LLMObs, "enable") as mock_enable:
             apm_tracing_rc(payload, ddtrace.config)
 
