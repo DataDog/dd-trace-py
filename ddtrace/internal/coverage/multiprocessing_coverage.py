@@ -47,6 +47,12 @@ class CoverageCollectingMultiprocess(BaseProcess):
         if not self._dd_coverage_enabled or ModuleCodeCollector._instance is None:
             return
 
+        # Don't absorb if coverage has been fully stopped and no context capture is active.
+        # Without this guard, inject_coverage() would merge executable lines but skip covered
+        # lines (both are gated on their respective enabled flags), inflating the denominator.
+        if not ModuleCodeCollector.coverage_enabled() and self._parent_ctx_covered is None:
+            return
+
         if self._parent_conn is None:
             log.debug("Pipe was None when absorbing child coverage data", exc_info=True)
             return
