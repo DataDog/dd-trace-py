@@ -825,6 +825,12 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
+            # Keep ddtrace.config._llmobs_enabled aligned with the effective state so
+            # _ConfigItem.value() reflects reality for consumers (notably the
+            # APM_TRACING RC handler in ddtrace/llmobs/_product.py). Routed through
+            # Config.__setattr__ → set_value(True, "code"), so env/rc precedence is
+            # preserved.
+            config._llmobs_enabled = True
             cls._instance.start()
 
             # Register hooks for span events
@@ -1546,6 +1552,9 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        # Mirror cls.enabled into ddtrace.config._llmobs_enabled so _ConfigItem.value()
+        # stays consistent with the effective state; see LLMObs.enable() for rationale.
+        config._llmobs_enabled = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
