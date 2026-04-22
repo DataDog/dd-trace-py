@@ -51,7 +51,7 @@ integrations:
   tested_versions_by_dependency:
     aiomysql:
       min: 0.1.1
-      max: 0.2.0
+      max: 0.3.2
 
 - integration_name: aiopg
   is_external_package: true
@@ -881,7 +881,7 @@ integrations:
   tested_versions_by_dependency:
     rq:
       min: 1.8.1
-      max: 2.7.0
+      max: 2.0.0
 
 - integration_name: sanic
   is_external_package: true

@@ -147,27 +147,27 @@ def test_stripe_checkout_session_create(
 
     expected_tags = {
         "appsec.events.payments.integration": "stripe",
-        "appsec.events.payments.create.id": session.id,
-        "appsec.events.payments.create.currency": session.currency,
-        "appsec.events.payments.create.client_reference_id": "order_123",
+        "appsec.events.payments.creation.id": session.id,
+        "appsec.events.payments.creation.currency": session.currency,
+        "appsec.events.payments.creation.client_reference_id": "order_123",
     }
 
     for tag, expected_value in expected_tags.items():
         assert span.get_tag(tag) == expected_value
 
     expected_metrics = {
-        "appsec.events.payments.create.amount_total": session.amount_total,
-        "appsec.events.payments.create.total_details.amount_discount": session.total_details.amount_discount,
-        "appsec.events.payments.create.total_details.amount_shipping": session.total_details.amount_shipping,
-        "appsec.events.payments.create.livemode": int(session.livemode),
+        "appsec.events.payments.creation.amount_total": session.amount_total,
+        "appsec.events.payments.creation.total_details.amount_discount": session.total_details.amount_discount,
+        "appsec.events.payments.creation.total_details.amount_shipping": session.total_details.amount_shipping,
+        "appsec.events.payments.creation.livemode": int(session.livemode),
     }
 
     for discount in stripe_discount:
         for key, value in discount.items():
             if key == "promotion_code":
-                expected_tags["appsec.events.payments.create.promotion_code"] = value
+                expected_tags["appsec.events.payments.creation.promotion_code"] = value
             if key == "coupon":
-                expected_tags["appsec.events.payments.create.coupon"] = value
+                expected_tags["appsec.events.payments.creation.coupon"] = value
 
     for metric, expected_value in expected_metrics.items():
         assert span.get_metric(metric) == expected_value
@@ -277,16 +277,16 @@ def test_stripe_payment_intent_create(
 
     expected_tags = {
         "appsec.events.payments.integration": "stripe",
-        "appsec.events.payments.create.id": session.id,
-        "appsec.events.payments.create.currency": session.currency,
-        "appsec.events.payments.create.payment_method": stripe_payment_method.id,
+        "appsec.events.payments.creation.id": session.id,
+        "appsec.events.payments.creation.currency": session.currency,
+        "appsec.events.payments.creation.payment_method": stripe_payment_method.id,
     }
 
     for tag, expected_value in expected_tags.items():
         assert span.get_tag(tag) == expected_value
 
     expected_metrics = {
-        "appsec.events.payments.create.livemode": int(session.livemode),
+        "appsec.events.payments.creation.livemode": int(session.livemode),
     }
 
     for metric, expected_value in expected_metrics.items():
