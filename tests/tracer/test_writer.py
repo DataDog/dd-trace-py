@@ -1110,6 +1110,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
+        "set_shared_runtime",
         "enable_telemetry",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
