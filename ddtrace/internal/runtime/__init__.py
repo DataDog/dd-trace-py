@@ -8,6 +8,7 @@ from .. import forksafe
 
 __all__ = [
     "get_ancestor_runtime_id",
+    "get_process_role",
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
@@ -80,6 +81,20 @@ def get_parent_runtime_id() -> t.Optional[str]:
     variable (multiprocessing spawn/forkserver). Returns ``None`` in the root process.
     """
     return _PARENT_RUNTIME_ID
+
+
+def get_process_role() -> t.Optional[str]:
+    """Return the role of this process in a forking framework.
+
+    Returns ``'worker'`` if this process was forked from a parent (or spawned
+    as a child via multiprocessing), ``'main'`` if this process has forked
+    worker children, or ``None`` for a single-process application.
+    """
+    if _PARENT_RUNTIME_ID is not None:
+        return "worker"
+    if forksafe.has_forked():
+        return "main"
+    return None
 
 
 def get_runtime_propagation_envs() -> dict[str, str]:

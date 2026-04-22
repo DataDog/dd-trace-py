@@ -8,7 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "_dd.appsec.event_rules.version": "1.16.1",
+      "_dd.appsec.event_rules.version": "1.18.0",
       "_dd.appsec.fp.http.endpoint": "http-get-8a5edab2--",
       "_dd.appsec.fp.http.header": "hdr-0110000010-bcea973b-1-4740ae63",
       "_dd.appsec.fp.http.network": "net-0-0000000000",
@@ -48,7 +48,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
-      "_dd.appsec.event_rules.loaded": 166.0,
+      "_dd.appsec.event_rules.loaded": 199.0,
       "_dd.appsec.waf.duration": 97.0,
       "_dd.appsec.waf.duration_ext": 177.41699775797315,
       "_dd.measured": 1.0,
