@@ -121,9 +121,10 @@ def _(asyncio: ModuleType) -> None:
                 children = get_argument_value(args, kwargs, 1, "children")
                 assert children is not None  # nosec: assert is used for typing
 
-                parent = globals()["current_task"]()
-                for child in children:
-                    stack.link_tasks(parent, child)
+                if globals()["get_running_loop"]() is not None:
+                    parent = globals()["current_task"]()
+                    for child in children:
+                        stack.link_tasks(parent, child)
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
@@ -136,9 +137,10 @@ def _(asyncio: ModuleType) -> None:
             finally:
                 futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
 
-                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
-                for future in futures:
-                    stack.link_tasks(parent, future)
+                if globals()["get_running_loop"]() is not None:
+                    parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
+                    for future in futures:
+                        stack.link_tasks(parent, future)
 
         @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
         def _(
