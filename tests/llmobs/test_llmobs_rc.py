@@ -57,3 +57,21 @@ def test_rc_missing_llmobs_is_noop():
         mock_enable.assert_not_called()
         assert ddtrace.config._llmobs_enabled is False
         assert not LLMObs.enabled
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_REMOTE_CONFIGURATION_ENABLED": "false", "DD_LLMOBS_ENABLED": "true"})
+def test_rc_missing_llmobs_does_not_disable_enabled_llmobs():
+    """A payload without an llmobs.enabled directive must not disable already-enabled LLMObs."""
+    import mock
+
+    import ddtrace
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._product import apm_tracing_rc
+
+    assert LLMObs.enabled
+    for payload in ({}, {"llmobs": {}}, {"llmobs": {"ml_app_name": "some-app"}}):
+        with mock.patch.object(LLMObs, "disable") as mock_disable:
+            apm_tracing_rc(payload, ddtrace.config)
+
+        mock_disable.assert_not_called()
+        assert LLMObs.enabled

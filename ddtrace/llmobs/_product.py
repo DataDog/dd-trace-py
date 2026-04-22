@@ -69,14 +69,20 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     """
     from ddtrace.llmobs import LLMObs
 
-    llmobs_config = lib_config.get("llmobs", {})
+    llmobs_config = lib_config.get("llmobs") or {}
 
     enabled_config = dd_config._config["_llmobs_enabled"]
-    enabled_config.set_value(llmobs_config.get("enabled"), "remote_config")
-
     ml_app_config = dd_config._config["_llmobs_ml_app"]
-    ml_app_config.set_value(llmobs_config.get("ml_app_name"), "remote_config")
 
+    ml_app_name = llmobs_config.get("ml_app_name")
+    if ml_app_name is not None:
+        ml_app_config.set_value(ml_app_name, "remote_config")
+
+    enabled = llmobs_config.get("enabled")
+    if enabled is None:
+        return
+
+    enabled_config.set_value(enabled, "remote_config")
     if enabled_config.value() and not LLMObs.enabled:
         log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", ml_app_config.value())
         LLMObs.enable(ml_app=ml_app_config.value(), _auto=True)
