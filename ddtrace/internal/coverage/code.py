@@ -32,6 +32,8 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
+_SYS_VERSION_INFO = sys.version_info
+
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
@@ -248,12 +250,12 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
             # so also store in thread-local as a fallback for the hook.
-            if sys.version_info >= (3, 14):
+            if _SYS_VERSION_INFO >= (3, 14):
                 _tls_coverage.covered = ctx_covered.get()[-1]
 
             # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
             # This ensures each test/suite gets accurate coverage data
-            if sys.version_info >= (3, 12):
+            if _SYS_VERSION_INFO >= (3, 12):
                 sys.monitoring.restart_events()
 
             return self
@@ -265,9 +267,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
-                if sys.version_info >= (3, 14):
+                if _SYS_VERSION_INFO >= (3, 14):
                     _tls_coverage.covered = None
-            elif sys.version_info >= (3, 14):
+            elif _SYS_VERSION_INFO >= (3, 14):
                 _tls_coverage.covered = covered_lines_stack[-1]
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
@@ -375,7 +377,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules.
         # Call hook directly after the import-time context is set up so coverage is
         # recorded in the correct context.
-        if sys.version_info >= (3, 13) and code.co_code == _EMPTY_MODULE_BYTES:
+        if _SYS_VERSION_INFO >= (3, 13) and code.co_code == _EMPTY_MODULE_BYTES:
             package = _module.__package__ if _module is not None else ""
             import_info = (package, ("",)) if package else None
             self.hook((0, code.co_filename, import_info))
