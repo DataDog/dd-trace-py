@@ -409,6 +409,7 @@ suites:
       - '@tracing'
       - '@azure_eventhubs'
       - tests/contrib/azure_eventhubs/*
+      - tests/snapshots/tests.contrib.azure_eventhubs.*
     snapshot: true
     services:
       - azurite
