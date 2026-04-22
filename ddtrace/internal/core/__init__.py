@@ -189,6 +189,10 @@ class ExecutionContext(Generic[EventType]):
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
+        if self._event is not None and getattr(self._event, "_emit_scoped_event", False):
+            _component = getattr(self._event, "component", None)
+            if _component:
+                dispatch("context.started.%s.%s" % (self.identifier, _component), (self,))
         return self
 
     def __repr__(self) -> str:
@@ -213,6 +217,13 @@ class ExecutionContext(Generic[EventType]):
         if self._dispatch_end_event and not self._end_event_dispatched:
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
             dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            if self._event is not None and getattr(self._event, "_emit_scoped_event", False):
+                _component = getattr(self._event, "component", None)
+                if _component:
+                    dispatch(
+                        "context.ended.%s.%s" % (self.identifier, _component),
+                        (self, (exc_type, exc_value, traceback)),
+                    )
             self._end_event_dispatched = True
         try:
             if self._token is not None:

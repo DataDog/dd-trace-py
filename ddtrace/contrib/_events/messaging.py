@@ -36,6 +36,9 @@ def _init_messaging_event(event: _MessagingEvent, operation: str, direction: Spa
 class MessagingPublishEvent(TracingEvent):
     """Event for messaging publish/produce operations.
 
+    Sets _emit_scoped_event so integrations can subscribe to
+    ``context.started.messaging.publish.<component>`` without guards.
+
     Pass ``headers`` as the message's own mutable ``dict[str, str]``.
     After context entry, ``MessagingTracingSubscriber`` injects distributed-
     tracing context directly into this dict; the DSM subscriber (if enabled)
@@ -52,6 +55,7 @@ class MessagingPublishEvent(TracingEvent):
     event_name = "messaging.publish"
     span_kind = SpanKind.PRODUCER
     span_type = SpanTypes.WORKER
+    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()
@@ -81,6 +85,7 @@ class MessagingConsumeEvent(TracingEvent):
     event_name = "messaging.consume"
     span_kind = SpanKind.CONSUMER
     span_type = SpanTypes.WORKER
+    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()
@@ -111,6 +116,7 @@ class MessagingActionEvent(TracingEvent):
     event_name = "messaging.action"
     span_kind = SpanKind.INTERNAL
     span_type = SpanTypes.WORKER
+    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()

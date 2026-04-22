@@ -29,6 +29,9 @@ class TracingEvent(Event):
 
     span_type: ClassVar[str]
     span_kind: ClassVar[str]
+    # When True, ExecutionContext also dispatches context.started.<event_name>.<component>
+    # so integrations can subscribe to scoped events without guards or subclasses.
+    _emit_scoped_event: ClassVar[bool] = False
 
     # These attributes are required but can be known only at instance-creation time.
     component: str = field()
