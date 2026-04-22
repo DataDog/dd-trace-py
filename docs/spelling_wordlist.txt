@@ -123,6 +123,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
