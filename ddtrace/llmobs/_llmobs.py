@@ -80,6 +80,8 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
@@ -392,8 +394,8 @@ def _finalize_meta_struct(
     model_name = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_NAME, None)
     model_provider = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_PROVIDER, None)
     if span_kind in ("llm", "embedding"):
-        llmobs_meta[LLMOBS_STRUCT.MODEL_NAME] = model_name or "unknown"
-        llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or "unknown").lower()
+        llmobs_meta[LLMOBS_STRUCT.MODEL_NAME] = model_name or UNKNOWN_MODEL_NAME
+        llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
     intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
@@ -558,7 +560,11 @@ class LLMObs(Service):
         the span has no LLMObs data or the user processor dropped it.
         """
         llmobs_data = _get_llmobs_data_metastruct(span)
-        if not llmobs_data or not span_kind:
+        if not llmobs_data:
+            log.warning("Failed to validate LLMObs data for span %s, missing LLMObs data entirely", span)
+            return False
+        if not span_kind:
+            log.warning("Failed to validate LLMObs data for span %s due to missing span kind", span)
             return False
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())

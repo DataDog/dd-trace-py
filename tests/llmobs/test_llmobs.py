@@ -356,13 +356,15 @@ def test_error_is_set(tracer, llmobs_events):
     assert 'raise ValueError("error")' in span_event["meta"]["error"]["stack"]
 
 
-def test_model_provider_defaults_to_custom(tracer, llmobs_events):
-    """Test that model provider defaults to "custom" if not provided."""
+def test_model_provider_defaults_to_unknown(tracer, llmobs_events):
+    """Test that model provider defaults to "unknown" if not provided."""
+    from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name")
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
-    assert span_event["meta"]["model_provider"] == "custom"
+    assert span_event["meta"]["model_provider"] == UNKNOWN_MODEL_PROVIDER
 
 
 def test_model_not_set_if_not_llm_kind_span(tracer, llmobs_events):
@@ -384,11 +386,11 @@ def test_model_and_provider_are_set(tracer, llmobs_events):
 
 
 def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, mock_llmobs_logs):
-    """Test that a trying to create a span event from a malformed span will log an error instead of crashing."""
+    """Test that trying to create a span event from a malformed span logs a warning instead of crashing."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         pass  # span does not have SPAN_KIND tag
-    mock_llmobs_logs.error.assert_called_with(
-        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
+    mock_llmobs_logs.warning.assert_called_with(
+        "Failed to validate LLMObs data for span %s due to missing span kind", llm_span
     )
     assert len(llmobs_events) == 0
 
