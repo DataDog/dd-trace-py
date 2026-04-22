@@ -50,7 +50,6 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
 
-
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
