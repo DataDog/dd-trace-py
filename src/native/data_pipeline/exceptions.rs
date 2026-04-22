@@ -1,5 +1,4 @@
 use libdd_data_pipeline::trace_exporter::error::TraceExporterError;
-use libdd_shared_runtime::SharedRuntimeError as NativeSharedRuntimeError;
 use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr};
 
 create_exception!(
@@ -51,13 +50,6 @@ create_exception!(
     PyException,
     "Serialization error"
 );
-create_exception!(
-    trace_exporter_exceptions,
-    SharedRuntimeError,
-    PyException,
-    "Shared runtime error"
-);
-
 pub struct TraceExporterErrorPy(pub TraceExporterError);
 
 impl From<TraceExporterErrorPy> for PyErr {
@@ -99,10 +91,6 @@ impl From<TraceExporterError> for TraceExporterErrorPy {
     }
 }
 
-pub fn shared_runtime_error_to_pyerr(error: NativeSharedRuntimeError) -> PyErr {
-    SharedRuntimeError::new_err(error.to_string())
-}
-
 pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("AgentError", m.py().get_type::<AgentError>())?;
     m.add("BuilderError", m.py().get_type::<BuilderError>())?;
@@ -117,10 +105,6 @@ pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add(
         "SerializationError",
         m.py().get_type::<SerializationError>(),
-    )?;
-    m.add(
-        "SharedRuntimeError",
-        m.py().get_type::<SharedRuntimeError>(),
     )?;
     Ok(())
 }

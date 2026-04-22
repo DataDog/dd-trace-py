@@ -3,65 +3,11 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
-use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
-use std::sync::Arc;
 use std::time::Duration;
 mod exceptions;
-use exceptions::{shared_runtime_error_to_pyerr, TraceExporterErrorPy};
-
-#[pyclass(name = "SharedRuntime")]
-pub struct SharedRuntimePy {
-    inner: Option<Arc<SharedRuntime>>,
-}
-
-impl SharedRuntimePy {
-    fn try_as_ref(&self) -> PyResult<&Arc<SharedRuntime>> {
-        self.inner.as_ref().ok_or(PyValueError::new_err(
-            "SharedRuntime has already been consumed",
-        ))
-    }
-}
-
-#[pymethods]
-impl SharedRuntimePy {
-    #[new]
-    fn new() -> PyResult<Self> {
-        let inner = SharedRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
-        Ok(Self {
-            inner: Some(Arc::new(inner)),
-        })
-    }
-
-    fn before_fork(&self) -> PyResult<()> {
-        self.try_as_ref()?.before_fork();
-        Ok(())
-    }
-
-    fn after_fork_parent(&self) -> PyResult<()> {
-        self.try_as_ref()?
-            .after_fork_parent()
-            .map_err(shared_runtime_error_to_pyerr)
-    }
-
-    fn after_fork_child(&self) -> PyResult<()> {
-        self.try_as_ref()?
-            .after_fork_child()
-            .map_err(shared_runtime_error_to_pyerr)
-    }
-
-    fn shutdown(&self, timeout_ms: Option<u64>) -> PyResult<()> {
-        let shared_runtime = self.try_as_ref()?.clone();
-        let timeout = timeout_ms.map(Duration::from_millis);
-        shared_runtime
-            .shutdown(timeout)
-            .map_err(shared_runtime_error_to_pyerr)
-    }
-
-    fn debug(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-}
+use crate::shared_runtime::SharedRuntimePy;
+use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -244,7 +190,7 @@ impl TraceExporterBuilderPy {
         mut slf: PyRefMut<'_, Self>,
         shared_runtime: PyRef<'_, SharedRuntimePy>,
     ) -> PyResult<Py<Self>> {
-        let shared_runtime = shared_runtime.try_as_ref()?.clone();
+        let shared_runtime = shared_runtime.as_arc().clone();
         slf.try_as_mut()?.set_shared_runtime(shared_runtime);
         Ok(slf.into())
     }
@@ -322,7 +268,6 @@ impl TraceExporterPy {
 
 #[pymodule]
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SharedRuntimePy>()?;
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
