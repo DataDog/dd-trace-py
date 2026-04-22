@@ -376,10 +376,10 @@ class ProfilingConfigLock(DDConfig):
     )
 
     primitives = DDConfig.v(
-        set,
+        frozenset,
         "primitives",
-        parser=lambda raw: set(p.strip() for p in raw.split(",") if p.strip()),
-        default=set({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
         help_type="String",
         help=(
             "Comma-separated list of lock primitive types to profile. "
