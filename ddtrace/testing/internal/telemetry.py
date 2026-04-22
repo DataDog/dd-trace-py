@@ -301,6 +301,25 @@ class TelemetryAPI:
         self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
 
+    def record_commit_sha_match(self, matched: bool) -> None:
+        self.add_count_metric("git.commit_sha_match", 1, {"matched": "true" if matched else "false"})
+
+    def record_commit_sha_discrepancy(
+        self,
+        expected_provider: str,
+        discrepant_provider: str,
+        discrepancy_type: str,
+    ) -> None:
+        self.add_count_metric(
+            "git.commit_sha_discrepancy",
+            1,
+            {
+                "expected_provider": expected_provider,
+                "discrepant_provider": discrepant_provider,
+                "type": discrepancy_type,
+            },
+        )
+
 
 class _PayloadFileTelemetryClient:
     """Drop-in replacement for ``_TelemetryClient`` that writes payloads to files.
