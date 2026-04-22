@@ -538,7 +538,7 @@ class LockCollector(collector.CaptureSamplerCollector):
                 if precomputed_internal_file and caller_filename:
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
                     is_internal = caller_filename == precomputed_internal_file
-            except OSError:
+            except (ValueError, AttributeError, OSError):
                 pass
 
             return self.PROFILED_LOCK_CLASS(
