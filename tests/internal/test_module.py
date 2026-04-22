@@ -457,7 +457,7 @@ def test_module_watchdog_pkg_resources_support():
 
         p.resource_listdir("namespace_test.ns_module", ".")
     except Exception as e:
-        pytest.fail("Using pkg_resources raised exception", e)
+        assert False, f"Using pkg_resources raised exception: {e}"
 
 
 @pytest.mark.subprocess(
