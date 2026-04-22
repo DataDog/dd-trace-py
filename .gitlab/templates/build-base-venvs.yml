@@ -1,7 +1,9 @@
 build_base_venvs:
   extends: .cached_testrunner
   stage: setup
-  needs: []
+  needs:
+    - job: prepare_version_support_riot
+      artifacts: true
   parallel:
     matrix:
       - PYTHON_VERSION: [{python_versions}]
