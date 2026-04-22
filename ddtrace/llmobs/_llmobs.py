@@ -1704,9 +1704,7 @@ class LLMObs(Service):
 
             # With explicit label and fallback
             prompt = LLMObs.get_prompt(
-                "greeting",
-                label="production",
-                fallback="Hello {{user}}, how can I help?"
+                "greeting", label="production", fallback="Hello {{user}}, how can I help?"
             )
 
             # Use with annotation_context for observability
@@ -1714,9 +1712,7 @@ class LLMObs(Service):
             prompt = LLMObs.get_prompt("greeting")
             variables = {"user": "Alice"}
             with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(**variables)):
-                openai.chat.completions.create(
-                    messages=prompt.format(**variables)
-                )
+                openai.chat.completions.create(messages=prompt.format(**variables))
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(prompt_id, label, fallback)
