@@ -118,8 +118,8 @@ integrations:
   - avro
   tested_versions_by_dependency:
     avro:
-      min: 1.12.0
-      max: 1.12.0
+      min: 1.12.1
+      max: 1.12.1
 
 - integration_name: aws_lambda
   is_external_package: true
@@ -339,11 +339,11 @@ integrations:
   - opensearch-py
   tested_versions_by_dependency:
     elastic-transport:
-      min: 8.11.0
-      max: 9.1.0
+      min: 8.17.1
+      max: 9.2.1
     elasticsearch:
       min: 7.13.4
-      max: 9.1.0
+      max: 9.3.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -358,7 +358,7 @@ integrations:
       max: 6.8.2
     elasticsearch7:
       min: 7.13.4
-      max: 7.17.12
+      max: 7.17.13
     opensearch-py:
       min: 1.1.0
       max: 3.0.0
@@ -381,7 +381,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.135.3
+      max: 0.136.0
 
 - integration_name: flask
   is_external_package: true
@@ -623,7 +623,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.13
+      max: 1.1.14
 
 - integration_name: mcp
   is_external_package: true
@@ -734,7 +734,7 @@ integrations:
   - pydantic-ai-slim
   tested_versions_by_dependency:
     pydantic-ai-slim:
-      min: 0.3.0
+      min: 0.8.1
       max: 1.63.0
 
 - integration_name: pylibmc
@@ -941,7 +941,7 @@ integrations:
   tested_versions_by_dependency:
     structlog:
       min: 20.2.0
-      max: 25.4.0
+      max: 25.5.0
 
 - integration_name: subprocess
   is_external_package: false
