@@ -21,6 +21,7 @@ import wrapt
 
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
+from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -498,10 +499,9 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-    # We always collect the IP if appsec or AI Guard is enabled to report it on potential vulnerabilities.
-    # AI Guard: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
-    # AppSec: https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip or ai_guard_config._ai_guard_enabled:
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
         # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
         request_ip = core.find_item("http.request.remote_ip")
 
@@ -512,6 +512,13 @@ def set_http_meta(
         if request_ip:
             span._set_attribute(http.CLIENT_IP, request_ip)
             span._set_attribute("network.client.ip", request_ip)
+    elif ai_guard_config._ai_guard_enabled:
+        # AI Guard: stash the candidate IP so it can be applied to the service-entry span
+        # only if an ai_guard span is actually created during the request.
+        # https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
+        candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+        if candidate_ip:
+            core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, candidate_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)

@@ -1,8 +1,9 @@
 ---
 features:
   - |
-    AI Guard: When ``DD_AI_GUARD_ENABLED=true`` is set, the tracer now populates the
-    ``http.client_ip`` and ``network.client.ip`` tags on the service-entry (local root)
-    span for every HTTP request, mirroring the behavior used for Application Security.
-    ``DD_TRACE_CLIENT_IP_ENABLED`` is ignored when AI Guard is enabled, and
+    AI Guard: When ``DD_AI_GUARD_ENABLED=true`` is set and an ``ai_guard`` span is created
+    during a request, the tracer now populates ``http.client_ip`` and ``network.client.ip``
+    on the service-entry (local root) span, mirroring the behavior used for Application
+    Security. If AI Guard does not run during the request, no client IP tags are added.
+    ``DD_TRACE_CLIENT_IP_ENABLED`` is ignored once AI Guard reports, and
     ``DD_TRACE_CLIENT_IP_HEADER`` continues to override header resolution.
