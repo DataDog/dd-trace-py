@@ -292,6 +292,10 @@ class Git:
             if TelemetryAPI._instance is not None:
                 TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
+    def get_merge_base(self, sha1: str, sha2: str) -> str:
+        """Return the best common ancestor commit SHA of sha1 and sha2."""
+        return self._git_output(["merge-base", sha1, sha2])
+
     def pack_objects(self, revisions: list[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
         revisions_text = "\n".join(revisions)
@@ -318,6 +322,21 @@ class Git:
 
             for packfile in Path(output_dir).glob(f"{base_name}*.pack"):
                 yield packfile
+
+
+def get_pr_base_commit_sha(base_branch_head_sha: str, head_sha: str) -> t.Optional[str]:
+    """Compute the true PR base commit SHA as the merge base of base_branch_head_sha and head_sha.
+
+    On GitHub Actions, pull_request.base.sha is the HEAD of the base branch, not the actual merge
+    base commit. This function uses `git merge-base` to find the common ancestor.
+    """
+    try:
+        git = Git()
+    except RuntimeError as e:
+        log.warning("Error getting git data for merge-base computation: %s", e)
+        return None
+
+    return git.get_merge_base(base_branch_head_sha, head_sha) or None
 
 
 def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
