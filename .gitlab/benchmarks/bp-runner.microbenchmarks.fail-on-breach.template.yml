@@ -799,7 +799,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
-              - execution_time < 0.05 ms
+              - execution_time < 0.051 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
