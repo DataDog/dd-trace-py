@@ -371,7 +371,7 @@ class ProfilingConfigLock(DDConfig):
         help=(
             "Comma-separated list of module or package names to exclude from lock profiling. "
             "Locks created from these modules are not profiled."
-            "Examples: ``django.db,sqlalchemy.pool,urllib3``"
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
         ),
     )
 
