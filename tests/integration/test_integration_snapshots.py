@@ -110,7 +110,7 @@ def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
 
-    writer = NativeWriter(tracer._span_aggregator.writer.intake_url, tracer._native_runtime, sync_mode=True)
+    writer = NativeWriter(tracer._span_aggregator.writer.intake_url, sync_mode=True)
     tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):

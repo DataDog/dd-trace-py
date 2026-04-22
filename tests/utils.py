@@ -31,7 +31,6 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
-from ddtrace.internal.native_runtime import NativeRuntime
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
@@ -52,20 +51,6 @@ from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
-
-
-# Shared NativeRuntime for all DummyWriter instances in tests.
-# A single Tokio async runtime is reused across all writers to avoid
-# spawning many runtimes that are never shut down, which causes deadlocks
-# in test suites that create many DummyWriters.
-_shared_test_native_runtime: NativeRuntime = None  # type: ignore[assignment]
-
-
-def get_shared_test_native_runtime() -> NativeRuntime:
-    global _shared_test_native_runtime
-    if _shared_test_native_runtime is None:
-        _shared_test_native_runtime = NativeRuntime()
-    return _shared_test_native_runtime
 
 
 NO_CHILDREN = object()
@@ -624,7 +609,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
         kwargs["stats_opt_out"] = asm_config._apm_opt_out
-        self._inner_writer = NativeWriter(*args, **kwargs, native_runtime=get_shared_test_native_runtime())
+        self._inner_writer = NativeWriter(*args, **kwargs)
 
         DummyWriterMixin.__init__(self, *args, **kwargs)
 

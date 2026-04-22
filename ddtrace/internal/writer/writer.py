@@ -14,7 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
-from ddtrace.internal.native_runtime import NativeRuntime
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -611,7 +611,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def __init__(
         self,
         intake_url: str,
-        native_runtime: NativeRuntime,
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
         # Match the payload size since there is no functionality
@@ -699,7 +698,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-        self._native_runtime = native_runtime
 
         self._exporter = self._create_exporter()
 
@@ -741,7 +739,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
-            .set_shared_runtime(self._native_runtime.shared_runtime)
+            .set_shared_runtime(get_native_runtime().inner)
         )
         if config.service:
             builder.set_service(config.service)
@@ -811,7 +809,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
-            native_runtime=self._native_runtime,
         )
 
     def _downgrade(self, status, client):
@@ -1064,7 +1061,6 @@ def _use_sync_mode() -> bool:
 
 
 def create_trace_writer(
-    native_runtime: "NativeRuntime",
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
 ) -> TraceWriter:
     if _use_log_writer():
@@ -1098,5 +1094,4 @@ def create_trace_writer(
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,
         otlp_endpoint=otlp_endpoint,
-        native_runtime=native_runtime,
     )

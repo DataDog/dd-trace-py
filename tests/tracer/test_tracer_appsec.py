@@ -16,7 +16,6 @@ from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.appsec.utils import asm_context
-from tests.utils import get_shared_test_native_runtime
 from tests.utils import override_env
 
 
@@ -49,12 +48,11 @@ def test_aggregator_reset_with_args():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=1,
-        native_runtime=get_shared_test_native_runtime(),
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
 
-    aggr.writer = NativeWriter("http://localhost:8126", get_shared_test_native_runtime(), api_version="v0.5")
+    aggr.writer = NativeWriter("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
