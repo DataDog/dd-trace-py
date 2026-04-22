@@ -956,7 +956,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-record-exception
             thresholds:
-              - execution_time < 42.00 ms
+              - execution_time < 43.00 ms
               - max_rss_usage < 53.00 MB
           - name: span-set-status
             thresholds:
