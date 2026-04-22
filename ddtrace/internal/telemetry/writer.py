@@ -191,6 +191,7 @@ class TelemetryWriter(PeriodicService):
             forksafe.register(self._fork_writer)
             # shutdown the telemetry writer when the application exits
             atexit.register(self.app_shutdown)
+            atexit.register_on_exit_signal(self.app_shutdown)
             # Captures unhandled exceptions during application start up
             self.install_excepthook()
             # In order to support 3.12, we start the writer upon initialization.
@@ -699,6 +700,9 @@ class TelemetryWriter(PeriodicService):
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:
+        if not self._enabled:
+            return
+
         if self.started:
             self.periodic(force_flush=True, shutting_down=True)
         self.disable()

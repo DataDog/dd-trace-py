@@ -1,4 +1,7 @@
 import os
+import signal
+import subprocess
+import sys
 
 import pytest
 
@@ -81,6 +84,52 @@ subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
     # Only the parent should emit app-started and app-closing
     assert len(test_agent_session.get_events("app-started")) == 1
     assert len(test_agent_session.get_events("app-closing")) == 1
+
+
+def test_enable_sigterm_emits_app_closing(test_agent_session, tmpdir):
+    code = """
+import time
+
+import ddtrace
+
+print("READY", flush=True)
+
+while True:
+    time.sleep(0.1)
+"""
+
+    pyfile = tmpdir.join("test_signal_shutdown.py")
+    pyfile.write(code)
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(test_agent_session.token)
+
+    proc = subprocess.Popen(
+        [sys.executable, str(pyfile)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=sys.platform != "win32",
+    )
+
+    try:
+        ready = proc.stdout.readline()
+        if b"READY" not in ready:
+            stderr = proc.stderr.read().decode()
+            pytest.fail(f"Subprocess did not signal ready. Got: {ready!r}, stderr: {stderr}")
+
+        os.kill(proc.pid, signal.SIGTERM)
+        stdout, stderr = proc.communicate(timeout=5)
+        assert stdout in (b"",), stdout
+        assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+    app_closing = test_agent_session.get_events("app-closing")
+    assert len(app_closing) == 1
 
 
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
