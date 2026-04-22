@@ -48,7 +48,7 @@ suites:
     snapshot: true
     pattern: 'ci_visibility:snapshot'
   dd_coverage:
-    parallelism: 3
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
