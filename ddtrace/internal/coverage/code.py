@@ -5,6 +5,7 @@ from inspect import getmodule
 import os
 from pathlib import Path
 import sys
+import threading as _threading
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -35,12 +36,21 @@ ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
+# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
+# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+_tls_coverage = _threading.local()
+
 
 def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered.get():
             return context_stack[-1]
         log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+
+    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
+    tls_covered = getattr(_tls_coverage, "covered", None)
+    if tls_covered is not None:
+        return tls_covered
 
     return defaultdict(CoverageLines)
 
@@ -113,7 +123,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get():
+        if ctx_coverage_enabled.get() or getattr(_tls_coverage, "covered", None) is not None:
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
@@ -236,6 +246,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
 
+            # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
+            # so also store in thread-local as a fallback for the hook.
+            if sys.version_info >= (3, 14):
+                _tls_coverage.covered = ctx_covered.get()[-1]
+
             # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
             # This ensures each test/suite gets accurate coverage data
             if sys.version_info >= (3, 12):
@@ -250,6 +265,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
+                if sys.version_info >= (3, 14):
+                    _tls_coverage.covered = None
+            elif sys.version_info >= (3, 14):
+                _tls_coverage.covered = covered_lines_stack[-1]
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
