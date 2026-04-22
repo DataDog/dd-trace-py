@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where fetching an experiment by ID returned inaccurate
+    project and dataset names by using stale tag values instead of querying the backend.
+    This fix resolves the issue by fetching accurate project and dataset metadata directly
+    from the LLM Observability API when retrieving an experiment.

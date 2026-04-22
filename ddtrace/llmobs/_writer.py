@@ -737,6 +737,51 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         return project
 
+    def project_get_by_id(self, project_id: str) -> "Project":
+        path = f"/api/v2/llm-obs/v1/projects?filter[id]={project_id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get project with ID {project_id}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        data = response_data.get("data", [])
+        if not data:
+            raise ValueError(f"No project found for ID {project_id}")
+        project_name = data[0]["attributes"]["name"]
+        return Project(name=project_name, _id=project_id)
+
+    def dataset_get_by_id(self, project_id: str, dataset_id: str) -> "Dataset":
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets?filter[id]={dataset_id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(
+                f"Failed to get dataset with ID {dataset_id} in project {project_id}: {resp.status} {resp.get_json()}"
+            )
+        response_data = resp.get_json()
+        items = response_data.get("data", [])
+        if not items:
+            raise ValueError(f"Failed to get dataset with ID {dataset_id} in project {project_id}: dataset not found")
+        if len(items) > 1:
+            raise ValueError(
+                f"Failed to get dataset with ID {dataset_id} in project {project_id}: "
+                f"expected 1 result but got {len(items)}"
+            )
+        item = items[0]
+        attrs = item.get("attributes", {})
+        dataset_name = attrs["name"]
+        curr_version = attrs.get("current_version", 0)
+        dataset_description = attrs.get("description", "")
+        project = Project(name="", _id=project_id)
+        return Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            description=dataset_description,
+            latest_version=curr_version,
+            version=curr_version,
+            _dne_client=self,
+        )
+
     def experiment_get(self, id: str, tag_overrides: Optional[dict[str, str]] = None) -> "Experiment":  # noqa: A002
         path = f"/api/v2/llm-obs/v1/experiments?filter[id]={id}"
         resp = self.request("GET", path)
@@ -760,32 +805,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if tag_overrides:
             tags_dict.update(tag_overrides)
 
-        # TODO[gh] attempt to find the project & dataset name through tags if possible,
-        # temporary hack to avoid extra API calls
-        project_name = tags_dict.get("project_name", project_id)
-        dataset_name = tags_dict.get("dataset_name", dataset_id)
-
-        project = Project(name=project_name, _id=project_id)
-
-        dataset = Dataset(
-            name=dataset_name,
-            project=project,
-            dataset_id=dataset_id,
-            records=[],
-            # TODO[gh] need to fully pull dataset for this to be accurate, not critical for now
-            description="",
-            # TODO[gh] this may be incorrect
-            latest_version=experiment["dataset_version"],
-            version=experiment["dataset_version"],
-            _dne_client=self,
-        )
+        project = self.project_get_by_id(project_id)
+        dataset = self.dataset_get_by_id(project_id, dataset_id)
+        dataset._version = experiment["dataset_version"]
 
         experiment_obj = Experiment(
             name=experiment["experiment"],
             task=Experiment._NO_OP_TASK,
             dataset=dataset,
             evaluators=[],
-            project_name=project_name,
+            project_name=project["name"],
             tags=tags_dict,
             description=experiment["description"],
             config=experiment.get("config", {}),

@@ -1415,6 +1415,42 @@ def test_project_get_existing_project(llmobs):
     assert project.get("name") == TEST_PROJECT_NAME
 
 
+def test_project_get_by_id(llmobs):
+    project = llmobs._instance._dne_client.project_create_or_get(name=TEST_PROJECT_NAME)
+    project_id = project.get("_id")
+    assert project_id is not None
+
+    wait_for_backend()
+    fetched = llmobs._instance._dne_client.project_get_by_id(project_id)
+    assert fetched.get("_id") == project_id
+    assert fetched.get("name") == TEST_PROJECT_NAME
+
+
+def test_project_get_by_id_not_found(llmobs):
+    with pytest.raises(ValueError, match="No project found for ID"):
+        llmobs._instance._dne_client.project_get_by_id("93c7073f-4e69-4a53-bd93-74d9a15d5e51")
+
+
+def test_dataset_get_by_id(llmobs, test_dataset_one_record):
+    dataset_id = test_dataset_one_record._id
+    project_id = test_dataset_one_record.project.get("_id")
+
+    wait_for_backend()
+    fetched = llmobs._instance._dne_client.dataset_get_by_id(project_id, dataset_id)
+    assert fetched._id == dataset_id
+    assert fetched.name == test_dataset_one_record.name
+    assert fetched.description == test_dataset_one_record.description
+    assert fetched.latest_version == test_dataset_one_record.latest_version
+
+
+def test_dataset_get_by_id_not_found(llmobs):
+    with pytest.raises(ValueError, match="Failed to get dataset"):
+        llmobs._instance._dne_client.dataset_get_by_id(
+            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000001",
+        )
+
+
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
     with pytest.raises(TypeError, match="task must be a callable function."):
         llmobs.experiment("test_experiment", 123, test_dataset_one_record, [dummy_evaluator])
