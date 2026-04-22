@@ -521,6 +521,8 @@ class TestOptPlugin:
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
             TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
