@@ -58,7 +58,7 @@ def _build_span_event(
     if span_id is None:
         span_id = generate_128bit_trace_id()
     apm_trace_id = format_trace_id(root_span.trace_id)
-    llmobs_trace_id_str = get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id)
+    llmobs_trace_id_str = get_llmobs_trace_id(root_span) or apm_trace_id
     session_id = get_llmobs_session_id(root_span)
     ml_app = get_llmobs_ml_app(root_span)
     tags = [f"ml_app:{ml_app}", f"session_id:{session_id}", "integration:bedrock_agents"]
