@@ -184,8 +184,21 @@ def test_periodic_thread_lifecycle_stress():
                 % (pid, os.WEXITSTATUS(status_), seed, child_seed)
             )
 
-    ops = ["create", "start", "stop", "join", "awake", "drop", "gc", "churn"]
-    weights = [8, 10, 10, 5, 3, 6, 2, 1]
+    # Ops. "drop" stops first; "racy_drop" nullifies without stopping to
+    # exercise the dealloc-vs-running-thread path. Kept at a low weight to
+    # bound OS thread accumulation over long soaks — a running periodic
+    # thread stays alive via the module-level periodic_threads dict even
+    # after the pool ref is dropped, so racy_drop leaks a thread each time.
+    ops = ["create", "start", "stop", "join", "awake", "drop", "racy_drop", "gc", "churn"]
+    weights = [8, 10, 10, 5, 3, 8, 1, 2, 1]
+
+    def _stop_safely(o):
+        if o is None:
+            return
+        try:
+            o.stop()
+        except (RuntimeError, service.ServiceStatusError, Exception):
+            pass
 
     start_ts = time.monotonic()
     step = 0
@@ -209,6 +222,10 @@ def test_periodic_thread_lifecycle_stress():
 
         try:
             if op == "create":
+                # Stop the existing occupant first; otherwise the old
+                # PeriodicThread stays alive via periodic_threads[ident] and
+                # the OS thread keeps running, leaking across iterations.
+                _stop_safely(obj)
                 pool[idx] = _new_obj()
 
             elif op == "start":
@@ -245,8 +262,16 @@ def test_periodic_thread_lifecycle_stress():
                         pass
 
             elif op == "drop":
-                # The point: drop the last ref while the thread may be
-                # mid-start or mid-stop (exercises dealloc races).
+                # Clean drop: stop first so the OS thread exits and the
+                # periodic_threads ref is released. This is the common case.
+                _stop_safely(obj)
+                pool[idx] = None
+
+            elif op == "racy_drop":
+                # Drop the pool ref without stopping. The OS thread stays
+                # alive via periodic_threads, so this is a leak over time;
+                # the low weight on this op keeps accumulation bounded.
+                # Exercises the dealloc-vs-running-thread path.
                 pool[idx] = None
 
             elif op == "gc":
