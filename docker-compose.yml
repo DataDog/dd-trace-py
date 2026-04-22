@@ -195,7 +195,7 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:ff9ade698ee5f3f3dc6e551ed18d41aba55da58d
+        image: ghcr.io/datadog/dd-trace-py/testrunner:3955771ee9eed90aacf1f428be092170e77f5af2
         command: bash
         # Resource limits: defaults to 0 (unlimited, uses all available system resources)
         # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
