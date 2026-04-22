@@ -413,6 +413,13 @@ class TelemetryWriter(PeriodicService):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
         elif isinstance(configuration_value, (list, tuple)):
             configuration_value = ",".join(str(v) for v in configuration_value)
+        elif isinstance(configuration_value, (set, frozenset)):
+            type_name = type(configuration_value).__name__
+            if not configuration_value:
+                configuration_value = f"{type_name}()"
+            else:
+                sorted_reprs = ", ".join(repr(v) for v in sorted(str(x) for x in configuration_value))
+                configuration_value = f"{type_name}({{{sorted_reprs}}})"
         elif not isinstance(configuration_value, (bool, str, int, float, type(None))):
             # convert unsupported types to strings
             configuration_value = str(configuration_value)
