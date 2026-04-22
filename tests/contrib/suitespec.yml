@@ -426,6 +426,9 @@ suites:
     snapshot: true
     services:
       - azurite
+  # the azure_functions suites don't work in the arm64 testrunner container
+  # (the one that runs from scripts/ddtest on Mac OS)
+  # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
     parallelism: 4
     paths:
