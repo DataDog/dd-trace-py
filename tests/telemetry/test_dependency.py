@@ -855,9 +855,7 @@ class TestSnapshotForHeartbeat:
 
         tracer_config._sca_enabled = True
         tracker = DependencyTracker()
-        tracker._imported_dependencies["requests"] = DependencyEntry(
-            name="requests", version="2.28.0", metadata=[]
-        )
+        tracker._imported_dependencies["requests"] = DependencyEntry(name="requests", version="2.28.0", metadata=[])
 
         stop = threading.Event()
         errors: list[BaseException] = []
