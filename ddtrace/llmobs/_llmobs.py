@@ -593,7 +593,11 @@ class LLMObs(Service):
         if session_id:
             llmobs_span_event["session_id"] = session_id
         if cost_tags:
-            metadata_dd = llmobs_span_event["meta"]["metadata"].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            metadata = llmobs_span_event["meta"]["metadata"]
+            metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD)
+            if not isinstance(metadata_dd, dict):
+                metadata_dd = {}
+                metadata[LLMOBS_STRUCT.METADATA_DD] = metadata_dd
             metadata_dd[LLMOBS_STRUCT.COST_TAGS] = cost_tags
         if span_links:
             llmobs_span_event["span_links"] = span_links
