@@ -114,7 +114,7 @@ else:
 
 writer_kwargs = {}
 if in_aws_lambda():
-    writer_kwargs['is_periodic'] = False
+    writer_kwargs["is_periodic"] = False
 telemetry_writer = TelemetryWriter(**writer_kwargs)
 
 
