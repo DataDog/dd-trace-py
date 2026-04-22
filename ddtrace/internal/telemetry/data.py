@@ -77,23 +77,23 @@ def get_application(service: str, version: str, env: str) -> dict:
     return _get_application((service, version, env))
 
 
-_host_info = None
+@cached()
+def _get_host_info(_: tuple = ()) -> dict:
+    """Build the host-info dict once. Cached() provides thread-safe memoization."""
+    return {
+        "os": platform.system(),
+        "hostname": get_hostname(),
+        "os_version": _get_os_version(),
+        "kernel_name": platform.system(),
+        "kernel_release": platform.release(),
+        "kernel_version": platform.version(),
+        "container_id": _get_container_id(),
+    }
 
 
 def get_host_info() -> dict:
     """Creates a dictionary to store host data using the platform module"""
-    global _host_info
-    if _host_info is None:
-        _host_info = {
-            "os": platform.system(),
-            "hostname": get_hostname(),
-            "os_version": _get_os_version(),
-            "kernel_name": platform.system(),
-            "kernel_release": platform.release(),
-            "kernel_version": platform.version(),
-            "container_id": _get_container_id(),
-        }
-    return _host_info
+    return _get_host_info(())
 
 
 def _get_sysconfig_var(key: str) -> str:
