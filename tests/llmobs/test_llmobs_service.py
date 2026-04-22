@@ -2395,3 +2395,48 @@ class TestBuildSpanEventFromMetaStructE2E:
         assert event["status"] == "error"
         assert event["meta"]["error"]["type"] == "builtins.ValueError"
         assert event["meta"]["error"]["message"] == "something went wrong"
+
+
+def test_default_export_mode_enqueues_writer_and_sets_submitted_tag(llmobs, llmobs_events):
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+    from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+
+    with llmobs.workflow(name="w") as span:
+        pass
+    assert len(llmobs_events) == 1
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+    assert not span._get_struct_tag(LLMOBS_STRUCT.KEY)
+
+
+def test_apm_export_mode_does_not_enqueue_writer(ddtrace_run_python_code_in_subprocess):
+    # _DD_LLMOBS_EXPORT is read at LLMObs.__init__, so a subprocess is required to vary it.
+    from textwrap import dedent
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_LLMOBS_EXPORT": "apm",
+            "DD_LLMOBS_ENABLED": "1",
+            "DD_LLMOBS_ML_APP": "test",
+            "DD_API_KEY": "test",
+            "DD_TRACE_ENABLED": "0",
+        }
+    )
+    code = dedent(
+        """
+        from unittest.mock import patch
+        from ddtrace.llmobs import LLMObs
+        from ddtrace.llmobs._constants import LLMOBS_STRUCT, LLMOBS_SUBMITTED_TAG_KEY
+
+        LLMObs.enable()
+        assert LLMObs._instance._export_directly_to_llmobs is False
+        with patch.object(LLMObs._instance._llmobs_span_writer, "enqueue") as m:
+            with LLMObs.workflow(name="w") as span:
+                pass
+            assert m.call_count == 0
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+        assert span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        """
+    )
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err

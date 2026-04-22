@@ -691,6 +691,70 @@ def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
     assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
 
 
+def test_default_mode_clears_meta_struct_on_success(llmobs, llmobs_events):
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+
+    with llmobs.workflow(name="w") as span:
+        pass
+    assert len(llmobs_events) == 1
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+    assert not span._get_struct_tag(LLMOBS_STRUCT.KEY)
+
+
+def _drop_span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
+    return None
+
+
+class TestMetaStructCleanup:
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_drop_span_processor)])
+    def test_user_processor_drop_clears_meta_struct_in_default_mode(self, llmobs, llmobs_enable_opts, llmobs_events):
+        from ddtrace.llmobs._constants import LLMOBS_STRUCT
+
+        with llmobs.llm() as span:
+            llmobs.annotate(span, input_data="drop me", output_data="x")
+        assert len(llmobs_events) == 0
+        assert not span._get_struct_tag(LLMOBS_STRUCT.KEY)
+
+    def test_event_build_exception_clears_meta_struct_in_default_mode(self, llmobs, monkeypatch):
+        from ddtrace.llmobs._constants import LLMOBS_STRUCT
+
+        def _boom(_span):
+            raise ValueError("forced")
+
+        monkeypatch.setattr(llmobs._instance, "_llmobs_span_event", _boom)
+        with llmobs.workflow(name="w") as span:
+            pass
+        assert not span._get_struct_tag(LLMOBS_STRUCT.KEY)
+
+    def test_apm_mode_retains_meta_struct_on_drop(self, ddtrace_run_python_code_in_subprocess):
+        env = os.environ.copy()
+        env.update(
+            {
+                "_DD_LLMOBS_EXPORT": "apm",
+                "DD_LLMOBS_ENABLED": "1",
+                "DD_LLMOBS_ML_APP": "test",
+                "DD_API_KEY": "test",
+                "DD_TRACE_ENABLED": "0",
+            }
+        )
+        code = dedent(
+            """
+            from ddtrace.llmobs import LLMObs
+            from ddtrace.llmobs._constants import LLMOBS_STRUCT
+
+            def drop(_s):
+                return None
+
+            LLMObs.enable(span_processor=drop)
+            with LLMObs.workflow(name="w") as span:
+                pass
+            assert span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            """
+        )
+        out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+        assert status == 0, err
+
+
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
     """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
     with llmobs._instance.tracer.trace("regular_span") as span:

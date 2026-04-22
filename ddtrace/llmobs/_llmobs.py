@@ -128,6 +128,8 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
+from ddtrace.llmobs._utils import _normalize_trace_id_to_hex
+from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
@@ -497,27 +499,29 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        if not self._prepare_llmobs_span_data(span, span_kind):
-            return
-
-        span_event = None
         try:
-            span_event = self._llmobs_span_event(span)
-        except (KeyError, TypeError, ValueError):
-            log.error(
-                "Error generating LLMObs span event for span %s, likely due to malformed span",
-                span,
-                exc_info=True,
-            )
+            if not self._prepare_llmobs_span_data(span, span_kind):
+                return
 
-        if span_event and self._evaluator_runner and span_kind == "llm":
-            self._evaluator_runner.enqueue(span_event, span)
+            span_event = None
+            try:
+                span_event = self._llmobs_span_event(span)
+            except (KeyError, TypeError, ValueError):
+                log.error(
+                    "Error generating LLMObs span event for span %s, likely due to malformed span",
+                    span,
+                    exc_info=True,
+                )
 
-        if self._export_directly_to_llmobs and span_event:
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            self._llmobs_span_writer.enqueue(span_event)
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
-            return
+            if span_event and self._evaluator_runner and span_kind == "llm":
+                self._evaluator_runner.enqueue(span_event, span)
+
+            if self._export_directly_to_llmobs and span_event:
+                span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+                self._llmobs_span_writer.enqueue(span_event)
+        finally:
+            if self._export_directly_to_llmobs:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -605,8 +609,10 @@ class LLMObs(Service):
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
 
+        submitted_trace_id = _normalize_trace_id_to_hex(llmobs_trace_id) or llmobs_trace_id
+
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": llmobs_trace_id,
+            "trace_id": submitted_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": get_llmobs_span_name(span) or span.name,
@@ -1847,9 +1853,9 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = get_llmobs_trace_id(active) or format_trace_id(
-                active.trace_id
-            )
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active) or format_trace_id(active.trace_id))
+            if wire_trace_id:
+                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             return context
         return None
 
@@ -1861,12 +1867,14 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
-            parent_llmobs_trace_id = (
-                get_llmobs_trace_id(llmobs_parent)
-                if isinstance(llmobs_parent, Span)
-                # ast-grep-ignore: span-meta-access
-                else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            )
+            if isinstance(llmobs_parent, Span):
+                parent_llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
+            else:
+                # Upstream wire value may be decimal (older SDKs) or hex; normalize to hex.
+                parent_llmobs_trace_id = _normalize_trace_id_to_hex(
+                    # ast-grep-ignore: span-meta-access
+                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                )
             llmobs_trace_id = (
                 parent_llmobs_trace_id
                 if parent_llmobs_trace_id is not None
@@ -2765,7 +2773,9 @@ class LLMObs(Service):
             llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
-        span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = llmobs_trace_id or ""
+        wire_trace_id = _trace_id_to_wire(llmobs_trace_id)
+        if wire_trace_id:
+            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
@@ -2841,7 +2851,10 @@ class LLMObs(Service):
                 error = "missing_parent_llmobs_trace_id"
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
+            normalized_trace_id = _normalize_trace_id_to_hex(str(parent_llmobs_trace_id))
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = (
+                normalized_trace_id if normalized_trace_id is not None else format_trace_id(context.trace_id)
+            )
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

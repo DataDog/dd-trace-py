@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -447,3 +448,63 @@ async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
     assert main_task_span["trace_id"] == side_task_span["trace_id"]
     assert main_task_span["_dd"]["apm_trace_id"] == side_task_span["_dd"]["apm_trace_id"]
     assert main_task_span["trace_id"] != main_task_span["_dd"]["apm_trace_id"]
+
+
+_HEX_TRACE_ID = "ef017ddb6db557ea44fb6ce732fd0687"
+_DECIMAL_TRACE_ID = str(int(_HEX_TRACE_ID, 16))
+
+
+def _make_upstream_llmobs_context(trace_id_value, parent_id="987654321"):
+    from ddtrace.trace import Context
+
+    ctx = Context(trace_id=123456789, span_id=int(parent_id))
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id_value
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+    return ctx
+
+
+def test_injected_trace_id_is_decimal_on_the_wire(llmobs):
+    """Wire must stay decimal so older SDKs that do int(header) keep working."""
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    wire_value = span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+    assert wire_value and wire_value.isdigit()
+
+
+def test_activate_decimal_header_stores_canonical_hex(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_hex_header_stores_canonical_hex(llmobs):
+    ctx = _make_upstream_llmobs_context(_HEX_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_non_numeric_header_passthrough_does_not_raise(llmobs):
+    custom_tid = "my-custom-trace-id-not-numeric"
+    ctx = _make_upstream_llmobs_context(custom_tid)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == custom_tid
+
+
+def test_submitted_event_trace_id_is_hex_when_upstream_sent_decimal(llmobs, llmobs_events):
+    """Backend must always see hex so trace joining works even across mixed-version upstreams."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["trace_id"] == _HEX_TRACE_ID
+
+
+def test_inject_skips_header_when_trace_id_is_empty(llmobs, monkeypatch):
+    monkeypatch.setattr("ddtrace.llmobs._llmobs._trace_id_to_wire", lambda _v: None)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) != ""
