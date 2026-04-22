@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: A rare crash that could occur when the sampling thread failed to
+    stop at exit was fixed.

@@ -42,6 +42,7 @@ class Sampler
 
     // This is a singleton, so no public constructor
     Sampler();
+    ~Sampler();
 
     // One-time setup of echion
     void one_time_setup();
