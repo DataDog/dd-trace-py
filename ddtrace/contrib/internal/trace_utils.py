@@ -38,6 +38,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
@@ -497,9 +498,10 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
+    # We always collect the IP if appsec or AI Guard is enabled to report it on potential vulnerabilities.
+    # AI Guard: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
+    # AppSec: https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip or ai_guard_config._ai_guard_enabled:
         # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
         request_ip = core.find_item("http.request.remote_ip")
 
