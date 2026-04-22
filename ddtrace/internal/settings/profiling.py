@@ -372,10 +372,10 @@ class ProfilingConfigLock(DDConfig):
     )
 
     exclude_modules = DDConfig.v(
-        set,
+        frozenset,
         "exclude_modules",
-        parser=lambda raw: set(p.strip() for p in raw.split(",") if p.strip()),
-        default=set(
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(
             {
                 # Datadog internals (profiling our own profileris noise)
                 "ddtrace",

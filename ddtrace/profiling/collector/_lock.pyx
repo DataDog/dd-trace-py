@@ -499,7 +499,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         # Precompute module exclusion structures once at patch time (not per lock creation).
         # Two structures for fast matching:
         #   exclude_exact  — frozenset for O(1) exact module name lookup
-        #   exclude_dotted — tuple of "prefix." strings for str.startswith()
+        #   exclude_dotted — tuple of "prefix." strings for str.startswith
         exclude_exact: frozenset[str] = config.lock.exclude_modules
         exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
 
