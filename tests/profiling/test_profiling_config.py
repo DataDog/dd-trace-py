@@ -59,7 +59,7 @@ class TestExcludeModulesConfig:
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
 
         cfg = ProfilingConfigLock()
-        assert isinstance(cfg.exclude_modules, set)
+        assert isinstance(cfg.exclude_modules, frozenset)
 
     def test_parsed_value_is_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A non-empty env var must produce a frozenset[str], not a raw string."""
@@ -67,8 +67,8 @@ class TestExcludeModulesConfig:
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
 
         cfg = ProfilingConfigLock()
-        assert isinstance(cfg.exclude_modules, set)
-        assert cfg.exclude_modules == set({"uvicorn", "asyncio", "sqlalchemy.pool"})
+        assert isinstance(cfg.exclude_modules, frozenset)
+        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio", "sqlalchemy.pool"})
 
     def test_whitespace_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Leading/trailing whitespace around module names must be stripped."""
@@ -76,4 +76,4 @@ class TestExcludeModulesConfig:
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
 
         cfg = ProfilingConfigLock()
-        assert cfg.exclude_modules == set({"uvicorn", "asyncio"})
+        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
