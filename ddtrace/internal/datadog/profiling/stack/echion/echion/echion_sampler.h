@@ -32,6 +32,17 @@ class EchionSampler
     std::unordered_map<uintptr_t, GreenletInfo::ID> greenlet_thread_map_;
     std::mutex greenlet_info_map_lock_;
 
+    // Greenlet struct offset discovery: allows reading gr_frame and
+    // stack_stop at sample time instead of caching per-switch via
+    // update_greenlet_frame().  The greenlet struct uses pimpl indirection:
+    //   PyGreenlet + pimpl_offset       -> Greenlet* (pimpl)
+    //   Greenlet*  + frame_offset       -> struct _frame* (gr_frame)
+    //   Greenlet*  + stack_stop_offset -> char* (stack_stop, non-NULL = active)
+    size_t greenlet_pimpl_offset_ = 0;
+    size_t greenlet_frame_offset_ = 0;
+    size_t greenlet_stack_stop_offset_ = 0;
+    bool greenlet_offsets_valid_ = false;
+
     // Asyncio state
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
@@ -74,6 +85,18 @@ class EchionSampler
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
     std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map() { return greenlet_thread_map_; }
     std::mutex& greenlet_info_map_lock() { return greenlet_info_map_lock_; }
+
+    void set_greenlet_offsets(size_t pimpl_offset, size_t frame_offset, size_t stack_stop_offset)
+    {
+        greenlet_pimpl_offset_ = pimpl_offset;
+        greenlet_frame_offset_ = frame_offset;
+        greenlet_stack_stop_offset_ = stack_stop_offset;
+        greenlet_offsets_valid_ = true;
+    }
+    size_t greenlet_pimpl_offset() const { return greenlet_pimpl_offset_; }
+    size_t greenlet_frame_offset() const { return greenlet_frame_offset_; }
+    size_t greenlet_stack_stop_offset() const { return greenlet_stack_stop_offset_; }
+    bool greenlet_offsets_valid() const { return greenlet_offsets_valid_; }
 
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
