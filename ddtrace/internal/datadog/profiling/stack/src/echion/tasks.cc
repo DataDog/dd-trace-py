@@ -3,6 +3,7 @@
 
 #include <echion/echion_sampler.h>
 
+#include <array>
 #include <stack>
 #include <vector>
 
@@ -29,11 +30,13 @@ GenInfo::create_impl(PyObject* gen_addr)
         int gi_running;
 #endif
     };
-
-    std::vector<Node> chain;
+    static_assert(sizeof(Node) * MAX_RECURSION_DEPTH <= static_cast<size_t>(10) * 1024,
+                  "Node array too large (max 10KB)");
+    std::array<Node, MAX_RECURSION_DEPTH> chain;
+    size_t chain_size = 0;
 
     PyObject* cur = gen_addr;
-    for (size_t depth = 0; depth <= MAX_RECURSION_DEPTH; ++depth) {
+    for (size_t depth = 0; depth < MAX_RECURSION_DEPTH; ++depth) {
         PyGenObject gen;
         if (copy_type(cur, gen)) {
             break;
@@ -80,7 +83,7 @@ GenInfo::create_impl(PyObject* gen_addr)
 #else
         node.gi_running = gen.gi_running;
 #endif
-        chain.push_back(node);
+        chain[chain_size++] = node;
 
         if (yf == NULL || yf == cur) {
             break;
@@ -88,7 +91,7 @@ GenInfo::create_impl(PyObject* gen_addr)
         cur = yf;
     }
 
-    if (chain.empty()) {
+    if (chain_size == 0) {
         return ErrorKind::GenInfoError;
     }
 
@@ -97,7 +100,7 @@ GenInfo::create_impl(PyObject* gen_addr)
     // the coroutine it awaits is running.
     bool chain_is_running = false;
     {
-        const auto& leaf = chain.back();
+        const auto& leaf = chain[chain_size - 1];
 #if PY_VERSION_HEX >= 0x030b0000
         chain_is_running = (leaf.gi_frame_state == FRAME_EXECUTING);
 #elif PY_VERSION_HEX >= 0x030a0000
@@ -109,8 +112,9 @@ GenInfo::create_impl(PyObject* gen_addr)
 
     // Build the GenInfo linked list from the leaf back to the root.
     GenInfo::Ptr result = nullptr;
-    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
-        result = std::make_unique<GenInfo>(it->origin, it->frame, std::move(result), chain_is_running);
+    for (size_t i = chain_size; i > 0; --i) {
+        const auto& node = chain[i - 1];
+        result = std::make_unique<GenInfo>(node.origin, node.frame, std::move(result), chain_is_running);
     }
 
     return result;
