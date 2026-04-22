@@ -339,11 +339,11 @@ integrations:
   - opensearch-py
   tested_versions_by_dependency:
     elastic-transport:
-      min: 8.11.0
-      max: 9.1.0
+      min: 8.17.1
+      max: 9.2.1
     elasticsearch:
       min: 7.13.4
-      max: 9.1.0
+      max: 9.3.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -358,7 +358,7 @@ integrations:
       max: 6.8.2
     elasticsearch7:
       min: 7.13.4
-      max: 7.17.12
+      max: 7.17.13
     opensearch-py:
       min: 1.1.0
       max: 3.0.0
