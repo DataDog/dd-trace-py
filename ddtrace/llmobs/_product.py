@@ -72,21 +72,14 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     llmobs_config = lib_config.get("llmobs") or {}
 
     enabled_config = dd_config._config["_llmobs_enabled"]
+    enabled_config.set_value(llmobs_config.get("enabled"), "remote_config")
+
     ml_app_config = dd_config._config["_llmobs_ml_app"]
+    ml_app_config.set_value(llmobs_config.get("ml_app_name"), "remote_config")
 
-    # Gate state on the concrete payload value, not value() — value()'s fallback
-    # to default False silently disabled programmatically-enabled LLMObs.
-    ml_app_name = llmobs_config.get("ml_app_name")
-    if ml_app_config._rc_value != ml_app_name:
-        ml_app_config.set_value(ml_app_name, "remote_config")
-
-    enabled = llmobs_config.get("enabled")
-    if enabled_config._rc_value != enabled:
-        enabled_config.set_value(enabled, "remote_config")
-
-    if enabled is True and not LLMObs.enabled:
+    if enabled_config.value() and not LLMObs.enabled:
         log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", ml_app_config.value())
         LLMObs.enable(ml_app=ml_app_config.value(), _auto=True)
-    elif enabled is False and LLMObs.enabled:
+    elif not enabled_config.value() and LLMObs.enabled:
         log.debug("Disabling LLMObs via Remote Config: %r", llmobs_config)
-        LLMObs.disable()
+        LLMObs.disable(_auto=True)

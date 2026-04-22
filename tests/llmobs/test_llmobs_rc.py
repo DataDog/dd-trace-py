@@ -79,10 +79,9 @@ def test_rc_missing_llmobs_does_not_disable_enabled_llmobs():
 
 @pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
 def test_rc_directive_removal_clears_rc_override():
-    """When an llmobs.enabled directive is present on one poll and absent on the next
+    """When an llmobs directive is present on one poll and absent on the next
     (e.g. the upstream RC config was removed), the handler must clear the stale
-    _rc_value so _ConfigItem.value() falls back through env/code/default — matching
-    the _tracing_enabled idiom in ddtrace/_trace/product.py.
+    _rc_value so _ConfigItem.value() falls back through env/code/default.
     """
     import mock
 
@@ -105,17 +104,12 @@ def test_rc_directive_removal_clears_rc_override():
 
 @pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
 def test_rc_missing_llmobs_does_not_disable_programmatically_enabled_llmobs():
-    """Regression: payloads without an llmobs directive must not disable LLMObs when
-    it was enabled programmatically (no DD_LLMOBS_ENABLED env var).
-
-    This is the scenario that actually reproduces the 4.8.0rc regression. When
-    enablement comes from LLMObs.enable() rather than the env var, the
-    _llmobs_enabled _ConfigItem has neither _env_value nor _code_value set, so
-    set_value(None, "remote_config") leaves value() falling through to the default
-    (False) and the stale `elif not enabled_config.value() and LLMObs.enabled:`
-    branch disables LLMObs on every RC poll. A DD_LLMOBS_ENABLED-based test does
-    not exercise this path because _env_value shields value() from the None rc
-    override.
+    """Regression: payloads without an llmobs directive must not disable LLMObs
+    when it was enabled programmatically via LLMObs.enable() (no DD_LLMOBS_ENABLED
+    env var). The pre-fix handler branched on _ConfigItem.value(), which fell
+    through to the default False and fired LLMObs.disable() on every RC poll.
+    The fix relies on LLMObs.enable() writing _code_value=True so value() reflects
+    the effective state.
     """
     import mock
 
@@ -123,13 +117,13 @@ def test_rc_missing_llmobs_does_not_disable_programmatically_enabled_llmobs():
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._product import apm_tracing_rc
 
-    # Simulate the state left by LLMObs.enable(ml_app=...): the class attribute is
-    # flipped True but the _llmobs_enabled _ConfigItem is untouched.
+    # Simulate the post-LLMObs.enable() state: class attribute flipped True AND
+    # ddtrace.config._llmobs_enabled written to "code" source (what enable() does
+    # via Config.__setattr__).
     LLMObs.enabled = True
+    ddtrace.config._llmobs_enabled = True
     enabled_item = ddtrace.config._config["_llmobs_enabled"]
-    assert enabled_item.value() is False, (
-        "precondition: without env/code override, _ConfigItem.value() falls through to default False"
-    )
+    assert enabled_item.value() is True, "precondition: post-enable invariant holds"
 
     for payload in ({}, {"llmobs": {}}, {"llmobs": {"ml_app_name": "some-app"}}):
         with mock.patch.object(LLMObs, "disable") as mock_disable:
