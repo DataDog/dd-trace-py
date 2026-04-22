@@ -725,7 +725,7 @@
         "dependency": "structlog",
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
-        "max_tracer_supported": "25.4.0",
+        "max_tracer_supported": "25.5.0",
         "auto-instrumented": true
     },
     {
