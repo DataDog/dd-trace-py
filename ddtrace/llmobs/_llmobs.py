@@ -1578,10 +1578,11 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
-                          metrics. Keys must already exist on the merged span tag set. Since annotation contexts
-                          are applied at span start, `cost_tags` should reference tags provided in the same context
-                          or already present on the span when it starts. Use only low-cardinality tag keys here;
-                          propagation to downstream cost/token metrics depends on backend support for the feature.
+                          metrics. Each entry must be a tag key already present in the span's tags at the time the
+                          annotation is applied. Since annotation contexts are applied at span start, `cost_tags`
+                          should reference tags provided in the same context or already present on the span when it
+                          starts. Propagation to downstream cost/token metrics depends on backend support for
+                          the feature.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
@@ -2287,9 +2288,9 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param cost_tags: List of tag keys from `tags` that should also be propagated to LLMObs cost and token
-                          metrics. Keys must already exist on the merged span tag set. Use only low-cardinality tag
-                          keys here; propagation to downstream cost/token metrics depends on backend support for the
-                          feature.
+                          metrics. Each entry must be a tag key already present in the span's tags at the time the
+                          annotation is applied. Propagation to downstream cost/token metrics depends on backend
+                          support for the feature.
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
